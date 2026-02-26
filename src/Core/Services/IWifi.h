@@ -26,4 +26,5 @@ struct WifiService {
     bool (*requestReconnect)(void* ctx);
     bool (*requestScan)(void* ctx, bool force);
     bool (*scanStatusJson)(void* ctx, char* out, size_t outLen);
+    bool (*setStaRetryEnabled)(void* ctx, bool enabled);
 };

@@ -220,6 +220,8 @@ void MQTTModule::onConnect_(bool) {
     alarmsMetaPending_ = true;
     alarmsFullSyncPending_ = true;
     alarmsPackPending_ = true;
+    alarmsRetryBackoffMs_ = 0;
+    alarmsRetryNextMs_ = 0;
 }
 
 void MQTTModule::onDisconnect_() {
@@ -231,6 +233,8 @@ void MQTTModule::onDisconnect_() {
     cfgRampActive_ = false;
     cfgRampRestartRequested_ = false;
     cfgRampIndex_ = 0;
+    alarmsRetryBackoffMs_ = 0;
+    alarmsRetryNextMs_ = 0;
     setState(MQTTState::ErrorWait);
 }
 
@@ -942,6 +946,8 @@ void MQTTModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     alarmsMetaPending_ = false;
     alarmsFullSyncPending_ = false;
     alarmsPackPending_ = false;
+    alarmsRetryBackoffMs_ = 0;
+    alarmsRetryNextMs_ = 0;
     syncRxMetrics_();
 
     mqttSvc.publish = MQTTModule::svcPublish;
@@ -1012,35 +1018,83 @@ void MQTTModule::loop() {
         while (xQueueReceive(rxQ, &m, 0) == pdTRUE) processRx(m);
         uint32_t now = millis();
 
-        if (alarmsFullSyncPending_ && alarmSvc && alarmSvc->listIds) {
-            AlarmId ids[Limits::Alarm::MaxAlarms]{};
-            const uint8_t n = alarmSvc->listIds(alarmSvc->ctx, ids, (uint8_t)Limits::Alarm::MaxAlarms);
-            bool okAll = true;
-            for (uint8_t i = 0; i < n; ++i) {
-                if (!publishAlarmState_(ids[i])) okAll = false;
-            }
-            if (!publishAlarmMeta_()) okAll = false;
-            if (okAll) {
-                alarmsFullSyncPending_ = false;
-                alarmsMetaPending_ = false;
-            }
-        } else {
-            AlarmId pendingIds[PendingAlarmIdsMax]{};
-            const uint8_t nPending = takePendingAlarmIds_(pendingIds, PendingAlarmIdsMax);
-            for (uint8_t i = 0; i < nPending; ++i) {
-                if (!publishAlarmState_(pendingIds[i])) {
-                    enqueuePendingAlarmId_(pendingIds[i]);
+        const bool alarmRetryDue =
+            (alarmsRetryNextMs_ == 0U) || ((int32_t)(now - alarmsRetryNextMs_) >= 0);
+        bool alarmAttempted = false;
+        bool alarmFailed = false;
+
+        if (alarmRetryDue) {
+            if (alarmsFullSyncPending_ && alarmSvc && alarmSvc->listIds) {
+                AlarmId ids[Limits::Alarm::MaxAlarms]{};
+                const uint8_t n = alarmSvc->listIds(alarmSvc->ctx, ids, (uint8_t)Limits::Alarm::MaxAlarms);
+                bool okAll = true;
+                for (uint8_t i = 0; i < n; ++i) {
+                    alarmAttempted = true;
+                    if (!publishAlarmState_(ids[i])) {
+                        okAll = false;
+                        alarmFailed = true;
+                        break;
+                    }
                 }
-            }
-            if (alarmsMetaPending_) {
-                if (publishAlarmMeta_()) {
+                if (!alarmFailed) {
+                    alarmAttempted = true;
+                    if (!publishAlarmMeta_()) {
+                        okAll = false;
+                        alarmFailed = true;
+                    }
+                }
+                if (okAll) {
+                    alarmsFullSyncPending_ = false;
                     alarmsMetaPending_ = false;
                 }
+            } else {
+                AlarmId pendingIds[PendingAlarmIdsMax]{};
+                const uint8_t nPending = takePendingAlarmIds_(pendingIds, PendingAlarmIdsMax);
+                for (uint8_t i = 0; i < nPending; ++i) {
+                    alarmAttempted = true;
+                    if (!publishAlarmState_(pendingIds[i])) {
+                        enqueuePendingAlarmId_(pendingIds[i]);
+                        for (uint8_t j = (uint8_t)(i + 1U); j < nPending; ++j) {
+                            enqueuePendingAlarmId_(pendingIds[j]);
+                        }
+                        alarmFailed = true;
+                        break;
+                    }
+                }
+                if (!alarmFailed && alarmsMetaPending_) {
+                    alarmAttempted = true;
+                    if (publishAlarmMeta_()) {
+                        alarmsMetaPending_ = false;
+                    } else {
+                        alarmFailed = true;
+                    }
+                }
             }
-        }
-        if (alarmsPackPending_) {
-            if (publishAlarmPack_()) {
-                alarmsPackPending_ = false;
+            if (!alarmFailed && alarmsPackPending_) {
+                alarmAttempted = true;
+                if (publishAlarmPack_()) {
+                    alarmsPackPending_ = false;
+                } else {
+                    alarmFailed = true;
+                }
+            }
+
+            if (alarmFailed) {
+                constexpr uint32_t kAlarmRetryBackoffMinMs = 500U;
+                constexpr uint32_t kAlarmRetryBackoffMaxMs = 10000U;
+                uint32_t nextBackoff = alarmsRetryBackoffMs_;
+                if (nextBackoff == 0U) {
+                    nextBackoff = kAlarmRetryBackoffMinMs;
+                } else if (nextBackoff >= (kAlarmRetryBackoffMaxMs / 2U)) {
+                    nextBackoff = kAlarmRetryBackoffMaxMs;
+                } else {
+                    nextBackoff *= 2U;
+                }
+                alarmsRetryBackoffMs_ = nextBackoff;
+                alarmsRetryNextMs_ = now + nextBackoff;
+            } else if (alarmAttempted) {
+                alarmsRetryBackoffMs_ = 0U;
+                alarmsRetryNextMs_ = 0U;
             }
         }
         if (sensorsPending && sensorsTopic && sensorsBuild) {

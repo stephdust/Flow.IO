@@ -71,6 +71,49 @@ void AlarmModule::emitAlarmEvent_(EventId id, AlarmId alarmId) const
     (void)eventBus_->post(id, &payload, sizeof(payload));
 }
 
+bool AlarmModule::allowAlarmNotifyNow_(AlarmId id, uint32_t nowMs)
+{
+    bool allowNow = true;
+    portENTER_CRITICAL(&slotsMux_);
+    const int16_t idx = findSlotById_(id);
+    if (idx >= 0) {
+        AlarmSlot& s = slots_[(uint16_t)idx];
+        const uint32_t minRepeatMs = s.def.minRepeatMs;
+        if (minRepeatMs > 0U &&
+            s.lastNotifyMs != 0U &&
+            !delayReached_(s.lastNotifyMs, minRepeatMs, nowMs)) {
+            s.notifyPending = true;
+            allowNow = false;
+        } else {
+            s.lastNotifyMs = nowMs;
+            s.notifyPending = false;
+            allowNow = true;
+        }
+    }
+    portEXIT_CRITICAL(&slotsMux_);
+    return allowNow;
+}
+
+uint8_t AlarmModule::takeDueAlarmNotifyIds_(AlarmId* out, uint8_t max, uint32_t nowMs)
+{
+    if (!out || max == 0U) return 0U;
+
+    uint8_t count = 0U;
+    portENTER_CRITICAL(&slotsMux_);
+    for (uint16_t i = 0; i < Limits::Alarm::MaxAlarms && count < max; ++i) {
+        AlarmSlot& s = slots_[i];
+        if (!s.used || !s.notifyPending) continue;
+        const uint32_t minRepeatMs = s.def.minRepeatMs;
+        if (minRepeatMs == 0U || delayReached_(s.lastNotifyMs, minRepeatMs, nowMs)) {
+            s.notifyPending = false;
+            s.lastNotifyMs = nowMs;
+            out[count++] = s.id;
+        }
+    }
+    portEXIT_CRITICAL(&slotsMux_);
+    return count;
+}
+
 int16_t AlarmModule::findSlotById_(AlarmId id) const
 {
     for (uint16_t i = 0; i < Limits::Alarm::MaxAlarms; ++i) {
@@ -603,6 +646,12 @@ void AlarmModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
 
 void AlarmModule::evaluateOnce_(uint32_t nowMs)
 {
+    AlarmId dueNotifyIds[Limits::Alarm::MaxAlarms]{};
+    const uint8_t dueNotifyCount = takeDueAlarmNotifyIds_(dueNotifyIds, (uint8_t)Limits::Alarm::MaxAlarms, nowMs);
+    for (uint8_t i = 0; i < dueNotifyCount; ++i) {
+        emitAlarmEvent_(EventId::AlarmConditionChanged, dueNotifyIds[i]);
+    }
+
     for (uint16_t i = 0; i < Limits::Alarm::MaxAlarms; ++i) {
         AlarmId id = AlarmId::None;
         AlarmCondFn condFn = nullptr;
@@ -692,19 +741,32 @@ void AlarmModule::evaluateOnce_(uint32_t nowMs)
 
         if (postCondTrue) {
             LOGD("Alarm cond=true id=%u code=%s", (unsigned)id, alarmCode[0] ? alarmCode : "?");
-            emitAlarmEvent_(EventId::AlarmConditionChanged, id);
         }
         if (postCondFalse) {
             LOGD("Alarm cond=false id=%u code=%s", (unsigned)id, alarmCode[0] ? alarmCode : "?");
-            emitAlarmEvent_(EventId::AlarmConditionChanged, id);
         }
         if (postRaised) {
             LOGI("Alarm raised id=%u code=%s cond=%s", (unsigned)id, alarmCode[0] ? alarmCode : "?", condStateStr_(cond));
-            emitAlarmEvent_(EventId::AlarmRaised, id);
         }
         if (postCleared) {
             LOGI("Alarm cleared id=%u code=%s cond=%s", (unsigned)id, alarmCode[0] ? alarmCode : "?", condStateStr_(cond));
-            emitAlarmEvent_(EventId::AlarmCleared, id);
+        }
+
+        bool postNotify = false;
+        EventId notifyEvent = EventId::AlarmConditionChanged;
+        if (postRaised) {
+            postNotify = true;
+            notifyEvent = EventId::AlarmRaised;
+        } else if (postCleared) {
+            postNotify = true;
+            notifyEvent = EventId::AlarmCleared;
+        } else if (postCondTrue || postCondFalse) {
+            postNotify = true;
+            notifyEvent = EventId::AlarmConditionChanged;
+        }
+
+        if (postNotify && allowAlarmNotifyNow_(id, nowMs)) {
+            emitAlarmEvent_(notifyEvent, id);
         }
     }
 }

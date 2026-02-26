@@ -162,7 +162,7 @@ namespace Boot {
 /** @brief Delay in ms before allowing MQTT connection attempts (`MQTTModule::setStartupReady`). */
 constexpr uint32_t MqttStartDelayMs = 1500;
 /** @brief Delay in ms before enabling HA auto-discovery publishing (`HAModule::setStartupReady`). */
-constexpr uint32_t HaStartDelayMs = 9000;
+constexpr uint32_t HaStartDelayMs = 15000;
 /** @brief Delay in ms before enabling PoolLogic control loop (`PoolLogicModule::setStartupReady`). */
 constexpr uint32_t PoolLogicStartDelayMs = 10000;
 }  // namespace Boot

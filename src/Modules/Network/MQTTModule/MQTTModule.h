@@ -219,6 +219,8 @@ private:
     bool alarmsMetaPending_ = false;
     bool alarmsFullSyncPending_ = false;
     bool alarmsPackPending_ = false;
+    uint32_t alarmsRetryBackoffMs_ = 0;
+    uint32_t alarmsRetryNextMs_ = 0;
     uint32_t lastLowHeapWarnMs_ = 0;
     uint32_t lowHeapSinceMs_ = 0;
     uint32_t lastOutboxWarnMs_ = 0;

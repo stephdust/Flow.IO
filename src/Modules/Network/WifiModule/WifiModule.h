@@ -68,6 +68,7 @@ private:
     bool mdnsStarted = false;
     uint32_t connectAttempt_ = 0;
     bool reconnectKickSent_ = false;
+    bool staRetryEnabled_ = true;
     wl_status_t lastConnectStatus_ = WL_IDLE_STATUS;
     uint8_t lastDisconnectReason_ = 0;
     uint32_t lastConnectingLogMs_ = 0;
@@ -127,6 +128,7 @@ private:
     static bool svcRequestReconnect(void* ctx);
     static bool svcRequestScan(void* ctx, bool force);
     static bool svcScanStatusJson(void* ctx, char* out, size_t outLen);
+    static bool svcSetStaRetryEnabled(void* ctx, bool enabled);
     static bool cmdDumpCfg_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
 
     void setState(WifiState s);

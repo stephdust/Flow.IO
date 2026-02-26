@@ -127,13 +127,7 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
 
 void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
-    constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::Mqtt;
-    constexpr uint16_t kCfgBranchId = (uint16_t)ConfigBranchId::Mqtt;
     cfgStore_ = &cfg;
-    cfg.registerVar(mqttHostVar_, kCfgModuleId, kCfgBranchId);
-    cfg.registerVar(mqttPortVar_, kCfgModuleId, kCfgBranchId);
-    cfg.registerVar(mqttUserVar_, kCfgModuleId, kCfgBranchId);
-    cfg.registerVar(mqttPassVar_, kCfgModuleId, kCfgBranchId);
 
     services_ = &services;
     logHub_ = services.get<LogHubService>("loghub");
@@ -385,83 +379,6 @@ void WebInterfaceModule::startServer_()
             request->send(409,
                           "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"fwupdate.set_config\"}}");
-            return;
-        }
-
-        request->send(200, "application/json", "{\"ok\":true}");
-    });
-
-    server_.on("/api/mqtt/config", HTTP_GET, [this](AsyncWebServerRequest* request) {
-        HttpLatencyScope latency(request, "/api/mqtt/config");
-        char host[sizeof(mqttCfg_.host)] = {0};
-        char user[sizeof(mqttCfg_.user)] = {0};
-        char pass[sizeof(mqttCfg_.pass)] = {0};
-        snprintf(host, sizeof(host), "%s", mqttCfg_.host);
-        snprintf(user, sizeof(user), "%s", mqttCfg_.user);
-        snprintf(pass, sizeof(pass), "%s", mqttCfg_.pass);
-        sanitizeJsonString_(host);
-        sanitizeJsonString_(user);
-        sanitizeJsonString_(pass);
-
-        char out[512] = {0};
-        const int n = snprintf(out,
-                               sizeof(out),
-                               "{\"ok\":true,\"server\":\"%s\",\"port\":%ld,\"username\":\"%s\",\"password\":\"%s\"}",
-                               host,
-                               (long)mqttCfg_.port,
-                               user,
-                               pass);
-        if (n <= 0 || (size_t)n >= sizeof(out)) {
-            request->send(500, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"mqtt.config.get\"}}");
-            return;
-        }
-        request->send(200, "application/json", out);
-    });
-
-    server_.on("/api/mqtt/config", HTTP_POST, [this](AsyncWebServerRequest* request) {
-        HttpLatencyScope latency(request, "/api/mqtt/config");
-        if (!cfgStore_) {
-            request->send(503, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"mqtt.config.set\"}}");
-            return;
-        }
-
-        String serverStr = request->hasParam("server", true)
-                               ? request->getParam("server", true)->value()
-                               : String(mqttCfg_.host);
-        String userStr = request->hasParam("username", true)
-                             ? request->getParam("username", true)->value()
-                             : String(mqttCfg_.user);
-        String passStr = request->hasParam("password", true)
-                             ? request->getParam("password", true)->value()
-                             : String(mqttCfg_.pass);
-
-        int32_t portVal = mqttCfg_.port;
-        if (request->hasParam("port", true)) {
-            String portStr = request->getParam("port", true)->value();
-            if (portStr.length() == 0) {
-                portVal = Limits::Mqtt::Defaults::Port;
-            } else {
-                char* end = nullptr;
-                const long parsed = strtol(portStr.c_str(), &end, 10);
-                if (!end || *end != '\0' || parsed < 1 || parsed > 65535) {
-                    request->send(400, "application/json",
-                                  "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\",\"where\":\"mqtt.port\"}}");
-                    return;
-                }
-                portVal = (int32_t)parsed;
-            }
-        }
-
-        bool ok = true;
-        ok = ok && cfgStore_->set(mqttHostVar_, serverStr.c_str());
-        ok = ok && cfgStore_->set(mqttPortVar_, portVal);
-        ok = ok && cfgStore_->set(mqttUserVar_, userStr.c_str());
-        ok = ok && cfgStore_->set(mqttPassVar_, passStr.c_str());
-        if (!ok) {
-            request->send(500, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"mqtt.config.set\"}}");
             return;
         }
 

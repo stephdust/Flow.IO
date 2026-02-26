@@ -19,7 +19,7 @@
         <button class="menu-item active" data-page="page-status"><span class="ico"><img class="ico-svg" src="/assets/icon-status.svg" alt="" /></span><span class="label">Statut</span></button>
         <button class="menu-item" data-page="page-terminal"><span class="ico"><img class="ico-svg" src="/assets/icon-journaux.svg" alt="" /></span><span class="label">Journaux</span></button>
         <button class="menu-item" data-page="page-upgrade"><span class="ico"><img class="ico-svg" src="/assets/icon-upgrade.svg" alt="" /></span><span class="label">Mise à jour Firmware</span></button>
-        <button class="menu-item" data-page="page-config"><span class="ico"><img class="ico-svg" src="/assets/icon-connections.svg" alt="" /></span><span class="label">Connexions</span></button>
+        <button class="menu-item" data-page="page-config"><span class="ico"><img class="ico-svg" src="/assets/icon-connections.svg" alt="" /></span><span class="label">Réseau</span></button>
         <button class="menu-item" data-page="page-system"><span class="ico"><img class="ico-svg" src="/assets/icon-system.svg" alt="" /></span><span class="label">Système</span></button>
         <button class="menu-item" data-page="page-control"><span class="ico"><img class="ico-svg" src="/assets/icon-config.svg?v=2" alt="" /></span><span class="label">Configuration</span></button>
       </nav>
@@ -116,8 +116,8 @@
 
       <section id="page-config" class="page">
         <div class="topbar">
-          <h1>Connexions</h1>
-          <span class="status-chip">WiFi + MQTT</span>
+          <h1>Réseau</h1>
+          <span class="status-chip">WiFi</span>
         </div>
         <div class="card">
           <div class="config-section">
@@ -156,35 +156,6 @@
               <button id="applyWifiCfg" class="btn-primary">Appliquer WiFi</button>
             </div>
             <div id="wifiConfigStatus" class="config-status">Configuration WiFi prête.</div>
-          </div>
-
-          <div class="config-section">
-            <h2>MQTT</h2>
-            <div class="form-grid">
-              <div class="field full">
-                <label for="mqttServer">Serveur MQTT</label>
-                <input id="mqttServer" placeholder="ex. 192.168.1.20" />
-              </div>
-              <div class="field">
-                <label for="mqttPort">Port</label>
-                <input id="mqttPort" type="number" min="1" max="65535" placeholder="1883" />
-              </div>
-              <div class="field">
-                <label for="mqttUser">Identifiant</label>
-                <input id="mqttUser" placeholder="identifiant" />
-              </div>
-              <div class="field full">
-                <label for="mqttPass">Mot de passe</label>
-                <div class="password-wrap">
-                  <input id="mqttPass" type="password" placeholder="mot de passe" />
-                  <button id="toggleMqttPass" class="password-toggle" type="button" aria-label="Afficher le mot de passe MQTT" aria-pressed="false"></button>
-                </div>
-              </div>
-            </div>
-            <div class="btn-row">
-              <button id="applyMqttCfg" class="btn-primary">Appliquer MQTT</button>
-            </div>
-            <div id="mqttConfigStatus" class="config-status">Configuration MQTT prête.</div>
           </div>
         </div>
       </section>

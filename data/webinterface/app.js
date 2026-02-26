@@ -81,13 +81,6 @@
     const upgradeProgressBar = document.getElementById('upgradeProgressBar');
     const upStatusChip = document.getElementById('upStatusChip');
 
-    const mqttServer = document.getElementById('mqttServer');
-    const mqttPort = document.getElementById('mqttPort');
-    const mqttUser = document.getElementById('mqttUser');
-    const mqttPass = document.getElementById('mqttPass');
-    const toggleMqttPassBtn = document.getElementById('toggleMqttPass');
-    const applyMqttCfgBtn = document.getElementById('applyMqttCfg');
-    const mqttConfigStatus = document.getElementById('mqttConfigStatus');
     const wifiEnabled = document.getElementById('wifiEnabled');
     const wifiSsid = document.getElementById('wifiSsid');
     const wifiSsidList = document.getElementById('wifiSsidList');
@@ -116,7 +109,6 @@
     let flowCfgChildrenCache = {};
     let flowCfgPath = [];
     let wifiConfigLoadedOnce = false;
-    let mqttConfigLoadedOnce = false;
     let flowCfgLoadedOnce = false;
     let wifiScanAutoRequested = false;
 
@@ -313,47 +305,10 @@
       }
     }
 
-    async function loadMqttConfig() {
-      try {
-        const res = await fetch('/api/mqtt/config', { cache: 'no-store' });
-        const data = await res.json();
-        if (data && data.ok) {
-          mqttServer.value = data.server || '';
-          mqttPort.value = Number.isFinite(data.port) ? String(data.port) : '1883';
-          mqttUser.value = data.username || '';
-          mqttPass.value = data.password || '';
-          mqttConfigStatus.textContent = 'Configuration MQTT chargée.';
-        }
-      } catch (err) {
-        mqttConfigStatus.textContent = 'Chargement MQTT échoué: ' + err;
-      }
-    }
-
-    async function saveMqttConfig() {
-      const body = new URLSearchParams();
-      body.set('server', mqttServer.value.trim());
-      body.set('port', (mqttPort.value || '1883').trim());
-      body.set('username', mqttUser.value.trim());
-      body.set('password', mqttPass.value);
-
-      const res = await fetch('/api/mqtt/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: body.toString()
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) throw new Error('échec application');
-      mqttConfigStatus.textContent = 'Configuration MQTT appliquée.';
-    }
-
     async function onConfigPageShown() {
       if (!wifiConfigLoadedOnce) {
         wifiConfigLoadedOnce = true;
         await loadWifiConfig();
-      }
-      if (!mqttConfigLoadedOnce) {
-        mqttConfigLoadedOnce = true;
-        await loadMqttConfig();
       }
       if (!wifiScanAutoRequested) {
         wifiScanAutoRequested = true;
@@ -958,13 +913,6 @@
     upFlowBtn.addEventListener('click', () => startUpgrade('flowio'));
     upNextionBtn.addEventListener('click', () => startUpgrade('nextion'));
     refreshStateBtn.addEventListener('click', refreshUpgradeStatus);
-    applyMqttCfgBtn.addEventListener('click', async () => {
-      try {
-        await saveMqttConfig();
-      } catch (err) {
-        mqttConfigStatus.textContent = 'Application MQTT échouée: ' + err;
-      }
-    });
     if (toggleWifiPassBtn && wifiPass) {
       mettreAJourEtatVisibiliteMotDePasse(
         wifiPass,
@@ -978,22 +926,6 @@
           toggleWifiPassBtn,
           'Afficher le mot de passe WiFi',
           'Masquer le mot de passe WiFi'
-        );
-      });
-    }
-    if (toggleMqttPassBtn && mqttPass) {
-      mettreAJourEtatVisibiliteMotDePasse(
-        mqttPass,
-        toggleMqttPassBtn,
-        'Afficher le mot de passe MQTT',
-        'Masquer le mot de passe MQTT'
-      );
-      toggleMqttPassBtn.addEventListener('click', () => {
-        basculerVisibiliteMotDePasse(
-          mqttPass,
-          toggleMqttPassBtn,
-          'Afficher le mot de passe MQTT',
-          'Masquer le mot de passe MQTT'
         );
       });
     }

@@ -76,6 +76,29 @@ bool WifiModule::svcScanStatusJson(void* ctx, char* out, size_t outLen)
     return self->buildScanStatusJson_(out, outLen);
 }
 
+bool WifiModule::svcSetStaRetryEnabled(void* ctx, bool enabled)
+{
+    WifiModule* self = static_cast<WifiModule*>(ctx);
+    if (!self) return false;
+
+    if (self->staRetryEnabled_ == enabled) return true;
+    self->staRetryEnabled_ = enabled;
+
+    LOGI("STA retries %s", enabled ? "enabled" : "disabled");
+
+    if (!enabled) {
+        self->reconnectKickSent_ = true;
+        if (!WiFi.isConnected()) {
+            WiFi.disconnect(false, false);
+            self->setState(WifiState::Idle);
+        }
+    } else if (self->state != WifiState::Connected && self->state != WifiState::Disabled) {
+        self->setState(WifiState::Idle);
+    }
+
+    return true;
+}
+
 void WifiModule::onWifiEventSys_(arduino_event_t* event)
 {
     if (!event) return;
@@ -553,7 +576,8 @@ void WifiModule::init(ConfigStore& cfg,
         this,
         WifiModule::svcRequestReconnect,
         WifiModule::svcRequestScan,
-        WifiModule::svcScanStatusJson
+        WifiModule::svcScanStatusJson,
+        WifiModule::svcSetStaRetryEnabled
     };
     services.add("wifi", &svc);
 
@@ -665,12 +689,22 @@ void WifiModule::loop() {
         break;
 
     case WifiState::Idle:
+        if (!staRetryEnabled_) {
+            vTaskDelay(pdMS_TO_TICKS(500));
+            break;
+        }
         startConnect();
         vTaskDelay(pdMS_TO_TICKS(1000));
         break;
 
     case WifiState::Connecting:
     {
+        if (!staRetryEnabled_ && !WiFi.isConnected()) {
+            WiFi.disconnect(false, false);
+            setState(WifiState::Idle);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            break;
+        }
         const wl_status_t wl = WiFi.status();
         const uint32_t now = millis();
         if (wl != lastConnectStatus_) {
@@ -751,6 +785,10 @@ void WifiModule::loop() {
         break;
 
     case WifiState::ErrorWait:
+        if (!staRetryEnabled_) {
+            vTaskDelay(pdMS_TO_TICKS(500));
+            break;
+        }
         if (millis() - stateTs > 5000) {
             setState(WifiState::Idle);
         }

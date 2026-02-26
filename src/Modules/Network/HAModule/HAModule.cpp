@@ -312,10 +312,12 @@ bool HAModule::buildUniqueId(const char* objectId, const char* name, char* out, 
 bool HAModule::publishDiscovery(const char* component, const char* objectId, const char* payload)
 {
     if (!component || !objectId || !payload || !mqttSvc || !mqttSvc->publish) return false;
+    lastDiscoveryFailureRetryable_ = false;
 
     const uint32_t freeHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
     if (freeHeap < MIN_FREE_HEAP_FOR_PUBLISH || largest < MIN_LARGEST_BLOCK_FOR_PUBLISH) {
+        lastDiscoveryFailureRetryable_ = true;
         const uint32_t now = millis();
         if ((now - lastLowHeapLogMs_) >= 2000U) {
             lastLowHeapLogMs_ = now;
@@ -333,7 +335,12 @@ bool HAModule::publishDiscovery(const char* component, const char* objectId, con
         return false;
     }
     // QoS0 lowers transient heap pressure while keeping retained discovery on broker.
-    return mqttSvc->publish(mqttSvc->ctx, topicBuf, payload, 0, true);
+    const bool ok = mqttSvc->publish(mqttSvc->ctx, topicBuf, payload, 0, true);
+    if (!ok) {
+        // MQTT layer may reject due to transient low heap / link state; resume from this entity.
+        lastDiscoveryFailureRetryable_ = true;
+    }
+    return ok;
 }
 
 bool HAModule::publishSensor(const char* objectId, const char* name,
@@ -599,82 +606,152 @@ bool HAModule::publishRegisteredEntities()
 {
     if (!mqttSvc || !mqttSvc->formatTopic) return false;
 
-    bool okAll = true;
     const TickType_t stepDelay = pdMS_TO_TICKS(Limits::Ha::Timing::DiscoveryStepMs);
+    auto advanceCursor = [this]() {
+        ++discoveryCursorIndex_;
+        switch (discoveryCursorSection_) {
+        case DiscoveryCursorSection::Sensors:
+            if (discoveryCursorIndex_ >= sensorCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::BinarySensors;
+                discoveryCursorIndex_ = 0;
+            }
+            break;
+        case DiscoveryCursorSection::BinarySensors:
+            if (discoveryCursorIndex_ >= binarySensorCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::Switches;
+                discoveryCursorIndex_ = 0;
+            }
+            break;
+        case DiscoveryCursorSection::Switches:
+            if (discoveryCursorIndex_ >= switchCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::Numbers;
+                discoveryCursorIndex_ = 0;
+            }
+            break;
+        case DiscoveryCursorSection::Numbers:
+            if (discoveryCursorIndex_ >= numberCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::Buttons;
+                discoveryCursorIndex_ = 0;
+            }
+            break;
+        case DiscoveryCursorSection::Buttons:
+            if (discoveryCursorIndex_ >= buttonCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::Done;
+                discoveryCursorIndex_ = 0;
+            }
+            break;
+        case DiscoveryCursorSection::Done:
+            discoveryCursorIndex_ = 0;
+            break;
+        }
+    };
 
-    for (uint8_t i = 0; i < sensorCount_; ++i) {
-        const HASensorEntry& e = sensors_[i];
-        if (!buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
-            okAll = false;
+    while (discoveryCursorSection_ != DiscoveryCursorSection::Done) {
+        bool attempted = false;
+        bool ok = false;
+        lastDiscoveryFailureRetryable_ = false;
+
+        switch (discoveryCursorSection_) {
+        case DiscoveryCursorSection::Sensors: {
+            if (discoveryCursorIndex_ >= sensorCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::BinarySensors;
+                discoveryCursorIndex_ = 0;
+                continue;
+            }
+            const HASensorEntry& e = sensors_[discoveryCursorIndex_];
+            attempted = true;
+            if (buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
+                mqttSvc->formatTopic(mqttSvc->ctx, e.stateTopicSuffix, stateTopicBuf, sizeof(stateTopicBuf));
+                ok = publishSensor(objectIdBuf, e.name, stateTopicBuf, e.valueTemplate,
+                                  e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate);
+            }
+            break;
+        }
+        case DiscoveryCursorSection::BinarySensors: {
+            if (discoveryCursorIndex_ >= binarySensorCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::Switches;
+                discoveryCursorIndex_ = 0;
+                continue;
+            }
+            const HABinarySensorEntry& e = binarySensors_[discoveryCursorIndex_];
+            attempted = true;
+            if (buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
+                mqttSvc->formatTopic(mqttSvc->ctx, e.stateTopicSuffix, stateTopicBuf, sizeof(stateTopicBuf));
+                ok = publishBinarySensor(objectIdBuf, e.name, stateTopicBuf, e.valueTemplate, e.deviceClass, e.entityCategory, e.icon);
+            }
+            break;
+        }
+        case DiscoveryCursorSection::Switches: {
+            if (discoveryCursorIndex_ >= switchCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::Numbers;
+                discoveryCursorIndex_ = 0;
+                continue;
+            }
+            const HASwitchEntry& e = switches_[discoveryCursorIndex_];
+            attempted = true;
+            if (buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
+                mqttSvc->formatTopic(mqttSvc->ctx, e.stateTopicSuffix, stateTopicBuf, sizeof(stateTopicBuf));
+                mqttSvc->formatTopic(mqttSvc->ctx, e.commandTopicSuffix, commandTopicBuf, sizeof(commandTopicBuf));
+                ok = publishSwitch(objectIdBuf, e.name, stateTopicBuf, e.valueTemplate,
+                                  commandTopicBuf, e.payloadOn, e.payloadOff, e.icon, e.entityCategory);
+            }
+            break;
+        }
+        case DiscoveryCursorSection::Numbers: {
+            if (discoveryCursorIndex_ >= numberCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::Buttons;
+                discoveryCursorIndex_ = 0;
+                continue;
+            }
+            const HANumberEntry& e = numbers_[discoveryCursorIndex_];
+            attempted = true;
+            if (buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
+                mqttSvc->formatTopic(mqttSvc->ctx, e.stateTopicSuffix, stateTopicBuf, sizeof(stateTopicBuf));
+                mqttSvc->formatTopic(mqttSvc->ctx, e.commandTopicSuffix, commandTopicBuf, sizeof(commandTopicBuf));
+                ok = publishNumber(objectIdBuf, e.name, stateTopicBuf, e.valueTemplate,
+                                  commandTopicBuf, e.commandTemplate,
+                                  e.minValue, e.maxValue, e.step,
+                                  e.mode, e.entityCategory, e.icon, e.unit);
+            }
+            break;
+        }
+        case DiscoveryCursorSection::Buttons: {
+            if (discoveryCursorIndex_ >= buttonCount_) {
+                discoveryCursorSection_ = DiscoveryCursorSection::Done;
+                discoveryCursorIndex_ = 0;
+                continue;
+            }
+            const HAButtonEntry& e = buttons_[discoveryCursorIndex_];
+            attempted = true;
+            if (buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
+                mqttSvc->formatTopic(mqttSvc->ctx, e.commandTopicSuffix, commandTopicBuf, sizeof(commandTopicBuf));
+                ok = publishButton(objectIdBuf, e.name, commandTopicBuf, e.payloadPress, e.entityCategory, e.icon);
+            }
+            break;
+        }
+        case DiscoveryCursorSection::Done:
+            break;
+        }
+
+        if (attempted && stepDelay > 0) vTaskDelay(stepDelay);
+
+        if (ok) {
+            advanceCursor();
             continue;
         }
-        mqttSvc->formatTopic(mqttSvc->ctx, e.stateTopicSuffix, stateTopicBuf, sizeof(stateTopicBuf));
-        if (!publishSensor(objectIdBuf, e.name, stateTopicBuf, e.valueTemplate,
-                           e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate)) {
-            okAll = false;
+
+        if (lastDiscoveryFailureRetryable_) {
+            return false;
         }
-        if (stepDelay > 0) vTaskDelay(stepDelay);
+
+        LOGW("HA discovery entity skipped (non-retryable) section=%u index=%u object=%s",
+             (unsigned)discoveryCursorSection_,
+             (unsigned)discoveryCursorIndex_,
+             objectIdBuf[0] ? objectIdBuf : "?");
+        advanceCursor();
     }
 
-    for (uint8_t i = 0; i < binarySensorCount_; ++i) {
-        const HABinarySensorEntry& e = binarySensors_[i];
-        if (!buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
-            okAll = false;
-            continue;
-        }
-        mqttSvc->formatTopic(mqttSvc->ctx, e.stateTopicSuffix, stateTopicBuf, sizeof(stateTopicBuf));
-        if (!publishBinarySensor(objectIdBuf, e.name, stateTopicBuf, e.valueTemplate, e.deviceClass, e.entityCategory, e.icon)) {
-            okAll = false;
-        }
-        if (stepDelay > 0) vTaskDelay(stepDelay);
-    }
-
-    for (uint8_t i = 0; i < switchCount_; ++i) {
-        const HASwitchEntry& e = switches_[i];
-        if (!buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
-            okAll = false;
-            continue;
-        }
-        mqttSvc->formatTopic(mqttSvc->ctx, e.stateTopicSuffix, stateTopicBuf, sizeof(stateTopicBuf));
-        mqttSvc->formatTopic(mqttSvc->ctx, e.commandTopicSuffix, commandTopicBuf, sizeof(commandTopicBuf));
-        if (!publishSwitch(objectIdBuf, e.name, stateTopicBuf, e.valueTemplate,
-                           commandTopicBuf, e.payloadOn, e.payloadOff, e.icon, e.entityCategory)) {
-            okAll = false;
-        }
-        if (stepDelay > 0) vTaskDelay(stepDelay);
-    }
-
-    for (uint8_t i = 0; i < numberCount_; ++i) {
-        const HANumberEntry& e = numbers_[i];
-        if (!buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
-            okAll = false;
-            continue;
-        }
-        mqttSvc->formatTopic(mqttSvc->ctx, e.stateTopicSuffix, stateTopicBuf, sizeof(stateTopicBuf));
-        mqttSvc->formatTopic(mqttSvc->ctx, e.commandTopicSuffix, commandTopicBuf, sizeof(commandTopicBuf));
-        if (!publishNumber(objectIdBuf, e.name, stateTopicBuf, e.valueTemplate,
-                           commandTopicBuf, e.commandTemplate,
-                           e.minValue, e.maxValue, e.step,
-                           e.mode, e.entityCategory, e.icon, e.unit)) {
-            okAll = false;
-        }
-        if (stepDelay > 0) vTaskDelay(stepDelay);
-    }
-
-    for (uint8_t i = 0; i < buttonCount_; ++i) {
-        const HAButtonEntry& e = buttons_[i];
-        if (!buildObjectId(e.objectSuffix, objectIdBuf, sizeof(objectIdBuf))) {
-            okAll = false;
-            continue;
-        }
-        mqttSvc->formatTopic(mqttSvc->ctx, e.commandTopicSuffix, commandTopicBuf, sizeof(commandTopicBuf));
-        if (!publishButton(objectIdBuf, e.name, commandTopicBuf, e.payloadPress, e.entityCategory, e.icon)) {
-            okAll = false;
-        }
-        if (stepDelay > 0) vTaskDelay(stepDelay);
-    }
-
-    return okAll;
+    return true;
 }
 
 void HAModule::refreshIdentityFromConfig()
@@ -709,16 +786,26 @@ void HAModule::tryPublishAutoconfig()
     if (publishAutoconfig()) {
         published = true;
         refreshRequested = false;
+        resetDiscoveryCursor_();
         retryAfterMs_ = 0;
+        retryDelayMs_ = RETRY_DELAY_MS;
         setHaAutoconfigPublished(*dsSvc->store, true);
         LOGI("Home Assistant auto-discovery published (sensor=%u switch=%u number=%u button=%u)",
              (unsigned)sensorCount_, (unsigned)switchCount_, (unsigned)numberCount_, (unsigned)buttonCount_);
     } else {
         setHaAutoconfigPublished(*dsSvc->store, false);
-        retryAfterMs_ = millis() + RETRY_DELAY_MS;
+        uint32_t delayMs = retryDelayMs_;
+        if (delayMs < RETRY_DELAY_MS) delayMs = RETRY_DELAY_MS;
+        if (delayMs > RETRY_DELAY_MAX_MS) delayMs = RETRY_DELAY_MAX_MS;
+        retryAfterMs_ = millis() + delayMs;
+        if (delayMs >= (RETRY_DELAY_MAX_MS / 2U)) {
+            retryDelayMs_ = RETRY_DELAY_MAX_MS;
+        } else {
+            retryDelayMs_ = delayMs * 2U;
+        }
         autoconfigPending = true;
         LOGW("Home Assistant auto-discovery publish failed (retry in %lu ms)",
-             (unsigned long)RETRY_DELAY_MS);
+             (unsigned long)delayMs);
     }
 }
 
@@ -763,10 +850,18 @@ void HAModule::requestAutoconfigRefresh()
 {
     published = false;
     refreshRequested = true;
+    resetDiscoveryCursor_();
     if (dsSvc && dsSvc->store) {
         setHaAutoconfigPublished(*dsSvc->store, false);
     }
     signalAutoconfigCheck();
+}
+
+void HAModule::resetDiscoveryCursor_()
+{
+    discoveryCursorSection_ = DiscoveryCursorSection::Sensors;
+    discoveryCursorIndex_ = 0;
+    lastDiscoveryFailureRetryable_ = false;
 }
 
 void HAModule::loop()

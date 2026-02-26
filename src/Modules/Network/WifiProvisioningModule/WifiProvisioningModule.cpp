@@ -124,6 +124,9 @@ bool WifiProvisioningModule::svcNotifyWifiConfigChanged_(void* ctx)
     if (!self) return false;
 
     self->configDirty_ = true;
+    if (self->wifiSvc_ && self->wifiSvc_->setStaRetryEnabled) {
+        (void)self->wifiSvc_->setStaRetryEnabled(self->wifiSvc_->ctx, true);
+    }
     if (self->wifiSvc_ && self->wifiSvc_->requestReconnect) {
         self->wifiSvc_->requestReconnect(self->wifiSvc_->ctx);
     }
@@ -181,7 +184,11 @@ bool WifiProvisioningModule::startCaptivePortal_(PortalReason reason)
 {
     if (apActive_) return true;
 
-    WiFi.mode(WIFI_MODE_APSTA);
+    if (wifiSvc_ && wifiSvc_->setStaRetryEnabled) {
+        (void)wifiSvc_->setStaRetryEnabled(wifiSvc_->ctx, false);
+    }
+
+    WiFi.mode(WIFI_MODE_AP);
     const bool ok = WiFi.softAP(apSsid_, apPass_);
     if (!ok) {
         LOGE("Cannot start AP portal");

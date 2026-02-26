@@ -44,8 +44,18 @@ private:
     static constexpr size_t TOPIC_BUF_SIZE = 256;
     static constexpr size_t PAYLOAD_BUF_SIZE = 1536;
     static constexpr uint32_t RETRY_DELAY_MS = 5000U;
+    static constexpr uint32_t RETRY_DELAY_MAX_MS = 60000U;
     static constexpr uint32_t MIN_FREE_HEAP_FOR_PUBLISH = 8192U;
     static constexpr uint32_t MIN_LARGEST_BLOCK_FOR_PUBLISH = 4096U;
+
+    enum class DiscoveryCursorSection : uint8_t {
+        Sensors = 0,
+        BinarySensors,
+        Switches,
+        Numbers,
+        Buttons,
+        Done
+    };
 
     struct HAConfig {
         bool enabled = true;
@@ -65,7 +75,11 @@ private:
     volatile bool startupReady_ = true;
     bool published = false;
     uint32_t retryAfterMs_ = 0;
+    uint32_t retryDelayMs_ = RETRY_DELAY_MS;
     uint32_t lastLowHeapLogMs_ = 0;
+    DiscoveryCursorSection discoveryCursorSection_ = DiscoveryCursorSection::Sensors;
+    uint8_t discoveryCursorIndex_ = 0;
+    bool lastDiscoveryFailureRetryable_ = false;
     char deviceId[32] = {0};
     char deviceIdent[96] = {0};
     char nodeTopicId[32] = {0};
@@ -115,6 +129,7 @@ private:
     void onEvent(const Event& e);
     void signalAutoconfigCheck();
     void requestAutoconfigRefresh();
+    void resetDiscoveryCursor_();
     void refreshIdentityFromConfig();
     void tryPublishAutoconfig();
     bool publishAutoconfig();
