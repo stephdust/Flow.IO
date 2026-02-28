@@ -1,0 +1,74 @@
+{
+  "wifi/enabled": {
+    "label": "WiFi activé",
+    "help": "Active ou désactive la connexion WiFi en mode station."
+  },
+  "wifi/ssid": {
+    "label": "SSID",
+    "help": "Nom du réseau WiFi auquel se connecter."
+  },
+  "wifi/pass": {
+    "label": "Mot de passe WiFi",
+    "help": "Mot de passe WPA/WPA2 du réseau WiFi."
+  },
+  "wifi/mdns": {
+    "label": "Nom mDNS",
+    "help": "Nom d'hôte mDNS diffusé sur le réseau local."
+  },
+  "mqtt/host": {
+    "label": "Hôte MQTT",
+    "help": "Adresse du broker MQTT (DNS ou IP)."
+  },
+  "mqtt/port": {
+    "label": "Port MQTT",
+    "help": "Port de connexion TCP vers le broker MQTT."
+  },
+  "mqtt/user": {
+    "label": "Utilisateur MQTT",
+    "help": "Nom d'utilisateur utilisé pour l'authentification MQTT."
+  },
+  "mqtt/pass": {
+    "label": "Mot de passe MQTT",
+    "help": "Mot de passe utilisé pour l'authentification MQTT."
+  },
+  "mqtt/baseTopic": {
+    "label": "Topic de base",
+    "help": "Préfixe MQTT utilisé pour les topics de publication et commande."
+  },
+  "mqtt/enabled": {
+    "label": "MQTT activé",
+    "help": "Active ou désactive le client MQTT."
+  },
+  "time/tz": {
+    "label": "Fuseau horaire",
+    "help": "Fuseau horaire utilisé pour les horaires et l'affichage de l'heure."
+  },
+  "time/server1": {
+    "label": "Serveur NTP",
+    "help": "Serveur utilisé pour la synchronisation de l'heure."
+  },
+  "ha/enabled": {
+    "label": "Home Assistant activé",
+    "help": "Active ou désactive l'auto-decouverte Home Assistant."
+  },
+  "ha/device_id": {
+    "label": "Identifiant appareil HA",
+    "help": "Identifiant exposé a Home Assistant pour cet appareil."
+  },
+  "poollogic/ph_setpoint": {
+    "label": "Consigne pH",
+    "help": "Valeur cible de pH pour la régulation."
+  },
+  "poollogic/orp_setpoint": {
+    "label": "Consigne ORP",
+    "help": "Valeur cible ORP pour la régulation chlore."
+  },
+  "poollogic/filtr_start_min": {
+    "label": "Début filtration min",
+    "help": "Heure minimale autorisée pour le démarrage de la filtration."
+  },
+  "poollogic/filtr_stop_max": {
+    "label": "Arrêt filtration max",
+    "help": "Heure maximale autorisée pour l'arrêt de la filtration."
+  }
+}

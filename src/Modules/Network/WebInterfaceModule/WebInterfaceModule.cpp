@@ -229,6 +229,13 @@ void WebInterfaceModule::startServer_()
         }
         request->send(SPIFFS, "/webinterface/app.js", "application/javascript");
     });
+    server_.on("/webinterface/cfgdocs.fr.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        if (spiffsReady_ && SPIFFS.exists("/webinterface/cfgdocs.fr.json")) {
+            request->send(SPIFFS, "/webinterface/cfgdocs.fr.json", "application/json");
+            return;
+        }
+        request->send(200, "application/json", "{\"_meta\":{\"generated\":false},\"docs\":{}}");
+    });
     server_.on("/webinterface", HTTP_GET, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/webinterface");
         if (spiffsReady_ && SPIFFS.exists("/webinterface/index.html")) {
@@ -355,6 +362,7 @@ void WebInterfaceModule::startServer_()
         String flowStr;
         String supStr;
         String nxStr;
+        String cfgdocsStr;
         if (request->hasParam("update_host", true)) {
             hostStr = request->getParam("update_host", true)->value();
         }
@@ -367,6 +375,9 @@ void WebInterfaceModule::startServer_()
         if (request->hasParam("nextion_path", true)) {
             nxStr = request->getParam("nextion_path", true)->value();
         }
+        if (request->hasParam("cfgdocs_path", true)) {
+            cfgdocsStr = request->getParam("cfgdocs_path", true)->value();
+        }
 
         char err[96] = {0};
         if (!fwUpdateSvc_->setConfig(fwUpdateSvc_->ctx,
@@ -374,6 +385,7 @@ void WebInterfaceModule::startServer_()
                                      flowStr.c_str(),
                                      supStr.c_str(),
                                      nxStr.c_str(),
+                                     cfgdocsStr.c_str(),
                                      err,
                                      sizeof(err))) {
             request->send(409,
@@ -864,6 +876,10 @@ void WebInterfaceModule::startServer_()
     server_.on("/fwupdate/nextion", HTTP_POST, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/fwupdate/nextion");
         handleUpdateRequest_(request, FirmwareUpdateTarget::Nextion);
+    });
+    server_.on("/fwupdate/cfgdocs", HTTP_POST, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/fwupdate/cfgdocs");
+        handleUpdateRequest_(request, FirmwareUpdateTarget::CfgDocs);
     });
 
     server_.onNotFound([](AsyncWebServerRequest* request) {

@@ -53,7 +53,6 @@ private:
     const ConfigStoreService* cfgSvc = nullptr;
     const LogHubService* logHub = nullptr;
 
-    uint32_t lastStackDumpMs = 0;
     uint32_t lastJsonDumpMs = 0;
     uint32_t lastTraceLogMs = 0;
 
@@ -65,10 +64,12 @@ private:
     static const char* wifiStateStr(WifiState st);
 
     SystemMonitorConfig cfgData_{};
+    // CFGDOC: {"label":"Trace système active","help":"Active l'émission periodique des traces système (heap/stacks)."}
     ConfigVariable<bool,0> traceEnabledVar_{
         NVS_KEY(NvsKeys::SystemMonitor::TraceEnabled), "trace_enabled", "sysmon", ConfigType::Bool,
         &cfgData_.traceEnabled, ConfigPersistence::Persistent, 0
     };
+    // CFGDOC: {"label":"Période trace système (ms)","help":"Période entre deux traces système.","unit":"ms"}
     ConfigVariable<int32_t,0> tracePeriodVar_{
         NVS_KEY(NvsKeys::SystemMonitor::TracePeriodMs), "trace_period_ms", "sysmon", ConfigType::Int32,
         &cfgData_.tracePeriodMs, ConfigPersistence::Persistent, 0

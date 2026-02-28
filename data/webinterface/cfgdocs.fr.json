@@ -1,0 +1,2385 @@
+{
+  "_meta": {
+    "generated": true,
+    "total": 257,
+    "decl_total": 211,
+    "decl_with_cfgdoc": 85,
+    "missing_cfgdoc_count": 126,
+    "manual_overrides_total": 18,
+    "manual_overrides_applied": 0
+  },
+  "docs": {
+    "*/depends_on_mask": {
+      "module": "*",
+      "name": "depends_on_mask",
+      "type": "uint8_t",
+      "label": "Masque dépendances",
+      "help": "Masque de dépendances inter-appareils.",
+      "var": "cfgDependsVar_",
+      "source": "cfgdoc-series"
+    },
+    "*/enabled": {
+      "module": "*",
+      "name": "enabled",
+      "type": "bool",
+      "label": "Activation appareil",
+      "help": "Active ou désactive l'appareil du pool concerne.",
+      "var": "cfgEnabledVar_",
+      "source": "cfgdoc-series"
+    },
+    "*/flow_l_h": {
+      "module": "*",
+      "name": "flow_l_h",
+      "type": "float",
+      "label": "Débit (L/h)",
+      "help": "Débit nominal en litres par heure pour le calcul d'injection.",
+      "var": "cfgFlowVar_",
+      "source": "cfgdoc-series",
+      "unit": "L/h"
+    },
+    "*/max_uptime_day_s": {
+      "module": "*",
+      "name": "max_uptime_day_s",
+      "type": "int32_t",
+      "label": "Uptime max journalier (s)",
+      "help": "Temps maximal autorisé par jour pour l'appareil.",
+      "var": "cfgMaxUptimeVar_",
+      "source": "cfgdoc-series",
+      "unit": "s"
+    },
+    "*/metrics_blob": {
+      "module": "*",
+      "name": "metrics_blob",
+      "type": "char",
+      "label": "Blob métriques",
+      "help": "État/métriques persistees de l'appareil pour reprise.",
+      "var": "cfgRuntimeVar_",
+      "source": "cfgdoc-series"
+    },
+    "*/tank_cap_ml": {
+      "module": "*",
+      "name": "tank_cap_ml",
+      "type": "float",
+      "label": "Capacité cuve (mL)",
+      "help": "Capacité maximale de la cuve associée à l'appareil.",
+      "var": "cfgTankCapVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "*/tank_init_ml": {
+      "module": "*",
+      "name": "tank_init_ml",
+      "type": "float",
+      "label": "Niveau initial cuve (mL)",
+      "help": "Volume initial de cuve après configuration/reset.",
+      "var": "cfgTankInitVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "*/type": {
+      "module": "*",
+      "name": "type",
+      "type": "uint8_t",
+      "label": "Type appareil",
+      "help": "Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard).",
+      "var": "cfgTypeVar_",
+      "source": "cfgdoc-series"
+    },
+    "alarms/enabled": {
+      "module": "alarms",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Alarmes actives",
+      "help": "Active ou désactive l'évaluation du moteur d'alarmes.",
+      "var": "enabledVar_",
+      "source": "cfgdoc"
+    },
+    "alarms/eval_period_ms": {
+      "module": "alarms",
+      "name": "eval_period_ms",
+      "type": "Int32",
+      "label": "Période evaluation alarmes (ms)",
+      "help": "Intervalle d'évaluation des conditions d'alarme.",
+      "var": "evalPeriodVar_",
+      "source": "cfgdoc",
+      "unit": "ms"
+    },
+    "fwupdate/cfgdocs_path": {
+      "module": "fwupdate",
+      "name": "cfgdocs_path",
+      "type": "CharArray",
+      "label": "Chemin cfgdocs",
+      "help": "Chemin du fichier cfgdocs.fr.json sur le serveur MAJ.",
+      "var": "cfgdocsPathVar_",
+      "source": "cfgdoc"
+    },
+    "fwupdate/flowio_path": {
+      "module": "fwupdate",
+      "name": "flowio_path",
+      "type": "CharArray",
+      "label": "Chemin firmware Flow.IO",
+      "help": "Chemin du binaire firmware Flow.IO sur le serveur MAJ.",
+      "var": "flowioPathVar_",
+      "source": "cfgdoc"
+    },
+    "fwupdate/nextion_path": {
+      "module": "fwupdate",
+      "name": "nextion_path",
+      "type": "CharArray",
+      "label": "Chemin firmware Nextion",
+      "help": "Chemin du fichier TFT Nextion sur le serveur MAJ.",
+      "var": "nextionPathVar_",
+      "source": "cfgdoc"
+    },
+    "fwupdate/supervisor_path": {
+      "module": "fwupdate",
+      "name": "supervisor_path",
+      "type": "CharArray",
+      "label": "Chemin firmware Supervisor",
+      "help": "Chemin du binaire firmware Supervisor sur le serveur MAJ.",
+      "var": "supervisorPathVar_",
+      "source": "cfgdoc"
+    },
+    "fwupdate/update_host": {
+      "module": "fwupdate",
+      "name": "update_host",
+      "type": "CharArray",
+      "label": "Hôte serveur MAJ",
+      "help": "Adresse du serveur HTTP hébergeant les firmwares.",
+      "var": "updateHostVar_",
+      "source": "cfgdoc"
+    },
+    "ha/device_id": {
+      "module": "ha",
+      "name": "device_id",
+      "type": "CharArray",
+      "label": "Identifiant appareil",
+      "help": "Identifiant unique de l'appareil dans Home Assistant.",
+      "var": "deviceIdVar",
+      "source": "cfgdoc"
+    },
+    "ha/disc_prefix": {
+      "module": "ha",
+      "name": "disc_prefix",
+      "type": "CharArray",
+      "label": "Préfixe Discovery",
+      "help": "Préfixe MQTT utilisé pour les topics Home Assistant Discovery.",
+      "var": "prefixVar",
+      "source": "cfgdoc"
+    },
+    "ha/enabled": {
+      "module": "ha",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Auto-découverte HA active",
+      "help": "Active ou désactive la publication Home Assistant Discovery.",
+      "var": "enabledVar",
+      "source": "cfgdoc"
+    },
+    "ha/model": {
+      "module": "ha",
+      "name": "model",
+      "type": "CharArray",
+      "label": "Modèle",
+      "help": "Nom du modèle exposé dans Home Assistant.",
+      "var": "modelVar",
+      "source": "cfgdoc"
+    },
+    "ha/vendor": {
+      "module": "ha",
+      "name": "vendor",
+      "type": "CharArray",
+      "label": "Constructeur",
+      "help": "Nom du constructeur exposé dans Home Assistant.",
+      "var": "vendorVar",
+      "source": "cfgdoc"
+    },
+    "i2c/cfg/client/bus": {
+      "module": "i2c/cfg/client",
+      "name": "bus",
+      "type": "Int32",
+      "label": "Bus",
+      "help": "Parametre 'bus' pour la branche 'i2c/cfg/client' (type Int32).",
+      "var": "busVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/client/enabled": {
+      "module": "i2c/cfg/client",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Enabled",
+      "help": "Parametre 'enabled' pour la branche 'i2c/cfg/client' (type Bool).",
+      "var": "enabledVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/client/freq_hz": {
+      "module": "i2c/cfg/client",
+      "name": "freq_hz",
+      "type": "Int32",
+      "label": "Freq hz",
+      "help": "Parametre 'freq_hz' pour la branche 'i2c/cfg/client' (type Int32).",
+      "var": "freqVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/client/scl": {
+      "module": "i2c/cfg/client",
+      "name": "scl",
+      "type": "Int32",
+      "label": "Scl",
+      "help": "Parametre 'scl' pour la branche 'i2c/cfg/client' (type Int32).",
+      "var": "sclVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/client/sda": {
+      "module": "i2c/cfg/client",
+      "name": "sda",
+      "type": "Int32",
+      "label": "Sda",
+      "help": "Parametre 'sda' pour la branche 'i2c/cfg/client' (type Int32).",
+      "var": "sdaVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/client/target_addr": {
+      "module": "i2c/cfg/client",
+      "name": "target_addr",
+      "type": "UInt8",
+      "label": "Target addr",
+      "help": "Parametre 'target_addr' pour la branche 'i2c/cfg/client' (type UInt8).",
+      "var": "addrVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/client/use_io_bus": {
+      "module": "i2c/cfg/client",
+      "name": "use_io_bus",
+      "type": "Bool",
+      "label": "Use IO bus",
+      "help": "Parametre 'use_io_bus' pour la branche 'i2c/cfg/client' (type Bool).",
+      "var": "useIoBusVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/server/address": {
+      "module": "i2c/cfg/server",
+      "name": "address",
+      "type": "UInt8",
+      "label": "Address",
+      "help": "Parametre 'address' pour la branche 'i2c/cfg/server' (type UInt8).",
+      "var": "addrVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/server/bus": {
+      "module": "i2c/cfg/server",
+      "name": "bus",
+      "type": "Int32",
+      "label": "Bus",
+      "help": "Parametre 'bus' pour la branche 'i2c/cfg/server' (type Int32).",
+      "var": "busVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/server/enabled": {
+      "module": "i2c/cfg/server",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Enabled",
+      "help": "Parametre 'enabled' pour la branche 'i2c/cfg/server' (type Bool).",
+      "var": "enabledVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/server/freq_hz": {
+      "module": "i2c/cfg/server",
+      "name": "freq_hz",
+      "type": "Int32",
+      "label": "Freq hz",
+      "help": "Parametre 'freq_hz' pour la branche 'i2c/cfg/server' (type Int32).",
+      "var": "freqVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/server/scl": {
+      "module": "i2c/cfg/server",
+      "name": "scl",
+      "type": "Int32",
+      "label": "Scl",
+      "help": "Parametre 'scl' pour la branche 'i2c/cfg/server' (type Int32).",
+      "var": "sclVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/server/sda": {
+      "module": "i2c/cfg/server",
+      "name": "sda",
+      "type": "Int32",
+      "label": "Sda",
+      "help": "Parametre 'sda' pour la branche 'i2c/cfg/server' (type Int32).",
+      "var": "sdaVar_",
+      "source": "auto"
+    },
+    "i2c/cfg/server/use_io_bus": {
+      "module": "i2c/cfg/server",
+      "name": "use_io_bus",
+      "type": "Bool",
+      "label": "Use IO bus",
+      "help": "Parametre 'use_io_bus' pour la branche 'i2c/cfg/server' (type Bool).",
+      "var": "useIoBusVar_",
+      "source": "auto"
+    },
+    "io/ads_ext_addr": {
+      "module": "io",
+      "name": "ads_ext_addr",
+      "type": "UInt8",
+      "label": "Adresse ADS externe",
+      "help": "Adresse I2C du convertisseur ADS externe.",
+      "var": "adsExternalAddrVar_",
+      "source": "auto-hint"
+    },
+    "io/ads_gain": {
+      "module": "io",
+      "name": "ads_gain",
+      "type": "Int32",
+      "label": "Gain ADS",
+      "help": "Gain de conversion ADS (pleine échelle).",
+      "var": "adsGainVar_",
+      "source": "auto-hint"
+    },
+    "io/ads_int_addr": {
+      "module": "io",
+      "name": "ads_int_addr",
+      "type": "UInt8",
+      "label": "Adresse ADS interne",
+      "help": "Adresse I2C du convertisseur ADS interne.",
+      "var": "adsInternalAddrVar_",
+      "source": "auto-hint"
+    },
+    "io/ads_poll_ms": {
+      "module": "io",
+      "name": "ads_poll_ms",
+      "type": "Int32",
+      "label": "Période lecture ADS (ms)",
+      "help": "Intervalle entre deux acquisitions des entrées analogiques ADS.",
+      "var": "adsPollVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/ads_rate": {
+      "module": "io",
+      "name": "ads_rate",
+      "type": "Int32",
+      "label": "Fréquence ADS",
+      "help": "Fréquence d'échantillonnage ADS.",
+      "var": "adsRateVar_",
+      "source": "auto-hint"
+    },
+    "io/debug/trace_enabled": {
+      "module": "io/debug",
+      "name": "trace_enabled",
+      "type": "Bool",
+      "label": "Trace IO active",
+      "help": "Active l'émission periodique des traces IO.",
+      "var": "traceEnabledVar_",
+      "source": "auto-hint"
+    },
+    "io/debug/trace_period_ms": {
+      "module": "io/debug",
+      "name": "trace_period_ms",
+      "type": "Int32",
+      "label": "Période trace IO (ms)",
+      "help": "Intervalle entre deux traces debug IO.",
+      "var": "tracePeriodVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/digital_poll_ms": {
+      "module": "io",
+      "name": "digital_poll_ms",
+      "type": "Int32",
+      "label": "Période lecture digitales (ms)",
+      "help": "Intervalle de rafraîchissement des entrées digitales.",
+      "var": "digitalPollVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/ds_poll_ms": {
+      "module": "io",
+      "name": "ds_poll_ms",
+      "type": "Int32",
+      "label": "Période lecture DS18B20 (ms)",
+      "help": "Intervalle entre deux lectures des sondes DS18B20.",
+      "var": "dsPollVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/enabled": {
+      "module": "io",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Module IO actif",
+      "help": "Active ou désactive la couche IO (entrées/sorties).",
+      "var": "enabledVar_",
+      "source": "auto-hint"
+    },
+    "io/i2c_scl": {
+      "module": "io",
+      "name": "i2c_scl",
+      "type": "Int32",
+      "label": "Broche I2C SCL",
+      "help": "Broche SCL du bus I2C utilisé par le module IO.",
+      "var": "i2cSclVar_",
+      "source": "auto-hint"
+    },
+    "io/i2c_sda": {
+      "module": "io",
+      "name": "i2c_sda",
+      "type": "Int32",
+      "label": "Broche I2C SDA",
+      "help": "Broche SDA du bus I2C utilisé par le module IO.",
+      "var": "i2cSdaVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a0/a0_c0": {
+      "module": "io/input/a0",
+      "name": "a0_c0",
+      "type": "Float",
+      "label": "Coefficient C0 A0",
+      "help": "Coefficient C0 pour la calibration de A0.",
+      "var": "a0C0Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a0/a0_c1": {
+      "module": "io/input/a0",
+      "name": "a0_c1",
+      "type": "Float",
+      "label": "Coefficient C1 A0",
+      "help": "Coefficient C1 pour la calibration de A0.",
+      "var": "a0C1Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a0/a0_channel": {
+      "module": "io/input/a0",
+      "name": "a0_channel",
+      "type": "UInt8",
+      "label": "Canal entrée A0",
+      "help": "Canal ADC utilisé pour A0.",
+      "var": "a0ChannelVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a0/a0_max": {
+      "module": "io/input/a0",
+      "name": "a0_max",
+      "type": "Float",
+      "label": "Seuil maxi A0",
+      "help": "Valeur maximale valide pour A0 (avant invalidation).",
+      "var": "a0MaxVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a0/a0_min": {
+      "module": "io/input/a0",
+      "name": "a0_min",
+      "type": "Float",
+      "label": "Seuil mini A0",
+      "help": "Valeur minimale valide pour A0 (avant invalidation).",
+      "var": "a0MinVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a0/a0_name": {
+      "module": "io/input/a0",
+      "name": "a0_name",
+      "type": "CharArray",
+      "label": "Nom entrée A0",
+      "help": "Nom lisible de l'entrée analogique A0.",
+      "var": "a0NameVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a0/a0_prec": {
+      "module": "io/input/a0",
+      "name": "a0_prec",
+      "type": "Int32",
+      "label": "Precision A0",
+      "help": "Nombre de décimales conservées pour A0.",
+      "var": "a0PrecVar_",
+      "source": "auto-hint",
+      "unit": "digits"
+    },
+    "io/input/a0/a0_source": {
+      "module": "io/input/a0",
+      "name": "a0_source",
+      "type": "UInt8",
+      "label": "Source entrée A0",
+      "help": "Source ADC de A0 (0=ADS interne, 1=ADS externe).",
+      "var": "a0SourceVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a1/a1_c0": {
+      "module": "io/input/a1",
+      "name": "a1_c0",
+      "type": "Float",
+      "label": "Coefficient C0 A1",
+      "help": "Coefficient C0 pour la calibration de A1.",
+      "var": "a1C0Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a1/a1_c1": {
+      "module": "io/input/a1",
+      "name": "a1_c1",
+      "type": "Float",
+      "label": "Coefficient C1 A1",
+      "help": "Coefficient C1 pour la calibration de A1.",
+      "var": "a1C1Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a1/a1_channel": {
+      "module": "io/input/a1",
+      "name": "a1_channel",
+      "type": "UInt8",
+      "label": "Canal entrée A1",
+      "help": "Canal ADC utilisé pour A1.",
+      "var": "a1ChannelVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a1/a1_max": {
+      "module": "io/input/a1",
+      "name": "a1_max",
+      "type": "Float",
+      "label": "Seuil maxi A1",
+      "help": "Valeur maximale valide pour A1 (avant invalidation).",
+      "var": "a1MaxVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a1/a1_min": {
+      "module": "io/input/a1",
+      "name": "a1_min",
+      "type": "Float",
+      "label": "Seuil mini A1",
+      "help": "Valeur minimale valide pour A1 (avant invalidation).",
+      "var": "a1MinVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a1/a1_name": {
+      "module": "io/input/a1",
+      "name": "a1_name",
+      "type": "CharArray",
+      "label": "Nom entrée A1",
+      "help": "Nom lisible de l'entrée analogique A1.",
+      "var": "a1NameVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a1/a1_prec": {
+      "module": "io/input/a1",
+      "name": "a1_prec",
+      "type": "Int32",
+      "label": "Precision A1",
+      "help": "Nombre de décimales conservées pour A1.",
+      "var": "a1PrecVar_",
+      "source": "auto-hint",
+      "unit": "digits"
+    },
+    "io/input/a1/a1_source": {
+      "module": "io/input/a1",
+      "name": "a1_source",
+      "type": "UInt8",
+      "label": "Source entrée A1",
+      "help": "Source ADC de A1 (0=ADS interne, 1=ADS externe).",
+      "var": "a1SourceVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a2/a2_c0": {
+      "module": "io/input/a2",
+      "name": "a2_c0",
+      "type": "Float",
+      "label": "Coefficient C0 A2",
+      "help": "Coefficient C0 pour la calibration de A2.",
+      "var": "a2C0Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a2/a2_c1": {
+      "module": "io/input/a2",
+      "name": "a2_c1",
+      "type": "Float",
+      "label": "Coefficient C1 A2",
+      "help": "Coefficient C1 pour la calibration de A2.",
+      "var": "a2C1Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a2/a2_channel": {
+      "module": "io/input/a2",
+      "name": "a2_channel",
+      "type": "UInt8",
+      "label": "Canal entrée A2",
+      "help": "Canal ADC utilisé pour A2.",
+      "var": "a2ChannelVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a2/a2_max": {
+      "module": "io/input/a2",
+      "name": "a2_max",
+      "type": "Float",
+      "label": "Seuil maxi A2",
+      "help": "Valeur maximale valide pour A2 (avant invalidation).",
+      "var": "a2MaxVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a2/a2_min": {
+      "module": "io/input/a2",
+      "name": "a2_min",
+      "type": "Float",
+      "label": "Seuil mini A2",
+      "help": "Valeur minimale valide pour A2 (avant invalidation).",
+      "var": "a2MinVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a2/a2_name": {
+      "module": "io/input/a2",
+      "name": "a2_name",
+      "type": "CharArray",
+      "label": "Nom entrée A2",
+      "help": "Nom lisible de l'entrée analogique A2.",
+      "var": "a2NameVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a2/a2_prec": {
+      "module": "io/input/a2",
+      "name": "a2_prec",
+      "type": "Int32",
+      "label": "Precision A2",
+      "help": "Nombre de décimales conservées pour A2.",
+      "var": "a2PrecVar_",
+      "source": "auto-hint",
+      "unit": "digits"
+    },
+    "io/input/a2/a2_source": {
+      "module": "io/input/a2",
+      "name": "a2_source",
+      "type": "UInt8",
+      "label": "Source entrée A2",
+      "help": "Source ADC de A2 (0=ADS interne, 1=ADS externe).",
+      "var": "a2SourceVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a3/a3_c0": {
+      "module": "io/input/a3",
+      "name": "a3_c0",
+      "type": "Float",
+      "label": "Coefficient C0 A3",
+      "help": "Coefficient C0 pour la calibration de A3.",
+      "var": "a3C0Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a3/a3_c1": {
+      "module": "io/input/a3",
+      "name": "a3_c1",
+      "type": "Float",
+      "label": "Coefficient C1 A3",
+      "help": "Coefficient C1 pour la calibration de A3.",
+      "var": "a3C1Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a3/a3_channel": {
+      "module": "io/input/a3",
+      "name": "a3_channel",
+      "type": "UInt8",
+      "label": "Canal entrée A3",
+      "help": "Canal ADC utilisé pour A3.",
+      "var": "a3ChannelVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a3/a3_max": {
+      "module": "io/input/a3",
+      "name": "a3_max",
+      "type": "Float",
+      "label": "Seuil maxi A3",
+      "help": "Valeur maximale valide pour A3 (avant invalidation).",
+      "var": "a3MaxVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a3/a3_min": {
+      "module": "io/input/a3",
+      "name": "a3_min",
+      "type": "Float",
+      "label": "Seuil mini A3",
+      "help": "Valeur minimale valide pour A3 (avant invalidation).",
+      "var": "a3MinVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a3/a3_name": {
+      "module": "io/input/a3",
+      "name": "a3_name",
+      "type": "CharArray",
+      "label": "Nom entrée A3",
+      "help": "Nom lisible de l'entrée analogique A3.",
+      "var": "a3NameVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a3/a3_prec": {
+      "module": "io/input/a3",
+      "name": "a3_prec",
+      "type": "Int32",
+      "label": "Precision A3",
+      "help": "Nombre de décimales conservées pour A3.",
+      "var": "a3PrecVar_",
+      "source": "auto-hint",
+      "unit": "digits"
+    },
+    "io/input/a3/a3_source": {
+      "module": "io/input/a3",
+      "name": "a3_source",
+      "type": "UInt8",
+      "label": "Source entrée A3",
+      "help": "Source ADC de A3 (0=ADS interne, 1=ADS externe).",
+      "var": "a3SourceVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a4/a4_c0": {
+      "module": "io/input/a4",
+      "name": "a4_c0",
+      "type": "Float",
+      "label": "Coefficient C0 A4",
+      "help": "Coefficient C0 pour la calibration de A4.",
+      "var": "a4C0Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a4/a4_c1": {
+      "module": "io/input/a4",
+      "name": "a4_c1",
+      "type": "Float",
+      "label": "Coefficient C1 A4",
+      "help": "Coefficient C1 pour la calibration de A4.",
+      "var": "a4C1Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a4/a4_channel": {
+      "module": "io/input/a4",
+      "name": "a4_channel",
+      "type": "UInt8",
+      "label": "Canal entrée A4",
+      "help": "Canal ADC utilisé pour A4.",
+      "var": "a4ChannelVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a4/a4_max": {
+      "module": "io/input/a4",
+      "name": "a4_max",
+      "type": "Float",
+      "label": "Seuil maxi A4",
+      "help": "Valeur maximale valide pour A4 (avant invalidation).",
+      "var": "a4MaxVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a4/a4_min": {
+      "module": "io/input/a4",
+      "name": "a4_min",
+      "type": "Float",
+      "label": "Seuil mini A4",
+      "help": "Valeur minimale valide pour A4 (avant invalidation).",
+      "var": "a4MinVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a4/a4_name": {
+      "module": "io/input/a4",
+      "name": "a4_name",
+      "type": "CharArray",
+      "label": "Nom entrée A4",
+      "help": "Nom lisible de l'entrée analogique A4.",
+      "var": "a4NameVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a4/a4_prec": {
+      "module": "io/input/a4",
+      "name": "a4_prec",
+      "type": "Int32",
+      "label": "Precision A4",
+      "help": "Nombre de décimales conservées pour A4.",
+      "var": "a4PrecVar_",
+      "source": "auto-hint",
+      "unit": "digits"
+    },
+    "io/input/a4/a4_source": {
+      "module": "io/input/a4",
+      "name": "a4_source",
+      "type": "UInt8",
+      "label": "Source entrée A4",
+      "help": "Source ADC de A4 (0=ADS interne, 1=ADS externe).",
+      "var": "a4SourceVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a5/a5_c0": {
+      "module": "io/input/a5",
+      "name": "a5_c0",
+      "type": "Float",
+      "label": "Coefficient C0 A5",
+      "help": "Coefficient C0 pour la calibration de A5.",
+      "var": "a5C0Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a5/a5_c1": {
+      "module": "io/input/a5",
+      "name": "a5_c1",
+      "type": "Float",
+      "label": "Coefficient C1 A5",
+      "help": "Coefficient C1 pour la calibration de A5.",
+      "var": "a5C1Var_",
+      "source": "auto-hint"
+    },
+    "io/input/a5/a5_channel": {
+      "module": "io/input/a5",
+      "name": "a5_channel",
+      "type": "UInt8",
+      "label": "Canal entrée A5",
+      "help": "Canal ADC utilisé pour A5.",
+      "var": "a5ChannelVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a5/a5_max": {
+      "module": "io/input/a5",
+      "name": "a5_max",
+      "type": "Float",
+      "label": "Seuil maxi A5",
+      "help": "Valeur maximale valide pour A5 (avant invalidation).",
+      "var": "a5MaxVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a5/a5_min": {
+      "module": "io/input/a5",
+      "name": "a5_min",
+      "type": "Float",
+      "label": "Seuil mini A5",
+      "help": "Valeur minimale valide pour A5 (avant invalidation).",
+      "var": "a5MinVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a5/a5_name": {
+      "module": "io/input/a5",
+      "name": "a5_name",
+      "type": "CharArray",
+      "label": "Nom entrée A5",
+      "help": "Nom lisible de l'entrée analogique A5.",
+      "var": "a5NameVar_",
+      "source": "auto-hint"
+    },
+    "io/input/a5/a5_prec": {
+      "module": "io/input/a5",
+      "name": "a5_prec",
+      "type": "Int32",
+      "label": "Precision A5",
+      "help": "Nombre de décimales conservées pour A5.",
+      "var": "a5PrecVar_",
+      "source": "auto-hint",
+      "unit": "digits"
+    },
+    "io/input/a5/a5_source": {
+      "module": "io/input/a5",
+      "name": "a5_source",
+      "type": "UInt8",
+      "label": "Source entrée A5",
+      "help": "Source ADC de A5 (0=ADS interne, 1=ADS externe).",
+      "var": "a5SourceVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d0/d0_active_high": {
+      "module": "io/output/d0",
+      "name": "d0_active_high",
+      "type": "Bool",
+      "label": "Actif a 1 D0",
+      "help": "Si vrai, D0 est active à l'état haut; sinon active-bas.",
+      "var": "d0ActiveHighVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d0/d0_initial_on": {
+      "module": "io/output/d0",
+      "name": "d0_initial_on",
+      "type": "Bool",
+      "label": "État initial ON D0",
+      "help": "État appliqué au démarrage pour la sortie D0.",
+      "var": "d0InitialOnVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d0/d0_momentary": {
+      "module": "io/output/d0",
+      "name": "d0_momentary",
+      "type": "Bool",
+      "label": "Mode impulsion D0",
+      "help": "Active un fonctionnement impulsionnel pour D0.",
+      "var": "d0MomentaryVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d0/d0_name": {
+      "module": "io/output/d0",
+      "name": "d0_name",
+      "type": "CharArray",
+      "label": "Nom sortie D0",
+      "help": "Nom lisible de la sortie digitale D0.",
+      "var": "d0NameVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d0/d0_pin": {
+      "module": "io/output/d0",
+      "name": "d0_pin",
+      "type": "UInt8",
+      "label": "GPIO sortie D0",
+      "help": "GPIO pilotée par la sortie D0.",
+      "var": "d0PinVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d0/d0_pulse_ms": {
+      "module": "io/output/d0",
+      "name": "d0_pulse_ms",
+      "type": "Int32",
+      "label": "Durée impulsion D0 (ms)",
+      "help": "Durée de l'impulsion automatique de D0.",
+      "var": "d0PulseVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/output/d1/d1_active_high": {
+      "module": "io/output/d1",
+      "name": "d1_active_high",
+      "type": "Bool",
+      "label": "Actif a 1 D1",
+      "help": "Si vrai, D1 est active à l'état haut; sinon active-bas.",
+      "var": "d1ActiveHighVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d1/d1_initial_on": {
+      "module": "io/output/d1",
+      "name": "d1_initial_on",
+      "type": "Bool",
+      "label": "État initial ON D1",
+      "help": "État appliqué au démarrage pour la sortie D1.",
+      "var": "d1InitialOnVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d1/d1_momentary": {
+      "module": "io/output/d1",
+      "name": "d1_momentary",
+      "type": "Bool",
+      "label": "Mode impulsion D1",
+      "help": "Active un fonctionnement impulsionnel pour D1.",
+      "var": "d1MomentaryVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d1/d1_name": {
+      "module": "io/output/d1",
+      "name": "d1_name",
+      "type": "CharArray",
+      "label": "Nom sortie D1",
+      "help": "Nom lisible de la sortie digitale D1.",
+      "var": "d1NameVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d1/d1_pin": {
+      "module": "io/output/d1",
+      "name": "d1_pin",
+      "type": "UInt8",
+      "label": "GPIO sortie D1",
+      "help": "GPIO pilotée par la sortie D1.",
+      "var": "d1PinVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d1/d1_pulse_ms": {
+      "module": "io/output/d1",
+      "name": "d1_pulse_ms",
+      "type": "Int32",
+      "label": "Durée impulsion D1 (ms)",
+      "help": "Durée de l'impulsion automatique de D1.",
+      "var": "d1PulseVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/output/d2/d2_active_high": {
+      "module": "io/output/d2",
+      "name": "d2_active_high",
+      "type": "Bool",
+      "label": "Actif a 1 D2",
+      "help": "Si vrai, D2 est active à l'état haut; sinon active-bas.",
+      "var": "d2ActiveHighVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d2/d2_initial_on": {
+      "module": "io/output/d2",
+      "name": "d2_initial_on",
+      "type": "Bool",
+      "label": "État initial ON D2",
+      "help": "État appliqué au démarrage pour la sortie D2.",
+      "var": "d2InitialOnVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d2/d2_momentary": {
+      "module": "io/output/d2",
+      "name": "d2_momentary",
+      "type": "Bool",
+      "label": "Mode impulsion D2",
+      "help": "Active un fonctionnement impulsionnel pour D2.",
+      "var": "d2MomentaryVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d2/d2_name": {
+      "module": "io/output/d2",
+      "name": "d2_name",
+      "type": "CharArray",
+      "label": "Nom sortie D2",
+      "help": "Nom lisible de la sortie digitale D2.",
+      "var": "d2NameVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d2/d2_pin": {
+      "module": "io/output/d2",
+      "name": "d2_pin",
+      "type": "UInt8",
+      "label": "GPIO sortie D2",
+      "help": "GPIO pilotée par la sortie D2.",
+      "var": "d2PinVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d2/d2_pulse_ms": {
+      "module": "io/output/d2",
+      "name": "d2_pulse_ms",
+      "type": "Int32",
+      "label": "Durée impulsion D2 (ms)",
+      "help": "Durée de l'impulsion automatique de D2.",
+      "var": "d2PulseVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/output/d3/d3_active_high": {
+      "module": "io/output/d3",
+      "name": "d3_active_high",
+      "type": "Bool",
+      "label": "Actif a 1 D3",
+      "help": "Si vrai, D3 est active à l'état haut; sinon active-bas.",
+      "var": "d3ActiveHighVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d3/d3_initial_on": {
+      "module": "io/output/d3",
+      "name": "d3_initial_on",
+      "type": "Bool",
+      "label": "État initial ON D3",
+      "help": "État appliqué au démarrage pour la sortie D3.",
+      "var": "d3InitialOnVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d3/d3_momentary": {
+      "module": "io/output/d3",
+      "name": "d3_momentary",
+      "type": "Bool",
+      "label": "Mode impulsion D3",
+      "help": "Active un fonctionnement impulsionnel pour D3.",
+      "var": "d3MomentaryVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d3/d3_name": {
+      "module": "io/output/d3",
+      "name": "d3_name",
+      "type": "CharArray",
+      "label": "Nom sortie D3",
+      "help": "Nom lisible de la sortie digitale D3.",
+      "var": "d3NameVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d3/d3_pin": {
+      "module": "io/output/d3",
+      "name": "d3_pin",
+      "type": "UInt8",
+      "label": "GPIO sortie D3",
+      "help": "GPIO pilotée par la sortie D3.",
+      "var": "d3PinVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d3/d3_pulse_ms": {
+      "module": "io/output/d3",
+      "name": "d3_pulse_ms",
+      "type": "Int32",
+      "label": "Durée impulsion D3 (ms)",
+      "help": "Durée de l'impulsion automatique de D3.",
+      "var": "d3PulseVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/output/d4/d4_active_high": {
+      "module": "io/output/d4",
+      "name": "d4_active_high",
+      "type": "Bool",
+      "label": "Actif a 1 D4",
+      "help": "Si vrai, D4 est active à l'état haut; sinon active-bas.",
+      "var": "d4ActiveHighVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d4/d4_initial_on": {
+      "module": "io/output/d4",
+      "name": "d4_initial_on",
+      "type": "Bool",
+      "label": "État initial ON D4",
+      "help": "État appliqué au démarrage pour la sortie D4.",
+      "var": "d4InitialOnVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d4/d4_momentary": {
+      "module": "io/output/d4",
+      "name": "d4_momentary",
+      "type": "Bool",
+      "label": "Mode impulsion D4",
+      "help": "Active un fonctionnement impulsionnel pour D4.",
+      "var": "d4MomentaryVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d4/d4_name": {
+      "module": "io/output/d4",
+      "name": "d4_name",
+      "type": "CharArray",
+      "label": "Nom sortie D4",
+      "help": "Nom lisible de la sortie digitale D4.",
+      "var": "d4NameVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d4/d4_pin": {
+      "module": "io/output/d4",
+      "name": "d4_pin",
+      "type": "UInt8",
+      "label": "GPIO sortie D4",
+      "help": "GPIO pilotée par la sortie D4.",
+      "var": "d4PinVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d4/d4_pulse_ms": {
+      "module": "io/output/d4",
+      "name": "d4_pulse_ms",
+      "type": "Int32",
+      "label": "Durée impulsion D4 (ms)",
+      "help": "Durée de l'impulsion automatique de D4.",
+      "var": "d4PulseVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/output/d5/d5_active_high": {
+      "module": "io/output/d5",
+      "name": "d5_active_high",
+      "type": "Bool",
+      "label": "Actif a 1 D5",
+      "help": "Si vrai, D5 est active à l'état haut; sinon active-bas.",
+      "var": "d5ActiveHighVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d5/d5_initial_on": {
+      "module": "io/output/d5",
+      "name": "d5_initial_on",
+      "type": "Bool",
+      "label": "État initial ON D5",
+      "help": "État appliqué au démarrage pour la sortie D5.",
+      "var": "d5InitialOnVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d5/d5_momentary": {
+      "module": "io/output/d5",
+      "name": "d5_momentary",
+      "type": "Bool",
+      "label": "Mode impulsion D5",
+      "help": "Active un fonctionnement impulsionnel pour D5.",
+      "var": "d5MomentaryVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d5/d5_name": {
+      "module": "io/output/d5",
+      "name": "d5_name",
+      "type": "CharArray",
+      "label": "Nom sortie D5",
+      "help": "Nom lisible de la sortie digitale D5.",
+      "var": "d5NameVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d5/d5_pin": {
+      "module": "io/output/d5",
+      "name": "d5_pin",
+      "type": "UInt8",
+      "label": "GPIO sortie D5",
+      "help": "GPIO pilotée par la sortie D5.",
+      "var": "d5PinVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d5/d5_pulse_ms": {
+      "module": "io/output/d5",
+      "name": "d5_pulse_ms",
+      "type": "Int32",
+      "label": "Durée impulsion D5 (ms)",
+      "help": "Durée de l'impulsion automatique de D5.",
+      "var": "d5PulseVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/output/d6/d6_active_high": {
+      "module": "io/output/d6",
+      "name": "d6_active_high",
+      "type": "Bool",
+      "label": "Actif a 1 D6",
+      "help": "Si vrai, D6 est active à l'état haut; sinon active-bas.",
+      "var": "d6ActiveHighVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d6/d6_initial_on": {
+      "module": "io/output/d6",
+      "name": "d6_initial_on",
+      "type": "Bool",
+      "label": "État initial ON D6",
+      "help": "État appliqué au démarrage pour la sortie D6.",
+      "var": "d6InitialOnVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d6/d6_momentary": {
+      "module": "io/output/d6",
+      "name": "d6_momentary",
+      "type": "Bool",
+      "label": "Mode impulsion D6",
+      "help": "Active un fonctionnement impulsionnel pour D6.",
+      "var": "d6MomentaryVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d6/d6_name": {
+      "module": "io/output/d6",
+      "name": "d6_name",
+      "type": "CharArray",
+      "label": "Nom sortie D6",
+      "help": "Nom lisible de la sortie digitale D6.",
+      "var": "d6NameVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d6/d6_pin": {
+      "module": "io/output/d6",
+      "name": "d6_pin",
+      "type": "UInt8",
+      "label": "GPIO sortie D6",
+      "help": "GPIO pilotée par la sortie D6.",
+      "var": "d6PinVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d6/d6_pulse_ms": {
+      "module": "io/output/d6",
+      "name": "d6_pulse_ms",
+      "type": "Int32",
+      "label": "Durée impulsion D6 (ms)",
+      "help": "Durée de l'impulsion automatique de D6.",
+      "var": "d6PulseVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/output/d7/d7_active_high": {
+      "module": "io/output/d7",
+      "name": "d7_active_high",
+      "type": "Bool",
+      "label": "Actif a 1 D7",
+      "help": "Si vrai, D7 est active à l'état haut; sinon active-bas.",
+      "var": "d7ActiveHighVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d7/d7_initial_on": {
+      "module": "io/output/d7",
+      "name": "d7_initial_on",
+      "type": "Bool",
+      "label": "État initial ON D7",
+      "help": "État appliqué au démarrage pour la sortie D7.",
+      "var": "d7InitialOnVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d7/d7_momentary": {
+      "module": "io/output/d7",
+      "name": "d7_momentary",
+      "type": "Bool",
+      "label": "Mode impulsion D7",
+      "help": "Active un fonctionnement impulsionnel pour D7.",
+      "var": "d7MomentaryVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d7/d7_name": {
+      "module": "io/output/d7",
+      "name": "d7_name",
+      "type": "CharArray",
+      "label": "Nom sortie D7",
+      "help": "Nom lisible de la sortie digitale D7.",
+      "var": "d7NameVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d7/d7_pin": {
+      "module": "io/output/d7",
+      "name": "d7_pin",
+      "type": "UInt8",
+      "label": "GPIO sortie D7",
+      "help": "GPIO pilotée par la sortie D7.",
+      "var": "d7PinVar_",
+      "source": "auto-hint"
+    },
+    "io/output/d7/d7_pulse_ms": {
+      "module": "io/output/d7",
+      "name": "d7_pulse_ms",
+      "type": "Int32",
+      "label": "Durée impulsion D7 (ms)",
+      "help": "Durée de l'impulsion automatique de D7.",
+      "var": "d7PulseVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/pcf_active_low": {
+      "module": "io",
+      "name": "pcf_active_low",
+      "type": "Bool",
+      "label": "PCF actif à 0",
+      "help": "Force une logique active-bas sur les sorties PCF.",
+      "var": "pcfActiveLowVar_",
+      "source": "auto-hint"
+    },
+    "io/pcf_address": {
+      "module": "io",
+      "name": "pcf_address",
+      "type": "UInt8",
+      "label": "Adresse PCF",
+      "help": "Adresse I2C du composant PCF857x.",
+      "var": "pcfAddressVar_",
+      "source": "auto-hint"
+    },
+    "io/pcf_enabled": {
+      "module": "io",
+      "name": "pcf_enabled",
+      "type": "Bool",
+      "label": "PCF actif",
+      "help": "Active l'extension PCF857x pour E/S supplémentaires.",
+      "var": "pcfEnabledVar_",
+      "source": "auto-hint"
+    },
+    "io/pcf_mask_def": {
+      "module": "io",
+      "name": "pcf_mask_def",
+      "type": "UInt8",
+      "label": "Masque par défaut PCF",
+      "help": "État par défaut du masque de sorties PCF.",
+      "var": "pcfMaskDefaultVar_",
+      "source": "auto-hint"
+    },
+    "mqtt/baseTopic": {
+      "module": "mqtt",
+      "name": "baseTopic",
+      "type": "CharArray",
+      "label": "Topic de base",
+      "help": "Préfixe MQTT pour les topics de télémétrie/commande.",
+      "var": "baseTopicVar",
+      "source": "cfgdoc"
+    },
+    "mqtt/enabled": {
+      "module": "mqtt",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "MQTT actif",
+      "help": "Active ou désactive le client MQTT.",
+      "var": "enabledVar",
+      "source": "cfgdoc"
+    },
+    "mqtt/host": {
+      "module": "mqtt",
+      "name": "host",
+      "type": "CharArray",
+      "label": "Hôte MQTT",
+      "help": "Adresse du broker MQTT (DNS ou IP).",
+      "var": "hostVar",
+      "source": "cfgdoc"
+    },
+    "mqtt/pass": {
+      "module": "mqtt",
+      "name": "pass",
+      "type": "CharArray",
+      "label": "Mot de passe MQTT",
+      "help": "Mot de passe pour l'authentification MQTT.",
+      "var": "passVar",
+      "source": "cfgdoc"
+    },
+    "mqtt/port": {
+      "module": "mqtt",
+      "name": "port",
+      "type": "Int32",
+      "label": "Port MQTT",
+      "help": "Port TCP utilisé pour la connexion au broker.",
+      "var": "portVar",
+      "source": "cfgdoc"
+    },
+    "mqtt/sens_min_pub_ms": {
+      "module": "mqtt",
+      "name": "sens_min_pub_ms",
+      "type": "Int32",
+      "label": "Période mini capteurs (ms)",
+      "help": "Intervalle minimal entre deux publications capteurs.",
+      "var": "sensorMinVar",
+      "source": "cfgdoc",
+      "unit": "ms"
+    },
+    "mqtt/user": {
+      "module": "mqtt",
+      "name": "user",
+      "type": "CharArray",
+      "label": "Utilisateur MQTT",
+      "help": "Nom d'utilisateur pour l'authentification MQTT.",
+      "var": "userVar",
+      "source": "cfgdoc"
+    },
+    "poollogic/air_temp_io_id": {
+      "module": "poollogic",
+      "name": "air_temp_io_id",
+      "type": "UInt8",
+      "label": "IO température air",
+      "help": "Identifiant IO de la sonde température air.",
+      "var": "airTempIdVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/auto_mode": {
+      "module": "poollogic",
+      "name": "auto_mode",
+      "type": "Bool",
+      "label": "Mode auto global",
+      "help": "Active le pilotage automatique global de la piscine.",
+      "var": "autoModeVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/delay/dly_electro_min": {
+      "module": "poollogic/delay",
+      "name": "dly_electro_min",
+      "type": "UInt8",
+      "label": "Délai electrolyse (min)",
+      "help": "Délai avant autorisation de l'electrolyse après filtration.",
+      "var": "delayElectroVar_",
+      "source": "cfgdoc-alias",
+      "unit": "min"
+    },
+    "poollogic/delay/dly_pid_min": {
+      "module": "poollogic/delay",
+      "name": "dly_pid_min",
+      "type": "UInt8",
+      "label": "Délai PID après filtration (min)",
+      "help": "Délai avant activation des PID après début filtration.",
+      "var": "delayPidsVar_",
+      "source": "cfgdoc-alias",
+      "unit": "min"
+    },
+    "poollogic/delay/fill_min_on_s": {
+      "module": "poollogic/delay",
+      "name": "fill_min_on_s",
+      "type": "UInt8",
+      "label": "Temps mini remplissage (s)",
+      "help": "Durée minimale de marche de la pompe de remplissage.",
+      "var": "fillingMinOnVar_",
+      "source": "cfgdoc-alias",
+      "unit": "s"
+    },
+    "poollogic/delay/psi_start_dly_s": {
+      "module": "poollogic/delay",
+      "name": "psi_start_dly_s",
+      "type": "UInt8",
+      "label": "Délai démarrage pression (s)",
+      "help": "Temps d'attente avant vérification pression après démarrage.",
+      "var": "psiDelayVar_",
+      "source": "cfgdoc-alias",
+      "unit": "s"
+    },
+    "poollogic/delay/robot_delay_min": {
+      "module": "poollogic/delay",
+      "name": "robot_delay_min",
+      "type": "UInt8",
+      "label": "Délai robot (min)",
+      "help": "Délai avant lancement automatique du robot.",
+      "var": "robotDelayVar_",
+      "source": "cfgdoc-alias",
+      "unit": "min"
+    },
+    "poollogic/delay/robot_dur_min": {
+      "module": "poollogic/delay",
+      "name": "robot_dur_min",
+      "type": "UInt8",
+      "label": "Durée robot (min)",
+      "help": "Durée de fonctionnement du robot.",
+      "var": "robotDurationVar_",
+      "source": "cfgdoc-alias",
+      "unit": "min"
+    },
+    "poollogic/device/fill_slot": {
+      "module": "poollogic/device",
+      "name": "fill_slot",
+      "type": "UInt8",
+      "label": "Slot remplissage",
+      "help": "Numéro de slot PDM associé au remplissage.",
+      "var": "fillingDeviceVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/device/filtr_slot": {
+      "module": "poollogic/device",
+      "name": "filtr_slot",
+      "type": "UInt8",
+      "label": "Slot filtration",
+      "help": "Numéro de slot PDM pilote pour la filtration.",
+      "var": "filtrationDeviceVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/device/robot_slot": {
+      "module": "poollogic/device",
+      "name": "robot_slot",
+      "type": "UInt8",
+      "label": "Slot robot",
+      "help": "Numéro de slot PDM associé au robot.",
+      "var": "robotDeviceVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/device/swg_slot": {
+      "module": "poollogic/device",
+      "name": "swg_slot",
+      "type": "UInt8",
+      "label": "Slot electrolyse",
+      "help": "Numéro de slot PDM associé à l'electrolyseur.",
+      "var": "swgDeviceVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/dly_electro_min": {
+      "module": "poollogic",
+      "name": "dly_electro_min",
+      "type": "UInt8",
+      "label": "Délai electrolyse (min)",
+      "help": "Délai avant autorisation de l'electrolyse après filtration.",
+      "var": "delayElectroVar_",
+      "source": "cfgdoc",
+      "unit": "min"
+    },
+    "poollogic/dly_pid_min": {
+      "module": "poollogic",
+      "name": "dly_pid_min",
+      "type": "UInt8",
+      "label": "Délai PID après filtration (min)",
+      "help": "Délai avant activation des PID après début filtration.",
+      "var": "delayPidsVar_",
+      "source": "cfgdoc",
+      "unit": "min"
+    },
+    "poollogic/elec_mode": {
+      "module": "poollogic",
+      "name": "elec_mode",
+      "type": "Bool",
+      "label": "Electrolyse active",
+      "help": "Autorise l'usage de l'electrolyseur.",
+      "var": "electrolyseModeVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/elec_run": {
+      "module": "poollogic",
+      "name": "elec_run",
+      "type": "Bool",
+      "label": "Electrolyse en service",
+      "help": "Autorise la commande de marche de l'electrolyseur.",
+      "var": "electroRunModeVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/enabled": {
+      "module": "poollogic",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "PoolLogic actif",
+      "help": "Active ou désactive les automatismes PoolLogic.",
+      "var": "enabledVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/fill_min_on_s": {
+      "module": "poollogic",
+      "name": "fill_min_on_s",
+      "type": "UInt8",
+      "label": "Temps mini remplissage (s)",
+      "help": "Durée minimale de marche de la pompe de remplissage.",
+      "var": "fillingMinOnVar_",
+      "source": "cfgdoc",
+      "unit": "s"
+    },
+    "poollogic/fill_slot": {
+      "module": "poollogic",
+      "name": "fill_slot",
+      "type": "UInt8",
+      "label": "Slot remplissage",
+      "help": "Numéro de slot PDM associé au remplissage.",
+      "var": "fillingDeviceVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/filtr_slot": {
+      "module": "poollogic",
+      "name": "filtr_slot",
+      "type": "UInt8",
+      "label": "Slot filtration",
+      "help": "Numéro de slot PDM pilote pour la filtration.",
+      "var": "filtrationDeviceVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/filtr_start_clc": {
+      "module": "poollogic",
+      "name": "filtr_start_clc",
+      "type": "UInt8",
+      "label": "Début filtration calculé",
+      "help": "Heure de début de filtration calculée automatiquement.",
+      "var": "calcStartVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/filtr_start_min": {
+      "module": "poollogic",
+      "name": "filtr_start_min",
+      "type": "UInt8",
+      "label": "Début filtration min",
+      "help": "Heure minimale autorisée pour démarrer la filtration.",
+      "var": "startMinVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/filtr_stop_clc": {
+      "module": "poollogic",
+      "name": "filtr_stop_clc",
+      "type": "UInt8",
+      "label": "Arrêt filtration calculé",
+      "help": "Heure de fin de filtration calculée automatiquement.",
+      "var": "calcStopVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/filtr_stop_max": {
+      "module": "poollogic",
+      "name": "filtr_stop_max",
+      "type": "UInt8",
+      "label": "Arrêt filtration max",
+      "help": "Heure maximale autorisée pour arrêter la filtration.",
+      "var": "stopMaxVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/filtration/filtr_start_clc": {
+      "module": "poollogic/filtration",
+      "name": "filtr_start_clc",
+      "type": "UInt8",
+      "label": "Début filtration calculé",
+      "help": "Heure de début de filtration calculée automatiquement.",
+      "var": "calcStartVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/filtration/filtr_start_min": {
+      "module": "poollogic/filtration",
+      "name": "filtr_start_min",
+      "type": "UInt8",
+      "label": "Début filtration min",
+      "help": "Heure minimale autorisée pour démarrer la filtration.",
+      "var": "startMinVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/filtration/filtr_stop_clc": {
+      "module": "poollogic/filtration",
+      "name": "filtr_stop_clc",
+      "type": "UInt8",
+      "label": "Arrêt filtration calculé",
+      "help": "Heure de fin de filtration calculée automatiquement.",
+      "var": "calcStopVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/filtration/filtr_stop_max": {
+      "module": "poollogic/filtration",
+      "name": "filtr_stop_max",
+      "type": "UInt8",
+      "label": "Arrêt filtration max",
+      "help": "Heure maximale autorisée pour arrêter la filtration.",
+      "var": "stopMaxVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/filtration/wat_temp_lo_th": {
+      "module": "poollogic/filtration",
+      "name": "wat_temp_lo_th",
+      "type": "Float",
+      "label": "Seuil eau basse (C)",
+      "help": "Seuil bas de température d'eau pour la logique de filtration.",
+      "var": "tempLowVar_",
+      "source": "cfgdoc-alias",
+      "unit": "C"
+    },
+    "poollogic/filtration/wat_temp_setpt": {
+      "module": "poollogic/filtration",
+      "name": "wat_temp_setpt",
+      "type": "Float",
+      "label": "Consigne eau (C)",
+      "help": "Consigne de température d'eau pour le calcul de filtration.",
+      "var": "tempSetpointVar_",
+      "source": "cfgdoc-alias",
+      "unit": "C"
+    },
+    "poollogic/freeze_hold_t": {
+      "module": "poollogic",
+      "name": "freeze_hold_t",
+      "type": "Float",
+      "label": "Seuil maintien hors gel (C)",
+      "help": "Temperature de maintien pour la protection hors gel.",
+      "var": "freezeHoldVar_",
+      "source": "cfgdoc",
+      "unit": "C"
+    },
+    "poollogic/mode/auto_mode": {
+      "module": "poollogic/mode",
+      "name": "auto_mode",
+      "type": "Bool",
+      "label": "Mode auto global",
+      "help": "Active le pilotage automatique global de la piscine.",
+      "var": "autoModeVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/mode/elec_mode": {
+      "module": "poollogic/mode",
+      "name": "elec_mode",
+      "type": "Bool",
+      "label": "Electrolyse active",
+      "help": "Autorise l'usage de l'electrolyseur.",
+      "var": "electrolyseModeVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/mode/elec_run": {
+      "module": "poollogic/mode",
+      "name": "elec_run",
+      "type": "Bool",
+      "label": "Electrolyse en service",
+      "help": "Autorise la commande de marche de l'electrolyseur.",
+      "var": "electroRunModeVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/mode/enabled": {
+      "module": "poollogic/mode",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "PoolLogic actif",
+      "help": "Active ou désactive les automatismes PoolLogic.",
+      "var": "enabledVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/mode/orp_auto_mode": {
+      "module": "poollogic/mode",
+      "name": "orp_auto_mode",
+      "type": "Bool",
+      "label": "Mode auto ORP",
+      "help": "Active la régulation automatique ORP/chlore.",
+      "var": "orpAutoModeVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/mode/ph_auto_mode": {
+      "module": "poollogic/mode",
+      "name": "ph_auto_mode",
+      "type": "Bool",
+      "label": "Mode auto pH",
+      "help": "Active la régulation automatique du pH.",
+      "var": "phAutoModeVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/mode/winter_mode": {
+      "module": "poollogic/mode",
+      "name": "winter_mode",
+      "type": "Bool",
+      "label": "Mode hiver force",
+      "help": "Force le fonctionnement en mode hiver (anti-gel).",
+      "var": "winterModeVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/orp_auto_mode": {
+      "module": "poollogic",
+      "name": "orp_auto_mode",
+      "type": "Bool",
+      "label": "Mode auto ORP",
+      "help": "Active la régulation automatique ORP/chlore.",
+      "var": "orpAutoModeVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/orp_io_id": {
+      "module": "poollogic",
+      "name": "orp_io_id",
+      "type": "UInt8",
+      "label": "IO capteur ORP",
+      "help": "Identifiant IO de la mesure ORP.",
+      "var": "orpIdVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/orp_kd": {
+      "module": "poollogic",
+      "name": "orp_kd",
+      "type": "Float",
+      "label": "ORP Kd",
+      "help": "Gain dérivé du régulateur ORP.",
+      "var": "orpKdVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/orp_ki": {
+      "module": "poollogic",
+      "name": "orp_ki",
+      "type": "Float",
+      "label": "ORP Ki",
+      "help": "Gain intégral du régulateur ORP.",
+      "var": "orpKiVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/orp_kp": {
+      "module": "poollogic",
+      "name": "orp_kp",
+      "type": "Float",
+      "label": "ORP Kp",
+      "help": "Gain proportionnel du régulateur ORP.",
+      "var": "orpKpVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/orp_setpoint": {
+      "module": "poollogic",
+      "name": "orp_setpoint",
+      "type": "Float",
+      "label": "Consigne ORP",
+      "help": "Valeur cible ORP pour la régulation chlore.",
+      "var": "orpSetpointVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/orp_window_ms": {
+      "module": "poollogic",
+      "name": "orp_window_ms",
+      "type": "Int32",
+      "label": "Fenêtre ORP (ms)",
+      "help": "Fenêtre temporelle PWM appliquée a la pompe ORP.",
+      "var": "orpWindowMsVar_",
+      "source": "cfgdoc",
+      "unit": "ms"
+    },
+    "poollogic/ph_auto_mode": {
+      "module": "poollogic",
+      "name": "ph_auto_mode",
+      "type": "Bool",
+      "label": "Mode auto pH",
+      "help": "Active la régulation automatique du pH.",
+      "var": "phAutoModeVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/ph_io_id": {
+      "module": "poollogic",
+      "name": "ph_io_id",
+      "type": "UInt8",
+      "label": "IO capteur pH",
+      "help": "Identifiant IO de la mesure pH.",
+      "var": "phIdVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/ph_kd": {
+      "module": "poollogic",
+      "name": "ph_kd",
+      "type": "Float",
+      "label": "pH Kd",
+      "help": "Gain dérivé du régulateur pH.",
+      "var": "phKdVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/ph_ki": {
+      "module": "poollogic",
+      "name": "ph_ki",
+      "type": "Float",
+      "label": "pH Ki",
+      "help": "Gain intégral du régulateur pH.",
+      "var": "phKiVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/ph_kp": {
+      "module": "poollogic",
+      "name": "ph_kp",
+      "type": "Float",
+      "label": "pH Kp",
+      "help": "Gain proportionnel du régulateur pH.",
+      "var": "phKpVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/ph_setpoint": {
+      "module": "poollogic",
+      "name": "ph_setpoint",
+      "type": "Float",
+      "label": "Consigne pH",
+      "help": "Valeur cible de pH pour la régulation.",
+      "var": "phSetpointVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/ph_window_ms": {
+      "module": "poollogic",
+      "name": "ph_window_ms",
+      "type": "Int32",
+      "label": "Fenêtre pH (ms)",
+      "help": "Fenêtre temporelle PWM appliquée a la pompe pH.",
+      "var": "phWindowMsVar_",
+      "source": "cfgdoc",
+      "unit": "ms"
+    },
+    "poollogic/pid/freeze_hold_t": {
+      "module": "poollogic/pid",
+      "name": "freeze_hold_t",
+      "type": "Float",
+      "label": "Seuil maintien hors gel (C)",
+      "help": "Temperature de maintien pour la protection hors gel.",
+      "var": "freezeHoldVar_",
+      "source": "cfgdoc-alias",
+      "unit": "C"
+    },
+    "poollogic/pid/orp_kd": {
+      "module": "poollogic/pid",
+      "name": "orp_kd",
+      "type": "Float",
+      "label": "ORP Kd",
+      "help": "Gain dérivé du régulateur ORP.",
+      "var": "orpKdVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/pid/orp_ki": {
+      "module": "poollogic/pid",
+      "name": "orp_ki",
+      "type": "Float",
+      "label": "ORP Ki",
+      "help": "Gain intégral du régulateur ORP.",
+      "var": "orpKiVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/pid/orp_kp": {
+      "module": "poollogic/pid",
+      "name": "orp_kp",
+      "type": "Float",
+      "label": "ORP Kp",
+      "help": "Gain proportionnel du régulateur ORP.",
+      "var": "orpKpVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/pid/orp_setpoint": {
+      "module": "poollogic/pid",
+      "name": "orp_setpoint",
+      "type": "Float",
+      "label": "Consigne ORP",
+      "help": "Valeur cible ORP pour la régulation chlore.",
+      "var": "orpSetpointVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/pid/orp_window_ms": {
+      "module": "poollogic/pid",
+      "name": "orp_window_ms",
+      "type": "Int32",
+      "label": "Fenêtre ORP (ms)",
+      "help": "Fenêtre temporelle PWM appliquée a la pompe ORP.",
+      "var": "orpWindowMsVar_",
+      "source": "cfgdoc-alias",
+      "unit": "ms"
+    },
+    "poollogic/pid/ph_kd": {
+      "module": "poollogic/pid",
+      "name": "ph_kd",
+      "type": "Float",
+      "label": "pH Kd",
+      "help": "Gain dérivé du régulateur pH.",
+      "var": "phKdVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/pid/ph_ki": {
+      "module": "poollogic/pid",
+      "name": "ph_ki",
+      "type": "Float",
+      "label": "pH Ki",
+      "help": "Gain intégral du régulateur pH.",
+      "var": "phKiVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/pid/ph_kp": {
+      "module": "poollogic/pid",
+      "name": "ph_kp",
+      "type": "Float",
+      "label": "pH Kp",
+      "help": "Gain proportionnel du régulateur pH.",
+      "var": "phKpVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/pid/ph_setpoint": {
+      "module": "poollogic/pid",
+      "name": "ph_setpoint",
+      "type": "Float",
+      "label": "Consigne pH",
+      "help": "Valeur cible de pH pour la régulation.",
+      "var": "phSetpointVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/pid/ph_window_ms": {
+      "module": "poollogic/pid",
+      "name": "ph_window_ms",
+      "type": "Int32",
+      "label": "Fenêtre pH (ms)",
+      "help": "Fenêtre temporelle PWM appliquée a la pompe pH.",
+      "var": "phWindowMsVar_",
+      "source": "cfgdoc-alias",
+      "unit": "ms"
+    },
+    "poollogic/pid/pid_min_on_ms": {
+      "module": "poollogic/pid",
+      "name": "pid_min_on_ms",
+      "type": "Int32",
+      "label": "Temps min ON PID (ms)",
+      "help": "Durée minimale ON appliquée aux sorties PID.",
+      "var": "pidMinOnMsVar_",
+      "source": "cfgdoc-alias",
+      "unit": "ms"
+    },
+    "poollogic/pid/pid_sample_ms": {
+      "module": "poollogic/pid",
+      "name": "pid_sample_ms",
+      "type": "Int32",
+      "label": "Période échantillonnage PID (ms)",
+      "help": "Intervalle de calcul des régulateurs PID.",
+      "var": "pidSampleMsVar_",
+      "source": "cfgdoc-alias",
+      "unit": "ms"
+    },
+    "poollogic/pid/psi_high_th": {
+      "module": "poollogic/pid",
+      "name": "psi_high_th",
+      "type": "Float",
+      "label": "Seuil pression haute",
+      "help": "Seuil de pression haute pour detection d'anomalie.",
+      "var": "psiHighVar_",
+      "source": "cfgdoc-alias",
+      "unit": "bar"
+    },
+    "poollogic/pid/psi_low_th": {
+      "module": "poollogic/pid",
+      "name": "psi_low_th",
+      "type": "Float",
+      "label": "Seuil pression basse",
+      "help": "Seuil de pression basse pour detection d'anomalie.",
+      "var": "psiLowVar_",
+      "source": "cfgdoc-alias",
+      "unit": "bar"
+    },
+    "poollogic/pid/secure_elec_t": {
+      "module": "poollogic/pid",
+      "name": "secure_elec_t",
+      "type": "Float",
+      "label": "Seuil sécurité electrolyse (C)",
+      "help": "Temperature minimale autorisée pour l'electrolyse.",
+      "var": "secureElectroVar_",
+      "source": "cfgdoc-alias",
+      "unit": "C"
+    },
+    "poollogic/pid/winter_start_t": {
+      "module": "poollogic/pid",
+      "name": "winter_start_t",
+      "type": "Float",
+      "label": "Seuil entrée hiver (C)",
+      "help": "Temperature de bascule vers la logique hiver.",
+      "var": "winterStartVar_",
+      "source": "cfgdoc-alias",
+      "unit": "C"
+    },
+    "poollogic/pid_min_on_ms": {
+      "module": "poollogic",
+      "name": "pid_min_on_ms",
+      "type": "Int32",
+      "label": "Temps min ON PID (ms)",
+      "help": "Durée minimale ON appliquée aux sorties PID.",
+      "var": "pidMinOnMsVar_",
+      "source": "cfgdoc",
+      "unit": "ms"
+    },
+    "poollogic/pid_sample_ms": {
+      "module": "poollogic",
+      "name": "pid_sample_ms",
+      "type": "Int32",
+      "label": "Période échantillonnage PID (ms)",
+      "help": "Intervalle de calcul des régulateurs PID.",
+      "var": "pidSampleMsVar_",
+      "source": "cfgdoc",
+      "unit": "ms"
+    },
+    "poollogic/pool_lvl_io_id": {
+      "module": "poollogic",
+      "name": "pool_lvl_io_id",
+      "type": "UInt8",
+      "label": "IO niveau bassin",
+      "help": "Identifiant IO de la mesure de niveau bassin.",
+      "var": "levelIdVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/psi_high_th": {
+      "module": "poollogic",
+      "name": "psi_high_th",
+      "type": "Float",
+      "label": "Seuil pression haute",
+      "help": "Seuil de pression haute pour detection d'anomalie.",
+      "var": "psiHighVar_",
+      "source": "cfgdoc",
+      "unit": "bar"
+    },
+    "poollogic/psi_io_id": {
+      "module": "poollogic",
+      "name": "psi_io_id",
+      "type": "UInt8",
+      "label": "IO pression",
+      "help": "Identifiant IO du capteur de pression.",
+      "var": "psiIdVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/psi_low_th": {
+      "module": "poollogic",
+      "name": "psi_low_th",
+      "type": "Float",
+      "label": "Seuil pression basse",
+      "help": "Seuil de pression basse pour detection d'anomalie.",
+      "var": "psiLowVar_",
+      "source": "cfgdoc",
+      "unit": "bar"
+    },
+    "poollogic/psi_start_dly_s": {
+      "module": "poollogic",
+      "name": "psi_start_dly_s",
+      "type": "UInt8",
+      "label": "Délai démarrage pression (s)",
+      "help": "Temps d'attente avant vérification pression après démarrage.",
+      "var": "psiDelayVar_",
+      "source": "cfgdoc",
+      "unit": "s"
+    },
+    "poollogic/robot_delay_min": {
+      "module": "poollogic",
+      "name": "robot_delay_min",
+      "type": "UInt8",
+      "label": "Délai robot (min)",
+      "help": "Délai avant lancement automatique du robot.",
+      "var": "robotDelayVar_",
+      "source": "cfgdoc",
+      "unit": "min"
+    },
+    "poollogic/robot_dur_min": {
+      "module": "poollogic",
+      "name": "robot_dur_min",
+      "type": "UInt8",
+      "label": "Durée robot (min)",
+      "help": "Durée de fonctionnement du robot.",
+      "var": "robotDurationVar_",
+      "source": "cfgdoc",
+      "unit": "min"
+    },
+    "poollogic/robot_slot": {
+      "module": "poollogic",
+      "name": "robot_slot",
+      "type": "UInt8",
+      "label": "Slot robot",
+      "help": "Numéro de slot PDM associé au robot.",
+      "var": "robotDeviceVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/secure_elec_t": {
+      "module": "poollogic",
+      "name": "secure_elec_t",
+      "type": "Float",
+      "label": "Seuil sécurité electrolyse (C)",
+      "help": "Temperature minimale autorisée pour l'electrolyse.",
+      "var": "secureElectroVar_",
+      "source": "cfgdoc",
+      "unit": "C"
+    },
+    "poollogic/sensors/air_temp_io_id": {
+      "module": "poollogic/sensors",
+      "name": "air_temp_io_id",
+      "type": "UInt8",
+      "label": "IO température air",
+      "help": "Identifiant IO de la sonde température air.",
+      "var": "airTempIdVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/sensors/orp_io_id": {
+      "module": "poollogic/sensors",
+      "name": "orp_io_id",
+      "type": "UInt8",
+      "label": "IO capteur ORP",
+      "help": "Identifiant IO de la mesure ORP.",
+      "var": "orpIdVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/sensors/ph_io_id": {
+      "module": "poollogic/sensors",
+      "name": "ph_io_id",
+      "type": "UInt8",
+      "label": "IO capteur pH",
+      "help": "Identifiant IO de la mesure pH.",
+      "var": "phIdVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/sensors/pool_lvl_io_id": {
+      "module": "poollogic/sensors",
+      "name": "pool_lvl_io_id",
+      "type": "UInt8",
+      "label": "IO niveau bassin",
+      "help": "Identifiant IO de la mesure de niveau bassin.",
+      "var": "levelIdVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/sensors/psi_io_id": {
+      "module": "poollogic/sensors",
+      "name": "psi_io_id",
+      "type": "UInt8",
+      "label": "IO pression",
+      "help": "Identifiant IO du capteur de pression.",
+      "var": "psiIdVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/sensors/wat_temp_io_id": {
+      "module": "poollogic/sensors",
+      "name": "wat_temp_io_id",
+      "type": "UInt8",
+      "label": "IO température eau",
+      "help": "Identifiant IO de la sonde température eau.",
+      "var": "waterTempIdVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/swg_slot": {
+      "module": "poollogic",
+      "name": "swg_slot",
+      "type": "UInt8",
+      "label": "Slot electrolyse",
+      "help": "Numéro de slot PDM associé à l'electrolyseur.",
+      "var": "swgDeviceVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/wat_temp_io_id": {
+      "module": "poollogic",
+      "name": "wat_temp_io_id",
+      "type": "UInt8",
+      "label": "IO température eau",
+      "help": "Identifiant IO de la sonde température eau.",
+      "var": "waterTempIdVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/wat_temp_lo_th": {
+      "module": "poollogic",
+      "name": "wat_temp_lo_th",
+      "type": "Float",
+      "label": "Seuil eau basse (C)",
+      "help": "Seuil bas de température d'eau pour la logique de filtration.",
+      "var": "tempLowVar_",
+      "source": "cfgdoc",
+      "unit": "C"
+    },
+    "poollogic/wat_temp_setpt": {
+      "module": "poollogic",
+      "name": "wat_temp_setpt",
+      "type": "Float",
+      "label": "Consigne eau (C)",
+      "help": "Consigne de température d'eau pour le calcul de filtration.",
+      "var": "tempSetpointVar_",
+      "source": "cfgdoc",
+      "unit": "C"
+    },
+    "poollogic/winter_mode": {
+      "module": "poollogic",
+      "name": "winter_mode",
+      "type": "Bool",
+      "label": "Mode hiver force",
+      "help": "Force le fonctionnement en mode hiver (anti-gel).",
+      "var": "winterModeVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/winter_start_t": {
+      "module": "poollogic",
+      "name": "winter_start_t",
+      "type": "Float",
+      "label": "Seuil entrée hiver (C)",
+      "help": "Temperature de bascule vers la logique hiver.",
+      "var": "winterStartVar_",
+      "source": "cfgdoc",
+      "unit": "C"
+    },
+    "sysmon/trace_enabled": {
+      "module": "sysmon",
+      "name": "trace_enabled",
+      "type": "Bool",
+      "label": "Trace système active",
+      "help": "Active l'émission periodique des traces système (heap/stacks).",
+      "var": "traceEnabledVar_",
+      "source": "cfgdoc"
+    },
+    "sysmon/trace_period_ms": {
+      "module": "sysmon",
+      "name": "trace_period_ms",
+      "type": "Int32",
+      "label": "Période trace système (ms)",
+      "help": "Période entre deux traces système.",
+      "var": "tracePeriodVar_",
+      "source": "cfgdoc",
+      "unit": "ms"
+    },
+    "time/enabled": {
+      "module": "time",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Synchronisation horaire active",
+      "help": "Active ou désactive la synchronisation horaire NTP.",
+      "var": "enabledVar",
+      "source": "cfgdoc"
+    },
+    "time/scheduler/slots_blob": {
+      "module": "time/scheduler",
+      "name": "slots_blob",
+      "type": "CharArray",
+      "label": "Blob planning",
+      "help": "Configuration sérialisée des slots du scheduler.",
+      "var": "scheduleBlobVar",
+      "source": "cfgdoc"
+    },
+    "time/server1": {
+      "module": "time",
+      "name": "server1",
+      "type": "CharArray",
+      "label": "Serveur NTP principal",
+      "help": "Serveur NTP utilisé en priorité pour la synchronisation horaire.",
+      "var": "server1Var",
+      "source": "cfgdoc"
+    },
+    "time/server2": {
+      "module": "time",
+      "name": "server2",
+      "type": "CharArray",
+      "label": "Serveur NTP secondaire",
+      "help": "Serveur NTP de secours utilisé si le principal échoue.",
+      "var": "server2Var",
+      "source": "cfgdoc"
+    },
+    "time/tz": {
+      "module": "time",
+      "name": "tz",
+      "type": "CharArray",
+      "label": "Fuseau horaire",
+      "help": "Règle de fuseau horaire (format TZ) utilisée localement.",
+      "var": "tzVar",
+      "source": "cfgdoc"
+    },
+    "time/week_start_mon": {
+      "module": "time",
+      "name": "week_start_mon",
+      "type": "Bool",
+      "label": "Semaine commence lundi",
+      "help": "Définit le premier jour de semaine pour les plannings.",
+      "var": "weekStartMondayVar",
+      "source": "cfgdoc"
+    },
+    "wifi/enabled": {
+      "module": "wifi",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "WiFi active",
+      "help": "Active ou désactive la connexion WiFi en mode station.",
+      "var": "enabledVar",
+      "source": "cfgdoc"
+    },
+    "wifi/mdns": {
+      "module": "wifi",
+      "name": "mdns",
+      "type": "CharArray",
+      "label": "Nom mDNS",
+      "help": "Nom d'hôte mDNS diffusé sur le réseau local.",
+      "var": "mdnsVar",
+      "source": "cfgdoc"
+    },
+    "wifi/pass": {
+      "module": "wifi",
+      "name": "pass",
+      "type": "CharArray",
+      "label": "Mot de passe WiFi",
+      "help": "Mot de passe WPA/WPA2 du réseau WiFi.",
+      "var": "passVar",
+      "source": "cfgdoc"
+    },
+    "wifi/ssid": {
+      "module": "wifi",
+      "name": "ssid",
+      "type": "CharArray",
+      "label": "SSID",
+      "help": "Nom du réseau WiFi cible.",
+      "var": "ssidVar",
+      "source": "cfgdoc"
+    }
+  }
+}

@@ -95,26 +95,32 @@ private:
     uint32_t stateTs = 0;
 
     // Keep existing NVS keys for backward compatibility with deployed devices.
+    // CFGDOC: {"label":"Serveur NTP principal","help":"Serveur NTP utilisé en priorité pour la synchronisation horaire."}
     ConfigVariable<char,0> server1Var {
         NVS_KEY(NvsKeys::Time::Server1),"server1","time",ConfigType::CharArray,
         (char*)cfgData.server1,ConfigPersistence::Persistent,sizeof(cfgData.server1)
     };
+    // CFGDOC: {"label":"Serveur NTP secondaire","help":"Serveur NTP de secours utilisé si le principal échoue."}
     ConfigVariable<char,0> server2Var {
         NVS_KEY(NvsKeys::Time::Server2),"server2","time",ConfigType::CharArray,
         (char*)cfgData.server2,ConfigPersistence::Persistent,sizeof(cfgData.server2)
     };
+    // CFGDOC: {"label":"Fuseau horaire","help":"Règle de fuseau horaire (format TZ) utilisée localement."}
     ConfigVariable<char,0> tzVar {
         NVS_KEY(NvsKeys::Time::Tz),"tz","time",ConfigType::CharArray,
         (char*)cfgData.tz,ConfigPersistence::Persistent,sizeof(cfgData.tz)
     };
+    // CFGDOC: {"label":"Synchronisation horaire active","help":"Active ou désactive la synchronisation horaire NTP."}
     ConfigVariable<bool,0> enabledVar {
         NVS_KEY(NvsKeys::Time::Enabled),"enabled","time",ConfigType::Bool,
         &cfgData.enabled,ConfigPersistence::Persistent,0
     };
+    // CFGDOC: {"label":"Semaine commence lundi","help":"Définit le premier jour de semaine pour les plannings."}
     ConfigVariable<bool,0> weekStartMondayVar {
         NVS_KEY(NvsKeys::Time::WeekStartMonday),"week_start_mon","time",ConfigType::Bool,
         &cfgData.weekStartMonday,ConfigPersistence::Persistent,0
     };
+    // CFGDOC: {"label":"Blob planning","help":"Configuration sérialisée des slots du scheduler."}
     ConfigVariable<char,0> scheduleBlobVar {
         NVS_KEY(NvsKeys::Time::ScheduleBlob),"slots_blob","time/scheduler",ConfigType::CharArray,
         (char*)scheduleBlob_,ConfigPersistence::Persistent,sizeof(scheduleBlob_)

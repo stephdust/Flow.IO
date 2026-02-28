@@ -133,30 +133,37 @@ private:
     char publishBuf[Limits::Mqtt::Buffers::Publish] = {0};
     MqttService mqttSvc{ nullptr, nullptr, nullptr, nullptr };
 
+    // CFGDOC: {"label":"Hôte MQTT","help":"Adresse du broker MQTT (DNS ou IP)."}
     ConfigVariable<char,0> hostVar {
         NVS_KEY(NvsKeys::Mqtt::Host),"host","mqtt",ConfigType::CharArray,
         (char*)cfgData.host,ConfigPersistence::Persistent,sizeof(cfgData.host)
     };
+    // CFGDOC: {"label":"Port MQTT","help":"Port TCP utilisé pour la connexion au broker."}
     ConfigVariable<int32_t,0> portVar {
         NVS_KEY(NvsKeys::Mqtt::Port),"port","mqtt",ConfigType::Int32,
         &cfgData.port,ConfigPersistence::Persistent,0
     };
+    // CFGDOC: {"label":"Utilisateur MQTT","help":"Nom d'utilisateur pour l'authentification MQTT."}
     ConfigVariable<char,0> userVar {
         NVS_KEY(NvsKeys::Mqtt::User),"user","mqtt",ConfigType::CharArray,
         (char*)cfgData.user,ConfigPersistence::Persistent,sizeof(cfgData.user)
     };
+    // CFGDOC: {"label":"Mot de passe MQTT","help":"Mot de passe pour l'authentification MQTT."}
     ConfigVariable<char,0> passVar {
         NVS_KEY(NvsKeys::Mqtt::Pass),"pass","mqtt",ConfigType::CharArray,
         (char*)cfgData.pass,ConfigPersistence::Persistent,sizeof(cfgData.pass)
     };
+    // CFGDOC: {"label":"Topic de base","help":"Préfixe MQTT pour les topics de télémétrie/commande."}
     ConfigVariable<char,0> baseTopicVar {
         NVS_KEY(NvsKeys::Mqtt::BaseTopic),"baseTopic","mqtt",ConfigType::CharArray,
         (char*)cfgData.baseTopic,ConfigPersistence::Persistent,sizeof(cfgData.baseTopic)
     };
+    // CFGDOC: {"label":"MQTT actif","help":"Active ou désactive le client MQTT."}
     ConfigVariable<bool,0> enabledVar {
         NVS_KEY(NvsKeys::Mqtt::Enabled),"enabled","mqtt",ConfigType::Bool,
         &cfgData.enabled,ConfigPersistence::Persistent,0
     };
+    // CFGDOC: {"label":"Période mini capteurs (ms)","help":"Intervalle minimal entre deux publications capteurs.","unit":"ms"}
     ConfigVariable<int32_t,0> sensorMinVar {
         NVS_KEY(NvsKeys::Mqtt::SensorMinPublishMs),"sens_min_pub_ms","mqtt",ConfigType::Int32,
         (int32_t*)&cfgData.sensorMinPublishMs,ConfigPersistence::Persistent,0

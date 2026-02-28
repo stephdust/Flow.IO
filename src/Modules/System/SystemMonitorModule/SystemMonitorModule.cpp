@@ -149,7 +149,6 @@ void SystemMonitorModule::loop() {
     }
 
     uint32_t periodMs = (cfgData_.tracePeriodMs > 0) ? (uint32_t)cfgData_.tracePeriodMs : 5000U;
-    uint32_t stackPeriodMs = periodMs * 6U;
 
     if (!cfgData_.traceEnabled) {
         vTaskDelay(pdMS_TO_TICKS(200));
@@ -158,12 +157,8 @@ void SystemMonitorModule::loop() {
 
     if (lastTraceLogMs == 0U || (uint32_t)(now - lastTraceLogMs) >= periodMs) {
         lastTraceLogMs = now;
-        logHeapStats();
-    }
-
-    if (lastStackDumpMs == 0U || (uint32_t)(now - lastStackDumpMs) >= stackPeriodMs) {
-        lastStackDumpMs = now;
         logTaskStacks();
+        logHeapStats();
     }
 
     vTaskDelay(pdMS_TO_TICKS(200));

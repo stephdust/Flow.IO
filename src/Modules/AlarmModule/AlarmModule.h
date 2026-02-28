@@ -112,10 +112,12 @@ private:
     bool enabled_ = true;
     int32_t evalPeriodMsCfg_ = (int32_t)Limits::Alarm::DefaultEvalPeriodMs;
 
+    // CFGDOC: {"label":"Alarmes actives","help":"Active ou désactive l'évaluation du moteur d'alarmes."}
     ConfigVariable<bool,0> enabledVar_{
         NVS_KEY(NvsKeys::Alarm::Enabled), "enabled", "alarms", ConfigType::Bool,
         &enabled_, ConfigPersistence::Persistent, 0
     };
+    // CFGDOC: {"label":"Période evaluation alarmes (ms)","help":"Intervalle d'évaluation des conditions d'alarme.","unit":"ms"}
     ConfigVariable<int32_t,0> evalPeriodVar_{
         NVS_KEY(NvsKeys::Alarm::EvalPeriodMs), "eval_period_ms", "alarms", ConfigType::Int32,
         &evalPeriodMsCfg_, ConfigPersistence::Persistent, 0

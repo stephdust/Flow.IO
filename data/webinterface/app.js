@@ -72,10 +72,12 @@
     const flowPath = document.getElementById('flowPath');
     const nextionPath = document.getElementById('nextionPath');
     const supervisorPath = document.getElementById('supervisorPath');
+    const cfgdocsPath = document.getElementById('cfgdocsPath');
     const saveCfgBtn = document.getElementById('saveCfg');
     const upSupervisorBtn = document.getElementById('upSupervisor');
     const upFlowBtn = document.getElementById('upFlow');
     const upNextionBtn = document.getElementById('upNextion');
+    const upCfgdocsBtn = document.getElementById('upCfgdocs');
     const refreshStateBtn = document.getElementById('refreshState');
     const upgradeStatusText = document.getElementById('upgradeStatusText');
     const upgradeProgressBar = document.getElementById('upgradeProgressBar');
@@ -108,6 +110,8 @@
     let flowCfgCurrentData = {};
     let flowCfgChildrenCache = {};
     let flowCfgPath = [];
+    let flowCfgDocs = {};
+    let flowCfgDocsLoaded = false;
     let wifiConfigLoadedOnce = false;
     let flowCfgLoadedOnce = false;
     let wifiScanAutoRequested = false;
@@ -256,6 +260,7 @@
           flowPath.value = data.flowio_path || '';
           supervisorPath.value = data.supervisor_path || '';
           nextionPath.value = data.nextion_path || '';
+          cfgdocsPath.value = data.cfgdocs_path || '';
         }
       } catch (err) {
         setUpgradeMessage('Échec du chargement de la configuration : ' + err);
@@ -268,6 +273,7 @@
       body.set('flowio_path', flowPath.value.trim());
       body.set('supervisor_path', supervisorPath.value.trim());
       body.set('nextion_path', nextionPath.value.trim());
+      body.set('cfgdocs_path', cfgdocsPath.value.trim());
       const res = await fetch('/api/fwupdate/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
@@ -294,6 +300,7 @@
         let endpoint = '/fwupdate/nextion';
         if (target === 'supervisor') endpoint = '/fwupdate/supervisor';
         else if (target === 'flowio') endpoint = '/fwupdate/flowio';
+        else if (target === 'cfgdocs') endpoint = '/fwupdate/cfgdocs';
         const res = await fetch(endpoint, { method: 'POST' });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) throw new Error('échec démarrage');
@@ -319,6 +326,9 @@
     }
 
     async function onControlPageShown() {
+      if (!flowCfgDocsLoaded) {
+        await chargerFlowCfgDocs();
+      }
       if (!flowCfgLoadedOnce) {
         flowCfgLoadedOnce = true;
         await chargerFlowCfgModules(false);
@@ -736,6 +746,37 @@
       return p.length > 0 ? p : '__root__';
     }
 
+    async function chargerFlowCfgDocs() {
+      flowCfgDocsLoaded = true;
+      try {
+        const res = await fetch('/webinterface/cfgdocs.fr.json', { cache: 'no-store' });
+        const data = await res.json();
+        if (!res.ok || !data || typeof data !== 'object') {
+          throw new Error('invalid docs payload');
+        }
+        const docs = data.docs;
+        if (!docs || typeof docs !== 'object') {
+          flowCfgDocs = {};
+          return;
+        }
+        flowCfgDocs = docs;
+      } catch (err) {
+        flowCfgDocs = {};
+      }
+    }
+
+    function flowCfgDocFor(moduleName, key) {
+      const m = nettoyerNomFlowCfg(moduleName);
+      const k = String(key || '').trim();
+      if (!m || !k) return null;
+      const full = m + '/' + k;
+      const exact = flowCfgDocs[full];
+      if (exact && typeof exact === 'object') return exact;
+      const wildcard = flowCfgDocs['*/' + k];
+      if (wildcard && typeof wildcard === 'object') return wildcard;
+      return null;
+    }
+
     async function chargerFlowCfgChildren(prefix, forceReload) {
       const p = nettoyerNomFlowCfg(prefix);
       const key = flowCfgCacheKey(p);
@@ -797,10 +838,22 @@
         const row = document.createElement('div');
         row.className = 'control-row';
 
+        const doc = flowCfgDocFor(flowCfgCurrentModule, key);
+        const labelWrap = document.createElement('div');
+        labelWrap.className = 'control-label-wrap';
         const label = document.createElement('span');
         label.className = 'control-label';
-        label.textContent = key;
-        row.appendChild(label);
+        label.textContent = (doc && typeof doc.label === 'string' && doc.label.length > 0) ? doc.label : key;
+        labelWrap.appendChild(label);
+
+        const helpTxt = (doc && typeof doc.help === 'string') ? doc.help : '';
+        if (helpTxt.length > 0) {
+          const help = document.createElement('span');
+          help.className = 'control-help';
+          help.textContent = helpTxt;
+          labelWrap.appendChild(help);
+        }
+        row.appendChild(labelWrap);
 
         if (typeof value === 'boolean') {
           const sw = document.createElement('span');
@@ -996,6 +1049,7 @@
     upSupervisorBtn.addEventListener('click', () => startUpgrade('supervisor'));
     upFlowBtn.addEventListener('click', () => startUpgrade('flowio'));
     upNextionBtn.addEventListener('click', () => startUpgrade('nextion'));
+    upCfgdocsBtn.addEventListener('click', () => startUpgrade('cfgdocs'));
     refreshStateBtn.addEventListener('click', refreshUpgradeStatus);
     if (toggleWifiPassBtn && wifiPass) {
       mettreAJourEtatVisibiliteMotDePasse(

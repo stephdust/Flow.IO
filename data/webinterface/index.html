@@ -36,7 +36,12 @@
       <section id="page-status" class="page active">
         <div class="topbar">
           <h1>Statut Flow.IO</h1>
-          <button id="flowStatusRefresh" class="btn-tonal">Rafraîchir</button>
+          <button id="flowStatusRefresh" class="btn-tonal btn-icon-only" aria-label="Rafraîchir le statut" title="Rafraîchir le statut">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M12 5a7 7 0 0 1 6.65 4.82.75.75 0 1 0 1.43-.47A8.5 8.5 0 0 0 3.5 12h1.75a.75.75 0 0 0 0-1.5H3.63A8.5 8.5 0 0 0 12 20.5a8.47 8.47 0 0 0 7.86-5.25.75.75 0 1 0-1.39-.56A7 7 0 1 1 12 5Z"/>
+              <path fill="currentColor" d="M18.5 3.25a.75.75 0 0 0-1.5 0V7h-3.75a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 .75-.75v-4.5Z"/>
+            </svg>
+          </button>
         </div>
         <div class="card">
           <div id="flowStatusChip" class="status-chip">en attente...</div>
@@ -100,6 +105,13 @@
               <div class="field-inline-action">
                 <input id="supervisorPath" placeholder="/build/Supervisor/firmware.bin" />
                 <button id="upSupervisor" class="btn-primary">Mettre à jour Supervisor</button>
+              </div>
+            </div>
+            <div class="field full">
+              <label for="cfgdocsPath">Chemin cfgdocs</label>
+              <div class="field-inline-action">
+                <input id="cfgdocsPath" placeholder="/webinterface/cfgdocs.fr.json" />
+                <button id="upCfgdocs" class="btn-primary">Mettre à jour cfgdocs</button>
               </div>
             </div>
           </div>
@@ -202,7 +214,12 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.13.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.4 1.05.71 1.63.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54c.58-.23 1.13-.54 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg>
             </button>
           </h1>
-          <button id="flowCfgRefresh" class="btn-tonal">Rafraîchir</button>
+          <button id="flowCfgRefresh" class="btn-tonal btn-icon-only" aria-label="Rafraîchir la configuration" title="Rafraîchir la configuration">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M12 5a7 7 0 0 1 6.65 4.82.75.75 0 1 0 1.43-.47A8.5 8.5 0 0 0 3.5 12h1.75a.75.75 0 0 0 0-1.5H3.63A8.5 8.5 0 0 0 12 20.5a8.47 8.47 0 0 0 7.86-5.25.75.75 0 1 0-1.39-.56A7 7 0 1 1 12 5Z"/>
+              <path fill="currentColor" d="M18.5 3.25a.75.75 0 0 0-1.5 0V7h-3.75a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 .75-.75v-4.5Z"/>
+            </svg>
+          </button>
         </div>
         <div class="card control-card">
           <div class="control-shell">
