@@ -55,6 +55,10 @@
         <div class="topbar">
           <h1>Journaux</h1>
           <div class="topbar-actions">
+            <select id="logSourceSelect" class="log-source-select" aria-label="Source des journaux" title="Source des journaux affichés">
+              <option value="flow">Flow.IO (distant)</option>
+              <option value="supervisor">Supervisor (local)</option>
+            </select>
             <span id="wsStatus" class="status-chip">connexion...</span>
             <label class="autoscroll-chip" for="toggleAutoscroll" title="Défilement automatique des journaux">
               <span class="autoscroll-label">Scroll</span>

@@ -128,7 +128,7 @@ static inline bool writeErrorJson(char* out, size_t outLen, ErrorCode code, cons
     );
     const bool ok = (wrote > 0) && ((size_t)wrote < outLen);
     if (!ok) {
-        Log::warn("ErrCodes", "writeErrorJson truncated (len=%u wrote=%d where=%s)",
+        Log::warn((LogModuleId)LogModuleIdValue::Core, "writeErrorJson truncated (len=%u wrote=%d where=%s)",
                   (unsigned)outLen, wrote, w);
     }
     return ok;
@@ -146,7 +146,7 @@ static inline bool writeOkJson(char* out, size_t outLen, const char* where)
     );
     const bool ok = (wrote > 0) && ((size_t)wrote < outLen);
     if (!ok) {
-        Log::warn("ErrCodes", "writeOkJson truncated (len=%u wrote=%d where=%s)",
+        Log::warn((LogModuleId)LogModuleIdValue::Core, "writeOkJson truncated (len=%u wrote=%d where=%s)",
                   (unsigned)outLen, wrote, w);
     }
     return ok;
@@ -167,7 +167,7 @@ static inline bool writeErrorJsonWithSlot(char* out, size_t outLen, ErrorCode co
     );
     const bool ok = (wrote > 0) && ((size_t)wrote < outLen);
     if (!ok) {
-        Log::warn("ErrCodes", "writeErrorJsonWithSlot truncated (len=%u wrote=%d where=%s slot=%u)",
+        Log::warn((LogModuleId)LogModuleIdValue::Core, "writeErrorJsonWithSlot truncated (len=%u wrote=%d where=%s slot=%u)",
                   (unsigned)outLen, wrote, w, (unsigned)slot);
     }
     return ok;

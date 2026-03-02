@@ -3,7 +3,7 @@ flowchart TB
 
 %% Layer 0: Hardware
 subgraph L0["Socle hardware"]
-  HW1["GPIO sorties: Pump(32), Heater(25), Light(26), Aux1(13), Aux2(33), Aux3(27), Aux4(23), Aux5(12)"]
+  HW1["GPIO sorties: Pump(32), Heater(25), Light(26), Aux1(13), Aux2(33), Aux3(27), Aux4(23), Aux5(13)"]
   HW2["GPIO entree: FlowSwitch(34)"]
   HW3["I2C: SDA(21) / SCL(22)"]
   HW4["1-Wire: BusA(19) / BusB(18)"]

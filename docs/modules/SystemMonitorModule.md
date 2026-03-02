@@ -18,7 +18,8 @@ Type: module actif.
 - core: 0
 - task: `sysmon`
 - loop: delay 200ms
-- période logs pilotée par config (`trace_period_ms`, défaut 5000)
+- traces toujours actives (niveau `Info`)
+- période traces pilotée par config (`trace_period_ms`, défaut 5000)
 
 ## Services consommés
 
@@ -33,7 +34,6 @@ Aucun.
 ## Config / NVS
 
 Branche: `ConfigBranchId::SystemMonitor` (`module: sysmon`)
-- `trace_enabled` (`NvsKeys::SystemMonitor::TraceEnabled`)
 - `trace_period_ms` (`NvsKeys::SystemMonitor::TracePeriodMs`)
 
 ## EventBus / DataStore / MQTT

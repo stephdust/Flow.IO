@@ -7,23 +7,21 @@
 #include <Arduino.h>
 #include <string.h>
 
-#define LOG_TAG "LogAlmSn"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::LogSinkAlarm)
 #include "Core/ModuleLog.h"
 
-bool LogAlarmSinkModule::ignoredTag_(const char* tag)
+bool LogAlarmSinkModule::ignoredModule_(LogModuleId moduleId)
 {
-    if (!tag || tag[0] == '\0') return false;
     // Avoid self-feedback loops from alarm engine/sink internals.
-    if (strncmp(tag, "AlarmMod", 8) == 0) return true;
-    if (strncmp(tag, "LogAlmSn", 8) == 0) return true;
-    return false;
+    return moduleId == (LogModuleId)LogModuleIdValue::AlarmModule ||
+           moduleId == (LogModuleId)LogModuleIdValue::LogSinkAlarm;
 }
 
 void LogAlarmSinkModule::sinkWrite_(void* ctx, const LogEntry& e)
 {
     SinkState* st = static_cast<SinkState*>(ctx);
     if (!st) return;
-    if (ignoredTag_(e.tag)) return;
+    if (ignoredModule_(e.moduleId)) return;
 
     const uint32_t nowMs = millis();
     if (e.lvl == LogLevel::Warn) {

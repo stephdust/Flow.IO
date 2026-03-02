@@ -3,7 +3,7 @@
  * @brief Implementation file.
  */
 #include "CommandModule.h"
-#define LOG_TAG "CmdModul"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::CommandModule)
 #include "Core/ModuleLog.h"
 
 

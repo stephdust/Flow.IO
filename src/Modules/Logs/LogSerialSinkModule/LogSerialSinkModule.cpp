@@ -9,11 +9,12 @@
 
 #undef snprintf
 #define snprintf(OUT, LEN, FMT, ...) \
-    FLOW_SNPRINTF_CHECKED("LogSerial", OUT, LEN, FMT, ##__VA_ARGS__)
+    FLOW_SNPRINTF_CHECKED_MODULE((LogModuleId)LogModuleIdValue::LogSinkSerial, OUT, LEN, FMT, ##__VA_ARGS__)
 
 struct SerialSinkCtx {
     ServiceRegistry* services = nullptr;
     const TimeService* timeSvc = nullptr;
+    const LogHubService* hubSvc = nullptr;
 };
 
 static SerialSinkCtx gSerialSinkCtx{};
@@ -68,6 +69,21 @@ static void formatUptime(char *out, size_t outSize, uint32_t ms)
 
 static void serialSinkWrite(void* ctx, const LogEntry& e) {
     SerialSinkCtx* sinkCtx = static_cast<SerialSinkCtx*>(ctx);
+    const char* moduleName = nullptr;
+    char moduleFallback[24] = {0};
+
+    if (sinkCtx) {
+        if (!sinkCtx->hubSvc && sinkCtx->services) {
+            sinkCtx->hubSvc = sinkCtx->services->get<LogHubService>("loghub");
+        }
+        if (sinkCtx->hubSvc && sinkCtx->hubSvc->resolveModuleName) {
+            moduleName = sinkCtx->hubSvc->resolveModuleName(sinkCtx->hubSvc->ctx, e.moduleId);
+        }
+    }
+    if (!moduleName || moduleName[0] == '\0') {
+        snprintf(moduleFallback, sizeof(moduleFallback), "#%u", (unsigned)e.moduleId);
+        moduleName = moduleFallback;
+    }
 
     char ts[48];
     bool timeFromService = false;
@@ -117,7 +133,7 @@ static void serialSinkWrite(void* ctx, const LogEntry& e) {
         gLogSerial->printf("[%s][%s][%s] %s%s%s\n",
                            ts,
                            lvlStr(e.lvl),
-                           e.tag,
+                           moduleName,
                            color,
                            e.msg,
                            colorReset());
@@ -141,6 +157,7 @@ void LogSerialSinkModule::init(ConfigStore& cfg, ServiceRegistry& services) {
 
     gSerialSinkCtx.services = &services;
     gSerialSinkCtx.timeSvc = nullptr;
+    gSerialSinkCtx.hubSvc = services.get<LogHubService>("loghub");
 
     LogSinkService sink{};
     sink.write = serialSinkWrite;

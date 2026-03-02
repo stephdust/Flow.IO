@@ -13,7 +13,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#define LOG_TAG "HAModule"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::HAModule)
 #include "Core/ModuleLog.h"
 
 #ifndef FIRMW

@@ -5,7 +5,7 @@
 
 #include "I2CCfgClientModule.h"
 #include "Core/ErrorCodes.h"
-#define LOG_TAG "I2CfgCli"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::I2cCfgClientModule)
 #include "Core/ModuleLog.h"
 
 #include <stdlib.h>

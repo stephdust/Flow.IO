@@ -8,7 +8,7 @@
 #include "Core/SystemStats.h"
 #include "Modules/Network/MQTTModule/MQTTRuntime.h"
 #include "Modules/Network/WifiModule/WifiRuntime.h"
-#define LOG_TAG "I2CfgSrv"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::I2cCfgServerModule)
 #include "Core/ModuleLog.h"
 
 #include <WiFi.h>

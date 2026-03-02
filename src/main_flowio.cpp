@@ -60,7 +60,7 @@
 #include <string.h>
 #undef snprintf
 #define snprintf(OUT, LEN, FMT, ...) \
-    FLOW_SNPRINTF_CHECKED("Main", OUT, LEN, FMT, ##__VA_ARGS__)
+    FLOW_SNPRINTF_CHECKED_MODULE((LogModuleId)LogModuleIdValue::Core, OUT, LEN, FMT, ##__VA_ARGS__)
 
 /// Only necessary services (global)
 #include "Core/Services/iLogger.h"

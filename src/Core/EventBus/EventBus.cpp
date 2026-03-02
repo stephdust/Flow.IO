@@ -6,7 +6,7 @@
 #include <Arduino.h>  // micros(), millis()
 #include "Core/Log.h"
 
-#define LOG_TAG_CORE "EventBus"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::CoreEventBus)
 
 #if EVENTBUS_PROFILE
 static uint32_t g_lastWarnMs = 0;
@@ -93,7 +93,7 @@ void EventBus::dispatch(uint16_t maxEvents) {
 #if EVENTBUS_PROFILE
     const uint32_t dt = (uint32_t)(micros() - tDispatch0);
     if (dispatched > 0 && dt > EVENTBUS_DISPATCH_WARN_US && canWarnNow()) {
-        Log::warn(LOG_TAG_CORE,"dispatch slow: %u events dt=%lu us", (unsigned)dispatched, (unsigned long)dt);
+        Log::warn(LOG_MODULE_ID,"dispatch slow: %u events dt=%lu us", (unsigned)dispatched, (unsigned long)dt);
     }
 #endif
 }
@@ -116,7 +116,7 @@ void EventBus::dispatchOne(const QueuedEvent& qe) {
 #if EVENTBUS_PROFILE
             const uint32_t dt = (uint32_t)(micros() - t0);
             if (dt > EVENTBUS_HANDLER_WARN_US && canWarnNow()) {
-                Log::warn(LOG_TAG_CORE,"slow handler: event=%u cb=%p user=%p dt=%lu us",
+                Log::warn(LOG_MODULE_ID,"slow handler: event=%u cb=%p user=%p dt=%lu us",
                      (unsigned)qe.id,
                      (void*)_subs[i].cb,
                      _subs[i].user,

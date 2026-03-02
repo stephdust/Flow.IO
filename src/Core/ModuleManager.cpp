@@ -5,9 +5,10 @@
 #include "ModuleManager.h"
 #include "Board/BoardSerialMap.h"
 #include "Core/Log.h"
+#include "Core/LogModuleIds.h"
 #include <cstring>
 
-#define LOG_TAG_CORE "ModManag"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::CoreModuleManager)
 
 static void logRegisteredModules(Module* modules[], uint8_t count) {
     ///Logger::log(LogLevel::Info, "MOD", "Registered modules (%u):", count);
@@ -39,7 +40,7 @@ Module* ModuleManager::findById(const char* id) {
 }
 
 bool ModuleManager::buildInitOrder() {
-    Log::debug(LOG_TAG_CORE, "buildInitOrder: count=%u", (unsigned)count);
+    Log::debug(LOG_MODULE_ID, "buildInitOrder: count=%u", (unsigned)count);
     /// Kahn topo-sort
     bool placed[MAX_MODULES] = {0};
     orderedCount = 0;
@@ -65,7 +66,7 @@ bool ModuleManager::buildInitOrder() {
                                                          m->moduleId(), depId);
                     Board::SerialMap::logSerial().flush();
                     delay(20);
-            Log::error(LOG_TAG_CORE, "missing dependency: module=%s requires=%s",
+            Log::error(LOG_MODULE_ID, "missing dependency: module=%s requires=%s",
                                m->moduleId(), depId);
                     return false;
                 }
@@ -106,18 +107,18 @@ bool ModuleManager::buildInitOrder() {
             }
             Board::SerialMap::logSerial().flush();
             delay(50);
-            Log::error(LOG_TAG_CORE, "cyclic or unresolved deps detected");
+            Log::error(LOG_MODULE_ID, "cyclic or unresolved deps detected");
             return false;
         }
     }
 
-    Log::debug(LOG_TAG_CORE, "buildInitOrder: success (ordered=%u)", (unsigned)orderedCount);
+    Log::debug(LOG_MODULE_ID, "buildInitOrder: success (ordered=%u)", (unsigned)orderedCount);
     return true;
 }
 
 
 bool ModuleManager::initAll(ConfigStore& cfg, ServiceRegistry& services) {
-    Log::debug(LOG_TAG_CORE, "initAll: moduleCount=%u", (unsigned)count);
+    Log::debug(LOG_MODULE_ID, "initAll: moduleCount=%u", (unsigned)count);
     /*Serial.printf("[MOD] moduleCount=%d\n", count);
     for (int i=0;i<count;i++){
         Serial.printf("[MOD] module[%d]=%s\n", i, modules[i]->moduleId());
@@ -130,9 +131,16 @@ bool ModuleManager::initAll(ConfigStore& cfg, ServiceRegistry& services) {
     if (!buildInitOrder()) return false;
 
     for (uint8_t i = 0; i < orderedCount; ++i) {
+        const LogModuleId logModuleId = Log::moduleIdFromName(ordered[i]->moduleId());
+        if (logModuleId != (LogModuleId)LogModuleIdValue::Unknown) {
+            (void)Log::registerModule(logModuleId, ordered[i]->moduleId());
+        }
         ///Logger::log(LogLevel::Info, "MOD", "Init %s", ordered[i]->moduleId());
-        Log::debug(LOG_TAG_CORE, "init: %s", ordered[i]->moduleId());
+        Log::debug(LOG_MODULE_ID, "init: %s", ordered[i]->moduleId());
         ordered[i]->init(cfg, services);
+        if (logModuleId != (LogModuleId)LogModuleIdValue::Unknown) {
+            (void)Log::registerModule(logModuleId, ordered[i]->moduleId());
+        }
     }
 
     /// Load persistent config after all modules registered their variables.
@@ -147,7 +155,7 @@ bool ModuleManager::initAll(ConfigStore& cfg, ServiceRegistry& services) {
         if (!ordered[i]->hasTask()) {
         continue;
     }
-        Log::info(LOG_TAG_CORE, "startTask module=%s task=%s core=%ld prio=%u stack=%u",
+        Log::info(LOG_MODULE_ID, "startTask module=%s task=%s core=%ld prio=%u stack=%u",
                   ordered[i]->moduleId(),
                   ordered[i]->taskName(),
                   (long)ordered[i]->taskCore(),
@@ -155,12 +163,12 @@ bool ModuleManager::initAll(ConfigStore& cfg, ServiceRegistry& services) {
                   (unsigned)ordered[i]->taskStackSize());
         ordered[i]->startTask();
         if (!ordered[i]->getTaskHandle()) {
-            Log::error(LOG_TAG_CORE, "startTask failed module=%s", ordered[i]->moduleId());
+            Log::error(LOG_MODULE_ID, "startTask failed module=%s", ordered[i]->moduleId());
         }
     }
 
     wireCoreServices(services, cfg);
-    Log::debug(LOG_TAG_CORE, "initAll: done");
+    Log::debug(LOG_MODULE_ID, "initAll: done");
     
     return true;
 }
@@ -170,6 +178,6 @@ void ModuleManager::wireCoreServices(ServiceRegistry& services, ConfigStore& con
   auto* ebService = services.get<EventBusService>("eventbus");
   if (ebService && ebService->bus) {
     config.setEventBus(ebService->bus);
-    Log::debug(LOG_TAG_CORE, "wireCoreServices: eventbus wired");
+    Log::debug(LOG_MODULE_ID, "wireCoreServices: eventbus wired");
   }
 }

@@ -5,7 +5,7 @@
 
 #include "WifiProvisioningModule.h"
 
-#define LOG_TAG "WifiProv"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::WifiProvisioningModule)
 #include "Core/ModuleLog.h"
 
 #include <ArduinoJson.h>

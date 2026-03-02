@@ -13,7 +13,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cctype>
-#define LOG_TAG "TimeModl"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::TimeModule)
 #include "Core/ModuleLog.h"
 
 // Fast-clock test mode:

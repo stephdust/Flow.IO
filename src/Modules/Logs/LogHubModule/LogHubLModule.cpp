@@ -4,16 +4,33 @@
  */
 #include "LogHubModule.h"
 #include "Core/Log.h"
+#include "Core/ConfigBranchIds.h"
+#include "Core/EventBus/EventPayloads.h"
+#include "Core/LogModuleIds.h"
 #include "Core/SystemLimits.h"
 
 void LogHubModule::init(ConfigStore& cfg, ServiceRegistry& services) {
-    (void)cfg;
-
     hub.init(Limits::LogQueueLen);
+    hub.attachConfig(&cfg, (uint8_t)ConfigModuleId::Log, (uint16_t)ConfigBranchId::LogLevels);
 
     /// expose loghub service
     hubSvc.enqueue = [](void* ctx, const LogEntry& e) -> bool {
         return static_cast<LogHub*>(ctx)->enqueue(e);
+    };
+    hubSvc.registerModule = [](void* ctx, LogModuleId moduleId, const char* moduleName) -> bool {
+        return static_cast<LogHub*>(ctx)->registerModule(moduleId, moduleName);
+    };
+    hubSvc.shouldLog = [](void* ctx, LogModuleId moduleId, LogLevel level) -> bool {
+        return static_cast<LogHub*>(ctx)->shouldLog(moduleId, level);
+    };
+    hubSvc.resolveModuleName = [](void* ctx, LogModuleId moduleId) -> const char* {
+        return static_cast<const LogHub*>(ctx)->resolveModuleName(moduleId);
+    };
+    hubSvc.setModuleMinLevel = [](void* ctx, LogModuleId moduleId, LogLevel level) -> bool {
+        return static_cast<LogHub*>(ctx)->setModuleMinLevel(moduleId, level);
+    };
+    hubSvc.getModuleMinLevel = [](void* ctx, LogModuleId moduleId) -> LogLevel {
+        return static_cast<const LogHub*>(ctx)->getModuleMinLevel(moduleId);
     };
     hubSvc.ctx = &hub;
 
@@ -33,5 +50,5 @@ void LogHubModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     services.add("logsinks", &sinksSvc);
 
     Log::setHub(&hubSvc);
-
+    (void)Log::registerModule((LogModuleId)LogModuleIdValue::LogHub, moduleId());
 }

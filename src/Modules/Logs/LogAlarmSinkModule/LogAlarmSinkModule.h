@@ -34,7 +34,7 @@ private:
     static void sinkWrite_(void* ctx, const LogEntry& e);
     static AlarmCondState condWarn_(void* ctx, uint32_t nowMs);
     static AlarmCondState condError_(void* ctx, uint32_t nowMs);
-    static bool ignoredTag_(const char* tag);
+    static bool ignoredModule_(LogModuleId moduleId);
 
     SinkState state_{};
 };

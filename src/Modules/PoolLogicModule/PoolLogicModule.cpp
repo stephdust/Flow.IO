@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <cmath>
 
-#define LOG_TAG "PoolLogc"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolLogicModule)
 #include "Core/ModuleLog.h"
 
 static bool parseCmdArgsObject_(const CommandRequest& req, JsonObjectConst& outObj)

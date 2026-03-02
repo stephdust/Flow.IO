@@ -60,7 +60,9 @@ enum class ConfigBranchId : uint16_t {
     PoolDeviceRuntimePd4 = 84,
     PoolDeviceRuntimePd5 = 85,
     PoolDeviceRuntimePd6 = 86,
-    PoolDeviceRuntimePd7 = 87
+    PoolDeviceRuntimePd7 = 87,
+
+    LogLevels = 96
 };
 
 constexpr ConfigBranchId configBranchFromPoolDeviceSlot(uint8_t slot)
@@ -126,6 +128,7 @@ inline const char* configBranchModuleName(ConfigBranchId id)
         case ConfigBranchId::PoolDeviceRuntimePd5: return "pdmrt/pd5";
         case ConfigBranchId::PoolDeviceRuntimePd6: return "pdmrt/pd6";
         case ConfigBranchId::PoolDeviceRuntimePd7: return "pdmrt/pd7";
+        case ConfigBranchId::LogLevels: return "log/levels";
         case ConfigBranchId::Unknown:
         default:
             return nullptr;

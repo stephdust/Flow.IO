@@ -3,7 +3,6 @@
  * @brief Implementation file.
  */
 #include "Core/DataStore/DataStore.h"
-#define LOG_TAG_CORE "DataStor"
 
 void DataStore::markDirty(uint32_t mask)
 {

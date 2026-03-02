@@ -9,6 +9,7 @@
 #include "Core/Services/ILogger.h"
 #include <HardwareSerial.h>
 #include <ESPAsyncWebServer.h>
+#include <freertos/queue.h>
 #include "Core/EventBus/EventBus.h"
 
 class WebInterfaceModule : public Module {
@@ -55,15 +56,18 @@ private:
 
     // Keep UART framing aligned with core log entry limits.
     static constexpr size_t kSerialLogLineChars =
-        (size_t)LOG_MSG_MAX + (size_t)LOG_TAG_MAX + 64U;
+        (size_t)LOG_MSG_MAX + (size_t)LOG_MODULE_NAME_MAX + 64U;
     static constexpr size_t kLineBufferSize = kSerialLogLineChars * 4U;
     static constexpr size_t kUartRxBufferSize = kLineBufferSize * 2U;
 
     HardwareSerial& uart_ = Serial2;
     AsyncWebServer server_{kServerPort};
     AsyncWebSocket ws_{"/wsserial"};
+    AsyncWebSocket wsLog_{"/wslog"};
 
     const LogHubService* logHub_ = nullptr;
+    const LogSinkRegistryService* logSinkReg_ = nullptr;
+    const TimeService* timeSvc_ = nullptr;
     const WifiService* wifiSvc_ = nullptr;
     const CommandService* cmdSvc_ = nullptr;
     const FlowCfgRemoteService* flowCfgSvc_ = nullptr;
@@ -75,8 +79,13 @@ private:
     bool spiffsReady_ = false;
     volatile bool netReady_ = false;
     volatile bool uartPaused_ = false;
+    bool localLogSinkRegistered_ = false;
     const FirmwareUpdateService* fwUpdateSvc_ = nullptr;
     ServiceRegistry* services_ = nullptr;
+
+    static constexpr size_t kLocalLogLineMax = 240;
+    static constexpr UBaseType_t kLocalLogQueueLen = 64;
+    QueueHandle_t localLogQueue_ = nullptr;
 
     char lineBuf_[kLineBufferSize] = {0};
     size_t lineLen_ = 0;
@@ -88,11 +97,25 @@ private:
                     void* arg,
                     uint8_t* data,
                     size_t len);
+    void onWsLogEvent_(AsyncWebSocket* server,
+                       AsyncWebSocketClient* client,
+                       AwsEventType type,
+                       void* arg,
+                       uint8_t* data,
+                       size_t len);
     void handleUpdateRequest_(AsyncWebServerRequest* request, FirmwareUpdateTarget target);
     bool isWebReachable_() const;
     bool getNetworkIp_(char* out, size_t len, NetworkAccessMode* modeOut) const;
     void flushLine_(bool force);
+    void flushLocalLogQueue_();
     static bool isLogByte_(uint8_t c);
+    static char levelChar_(LogLevel lvl);
+    static const char* levelColor_(LogLevel lvl);
+    static const char* colorReset_();
+    static bool isSystemTimeValid_();
+    static void formatUptime_(char* out, size_t outSize, uint32_t ms);
+    static void formatTimestamp_(WebInterfaceModule* self, const LogEntry& e, char* out, size_t outSize);
+    static void onLocalLogSinkWrite_(void* ctx, const LogEntry& e);
     static bool svcSetPaused_(void* ctx, bool paused);
     static bool svcIsPaused_(void* ctx);
     static void onEventStatic_(const Event& e, void* user);

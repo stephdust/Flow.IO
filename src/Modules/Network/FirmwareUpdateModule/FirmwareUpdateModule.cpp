@@ -18,7 +18,7 @@
 #include <ESPNexUpload.h>
 #include <esp32_flasher.h>
 
-#define LOG_TAG "FwUpdate"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::FirmwareUpdateModule)
 #include "Core/ModuleLog.h"
 
 #ifndef FLOW_SUPERVISOR_NEXTION_UPLOAD_BAUD

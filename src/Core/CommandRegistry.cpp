@@ -7,10 +7,10 @@
 #include "Core/SnprintfCheck.h"
 #include <cstring>
 #include <cstdio>
-#define LOG_TAG_CORE "CmdRegst"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::Core)
 #undef snprintf
 #define snprintf(OUT, LEN, FMT, ...) \
-    FLOW_SNPRINTF_CHECKED(LOG_TAG_CORE, OUT, LEN, FMT, ##__VA_ARGS__)
+    FLOW_SNPRINTF_CHECKED_MODULE(LOG_MODULE_ID, OUT, LEN, FMT, ##__VA_ARGS__)
 
 static bool isJsonObjectReply_(const char* s, size_t len)
 {

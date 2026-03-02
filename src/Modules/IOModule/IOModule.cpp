@@ -5,7 +5,7 @@
 
 #include "IOModule.h"
 #include "Core/MqttTopics.h"
-#define LOG_TAG "IOModule"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::IOModule)
 #include "Core/ModuleLog.h"
 #include "Modules/IOModule/IORuntime.h"
 #include <Arduino.h>
@@ -662,7 +662,7 @@ void IOModule::maybeRefreshHaOnPrecisionChange_()
     }
 
     bool changed = false;
-    uint8_t changedMask = 0;
+    uint16_t changedMask = 0;
     for (uint8_t i = 0; i < ANALOG_CFG_SLOTS; ++i) {
         int32_t p = clampPrecisionForHa_(analogCfg_[i].precision);
         if (haPrecisionLast_[i] == p) continue;
@@ -670,7 +670,7 @@ void IOModule::maybeRefreshHaOnPrecisionChange_()
         if (runtimeReady_ && i < MAX_ANALOG_ENDPOINTS && analogSlots_[i].used) {
             analogSlots_[i].def.precision = p;
         }
-        changedMask |= (uint8_t)(1u << i);
+        changedMask |= (uint16_t)(1u << i);
         changed = true;
     }
 
@@ -678,7 +678,7 @@ void IOModule::maybeRefreshHaOnPrecisionChange_()
         LOGI("Input precision changed -> publish runtime snapshot");
         const uint32_t nowMs = millis();
         for (uint8_t i = 0; i < ANALOG_CFG_SLOTS; ++i) {
-            if ((changedMask & (uint8_t)(1u << i)) == 0) continue;
+            if ((changedMask & (uint16_t)(1u << i)) == 0) continue;
             forceAnalogSnapshotPublish_(i, nowMs);
         }
         if (haSvc_ && haSvc_->addSensor) {

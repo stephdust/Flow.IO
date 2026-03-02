@@ -7,7 +7,7 @@
 #include <WiFi.h>
 #include <esp_system.h>
 #include <esp_wifi.h>
-#define LOG_TAG "SysModul"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::SystemModule)
 #include "Core/ModuleLog.h"
 
 static bool wipeWifiPersistent_(esp_err_t* outErr)

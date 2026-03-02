@@ -10,7 +10,7 @@
 #include <ArduinoJson.h>
 #include <stdio.h>
 #include <string.h>
-#define LOG_TAG "HMIModul"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::HMIModule)
 #include "Core/ModuleLog.h"
 
 namespace {

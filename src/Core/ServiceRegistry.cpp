@@ -3,7 +3,6 @@
  * @brief Implementation file.
  */
 #include "ServiceRegistry.h"
-#define LOG_TAG_CORE "SvcRegst"
 
 bool ServiceRegistry::add(const char* id, const void* service) {
     if (count >= MAX_SERVICES) return false;

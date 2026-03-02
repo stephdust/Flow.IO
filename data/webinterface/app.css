@@ -217,6 +217,20 @@
     .autoscroll-label {
       line-height: 1;
     }
+    .log-source-select {
+      width: auto;
+      min-width: 188px;
+      max-width: 240px;
+      height: 30px;
+      padding: 0 30px 0 10px;
+      border-radius: 999px;
+      border: 1px solid #D4DFE9;
+      font-size: 12px;
+      line-height: 30px;
+      font-weight: 600;
+      background: #F7FAFC;
+      color: #5D7288;
+    }
     .status-grid {
       margin-top: 10px;
       display: grid;
@@ -385,9 +399,9 @@
       font-weight: 600;
     }
     .btn-icon-only {
-      width: 38px;
-      height: 38px;
-      min-width: 38px;
+      width: 30px;
+      height: 30px;
+      min-width: 30px;
       padding: 0;
       border-radius: 999px;
       display: inline-flex;
@@ -841,6 +855,9 @@
       }
       .field-inline-action button {
         width: 100%;
+      }
+      .log-source-select {
+        min-width: 156px;
       }
       .status-grid { grid-template-columns: 1fr; }
     }

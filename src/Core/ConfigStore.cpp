@@ -9,10 +9,10 @@
 #include <ArduinoJson.h>
 #include <stdio.h>
 
-#define LOG_TAG_CORE "CfgStore"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::CoreConfigStore)
 #undef snprintf
 #define snprintf(OUT, LEN, FMT, ...) \
-    FLOW_SNPRINTF_CHECKED(LOG_TAG_CORE, OUT, LEN, FMT, ##__VA_ARGS__)
+    FLOW_SNPRINTF_CHECKED_MODULE(LOG_MODULE_ID, OUT, LEN, FMT, ##__VA_ARGS__)
 
 static bool strEquals(const char* a, const char* b) {
     if (!a || !b) return false;
@@ -114,7 +114,7 @@ void ConfigStore::logNvsWriteSummaryIfDue(uint32_t nowMs, uint32_t periodMs)
     const uint32_t windowWrites = _nvsWriteWindow.exchange(0U, std::memory_order_relaxed);
     const uint32_t totalWrites = _nvsWriteTotal.load(std::memory_order_relaxed);
 
-    Log::info(LOG_TAG_CORE, "NVS writes: last_%lus=%lu total=%lu",
+    Log::info(LOG_MODULE_ID, "NVS writes: last_%lus=%lu total=%lu",
               (unsigned long)(periodMs / 1000U),
               (unsigned long)windowWrites,
               (unsigned long)totalWrites);
@@ -148,7 +148,7 @@ void ConfigStore::loadPersistent()
 {
     if (!_prefs) return;
 
-    Log::debug(LOG_TAG_CORE, "loadPersistent: vars=%u", (unsigned)_metaCount);
+    Log::debug(LOG_MODULE_ID, "loadPersistent: vars=%u", (unsigned)_metaCount);
     for (uint16_t i = 0; i < _metaCount; ++i) {
         ConfigMeta& m = _meta[i];
         if (m.persistence != ConfigPersistence::Persistent) continue;
@@ -186,7 +186,7 @@ void ConfigStore::savePersistent()
 {
     if (!_prefs) return;
 
-    Log::debug(LOG_TAG_CORE, "savePersistent: vars=%u", (unsigned)_metaCount);
+    Log::debug(LOG_MODULE_ID, "savePersistent: vars=%u", (unsigned)_metaCount);
     for (uint16_t i = 0; i < _metaCount; ++i) {
         writePersistent(_meta[i]);
     }
@@ -406,12 +406,12 @@ bool ConfigStore::applyJson(const char* json)
     doc.clear();
     const DeserializationError err = deserializeJson(doc, json);
     if (err || !doc.is<JsonObjectConst>()) {
-        Log::warn(LOG_TAG_CORE, "applyJson: invalid json");
+        Log::warn(LOG_MODULE_ID, "applyJson: invalid json");
         return false;
     }
     JsonObjectConst root = doc.as<JsonObjectConst>();
 
-    Log::debug(LOG_TAG_CORE, "applyJson: start");
+    Log::debug(LOG_MODULE_ID, "applyJson: start");
     for (uint16_t i = 0; i < _metaCount; ++i) {
         auto& m = _meta[i];
         if (!m.module || !m.name) continue;
@@ -530,7 +530,7 @@ bool ConfigStore::applyJson(const char* json)
         }
 
         if (changed) {
-            Log::debug(LOG_TAG_CORE, "applyJson: changed %s.%s", m.module ? m.module : "-",
+            Log::debug(LOG_MODULE_ID, "applyJson: changed %s.%s", m.module ? m.module : "-",
                        m.name ? m.name : "-");
             /// Save to NVS if needed
             if (m.persistence == ConfigPersistence::Persistent && m.nvsKey && _prefs) {
@@ -550,7 +550,7 @@ bool ConfigStore::applyJson(const char* json)
             }
         }
     }
-    Log::debug(LOG_TAG_CORE, "applyJson: done");
+    Log::debug(LOG_MODULE_ID, "applyJson: done");
     return true;
 }
 
@@ -564,7 +564,7 @@ bool ConfigStore::runMigrations(uint32_t currentVersion,
     if (!versionKey) versionKey = NvsKeys::ConfigVersion;
 
     uint32_t storedVersion = _prefs->getUInt(versionKey, 0);
-    Log::debug(LOG_TAG_CORE, "migrations: stored=%lu current=%lu",
+    Log::debug(LOG_MODULE_ID, "migrations: stored=%lu current=%lu",
                (unsigned long)storedVersion, (unsigned long)currentVersion);
 
     /// Déjà à jour
@@ -588,7 +588,7 @@ bool ConfigStore::runMigrations(uint32_t currentVersion,
 
                 bool ok = s.apply(*_prefs, clearOnFail);
                 if (!ok) {
-                    Log::warn(LOG_TAG_CORE, "migration failed: %lu -> %lu",
+                    Log::warn(LOG_MODULE_ID, "migration failed: %lu -> %lu",
                               (unsigned long)s.fromVersion, (unsigned long)s.toVersion);
                     if (clearOnFail) {
                         _prefs->clear();
@@ -599,7 +599,7 @@ bool ConfigStore::runMigrations(uint32_t currentVersion,
 
                 storedVersion = s.toVersion;
                 putUInt_(versionKey, storedVersion);
-                Log::debug(LOG_TAG_CORE, "migration applied: now=%lu", (unsigned long)storedVersion);
+                Log::debug(LOG_MODULE_ID, "migration applied: now=%lu", (unsigned long)storedVersion);
                 break;
             }
         }
@@ -615,6 +615,6 @@ bool ConfigStore::runMigrations(uint32_t currentVersion,
 
     /// On garantit qu'on est bien à la version courante
     putUInt_(versionKey, currentVersion);
-    Log::debug(LOG_TAG_CORE, "migrations: completed at %lu", (unsigned long)currentVersion);
+    Log::debug(LOG_MODULE_ID, "migrations: completed at %lu", (unsigned long)currentVersion);
     return true;
 }

@@ -32,7 +32,7 @@ Aucun.
 
 ## Format de sortie
 
-`[timestamp][level][tag] message`
+`[timestamp][level][module] message`
 
 Priorité timestamp:
 1. `TimeService.formatLocalTime()` si `isSynced==true`

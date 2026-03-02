@@ -3,7 +3,6 @@
  * @brief Implementation file.
  */
 #include "Core/LogSinkRegistry.h"
-#define LOG_TAG_CORE "LogSinkR"
 
 bool LogSinkRegistry::add(LogSinkService sink) {
     if (n >= MAX_SINKS) return false;

@@ -29,11 +29,6 @@
 #include "Core/EventBus/EventBus.h"
 #include "Core/EventBus/EventPayloads.h"
 
-#ifndef LOG_TAG_CORE
-#define LOG_TAG_CORE "CfgStore"
-#define LOG_TAG_CORE_LOCAL_DEFINED
-#endif
-
 /** @brief Defines a configuration migration step between versions. */
 struct MigrationStep {
     uint32_t fromVersion;
@@ -131,7 +126,7 @@ template<typename T, size_t H>
 void ConfigStore::registerVar(ConfigVariable<T, H>& var)
 {
     if (_metaCount >= MAX_CONFIG_VARS) {
-        Log::error(LOG_TAG_CORE,
+        Log::error((LogModuleId)LogModuleIdValue::CoreConfigStore,
                    "Config var capacity reached (%u), dropping module='%s' key='%s'",
                    (unsigned)MAX_CONFIG_VARS,
                    var.moduleName ? var.moduleName : "?",
@@ -139,7 +134,7 @@ void ConfigStore::registerVar(ConfigVariable<T, H>& var)
         return;
     }
     /*if (var.nvsKey && strlen(var.nvsKey) > MAX_NVS_KEY_LEN) {
-        Log::warn(LOG_TAG_CORE, "NVS key too long (%s)", var.nvsKey);
+        Log::warn((LogModuleId)LogModuleIdValue::CoreConfigStore, "NVS key too long (%s)", var.nvsKey);
         return;
     }*/
 
@@ -150,7 +145,7 @@ void ConfigStore::registerVar(ConfigVariable<T, H>& var)
         const uint16_t warnAt = (uint16_t)((MAX_CONFIG_VARS * 9U) / 10U);
         if (_metaCount >= warnAt) {
             _metaNearCapacityWarned = true;
-            Log::warn(LOG_TAG_CORE,
+            Log::warn((LogModuleId)LogModuleIdValue::CoreConfigStore,
                       "Config var usage high: %u/%u",
                       (unsigned)_metaCount,
                       (unsigned)MAX_CONFIG_VARS);
@@ -252,8 +247,3 @@ bool ConfigStore::set(ConfigVariable<char, H>& var, const char* str)
     notifyChanged(var.nvsKey, var.moduleName, var.moduleId, var.branchId);
     return true;
 }
-
-#ifdef LOG_TAG_CORE_LOCAL_DEFINED
-#undef LOG_TAG_CORE
-#undef LOG_TAG_CORE_LOCAL_DEFINED
-#endif

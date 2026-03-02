@@ -3,7 +3,7 @@
  * @brief Implementation file.
  */
 #include "EventBusModule.h"
-#define LOG_TAG "EvtBusMd"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::EventBusModule)
 #include "Core/ModuleLog.h"
 
 

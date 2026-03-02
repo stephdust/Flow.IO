@@ -9,13 +9,13 @@
 #include <stddef.h>
 #include <stdio.h>
 
-static inline int flowSnprintfChecked_(const char* tag,
-                                       const char* file,
-                                       int line,
-                                       char* out,
-                                       size_t outLen,
-                                       const char* fmt,
-                                       ...)
+static inline int flowSnprintfCheckedModule_(LogModuleId moduleId,
+                                             const char* file,
+                                             int line,
+                                             char* out,
+                                             size_t outLen,
+                                             const char* fmt,
+                                             ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -24,7 +24,7 @@ static inline int flowSnprintfChecked_(const char* tag,
 
     const bool truncated = (wrote < 0) || (outLen == 0) || ((size_t)wrote >= outLen);
     if (truncated) {
-        Log::warn(tag ? tag : "FmtChk",
+        Log::warn(moduleId,
                   "snprintf truncated at %s:%d (len=%u wrote=%d)",
                   file ? file : "?",
                   line,
@@ -34,6 +34,5 @@ static inline int flowSnprintfChecked_(const char* tag,
     return wrote;
 }
 
-#define FLOW_SNPRINTF_CHECKED(TAG, OUT, LEN, FMT, ...) \
-    flowSnprintfChecked_((TAG), __FILE__, __LINE__, (OUT), (LEN), (FMT), ##__VA_ARGS__)
-
+#define FLOW_SNPRINTF_CHECKED_MODULE(MODULE_ID, OUT, LEN, FMT, ...) \
+    flowSnprintfCheckedModule_((MODULE_ID), __FILE__, __LINE__, (OUT), (LEN), (FMT), ##__VA_ARGS__)

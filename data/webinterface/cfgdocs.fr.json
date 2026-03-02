@@ -1,10 +1,10 @@
 {
   "_meta": {
     "generated": true,
-    "total": 253,
+    "total": 252,
     "decl_total": 207,
-    "decl_with_cfgdoc": 95,
-    "missing_cfgdoc_count": 112,
+    "decl_with_cfgdoc": 94,
+    "missing_cfgdoc_count": 113,
     "manual_overrides_total": 18,
     "manual_overrides_applied": 0
   },
@@ -2237,15 +2237,6 @@
       "var": "winterStartVar_",
       "source": "cfgdoc",
       "unit": "C"
-    },
-    "sysmon/trace_enabled": {
-      "module": "sysmon",
-      "name": "trace_enabled",
-      "type": "Bool",
-      "label": "Trace système active",
-      "help": "Active l'émission periodique des traces système (heap/stacks).",
-      "var": "traceEnabledVar_",
-      "source": "cfgdoc"
     },
     "sysmon/trace_period_ms": {
       "module": "sysmon",

@@ -3,7 +3,7 @@
  * @brief Implementation file.
  */
 #include "WifiModule.h"
-#define LOG_TAG "WifiModu"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::WifiModule)
 #include "Core/ModuleLog.h"
 #include "Core/Runtime.h"
 #include <ArduinoJson.h>

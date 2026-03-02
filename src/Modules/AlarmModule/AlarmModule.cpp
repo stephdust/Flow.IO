@@ -11,7 +11,7 @@
 #include <ArduinoJson.h>
 #include <string.h>
 
-#define LOG_TAG "AlarmMod"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::AlarmModule)
 #include "Core/ModuleLog.h"
 
 static uint32_t clampEvalPeriodMs_(int32_t inMs)

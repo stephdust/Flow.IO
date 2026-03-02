@@ -18,18 +18,33 @@ namespace Log {
     const LogHubService* hub();
 
     /**
+     * @brief Register or update a module name for a numeric module id.
+     */
+    bool registerModule(LogModuleId moduleId, const char* moduleName);
+
+    /**
+     * @brief Set the minimum level emitted for a module id.
+     */
+    bool setModuleMinLevel(LogModuleId moduleId, LogLevel level);
+
+    /**
+     * @brief Resolve a module id from a runtime module string id.
+     */
+    LogModuleId moduleIdFromName(const char* moduleName);
+
+    /**
      * @brief Log a formatted message with a given level.
      */
-    void logf(LogLevel lvl, const char* tag, const char* fmt, ...);
+    void logf(LogLevel lvl, LogModuleId moduleId, const char* fmt, ...);
 
     /** @brief Convenience: Debug log. */
-    void debug(const char* tag, const char* fmt, ...);
+    void debug(LogModuleId moduleId, const char* fmt, ...);
     /** @brief Convenience: Info log. */
-    void info(const char* tag, const char* fmt, ...);
+    void info(LogModuleId moduleId, const char* fmt, ...);
     /** @brief Convenience: Warning log. */
-    void warn(const char* tag, const char* fmt, ...);
+    void warn(LogModuleId moduleId, const char* fmt, ...);
     /** @brief Convenience: Error log. */
-    void error(const char* tag, const char* fmt, ...);
+    void error(LogModuleId moduleId, const char* fmt, ...);
 }
 
 // Macros are provided by Core/ModuleLog.h to keep Module.h neutral.

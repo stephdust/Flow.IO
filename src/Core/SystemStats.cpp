@@ -8,7 +8,6 @@
 #include <esp_system.h>
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
-#define LOG_TAG_CORE "SysStats"
 
 void SystemStats::collect(SystemStatsSnapshot& out) {
     const uint64_t uptimeMs64 = (uint64_t)(esp_timer_get_time() / 1000ULL);

@@ -3,6 +3,7 @@
  * @file ILogger.h
  * @brief Logging service interfaces and helpers.
  */
+#include "Core/LogModuleIds.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdarg.h>
@@ -13,14 +14,14 @@
 enum class LogLevel : uint8_t { Debug, Info, Warn, Error };
 
 // ===== LOG TYPES =====
-constexpr int LOG_TAG_MAX = 10;
 constexpr int LOG_MSG_MAX = 110;
+constexpr int LOG_MODULE_NAME_MAX = 24;
 
 /** @brief Fixed-size log entry. */
 struct LogEntry {
     uint32_t ts_ms;
     LogLevel lvl;
-    char tag[LOG_TAG_MAX];
+    LogModuleId moduleId;
     char msg[LOG_MSG_MAX];
 };
 
@@ -33,6 +34,11 @@ struct LogSinkService {
 /** @brief Log hub interface (producer side). */
 struct LogHubService {
     bool (*enqueue)(void* ctx, const LogEntry& e);
+    bool (*registerModule)(void* ctx, LogModuleId moduleId, const char* moduleName);
+    bool (*shouldLog)(void* ctx, LogModuleId moduleId, LogLevel level);
+    const char* (*resolveModuleName)(void* ctx, LogModuleId moduleId);
+    bool (*setModuleMinLevel)(void* ctx, LogModuleId moduleId, LogLevel level);
+    LogLevel (*getModuleMinLevel)(void* ctx, LogModuleId moduleId);
     void* ctx;
 };
 
@@ -47,19 +53,16 @@ struct LogSinkRegistryService {
 /** @brief Helper to format and enqueue a log entry. */
 static inline void LOGHUBF(const LogHubService* s,
                            LogLevel lvl,
-                           const char* tag,
+                           LogModuleId moduleId,
                            const char* fmt, ...) {
     if (!s || !s->enqueue) return;
+    if (!fmt) return;
+    if (s->shouldLog && !s->shouldLog(s->ctx, moduleId, lvl)) return;
 
     LogEntry e{};
     e.ts_ms = millis();
     e.lvl = lvl;
-
-    if (tag) {
-        strncpy(e.tag, tag, LOG_TAG_MAX - 1);
-    } else {
-        strncpy(e.tag, "-", LOG_TAG_MAX - 1);
-    }
+    e.moduleId = moduleId;
 
     va_list ap;
     va_start(ap, fmt);

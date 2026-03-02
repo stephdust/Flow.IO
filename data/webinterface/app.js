@@ -65,11 +65,13 @@
 
     const term = document.getElementById('term');
     const wsStatus = document.getElementById('wsStatus');
+    const logSourceSelect = document.getElementById('logSourceSelect');
     const line = document.getElementById('line');
     const sendBtn = document.getElementById('send');
     const clearBtn = document.getElementById('clear');
     const toggleAutoscrollInput = document.getElementById('toggleAutoscroll');
     let autoScrollEnabled = true;
+    const lineDefaultPlaceholder = line ? line.placeholder : '';
 
     const updateHost = document.getElementById('updateHost');
     const flowPath = document.getElementById('flowPath');
@@ -128,11 +130,13 @@
     let wifiScanAutoRequested = false;
 
     const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(wsProto + '://' + location.host + '/wsserial');
+    let logSource = 'flow';
+    let logSocket = null;
 
-    ws.onopen = () => wsStatus.textContent = 'connecté';
-    ws.onclose = () => wsStatus.textContent = 'déconnecté';
-    ws.onerror = () => wsStatus.textContent = 'erreur';
+    function setWsStatusText(status) {
+      const sourceLabel = logSource === 'supervisor' ? 'Supervisor' : 'Flow.IO';
+      wsStatus.textContent = sourceLabel + ' : ' + status;
+    }
 
     const ansiState = { fg: null };
     const ansiFgMap = {
@@ -171,17 +175,67 @@
       return { text: out, color: lineColor };
     }
 
-    ws.onmessage = (ev) => {
-      const raw = String(ev.data || '');
-      const parsed = decodeAnsiLine(raw);
-      const row = document.createElement('div');
-      row.className = 'log-line';
-      if (parsed.color) row.style.color = parsed.color;
-      row.textContent = parsed.text;
-      term.appendChild(row);
-      while (term.childNodes.length > 2000) term.removeChild(term.firstChild);
-      if (autoScrollEnabled) term.scrollTop = term.scrollHeight;
-    };
+    function updateTerminalInputState() {
+      const canSend = logSource === 'flow';
+      line.disabled = !canSend;
+      sendBtn.disabled = !canSend;
+      line.placeholder = canSend ? lineDefaultPlaceholder : 'Envoi désactivé pour les journaux Supervisor';
+    }
+
+    function closeLogSocket() {
+      if (!logSocket) return;
+      logSocket.onopen = null;
+      logSocket.onclose = null;
+      logSocket.onerror = null;
+      logSocket.onmessage = null;
+      try {
+        logSocket.close();
+      } catch (err) {
+        // Ignore close errors on stale sockets.
+      }
+      logSocket = null;
+    }
+
+    function connectLogSocket() {
+      closeLogSocket();
+      setWsStatusText('connexion...');
+      const path = logSource === 'supervisor' ? '/wslog' : '/wsserial';
+      const socket = new WebSocket(wsProto + '://' + location.host + path);
+      logSocket = socket;
+      socket.onopen = () => {
+        if (socket !== logSocket) return;
+        setWsStatusText('connecté');
+      };
+      socket.onclose = () => {
+        if (socket !== logSocket) return;
+        setWsStatusText('déconnecté');
+      };
+      socket.onerror = () => {
+        if (socket !== logSocket) return;
+        setWsStatusText('erreur');
+      };
+      socket.onmessage = (ev) => {
+        if (socket !== logSocket) return;
+        const raw = String(ev.data || '');
+        const parsed = decodeAnsiLine(raw);
+        const row = document.createElement('div');
+        row.className = 'log-line';
+        if (parsed.color) row.style.color = parsed.color;
+        row.textContent = parsed.text;
+        term.appendChild(row);
+        while (term.childNodes.length > 2000) term.removeChild(term.firstChild);
+        if (autoScrollEnabled) term.scrollTop = term.scrollHeight;
+      };
+    }
+
+    function setLogSource(source) {
+      logSource = source === 'supervisor' ? 'supervisor' : 'flow';
+      if (logSourceSelect && logSourceSelect.value !== logSource) {
+        logSourceSelect.value = logSource;
+      }
+      updateTerminalInputState();
+      connectLogSocket();
+    }
 
     function refreshAutoscrollUi() {
       toggleAutoscrollInput.checked = autoScrollEnabled;
@@ -195,7 +249,10 @@
     function sendLine() {
       const txt = line.value;
       if (!txt) return;
-      if (ws.readyState === WebSocket.OPEN) ws.send(txt);
+      if (logSource !== 'flow') return;
+      if (logSocket && logSocket.readyState === WebSocket.OPEN) {
+        logSocket.send(txt);
+      }
       line.value = '';
       line.focus();
     }
@@ -230,7 +287,13 @@
       refreshAutoscrollUi();
       if (autoScrollEnabled) term.scrollTop = term.scrollHeight;
     });
+    if (logSourceSelect) {
+      logSourceSelect.addEventListener('change', () => {
+        setLogSource(logSourceSelect.value);
+      });
+    }
     refreshAutoscrollUi();
+    setLogSource(logSourceSelect ? logSourceSelect.value : 'flow');
     flowCfgApplyBtn.disabled = true;
     supCfgApplyBtn.disabled = true;
 

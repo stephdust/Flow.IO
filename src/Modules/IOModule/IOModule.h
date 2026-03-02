@@ -224,11 +224,11 @@ private:
     Pcf8574MaskEndpoint* allocMaskEndpoint_(const char* endpointId, MaskWriteFn writeFn, MaskReadFn readFn, void* fnCtx);
 
     static constexpr uint8_t MAX_ANALOG_ENDPOINTS = 12;
-    static constexpr uint8_t MAX_DIGITAL_INPUTS = 8;
-    static constexpr uint8_t MAX_DIGITAL_OUTPUTS = 12;
+    static constexpr uint8_t MAX_DIGITAL_INPUTS = 5;
+    static constexpr uint8_t MAX_DIGITAL_OUTPUTS = 10;
     static constexpr uint8_t MAX_DIGITAL_SLOTS = MAX_DIGITAL_INPUTS + MAX_DIGITAL_OUTPUTS;
-    static constexpr uint8_t ANALOG_CFG_SLOTS = 6;
-    static constexpr uint8_t DIGITAL_CFG_SLOTS = 8;
+    static constexpr uint8_t ANALOG_CFG_SLOTS = MAX_ANALOG_ENDPOINTS;
+    static constexpr uint8_t DIGITAL_CFG_SLOTS = MAX_DIGITAL_OUTPUTS;
     /** End-exclusive upper bounds for each static id range. */
     static constexpr IoId IO_ID_DO_MAX = IO_ID_DO_BASE + MAX_DIGITAL_OUTPUTS;
     static constexpr IoId IO_ID_DI_MAX = IO_ID_DI_BASE + MAX_DIGITAL_INPUTS;
@@ -328,7 +328,7 @@ private:
     bool runtimeInitAttempted_ = false;
     bool pcfEnableNeedsReinitWarned_ = false;
     uint32_t analogCalcLogLastMs_[3]{0, 0, 0};
-    int32_t haPrecisionLast_[ANALOG_CFG_SLOTS]{0, 0, 0, 0, 0, 0};
+    int32_t haPrecisionLast_[ANALOG_CFG_SLOTS]{};
     bool haPrecisionLastInit_ = false;
     char haValueTpl_[ANALOG_CFG_SLOTS][128]{};
     char haSwitchStateSuffix_[FLOW_POOL_IO_BINDING_COUNT][24]{};

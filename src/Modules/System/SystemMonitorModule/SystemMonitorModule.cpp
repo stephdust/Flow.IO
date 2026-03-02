@@ -6,7 +6,7 @@
 #include "Core/ModuleManager.h"   ///< required for iteration
 #include <Arduino.h>
 #include <WiFi.h>                ///< only for RSSI (optional)
-#define LOG_TAG "SysMonit"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::SystemMonitorModule)
 #include "Core/ModuleLog.h"
 
 
@@ -25,7 +25,6 @@ void SystemMonitorModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::SystemMonitor;
     constexpr uint16_t kCfgBranchId = (uint16_t)ConfigBranchId::SystemMonitor;
     cfgStore_ = &cfg;
-    cfg.registerVar(traceEnabledVar_, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(tracePeriodVar_, kCfgModuleId, kCfgBranchId);
 
     wifiSvc = services.get<WifiService>("wifi");
@@ -56,7 +55,7 @@ void SystemMonitorModule::logHeapStats() {
 
 void SystemMonitorModule::logTaskStacks() {
     if (!moduleManager) {
-        LOGW("ModuleManager not set, task stats disabled");
+        LOGI("ModuleManager not set, task stats disabled");
         return;
     }
 
@@ -102,11 +101,8 @@ void SystemMonitorModule::logTaskStacks() {
         return;
     }
 
-    if (hasLow) {
-        LOGW("%s", line);
-    } else {
-        LOGI("%s", line);
-    }
+    (void)hasLow;
+    LOGI("%s", line);
 }
 
 void SystemMonitorModule::buildHealthJson(char* out, size_t outLen) {
@@ -156,11 +152,6 @@ void SystemMonitorModule::loop() {
     }
 
     uint32_t periodMs = (cfgData_.tracePeriodMs > 0) ? (uint32_t)cfgData_.tracePeriodMs : 5000U;
-
-    if (!cfgData_.traceEnabled) {
-        vTaskDelay(pdMS_TO_TICKS(200));
-        return;
-    }
 
     if (lastTraceLogMs == 0U || (uint32_t)(now - lastTraceLogMs) >= periodMs) {
         lastTraceLogMs = now;

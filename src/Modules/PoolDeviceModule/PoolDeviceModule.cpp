@@ -9,7 +9,7 @@
 #include "Core/MqttTopics.h"
 #include "Core/NvsKeys.h"
 #include "Core/SystemLimits.h"
-#define LOG_TAG "PoolDevc"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
 #include "Core/ModuleLog.h"
 #include "Modules/Network/TimeModule/TimeRuntime.h"
 #include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"

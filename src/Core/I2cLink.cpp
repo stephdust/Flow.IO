@@ -4,7 +4,7 @@
  */
 
 #include "Core/I2cLink.h"
-#define LOG_TAG "I2c Link"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::CoreI2cLink)
 #include "Core/ModuleLog.h"
 
 I2cLink* I2cLink::slaveInstanceByBus_[2] = {nullptr, nullptr};

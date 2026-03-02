@@ -13,7 +13,7 @@
 #include <esp_heap_caps.h>
 #include <initializer_list>
 #include "Core/EventBus/EventPayloads.h"
-#define LOG_TAG "MqttModu"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::MQTTModule)
 #include "Core/ModuleLog.h"
 
 // Toggle all MQTT debug logs from one place (set true for diagnostics).

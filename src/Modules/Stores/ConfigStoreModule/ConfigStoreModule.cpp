@@ -3,7 +3,7 @@
  * @brief Implementation file.
  */
 #include "ConfigStoreModule.h"
-#define LOG_TAG "CfgModul"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::ConfigStoreModule)
 #include "Core/ModuleLog.h"
 
 
