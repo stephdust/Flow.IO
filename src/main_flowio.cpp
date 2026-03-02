@@ -401,7 +401,6 @@ static void runBootOrchestrator()
         Board::SerialMap::logSerial().println("[BOOT] staged startup completed");
     }
 }
-/* Test task currently deactivated */
 static void ledRandomTask(void*)
 {
     for (;;) {
@@ -655,9 +654,8 @@ void setup() {
         nullptr,
         1,
         &ledRandomTaskHandle,
-        1
-    );*/
-
+        1);
+*/
     Board::SerialMap::logSerial().print(
         "\x1b[34m"
         "__        __   _                               _        \n"
