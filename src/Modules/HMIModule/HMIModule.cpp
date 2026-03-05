@@ -15,6 +15,12 @@
 
 namespace {
 
+#ifndef FLOW_HMI_CONFIG_MENU_ENABLED
+#define FLOW_HMI_CONFIG_MENU_ENABLED 0
+#endif
+static constexpr bool kConfigMenuEnabled = (FLOW_HMI_CONFIG_MENU_ENABLED != 0);
+
+#if FLOW_HMI_CONFIG_MENU_ENABLED
 static const ConfigMenuHint kHints[] = {
     {"poollogic", "filtr_start_min", {ConfigMenuWidget::Slider, true, 0.0f, 23.0f, 1.0f, nullptr}},
     {"poollogic", "filtr_stop_max", {ConfigMenuWidget::Slider, true, 0.0f, 23.0f, 1.0f, nullptr}},
@@ -23,6 +29,7 @@ static const ConfigMenuHint kHints[] = {
     {"time", "tz", {ConfigMenuWidget::Select, true, 0.0f, 0.0f, 1.0f,
                     "CET-1CEST,M3.5.0/2,M10.5.0/3|UTC0|EST5EDT,M3.2.0/2,M11.1.0/2"}}
 };
+#endif
 
 } // namespace
 
@@ -36,20 +43,31 @@ bool HMIModule::svcRequestRefresh_(void* ctx)
 
 bool HMIModule::svcOpenConfigHome_(void* ctx)
 {
+#if FLOW_HMI_CONFIG_MENU_ENABLED
     HMIModule* self = static_cast<HMIModule*>(ctx);
     if (!self) return false;
     const bool ok = self->menu_.home();
     if (ok) self->viewDirty_ = true;
     return ok;
+#else
+    (void)ctx;
+    return false;
+#endif
 }
 
 bool HMIModule::svcOpenConfigModule_(void* ctx, const char* module)
 {
+#if FLOW_HMI_CONFIG_MENU_ENABLED
     HMIModule* self = static_cast<HMIModule*>(ctx);
     if (!self) return false;
     const bool ok = self->menu_.openModule(module);
     if (ok) self->viewDirty_ = true;
     return ok;
+#else
+    (void)ctx;
+    (void)module;
+    return false;
+#endif
 }
 
 bool HMIModule::svcBuildConfigMenuJson_(void* ctx, char* out, size_t outLen)
@@ -71,13 +89,21 @@ void HMIModule::init(ConfigStore&, ServiceRegistry& services)
         return;
     }
 
-    const bool okMenu = menu_.begin(cfgSvc_);
-    menu_.setHints(kHints, (uint8_t)(sizeof(kHints) / sizeof(kHints[0])));
-    if (!okMenu) {
-        LOGE("Config menu init failed");
+#if FLOW_HMI_CONFIG_MENU_ENABLED
+    {
+        const bool okMenu = menu_.begin(cfgSvc_);
+        menu_.setHints(kHints, (uint8_t)(sizeof(kHints) / sizeof(kHints[0])));
+        if (!okMenu) {
+            LOGE("Config menu init failed");
+        }
     }
+#else
+    {
+        LOGI("Config menu disabled at compile-time");
+    }
+#endif
 
-    if (eventBus_) {
+    if (eventBus_ && kConfigMenuEnabled) {
         eventBus_->subscribe(EventId::ConfigChanged, &HMIModule::onEventStatic_, this);
     }
 
@@ -113,15 +139,23 @@ void HMIModule::onEventStatic_(const Event& e, void* user)
 
 bool HMIModule::refreshCurrentModule_()
 {
+#if !FLOW_HMI_CONFIG_MENU_ENABLED
+    return false;
+#else
     const uint8_t prevPage = menu_.pageIndex();
     if (!menu_.refreshCurrent()) return false;
     while (menu_.pageIndex() < prevPage && menu_.nextPage()) {
     }
     return true;
+#endif
 }
 
 void HMIModule::onEvent_(const Event& e)
 {
+#if !FLOW_HMI_CONFIG_MENU_ENABLED
+    (void)e;
+    return;
+#else
     if (e.id != EventId::ConfigChanged || !e.payload || e.len < sizeof(ConfigChangedPayload)) return;
     if (menu_.isHome()) {
         viewDirty_ = true;
@@ -135,10 +169,17 @@ void HMIModule::onEvent_(const Event& e)
     if (refreshCurrentModule_()) {
         viewDirty_ = true;
     }
+#endif
 }
 
 void HMIModule::handleDriverEvent_(const HmiEvent& e)
 {
+#if !FLOW_HMI_CONFIG_MENU_ENABLED
+    {
+        (void)e;
+        return;
+    }
+#else
     bool changed = false;
     switch (e.type) {
         case HmiEventType::Home:
@@ -192,13 +233,34 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
     }
 
     if (changed) viewDirty_ = true;
+#endif
 }
 
 bool HMIModule::render_()
 {
     if (!driver_) return false;
     ConfigMenuView view{};
-    menu_.buildView(view);
+#if FLOW_HMI_CONFIG_MENU_ENABLED
+    {
+        menu_.buildView(view);
+    }
+#else
+    {
+        snprintf(view.breadcrumb, sizeof(view.breadcrumb), "Configuration indisponible");
+        view.pageIndex = 0;
+        view.pageCount = 1;
+        view.canHome = false;
+        view.canBack = false;
+        view.canValidate = false;
+        view.isHome = true;
+        view.rowCountOnPage = 1;
+        view.rows[0].visible = true;
+        view.rows[0].editable = false;
+        snprintf(view.rows[0].key, sizeof(view.rows[0].key), "menu");
+        snprintf(view.rows[0].label, sizeof(view.rows[0].label), "Config");
+        snprintf(view.rows[0].value, sizeof(view.rows[0].value), "disabled");
+    }
+#endif
     const bool ok = driver_->renderConfigMenu(view);
     if (ok) {
         lastRenderMs_ = millis();
@@ -210,6 +272,24 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen) const
 {
     if (!out || outLen == 0) return false;
 
+#if !FLOW_HMI_CONFIG_MENU_ENABLED
+    {
+        DynamicJsonDocument doc(256);
+        JsonObject root = doc.to<JsonObject>();
+        root["ok"] = true;
+        root["disabled"] = true;
+        root["driver"] = driver_ ? driver_->driverId() : "";
+        root["path"] = "Configuration indisponible";
+        root["page"] = 1U;
+        root["pages"] = 1U;
+        root["rows"] = 0U;
+        root["can_home"] = false;
+        root["can_back"] = false;
+        root["can_validate"] = false;
+        const size_t written = serializeJson(root, out, outLen);
+        return written > 0 && written < outLen;
+    }
+#else
     ConfigMenuView view{};
     menu_.buildView(view);
 
@@ -241,6 +321,7 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen) const
 
     const size_t written = serializeJson(root, out, outLen);
     return written > 0 && written < outLen;
+#endif
 }
 
 void HMIModule::loop()

@@ -1,0 +1,13 @@
+[wokwi]
+version = 1
+firmware = '.pio/build/FlowIO/firmware.bin'
+elf = '.pio/build/FlowIO/firmware.elf'
+chips = ["wokwi/ads1115.chip.json","wokwi/pcf8574.chip.json"]
+
+[[chip]]
+name = "ads1115"
+binary = "wokwi/ads1115.chip.wasm"
+
+[[chip]]
+name = "pcf8574"
+binary = "wokwi/pcf8574.chip.wasm"

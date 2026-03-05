@@ -130,7 +130,7 @@ static void serialSinkWrite(void* ctx, const LogEntry& e) {
 
     const char* color = lvlColor(e.lvl);
     if (gLogSerial) {
-        gLogSerial->printf("[%s][%s][%s] %s%s%s\n",
+        gLogSerial->printf("[%s][%s][%s] %s%s%s\r\n",
                            ts,
                            lvlStr(e.lvl),
                            moduleName,

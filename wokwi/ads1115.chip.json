@@ -1,0 +1,5 @@
+{
+  "name": "pcf1115",
+  "author": "custom",
+  "pins": ["VCC", "GND", "SCL", "SDA", "ADDR0", "ADDR1", "AIN0", "AIN1", "AIN2", "AIN3"]
+}

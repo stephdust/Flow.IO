@@ -143,7 +143,7 @@ static void onIoBoolValue(void* ctx, bool value) {
 static void requireSetup(bool ok, const char* step)
 {
     if (ok) return;
-    Board::SerialMap::logSerial().printf("Setup failure: %s\n", step ? step : "unknown");
+    Board::SerialMap::logSerial().printf("Setup failure: %s\r\n", step ? step : "unknown");
     while (true) delay(1000);
 }
 
@@ -211,7 +211,7 @@ static void startBootOrchestrator()
     mqttModule.setStartupReady(false);
     haModule.setStartupReady(false);
     poolLogicModule.setStartupReady(false);
-    Board::SerialMap::logSerial().printf("[BOOT] staged startup armed (mqtt=%lums ha=%lums poollogic=%lums)\n",
+    Board::SerialMap::logSerial().printf("[BOOT] staged startup armed (mqtt=%lums ha=%lums poollogic=%lums)\r\n",
                                          (unsigned long)Limits::Boot::MqttStartDelayMs,
                                          (unsigned long)Limits::Boot::HaStartDelayMs,
                                          (unsigned long)Limits::Boot::PoolLogicStartDelayMs);
@@ -227,24 +227,24 @@ static void runBootOrchestrator()
     if (!gBootOrchestrator.mqttReleased && elapsed >= Limits::Boot::MqttStartDelayMs) {
         mqttModule.setStartupReady(true);
         gBootOrchestrator.mqttReleased = true;
-        Board::SerialMap::logSerial().printf("[BOOT] mqtt stage released at %lums\n", (unsigned long)elapsed);
+        Board::SerialMap::logSerial().printf("[BOOT] mqtt stage released at %lums\r\n", (unsigned long)elapsed);
     }
 
     if (!gBootOrchestrator.haReleased && elapsed >= Limits::Boot::HaStartDelayMs) {
         haModule.setStartupReady(true);
         gBootOrchestrator.haReleased = true;
-        Board::SerialMap::logSerial().printf("[BOOT] ha stage released at %lums\n", (unsigned long)elapsed);
+        Board::SerialMap::logSerial().printf("[BOOT] ha stage released at %lums\r\n", (unsigned long)elapsed);
     }
 
     if (!gBootOrchestrator.poolLogicReleased && elapsed >= Limits::Boot::PoolLogicStartDelayMs) {
         poolLogicModule.setStartupReady(true);
         gBootOrchestrator.poolLogicReleased = true;
-        Board::SerialMap::logSerial().printf("[BOOT] poollogic stage released at %lums\n", (unsigned long)elapsed);
+        Board::SerialMap::logSerial().printf("[BOOT] poollogic stage released at %lums\r\n", (unsigned long)elapsed);
     }
 
     if (gBootOrchestrator.mqttReleased && gBootOrchestrator.haReleased && gBootOrchestrator.poolLogicReleased) {
         gBootOrchestrator.active = false;
-        Board::SerialMap::logSerial().println("[BOOT] staged startup completed");
+        Board::SerialMap::logSerial().print("[BOOT] staged startup completed\r\n");
     }
 }
 static void ledRandomTask(void*)
@@ -499,18 +499,18 @@ void setup() {
 */
     Board::SerialMap::logSerial().print(
         "\x1b[34m"
-        "__        __   _                               _        \n"
-        "\\ \\      / /__| | ___ ___  _ __ ___   ___     | |_ ___  \n"
-        " \\ \\ /\\ / / _ \\ |/ __/ _ \\| '_ ` _ \\ / _ \\    | __/ _ \\ \n"
-        "  \\ V  V /  __/ | (_| (_) | | | | | |  __/    | || (_) |\n"
-        "   \\_/\\_/ \\___|_|\\___\\___/|_| |_| |_|\\___|     \\__\\___/ \n"
-        "                                                        \n"
-        "         _____ _                     ___ ___            \n"
-        "        |  ___| | _____      __     |_ _/ _ \\           \n"
-        " _____  | |_  | |/ _ \\ \\ /\\ / /      | | | | |  _____   \n"
-        "|_____| |  _| | | (_) \\ V  V /   _   | | |_| | |_____|  \n"
-        "        |_|   |_|\\___/ \\_/\\_/   (_) |___\\___/           \n"
-        "\x1b[0m"
+        "__        __   _                               _        \r\n"
+        "\\ \\      / /__| | ___ ___  _ __ ___   ___     | |_ ___  \r\n"
+        " \\ \\ /\\ / / _ \\ |/ __/ _ \\| '_ ` _ \\ / _ \\    | __/ _ \\ \r\n"
+        "  \\ V  V /  __/ | (_| (_) | | | | | |  __/    | || (_) |\r\n"
+        "   \\_/\\_/ \\___|_|\\___\\___/|_| |_| |_|\\___|     \\__\\___/ \r\n"
+        "                                                        \r\n"
+        "         _____ _                     ___ ___            \r\n"
+        "        |  ___| | _____      __     |_ _/ _ \\           \r\n"
+        " _____  | |_  | |/ _ \\ \\ /\\ / /      | | | | |  _____   \r\n"
+        "|_____| |  _| | | (_) \\ V  V /   _   | | |_| | |_____|  \r\n"
+        "        |_|   |_|\\___/ \\_/\\_/   (_) |___\\___/           \r\n"
+        "\x1b[0m\r\n"
         );   
 }
      

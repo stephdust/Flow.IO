@@ -25,18 +25,19 @@ constexpr size_t JsonCmdPoolDeviceBuf = 256;
 /** @brief JSON capacity for `ConfigStore::applyJson` root document (covers full multi-module patch). */
 constexpr size_t JsonConfigApplyBuf = JsonCfgBuf * 4;
 /** @brief Maximum number of registered config variables in `ConfigStore` metadata table. */
-constexpr size_t MaxConfigVars = 256;
+constexpr size_t MaxConfigVars = 290;
 /** @brief Maximum NVS key length (without null terminator) enforced by `ConfigTypes::NVS_KEY`. */
 constexpr size_t MaxNvsKeyLen = 15;
-/** @brief FreeRTOS log queue length used by `LogHub` (`LogHubModule::init`). */
-constexpr uint8_t LogQueueLen = 32;
+/** @brief FreeRTOS log queue length used by `LogHub` (`LogHubModule::init`).
+ *  Increased moderately to absorb boot-time log bursts before log dispatcher task starts. */
+constexpr uint8_t LogQueueLen = 64;
 /** @brief FreeRTOS event queue length used by `EventBus` (`EventBus::QUEUE_LENGTH`). */
 constexpr uint8_t EventQueueLen = 16;
 /** @brief MQTT-specific limits grouped by concern to keep `SystemLimits` readable. */
 namespace Mqtt {
 
 /** @brief MQTT module task stack size returned by `MQTTModule::taskStackSize`. */
-constexpr uint16_t TaskStackSize = 4352;
+constexpr uint16_t TaskStackSize = 5200;
 
 /** @brief MQTT static capacities (queues, tables). */
 namespace Capacity {

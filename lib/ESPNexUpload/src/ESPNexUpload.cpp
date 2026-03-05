@@ -58,7 +58,7 @@
 #ifdef DEBUG_SERIAL_ENABLE
     #define dbSerialPrint(a)    Serial.print(a)
 	#define dbSerialPrintHex(a) Serial.print(a, HEX)
-    #define dbSerialPrintln(a)  Serial.println(a)
+    #define dbSerialPrintln(a)  do { Serial.print(a); Serial.print("\r\n"); } while (0)
     #define dbSerialBegin(a)    Serial.begin(a)
 #else
     #define dbSerialPrint(a)    do{}while(0)

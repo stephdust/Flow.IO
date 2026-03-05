@@ -337,7 +337,17 @@ bool HAModule::publishDiscovery(const char* component, const char* objectId, con
         return false;
     }
     // QoS0 lowers transient heap pressure while keeping retained discovery on broker.
-    const bool ok = mqttSvc->publish(mqttSvc->ctx, topicBuf, payload, 0, true);
+    bool ok = false;
+    if (mqttSvc->publishPrio) {
+        ok = mqttSvc->publishPrio(mqttSvc->ctx,
+                                  topicBuf,
+                                  payload,
+                                  0,
+                                  true,
+                                  (uint8_t)MqttPublishPriority::Low);
+    } else {
+        ok = mqttSvc->publish(mqttSvc->ctx, topicBuf, payload, 0, true);
+    }
     if (!ok) {
         // MQTT layer may reject due to transient low heap / link state; resume from this entity.
         lastDiscoveryFailureRetryable_ = true;

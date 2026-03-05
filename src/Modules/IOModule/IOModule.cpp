@@ -1136,6 +1136,10 @@ bool IOModule::configureRuntime_()
     if (!cfgData_.enabled) return false;
 
     i2cBus_.begin(cfgData_.i2cSda, cfgData_.i2cScl);
+    const bool ads48Present = i2cBus_.probe(0x48);
+    const bool ads49Present = i2cBus_.probe(0x49);
+    LOGI("ADS1115 probe 0x48: %s", ads48Present ? "found" : "not found");
+    LOGI("ADS1115 probe 0x49: %s", ads49Present ? "found" : "not found");
 
     bool needAdsInternal = false;
     bool needAdsExternal = false;
@@ -1253,6 +1257,9 @@ bool IOModule::configureRuntime_()
         if (!adsInternal_->begin()) {
             LOGW("ADS internal not detected at 0x%02X", cfgData_.adsInternalAddr);
             adsInternal_ = nullptr;
+        } else
+        if (cfgData_.adsInternalAddr == 0x49) {
+            LOGI("ADS1115 found at 0x49 (internal)");
         }
     }
 
@@ -1264,6 +1271,9 @@ bool IOModule::configureRuntime_()
         if (!adsExternal_->begin()) {
             LOGW("ADS external not detected at 0x%02X", cfgData_.adsExternalAddr);
             adsExternal_ = nullptr;
+        } else
+        if (cfgData_.adsExternalAddr == 0x49) {
+            LOGI("ADS1115 found at 0x49 (external)");
         }
     }
 

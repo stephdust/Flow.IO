@@ -13,7 +13,7 @@
 struct WifiConfig {
     bool enabled = true;
     // IEEE 802.11 SSID supports up to 32 bytes (+ '\0').
-    char ssid[33] = "";
+    char ssid[33] = "Wokwi-GUEST";
     // WPA/WPA2 supports 8..63 chars passphrase or 64-char hex PSK (+ '\0').
     char pass[65] = "";
 #if defined(FLOW_PROFILE_SUPERVISOR)

@@ -89,7 +89,7 @@ void setup()
         while (true) delay(1000);
     }
 
-    Serial.println("Flow.IO Supervisor profile booted");
+    do { Serial.print("Flow.IO Supervisor profile booted"); Serial.print("\r\n"); } while (0);
 }
 
 void loop()

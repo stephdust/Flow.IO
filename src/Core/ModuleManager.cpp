@@ -18,13 +18,13 @@ static void logRegisteredModules(Module* modules[], uint8_t count) {
 }
 
 static void dbgDumpModules(Module* modules[], uint8_t count) {
-    Board::SerialMap::logSerial().printf("[MOD] Registered modules (%u):\n", count);
+    Board::SerialMap::logSerial().printf("[MOD] Registered modules (%u):\r\n", count);
     for (uint8_t i = 0; i < count; ++i) {
         if (!modules[i]) continue;
-        Board::SerialMap::logSerial().printf("  - %s deps=%u\n", modules[i]->moduleId(), modules[i]->dependencyCount());
+        Board::SerialMap::logSerial().printf("  - %s deps=%u\r\n", modules[i]->moduleId(), modules[i]->dependencyCount());
         for (uint8_t d = 0; d < modules[i]->dependencyCount(); ++d) {
             const char* dep = modules[i]->dependency(d);
-            Board::SerialMap::logSerial().printf("      -> %s\n", dep ? dep : "(null)");
+            Board::SerialMap::logSerial().printf("      -> %s\r\n", dep ? dep : "(null)");
         }
     }
     Board::SerialMap::logSerial().flush();
@@ -62,7 +62,7 @@ bool ModuleManager::buildInitOrder() {
 
                 Module* dep = findById(depId);
                 if (!dep) {
-                    Board::SerialMap::logSerial().printf("[MOD][ERR] Missing dependency: module='%s' requires='%s'\n",
+                    Board::SerialMap::logSerial().printf("[MOD][ERR] Missing dependency: module='%s' requires='%s'\r\n",
                                                          m->moduleId(), depId);
                     Board::SerialMap::logSerial().flush();
                     delay(20);
@@ -98,11 +98,11 @@ bool ModuleManager::buildInitOrder() {
         }
 
         if (!progress) {
-            Board::SerialMap::logSerial().println("[MOD][ERR] Cyclic deps detected (or unresolved deps)");
-            Board::SerialMap::logSerial().println("[MOD] Remaining not placed:");
+            Board::SerialMap::logSerial().print("[MOD][ERR] Cyclic deps detected (or unresolved deps)\r\n");
+            Board::SerialMap::logSerial().print("[MOD] Remaining not placed:\r\n");
             for (uint8_t i = 0; i < count; ++i) {
                 if (modules[i] && !placed[i]) {
-                    Board::SerialMap::logSerial().printf("   * %s\n", modules[i]->moduleId());
+                    Board::SerialMap::logSerial().printf("   * %s\r\n", modules[i]->moduleId());
                 }
             }
             Board::SerialMap::logSerial().flush();

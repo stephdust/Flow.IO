@@ -13,10 +13,10 @@
 /** @brief MQTT configuration values. */
 struct MQTTConfig {
     bool enabled = true;
-    char host[Limits::Mqtt::Buffers::Host] = "192.168.86.250";
+    char host[Limits::Mqtt::Buffers::Host] = "flowio.cloud.shiftr.io";
     int32_t port = Limits::Mqtt::Defaults::Port;
-    char user[Limits::Mqtt::Buffers::User] = "";
-    char pass[Limits::Mqtt::Buffers::Pass] = "";
+    char user[Limits::Mqtt::Buffers::User] = "flowio";
+    char pass[Limits::Mqtt::Buffers::Pass] = "LNqGl1OPt4RhFuNE";
     char baseTopic[Limits::Mqtt::Buffers::BaseTopic] = "flowio"; // Default value
     // reserved for future runtime publisher config
 };
@@ -68,6 +68,7 @@ public:
                              bool (*build)(MQTTModule* self, char* out, size_t outLen),
                              bool allowNoPayload = false);
     bool publish(const char* topic, const char* payload, int qos = 0, bool retain = false);
+    bool publishWithPriority(const char* topic, const char* payload, int qos, bool retain, uint8_t prio);
     void formatTopic(char* out, size_t outLen, const char* suffix) const;
     bool isConnected() const { return state == MQTTState::Connected; }
     void setStartupReady(bool ready) { _startupReady = ready; }
@@ -110,11 +111,64 @@ private:
         char topic[Limits::Mqtt::Buffers::RxTopic];
         char payload[Limits::Mqtt::Buffers::RxPayload];
     };
+
+    enum class TxPriority : uint8_t {
+        High = 0,
+        Normal = 1,
+        Low = 2
+    };
+
+    static constexpr size_t TxSmallPayloadMax = 384;
+    static constexpr size_t TxLowLargePayloadMax = 2048;
+
+    struct TxMsg {
+        uint8_t qos = 0;
+        uint8_t retain = 0;
+        uint16_t topicLen = 0;
+        uint16_t payloadLen = 0;
+        char topic[Limits::Mqtt::Buffers::Topic] = {0};
+        char payload[TxSmallPayloadMax] = {0};
+    };
+
+    struct NormalCoalesceSlot {
+        bool used = false;
+        uint32_t seq = 0;
+        TxMsg msg{};
+    };
+
+    struct LowLargeMsg {
+        bool pending = false;
+        uint8_t qos = 0;
+        uint8_t retain = 0;
+        char topic[Limits::Mqtt::Buffers::Topic] = {0};
+        char payload[TxLowLargePayloadMax] = {0};
+    };
+
+    static constexpr uint8_t TxHighQueueLen = 4;
+    static constexpr uint8_t TxNormalQueueLen = 8;
+    static constexpr uint8_t TxLowQueueLen = 2;
+    static constexpr uint8_t TxNormalCoalesceSlots = 8;
+
     QueueHandle_t rxQ = nullptr;
+    QueueHandle_t txHighQ_ = nullptr;
+    QueueHandle_t txNormalQ_ = nullptr;
+    QueueHandle_t txLowQ_ = nullptr;
+    StaticQueue_t txHighQueueStruct_{};
+    StaticQueue_t txNormalQueueStruct_{};
+    StaticQueue_t txLowQueueStruct_{};
+    uint8_t* txHighQueueStorage_ = nullptr;
+    uint8_t* txNormalQueueStorage_ = nullptr;
+    uint8_t* txLowQueueStorage_ = nullptr;
+    NormalCoalesceSlot* txNormalCoalesce_ = nullptr;
+    LowLargeMsg* txLowLarge_ = nullptr;
+    uint32_t txNormalCoalesceSeq_ = 0;
+    portMUX_TYPE txNormalCoalesceMux_ = portMUX_INITIALIZER_UNLOCKED;
+    portMUX_TYPE txLowLargeMux_ = portMUX_INITIALIZER_UNLOCKED;
+
     char replyBuf[Limits::Mqtt::Buffers::Reply] = {0};
     // Shared scratch buffer for ACK, cfg payload serialization and runtime publishes.
     char publishBuf[Limits::Mqtt::Buffers::Publish] = {0};
-    MqttService mqttSvc{ nullptr, nullptr, nullptr, nullptr };
+    MqttService mqttSvc{ nullptr, nullptr, nullptr, nullptr, nullptr };
 
     // CFGDOC: {"label":"Hôte MQTT","help":"Adresse du broker MQTT (DNS ou IP)."}
     ConfigVariable<char,0> hostVar {
@@ -179,8 +233,19 @@ private:
     void onEvent(const Event& e);
 
     static bool svcPublish(void* ctx, const char* topic, const char* payload, int qos, bool retain);
+    static bool svcPublishPrio(void* ctx, const char* topic, const char* payload, int qos, bool retain, uint8_t prio);
     static void svcFormatTopic(void* ctx, const char* suffix, char* out, size_t outLen);
     static bool svcIsConnected(void* ctx);
+
+    bool publishDirect_(const char* topic, const char* payload, int qos, bool retain);
+    bool txEnqueue_(const char* topic, const char* payload, int qos, bool retain, TxPriority prio);
+    bool txEnqueueSmall_(const TxMsg& msg, TxPriority prio);
+    bool txEnqueueNormalCoalesced_(const TxMsg& msg);
+    bool txDequeueNormalCoalesced_(TxMsg& out);
+    bool txStoreLowLarge_(const char* topic, const char* payload, int qos, bool retain);
+    bool txTakeLowLarge_(LowLargeMsg& out);
+    void drainTx_();
+    void logRuntimeDiag_(uint32_t nowMs, bool force = false);
 
     // ---- network warmup ----
     bool _netReady = false;
@@ -223,6 +288,9 @@ private:
     uint32_t lastLowHeapWarnMs_ = 0;
     uint32_t lowHeapSinceMs_ = 0;
     uint32_t lastOutboxWarnMs_ = 0;
+    uint32_t diagNextLogMs_ = 0;
+    uint32_t diagLastLowStackWarnMs_ = 0;
+    UBaseType_t diagMinStackHw_ = (UBaseType_t)0xFFFFFFFFUL;
 
     uint32_t rxDropCount_ = 0;
     uint32_t parseFailCount_ = 0;

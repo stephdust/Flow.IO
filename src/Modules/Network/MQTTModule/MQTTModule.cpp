@@ -12,6 +12,7 @@
 #include <esp_system.h>
 #include <esp_heap_caps.h>
 #include <initializer_list>
+#include <string.h>
 #include "Core/EventBus/EventPayloads.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::MQTTModule)
 #include "Core/ModuleLog.h"
@@ -19,6 +20,14 @@
 // Toggle all MQTT debug logs from one place (set true for diagnostics).
 static constexpr bool kMqttDebugLogsEnabled = false;
 #define MQTT_DLOG(...) do { if (kMqttDebugLogsEnabled) LOGD(__VA_ARGS__); } while (0)
+static constexpr bool kMqttRuntimeDiagEnabled = true;
+static constexpr uint32_t kMqttRuntimeDiagPeriodMs = 500U;
+static constexpr UBaseType_t kMqttStackWarnThresholdWords = 256U;
+
+static UBaseType_t queueUsed_(QueueHandle_t q)
+{
+    return q ? uxQueueMessagesWaiting(q) : 0U;
+}
 
 static uint32_t clampU32(uint32_t v, uint32_t minV, uint32_t maxV) {
     if (v < minV) return minV;
@@ -73,6 +82,12 @@ bool MQTTModule::svcPublish(void* ctx, const char* topic, const char* payload, i
 {
     MQTTModule* self = static_cast<MQTTModule*>(ctx);
     return self ? self->publish(topic, payload, qos, retain) : false;
+}
+
+bool MQTTModule::svcPublishPrio(void* ctx, const char* topic, const char* payload, int qos, bool retain, uint8_t prio)
+{
+    MQTTModule* self = static_cast<MQTTModule*>(ctx);
+    return self ? self->publishWithPriority(topic, payload, qos, retain, prio) : false;
 }
 
 void MQTTModule::svcFormatTopic(void* ctx, const char* suffix, char* out, size_t outLen)
@@ -238,6 +253,7 @@ void MQTTModule::onConnect_(bool) {
     schedCfgSlotCursor_ = 0;
     schedCfgNextMs_ = 0;
     schedCfgRetryBackoffMs_ = 0;
+    diagNextLogMs_ = millis();
 }
 
 void MQTTModule::onDisconnect_(const esp_mqtt_error_codes_t* err) {
@@ -288,7 +304,103 @@ void MQTTModule::onDisconnect_(const esp_mqtt_error_codes_t* err) {
     statusOnlinePending_ = false;
     statusOnlineDeadlineMs_ = 0;
     statusOnlineNextTryMs_ = 0;
+    if (txHighQ_) xQueueReset(txHighQ_);
+    if (txNormalQ_) xQueueReset(txNormalQ_);
+    if (txLowQ_) xQueueReset(txLowQ_);
+    if (txNormalCoalesce_) {
+        memset(txNormalCoalesce_, 0, sizeof(NormalCoalesceSlot) * TxNormalCoalesceSlots);
+    }
+    txNormalCoalesceSeq_ = 0;
+    if (txLowLarge_) {
+        memset(txLowLarge_, 0, sizeof(LowLargeMsg));
+    }
     setState(MQTTState::ErrorWait);
+}
+
+void MQTTModule::logRuntimeDiag_(uint32_t nowMs, bool force)
+{
+    const UBaseType_t stackHw = uxTaskGetStackHighWaterMark(nullptr);
+    if (diagMinStackHw_ == (UBaseType_t)0xFFFFFFFFUL || stackHw < diagMinStackHw_) {
+        diagMinStackHw_ = stackHw;
+    }
+
+    const bool lowStack = (stackHw <= kMqttStackWarnThresholdWords);
+    const bool periodicDue = kMqttRuntimeDiagEnabled &&
+                             (force || diagNextLogMs_ == 0U || (int32_t)(nowMs - diagNextLogMs_) >= 0);
+    const bool lowStackDue = lowStack &&
+                             (diagLastLowStackWarnMs_ == 0U || (int32_t)(nowMs - diagLastLowStackWarnMs_) >= 1000);
+    if (!periodicDue && !lowStackDue) return;
+
+    if (periodicDue) diagNextLogMs_ = nowMs + kMqttRuntimeDiagPeriodMs;
+    if (lowStackDue) diagLastLowStackWarnMs_ = nowMs;
+
+    const UBaseType_t rxUsed = queueUsed_(rxQ);
+    const UBaseType_t txHighUsed = queueUsed_(txHighQ_);
+    const UBaseType_t txNormalUsed = queueUsed_(txNormalQ_);
+    const UBaseType_t txLowUsed = queueUsed_(txLowQ_);
+
+    uint8_t coalesceUsed = 0;
+    if (txNormalCoalesce_) {
+        portENTER_CRITICAL(&txNormalCoalesceMux_);
+        for (uint8_t i = 0; i < TxNormalCoalesceSlots; ++i) {
+            if (txNormalCoalesce_[i].used) ++coalesceUsed;
+        }
+        portEXIT_CRITICAL(&txNormalCoalesceMux_);
+    }
+
+    bool lowLargePending = false;
+    if (txLowLarge_) {
+        portENTER_CRITICAL(&txLowLargeMux_);
+        lowLargePending = txLowLarge_->pending;
+        portEXIT_CRITICAL(&txLowLargeMux_);
+    }
+
+    const int outboxBytes = client_ ? esp_mqtt_client_get_outbox_size(client_) : -1;
+    const uint32_t freeHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+
+    const char* levelState = lowStackDue ? "LOW_STACK" : "diag";
+    if (lowStackDue) {
+        LOGW("MQTT %s state=%u stack_hw=%u stack_min=%u rx=%u/%u txH=%u/%u txN=%u/%u txL=%u/%u coal=%u/%u lowLarge=%u outbox=%d free=%lu largest=%lu",
+             levelState,
+             (unsigned)state,
+             (unsigned)stackHw,
+             (unsigned)diagMinStackHw_,
+             (unsigned)rxUsed,
+             (unsigned)Limits::Mqtt::Capacity::RxQueueLen,
+             (unsigned)txHighUsed,
+             (unsigned)TxHighQueueLen,
+             (unsigned)txNormalUsed,
+             (unsigned)TxNormalQueueLen,
+             (unsigned)txLowUsed,
+             (unsigned)TxLowQueueLen,
+             (unsigned)coalesceUsed,
+             (unsigned)TxNormalCoalesceSlots,
+             lowLargePending ? 1U : 0U,
+             outboxBytes,
+             (unsigned long)freeHeap,
+             (unsigned long)largest);
+    } else {
+        LOGI("MQTT %s state=%u stack_hw=%u stack_min=%u rx=%u/%u txH=%u/%u txN=%u/%u txL=%u/%u coal=%u/%u lowLarge=%u outbox=%d free=%lu largest=%lu",
+             levelState,
+             (unsigned)state,
+             (unsigned)stackHw,
+             (unsigned)diagMinStackHw_,
+             (unsigned)rxUsed,
+             (unsigned)Limits::Mqtt::Capacity::RxQueueLen,
+             (unsigned)txHighUsed,
+             (unsigned)TxHighQueueLen,
+             (unsigned)txNormalUsed,
+             (unsigned)TxNormalQueueLen,
+             (unsigned)txLowUsed,
+             (unsigned)TxLowQueueLen,
+             (unsigned)coalesceUsed,
+             (unsigned)TxNormalCoalesceSlots,
+             lowLargePending ? 1U : 0U,
+             outboxBytes,
+             (unsigned long)freeHeap,
+             (unsigned long)largest);
+    }
 }
 
 void MQTTModule::onMessage_(const char* topic, size_t topicLen,
@@ -739,6 +851,26 @@ void MQTTModule::runTimeSchedulerSlots_(uint32_t nowMs)
 
 bool MQTTModule::publish(const char* topic, const char* payload, int qos, bool retain)
 {
+    return publishWithPriority(topic, payload, qos, retain, (uint8_t)TxPriority::Normal);
+}
+
+bool MQTTModule::publishWithPriority(const char* topic, const char* payload, int qos, bool retain, uint8_t prio)
+{
+    TxPriority priority = TxPriority::Normal;
+    if (prio == (uint8_t)TxPriority::High) priority = TxPriority::High;
+    else if (prio == (uint8_t)TxPriority::Low) priority = TxPriority::Low;
+
+    TaskHandle_t selfTask = getTaskHandle();
+    const TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
+    if (selfTask && currentTask == selfTask) {
+        return publishDirect_(topic, payload, qos, retain);
+    }
+
+    return txEnqueue_(topic, payload, qos, retain, priority);
+}
+
+bool MQTTModule::publishDirect_(const char* topic, const char* payload, int qos, bool retain)
+{
     if (!topic || !payload) return false;
     if (state != MQTTState::Connected) return false;
     if (!client_) return false;
@@ -819,6 +951,197 @@ bool MQTTModule::publish(const char* topic, const char* payload, int qos, bool r
                   logTopic);
     }
     return true;
+}
+
+bool MQTTModule::txEnqueue_(const char* topic, const char* payload, int qos, bool retain, TxPriority prio)
+{
+    if (!topic || !payload) return false;
+    if (state != MQTTState::Connected) return false;
+    if (!client_) return false;
+    if (!txHighQ_ || !txNormalQ_ || !txLowQ_) return false;
+
+    const size_t topicLen = strnlen(topic, Limits::Mqtt::Buffers::Topic);
+    if (topicLen == 0U || topicLen >= Limits::Mqtt::Buffers::Topic) return false;
+
+    const size_t payloadLen = strlen(payload);
+    if (payloadLen >= sizeof(TxMsg{}.payload)) {
+        if (prio == TxPriority::Low) {
+            return txStoreLowLarge_(topic, payload, qos, retain);
+        }
+        return false;
+    }
+
+    TxMsg msg{};
+    msg.qos = (qos < 0) ? 0U : (uint8_t)qos;
+    msg.retain = retain ? 1U : 0U;
+    msg.topicLen = (uint16_t)topicLen;
+    msg.payloadLen = (uint16_t)payloadLen;
+    memcpy(msg.topic, topic, topicLen + 1U);
+    memcpy(msg.payload, payload, payloadLen + 1U);
+    return txEnqueueSmall_(msg, prio);
+}
+
+bool MQTTModule::txEnqueueSmall_(const TxMsg& msg, TxPriority prio)
+{
+    QueueHandle_t q = txNormalQ_;
+    if (prio == TxPriority::High) q = txHighQ_;
+    else if (prio == TxPriority::Low) q = txLowQ_;
+    if (!q) return false;
+
+    if (xQueueSend(q, &msg, 0) == pdTRUE) return true;
+    if (prio == TxPriority::Normal) {
+        return txEnqueueNormalCoalesced_(msg);
+    }
+    return false;
+}
+
+bool MQTTModule::txEnqueueNormalCoalesced_(const TxMsg& msg)
+{
+    if (!txNormalCoalesce_) return false;
+    portENTER_CRITICAL(&txNormalCoalesceMux_);
+
+    int16_t freeIdx = -1;
+    int16_t oldestIdx = -1;
+    uint32_t oldestSeq = 0xFFFFFFFFUL;
+
+    for (uint8_t i = 0; i < TxNormalCoalesceSlots; ++i) {
+        NormalCoalesceSlot& s = txNormalCoalesce_[i];
+        if (!s.used) {
+            if (freeIdx < 0) freeIdx = (int16_t)i;
+            continue;
+        }
+        if (strcmp(s.msg.topic, msg.topic) == 0) {
+            s.msg = msg;
+            s.seq = ++txNormalCoalesceSeq_;
+            portEXIT_CRITICAL(&txNormalCoalesceMux_);
+            return true;
+        }
+        if (s.seq < oldestSeq) {
+            oldestSeq = s.seq;
+            oldestIdx = (int16_t)i;
+        }
+    }
+
+    int16_t target = (freeIdx >= 0) ? freeIdx : oldestIdx;
+    if (target < 0) {
+        portEXIT_CRITICAL(&txNormalCoalesceMux_);
+        return false;
+    }
+
+    txNormalCoalesce_[(uint8_t)target].used = true;
+    txNormalCoalesce_[(uint8_t)target].seq = ++txNormalCoalesceSeq_;
+    txNormalCoalesce_[(uint8_t)target].msg = msg;
+    portEXIT_CRITICAL(&txNormalCoalesceMux_);
+    return true;
+}
+
+bool MQTTModule::txDequeueNormalCoalesced_(TxMsg& out)
+{
+    if (!txNormalCoalesce_) return false;
+    bool found = false;
+    int16_t oldestIdx = -1;
+    uint32_t oldestSeq = 0xFFFFFFFFUL;
+
+    portENTER_CRITICAL(&txNormalCoalesceMux_);
+    for (uint8_t i = 0; i < TxNormalCoalesceSlots; ++i) {
+        const NormalCoalesceSlot& s = txNormalCoalesce_[i];
+        if (!s.used) continue;
+        if (s.seq < oldestSeq) {
+            oldestSeq = s.seq;
+            oldestIdx = (int16_t)i;
+            found = true;
+        }
+    }
+    if (found && oldestIdx >= 0) {
+        out = txNormalCoalesce_[(uint8_t)oldestIdx].msg;
+        txNormalCoalesce_[(uint8_t)oldestIdx].used = false;
+    }
+    portEXIT_CRITICAL(&txNormalCoalesceMux_);
+    return found;
+}
+
+bool MQTTModule::txStoreLowLarge_(const char* topic, const char* payload, int qos, bool retain)
+{
+    if (!txLowLarge_) return false;
+    if (!topic || !payload) return false;
+    const size_t topicLen = strlen(topic);
+    const size_t payloadLen = strlen(payload);
+    if (topicLen >= sizeof(txLowLarge_->topic)) return false;
+    if (payloadLen >= sizeof(txLowLarge_->payload)) return false;
+
+    portENTER_CRITICAL(&txLowLargeMux_);
+    snprintf(txLowLarge_->topic, sizeof(txLowLarge_->topic), "%s", topic);
+    snprintf(txLowLarge_->payload, sizeof(txLowLarge_->payload), "%s", payload);
+    txLowLarge_->qos = (qos < 0) ? 0U : (uint8_t)qos;
+    txLowLarge_->retain = retain ? 1U : 0U;
+    txLowLarge_->pending = true;
+    portEXIT_CRITICAL(&txLowLargeMux_);
+    return true;
+}
+
+bool MQTTModule::txTakeLowLarge_(LowLargeMsg& out)
+{
+    if (!txLowLarge_) return false;
+    bool ok = false;
+    portENTER_CRITICAL(&txLowLargeMux_);
+    if (txLowLarge_->pending) {
+        out = *txLowLarge_;
+        txLowLarge_->pending = false;
+        ok = true;
+    }
+    portEXIT_CRITICAL(&txLowLargeMux_);
+    return ok;
+}
+
+void MQTTModule::drainTx_()
+{
+    if (state != MQTTState::Connected) return;
+    if (!client_) return;
+
+    static const TxPriority kSchedule[] = {
+        TxPriority::High, TxPriority::High, TxPriority::High, TxPriority::High,
+        TxPriority::Normal, TxPriority::Normal,
+        TxPriority::Low
+    };
+
+    for (uint8_t step = 0; step < sizeof(kSchedule) / sizeof(kSchedule[0]); ++step) {
+        const TxPriority prio = kSchedule[step];
+
+        if (prio == TxPriority::Low) {
+            TxMsg msg{};
+            if (txLowQ_ && xQueueReceive(txLowQ_, &msg, 0) == pdTRUE) {
+                if (!publishDirect_(msg.topic, msg.payload, (int)msg.qos, msg.retain != 0U)) {
+                    (void)txEnqueueSmall_(msg, TxPriority::Low);
+                    break;
+                }
+                continue;
+            }
+
+            LowLargeMsg lowLarge{};
+            if (txTakeLowLarge_(lowLarge)) {
+                if (!publishDirect_(lowLarge.topic, lowLarge.payload, (int)lowLarge.qos, lowLarge.retain != 0U)) {
+                    (void)txStoreLowLarge_(lowLarge.topic, lowLarge.payload, (int)lowLarge.qos, lowLarge.retain != 0U);
+                    break;
+                }
+            }
+            continue;
+        }
+
+        TxMsg msg{};
+        bool hasMsg = false;
+        if (prio == TxPriority::High) {
+            hasMsg = (txHighQ_ && xQueueReceive(txHighQ_, &msg, 0) == pdTRUE);
+        } else {
+            hasMsg = (txNormalQ_ && xQueueReceive(txNormalQ_, &msg, 0) == pdTRUE);
+            if (!hasMsg) hasMsg = txDequeueNormalCoalesced_(msg);
+        }
+        if (!hasMsg) continue;
+
+        if (!publishDirect_(msg.topic, msg.payload, (int)msg.qos, msg.retain != 0U)) {
+            (void)txEnqueueSmall_(msg, prio);
+            break;
+        }
+    }
 }
 
 bool MQTTModule::publishAlarmState_(AlarmId id)
@@ -1119,6 +1442,7 @@ void MQTTModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     syncRxMetrics_();
 
     mqttSvc.publish = MQTTModule::svcPublish;
+    mqttSvc.publishPrio = MQTTModule::svcPublishPrio;
     mqttSvc.formatTopic = MQTTModule::svcFormatTopic;
     mqttSvc.isConnected = MQTTModule::svcIsConnected;
     mqttSvc.ctx = this;
@@ -1141,6 +1465,75 @@ void MQTTModule::init(ConfigStore& cfg, ServiceRegistry& services) {
 
     rxQ = xQueueCreate(Limits::Mqtt::Capacity::RxQueueLen, sizeof(RxMsg));
 
+    const size_t txHighBytes = TxHighQueueLen * sizeof(TxMsg);
+    const size_t txNormalBytes = TxNormalQueueLen * sizeof(TxMsg);
+    const size_t txLowBytes = TxLowQueueLen * sizeof(TxMsg);
+    const size_t txCoalesceBytes = TxNormalCoalesceSlots * sizeof(NormalCoalesceSlot);
+    const size_t txLowLargeBytes = sizeof(LowLargeMsg);
+
+    if (!txHighQueueStorage_) {
+        txHighQueueStorage_ = static_cast<uint8_t*>(heap_caps_malloc(txHighBytes, MALLOC_CAP_8BIT));
+    }
+    if (!txNormalQueueStorage_) {
+        txNormalQueueStorage_ = static_cast<uint8_t*>(heap_caps_malloc(txNormalBytes, MALLOC_CAP_8BIT));
+    }
+    if (!txLowQueueStorage_) {
+        txLowQueueStorage_ = static_cast<uint8_t*>(heap_caps_malloc(txLowBytes, MALLOC_CAP_8BIT));
+    }
+    if (!txNormalCoalesce_) {
+        txNormalCoalesce_ = static_cast<NormalCoalesceSlot*>(
+            heap_caps_calloc(TxNormalCoalesceSlots, sizeof(NormalCoalesceSlot), MALLOC_CAP_8BIT));
+    }
+    if (!txLowLarge_) {
+        txLowLarge_ = static_cast<LowLargeMsg*>(heap_caps_calloc(1, sizeof(LowLargeMsg), MALLOC_CAP_8BIT));
+    }
+
+    txHighQ_ = (txHighQueueStorage_ != nullptr)
+        ? xQueueCreateStatic(TxHighQueueLen, sizeof(TxMsg), txHighQueueStorage_, &txHighQueueStruct_)
+        : nullptr;
+    txNormalQ_ = (txNormalQueueStorage_ != nullptr)
+        ? xQueueCreateStatic(TxNormalQueueLen, sizeof(TxMsg), txNormalQueueStorage_, &txNormalQueueStruct_)
+        : nullptr;
+    txLowQ_ = (txLowQueueStorage_ != nullptr)
+        ? xQueueCreateStatic(TxLowQueueLen, sizeof(TxMsg), txLowQueueStorage_, &txLowQueueStruct_)
+        : nullptr;
+
+    if (!txHighQ_ || !txNormalQ_ || !txLowQ_ || !txNormalCoalesce_ || !txLowLarge_) {
+        LOGW("TX init failed highQ=%p normalQ=%p lowQ=%p highBuf=%p normalBuf=%p lowBuf=%p normalCoal=%p lowLarge=%p",
+             txHighQ_, txNormalQ_, txLowQ_,
+             txHighQueueStorage_, txNormalQueueStorage_, txLowQueueStorage_,
+             txNormalCoalesce_, txLowLarge_);
+        LOGW("TX alloc bytes high=%u normal=%u low=%u coalesce=%u lowLarge=%u",
+             (unsigned)txHighBytes,
+             (unsigned)txNormalBytes,
+             (unsigned)txLowBytes,
+             (unsigned)txCoalesceBytes,
+             (unsigned)txLowLargeBytes);
+    } else {
+        const size_t txTotalBytes = txHighBytes + txNormalBytes + txLowBytes + txCoalesceBytes + txLowLargeBytes;
+        LOGI("TX buffers on heap total=%uB (high=%u normal=%u low=%u coalesce=%u lowLarge=%u)",
+             (unsigned)txTotalBytes,
+             (unsigned)txHighBytes,
+             (unsigned)txNormalBytes,
+             (unsigned)txLowBytes,
+             (unsigned)txCoalesceBytes,
+             (unsigned)txLowLargeBytes);
+        LOGI("TX/RX queue caps rx=%u high=%u normal=%u low=%u coalesce=%u",
+             (unsigned)Limits::Mqtt::Capacity::RxQueueLen,
+             (unsigned)TxHighQueueLen,
+             (unsigned)TxNormalQueueLen,
+             (unsigned)TxLowQueueLen,
+             (unsigned)TxNormalCoalesceSlots);
+    }
+
+    if (txNormalCoalesce_) {
+        memset(txNormalCoalesce_, 0, sizeof(NormalCoalesceSlot) * TxNormalCoalesceSlots);
+    }
+    txNormalCoalesceSeq_ = 0;
+    if (txLowLarge_) {
+        memset(txLowLarge_, 0, sizeof(LowLargeMsg));
+    }
+
     refreshConfigModules();
 
     LOGI("Init id=%s topic=%s cfgModules=%u", deviceId, topicCmd, (unsigned)cfgModuleCount);
@@ -1152,6 +1545,9 @@ void MQTTModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     _netReadyTs = millis();
     _retryCount = 0;
     _retryDelayMs = Limits::Mqtt::Backoff::MinMs;
+    diagNextLogMs_ = millis() + kMqttRuntimeDiagPeriodMs;
+    diagLastLowStackWarnMs_ = 0;
+    diagMinStackHw_ = (UBaseType_t)0xFFFFFFFFUL;
 
     setState(cfgData.enabled ? MQTTState::WaitingNetwork : MQTTState::Disabled);
 }
@@ -1174,6 +1570,7 @@ void MQTTModule::loop() {
         if (millis() - _netReadyTs >= Limits::Mqtt::Timing::NetWarmupMs) connectMqtt();
         break;
     case MQTTState::Connecting:
+        logRuntimeDiag_(millis());
         if (millis() - stateTs > Limits::Mqtt::Timing::ConnectTimeoutMs) {
             LOGW("Connect timeout");
             stopClient_(true);
@@ -1181,9 +1578,12 @@ void MQTTModule::loop() {
         }
         break;
     case MQTTState::Connected: {
+        uint32_t now = millis();
+        logRuntimeDiag_(now);
         RxMsg m;
         while (xQueueReceive(rxQ, &m, 0) == pdTRUE) processRx(m);
-        uint32_t now = millis();
+        now = millis();
+        drainTx_();
 
         const bool alarmRetryDue =
             (alarmsRetryNextMs_ == 0U) || ((int32_t)(now - alarmsRetryNextMs_) >= 0);
@@ -1320,9 +1720,11 @@ void MQTTModule::loop() {
                 }
             }
         }
+        drainTx_();
         break;
     }
     case MQTTState::ErrorWait:
+        logRuntimeDiag_(millis());
         if (!_netReady) {
             setState(MQTTState::WaitingNetwork);
             break;
