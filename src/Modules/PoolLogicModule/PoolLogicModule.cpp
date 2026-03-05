@@ -100,6 +100,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     winterModeVar_.moduleName = kCfgModuleMode;
     phAutoModeVar_.moduleName = kCfgModuleMode;
     orpAutoModeVar_.moduleName = kCfgModuleMode;
+    phDosePlusVar_.moduleName = kCfgModuleMode;
     electrolyseModeVar_.moduleName = kCfgModuleMode;
     electroRunModeVar_.moduleName = kCfgModuleMode;
 
@@ -146,6 +147,8 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     swgDeviceVar_.moduleName = kCfgModuleDevice;
     robotDeviceVar_.moduleName = kCfgModuleDevice;
     fillingDeviceVar_.moduleName = kCfgModuleDevice;
+    phPumpDeviceVar_.moduleName = kCfgModuleDevice;
+    orpPumpDeviceVar_.moduleName = kCfgModuleDevice;
 
     cfg.registerVar(enabledVar_, kCfgModuleId, kCfgBranchMode);
 
@@ -153,6 +156,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(winterModeVar_, kCfgModuleId, kCfgBranchMode);
     cfg.registerVar(phAutoModeVar_, kCfgModuleId, kCfgBranchMode);
     cfg.registerVar(orpAutoModeVar_, kCfgModuleId, kCfgBranchMode);
+    cfg.registerVar(phDosePlusVar_, kCfgModuleId, kCfgBranchMode);
     cfg.registerVar(electrolyseModeVar_, kCfgModuleId, kCfgBranchMode);
     cfg.registerVar(electroRunModeVar_, kCfgModuleId, kCfgBranchMode);
 
@@ -199,6 +203,8 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(swgDeviceVar_, kCfgModuleId, kCfgBranchDevice);
     cfg.registerVar(robotDeviceVar_, kCfgModuleId, kCfgBranchDevice);
     cfg.registerVar(fillingDeviceVar_, kCfgModuleId, kCfgBranchDevice);
+    cfg.registerVar(phPumpDeviceVar_, kCfgModuleId, kCfgBranchDevice);
+    cfg.registerVar(orpPumpDeviceVar_, kCfgModuleId, kCfgBranchDevice);
 
     logHub_ = services.get<LogHubService>("loghub");
     const EventBusService* ebSvc = services.get<EventBusService>("eventbus");
@@ -264,10 +270,23 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:water-check-outline",
             "config"
         };
+        const HASwitchEntry phDosePlusSwitch{
+            "poollogic",
+            "pool_ph_dose_plus",
+            "pH Dosing uses pH+",
+            "cfg/poollogic/mode",
+            "{% if value_json.ph_dose_plus %}ON{% else %}OFF{% endif %}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/mode\\\":{\\\"ph_dose_plus\\\":true}}",
+            "{\\\"poollogic/mode\\\":{\\\"ph_dose_plus\\\":false}}",
+            "mdi:beaker-plus-outline",
+            "config"
+        };
         (void)haSvc_->addSwitch(haSvc_->ctx, &autoModeSwitch);
         (void)haSvc_->addSwitch(haSvc_->ctx, &winterModeSwitch);
         (void)haSvc_->addSwitch(haSvc_->ctx, &phAutoModeSwitch);
         (void)haSvc_->addSwitch(haSvc_->ctx, &orpAutoModeSwitch);
+        (void)haSvc_->addSwitch(haSvc_->ctx, &phDosePlusSwitch);
     }
     if (haSvc_ && haSvc_->addSensor) {
         const HASensorEntry filtrationStart{
@@ -483,6 +502,10 @@ void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
 {
     if (!enabled_) return;
 
+    LOGI("PoolLogic pH dosing mode=%s", phDosePlus_ ? "pH+" : "pH-");
+    normalizeDeviceSlots_();
+    logDeviceSlotConfig_();
+
     ensureDailySlot_();
 
     if (schedSvc_ && schedSvc_->isActive) {
@@ -494,6 +517,102 @@ void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
     portENTER_CRITICAL(&pendingMux_);
     pendingDailyRecalc_ = true;
     portEXIT_CRITICAL(&pendingMux_);
+}
+
+void PoolLogicModule::normalizeDeviceSlots_()
+{
+    auto normalize = [this](uint8_t& slot,
+                            uint8_t defSlot,
+                            ConfigVariable<uint8_t,0>& var,
+                            const char* role) {
+        if (slot < POOL_DEVICE_MAX) return;
+        LOGW("PoolLogic invalid device slot role=%s slot=%u -> default=%u",
+             role ? role : "?",
+             (unsigned)slot,
+             (unsigned)defSlot);
+        slot = defSlot;
+        if (cfgStore_) {
+            (void)cfgStore_->set(var, slot);
+        }
+    };
+
+    normalize(filtrationDeviceSlot_, POOL_IO_SLOT_FILTRATION_PUMP, filtrationDeviceVar_, "filtration");
+    normalize(swgDeviceSlot_, POOL_IO_SLOT_CHLORINE_GENERATOR, swgDeviceVar_, "swg");
+    normalize(robotDeviceSlot_, POOL_IO_SLOT_ROBOT, robotDeviceVar_, "robot");
+    normalize(fillingDeviceSlot_, POOL_IO_SLOT_FILL_PUMP, fillingDeviceVar_, "filling");
+    normalize(phPumpDeviceSlot_, POOL_IO_SLOT_PH_PUMP, phPumpDeviceVar_, "ph_pump");
+    normalize(orpPumpDeviceSlot_, POOL_IO_SLOT_CHLORINE_PUMP, orpPumpDeviceVar_, "orp_pump");
+}
+
+void PoolLogicModule::logDeviceSlotConfig_() const
+{
+    LOGI("PoolLogic slots filtr=%u swg=%u robot=%u fill=%u ph=%u orp=%u",
+         (unsigned)filtrationDeviceSlot_,
+         (unsigned)swgDeviceSlot_,
+         (unsigned)robotDeviceSlot_,
+         (unsigned)fillingDeviceSlot_,
+         (unsigned)phPumpDeviceSlot_,
+         (unsigned)orpPumpDeviceSlot_);
+
+    logDeviceSlotBinding_("filtration", filtrationDeviceSlot_, 0);
+    logDeviceSlotBinding_("swg", swgDeviceSlot_, -1);
+    logDeviceSlotBinding_("robot", robotDeviceSlot_, -1);
+    logDeviceSlotBinding_("filling", fillingDeviceSlot_, -1);
+    logDeviceSlotBinding_("ph_pump", phPumpDeviceSlot_, 1);
+    logDeviceSlotBinding_("orp_pump", orpPumpDeviceSlot_, 1);
+}
+
+void PoolLogicModule::logDeviceSlotBinding_(const char* role, uint8_t slot, int8_t expectedType) const
+{
+    const PoolIoBinding* binding = flowPoolIoBindingBySlot(slot);
+    if (binding) {
+        LOGI("PoolLogic role=%s slot=%u io=%u map=%s",
+             role ? role : "?",
+             (unsigned)slot,
+             (unsigned)binding->ioId,
+             binding->name ? binding->name : "?");
+    } else {
+        LOGW("PoolLogic role=%s slot=%u has no static IO map", role ? role : "?", (unsigned)slot);
+    }
+
+    if (!poolSvc_ || !poolSvc_->meta) {
+        LOGW("PoolLogic role=%s slot=%u PDM meta unavailable", role ? role : "?", (unsigned)slot);
+        return;
+    }
+
+    PoolDeviceSvcMeta meta{};
+    const PoolDeviceSvcStatus st = poolSvc_->meta(poolSvc_->ctx, slot, &meta);
+    if (st != POOLDEV_SVC_OK) {
+        LOGW("PoolLogic role=%s slot=%u PDM meta failed st=%u",
+             role ? role : "?",
+             (unsigned)slot,
+             (unsigned)st);
+        return;
+    }
+
+    LOGI("PoolLogic role=%s slot=%u pdm used=%u type=%u io=%u label=%s",
+         role ? role : "?",
+         (unsigned)slot,
+         (unsigned)meta.used,
+         (unsigned)meta.type,
+         (unsigned)meta.ioId,
+         meta.label[0] ? meta.label : "?");
+
+    if (binding && meta.ioId != binding->ioId) {
+        LOGW("PoolLogic role=%s slot=%u io mismatch map=%u pdm=%u",
+             role ? role : "?",
+             (unsigned)slot,
+             (unsigned)binding->ioId,
+             (unsigned)meta.ioId);
+    }
+
+    if (expectedType >= 0 && meta.type != (uint8_t)expectedType) {
+        LOGW("PoolLogic role=%s slot=%u type mismatch expected=%u got=%u",
+             role ? role : "?",
+             (unsigned)slot,
+             (unsigned)expectedType,
+             (unsigned)meta.type);
+    }
 }
 
 uint8_t PoolLogicModule::runtimeSnapshotCount() const
@@ -1294,7 +1413,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
                                    phKi_,
                                    phKd_,
                                    phWindowMs_,
-                                   true,
+                                   !phDosePlus_,
                                    nowMs,
                                    phPumpDesired,
                                    outMs);

@@ -1,9 +1,9 @@
 {
   "_meta": {
     "generated": true,
-    "total": 251,
-    "decl_total": 206,
-    "decl_with_cfgdoc": 93,
+    "total": 257,
+    "decl_total": 209,
+    "decl_with_cfgdoc": 96,
     "missing_cfgdoc_count": 113,
     "manual_overrides_total": 18,
     "manual_overrides_applied": 0
@@ -1462,6 +1462,24 @@
       "var": "filtrationDeviceVar_",
       "source": "cfgdoc-alias"
     },
+    "poollogic/device/orp_pump_slot": {
+      "module": "poollogic/device",
+      "name": "orp_pump_slot",
+      "type": "UInt8",
+      "label": "Slot pompe chlore liquide",
+      "help": "Numéro de slot PDM associé à la pompe ORP/chlore liquide.",
+      "var": "orpPumpDeviceVar_",
+      "source": "cfgdoc-alias"
+    },
+    "poollogic/device/ph_pump_slot": {
+      "module": "poollogic/device",
+      "name": "ph_pump_slot",
+      "type": "UInt8",
+      "label": "Slot pompe pH",
+      "help": "Numéro de slot PDM associé à la pompe pH.",
+      "var": "phPumpDeviceVar_",
+      "source": "cfgdoc-alias"
+    },
     "poollogic/device/robot_slot": {
       "module": "poollogic/device",
       "name": "robot_slot",
@@ -1711,6 +1729,15 @@
       "var": "phAutoModeVar_",
       "source": "cfgdoc-alias"
     },
+    "poollogic/mode/ph_dose_plus": {
+      "module": "poollogic/mode",
+      "name": "ph_dose_plus",
+      "type": "Bool",
+      "label": "Injection pH+",
+      "help": "Si activé, la pompe pH injecte du pH+ (sinon pH-).",
+      "var": "phDosePlusVar_",
+      "source": "cfgdoc-alias"
+    },
     "poollogic/mode/winter_mode": {
       "module": "poollogic/mode",
       "name": "winter_mode",
@@ -1765,6 +1792,15 @@
       "var": "orpKpVar_",
       "source": "cfgdoc"
     },
+    "poollogic/orp_pump_slot": {
+      "module": "poollogic",
+      "name": "orp_pump_slot",
+      "type": "UInt8",
+      "label": "Slot pompe chlore liquide",
+      "help": "Numéro de slot PDM associé à la pompe ORP/chlore liquide.",
+      "var": "orpPumpDeviceVar_",
+      "source": "cfgdoc"
+    },
     "poollogic/orp_setpoint": {
       "module": "poollogic",
       "name": "orp_setpoint",
@@ -1791,6 +1827,15 @@
       "label": "Mode auto pH",
       "help": "Active la régulation automatique du pH.",
       "var": "phAutoModeVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/ph_dose_plus": {
+      "module": "poollogic",
+      "name": "ph_dose_plus",
+      "type": "Bool",
+      "label": "Injection pH+",
+      "help": "Si activé, la pompe pH injecte du pH+ (sinon pH-).",
+      "var": "phDosePlusVar_",
       "source": "cfgdoc"
     },
     "poollogic/ph_io_id": {
@@ -1827,6 +1872,15 @@
       "label": "pH Kp",
       "help": "Gain proportionnel du régulateur pH.",
       "var": "phKpVar_",
+      "source": "cfgdoc"
+    },
+    "poollogic/ph_pump_slot": {
+      "module": "poollogic",
+      "name": "ph_pump_slot",
+      "type": "UInt8",
+      "label": "Slot pompe pH",
+      "help": "Numéro de slot PDM associé à la pompe pH.",
+      "var": "phPumpDeviceVar_",
       "source": "cfgdoc"
     },
     "poollogic/ph_setpoint": {

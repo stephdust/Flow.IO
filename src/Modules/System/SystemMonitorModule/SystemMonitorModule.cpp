@@ -120,16 +120,16 @@ void SystemMonitorModule::logHeapStats() {
     SystemStatsSnapshot snap{};
     SystemStats::collect(snap);
 
-    LOGI("Heap free=%lu min=%lu largest=%lu frag=%u%%",
-                (unsigned long)snap.heap.freeBytes,
-                (unsigned long)snap.heap.minFreeBytes,
-                (unsigned long)snap.heap.largestFreeBlock,
-                (unsigned int)snap.heap.fragPercent);
+    LOGD("Heap free=%lu min=%lu largest=%lu frag=%u%%",
+         (unsigned long)snap.heap.freeBytes,
+         (unsigned long)snap.heap.minFreeBytes,
+         (unsigned long)snap.heap.largestFreeBlock,
+         (unsigned int)snap.heap.fragPercent);
 }
 
 void SystemMonitorModule::logTaskStacks() {
     if (!moduleManager) {
-        LOGI("ModuleManager not set, task stats disabled");
+        LOGD("ModuleManager not set, task stats disabled");
         return;
     }
 
@@ -165,7 +165,7 @@ void SystemMonitorModule::logTaskStacks() {
 
         if (tasksOnLine >= kTasksPerLine || (off + sepLen + entryLen) >= sizeof(line)) {
             if (tasksOnLine > 0) {
-                LOGI("Stack %s", line);
+                LOGD("Stack %s", line);
             }
             off = 0;
             line[0] = '\0';
@@ -185,7 +185,7 @@ void SystemMonitorModule::logTaskStacks() {
         ++tasksOnLine;
 
         if (tasksOnLine >= kTasksPerLine) {
-            LOGI("Stack %s", line);
+            LOGD("Stack %s", line);
             off = 0;
             line[0] = '\0';
             tasksOnLine = 0;
@@ -193,12 +193,12 @@ void SystemMonitorModule::logTaskStacks() {
     }
 
     if (!hasTask) {
-        LOGI("Stack none");
+        LOGD("Stack none");
         return;
     }
 
     if (tasksOnLine > 0) {
-        LOGI("Stack %s", line);
+        LOGD("Stack %s", line);
     }
 }
 

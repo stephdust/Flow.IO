@@ -185,6 +185,7 @@ constexpr char AutoMode[] = "pl_auto"; // Pool logic module persisted key for fi
 constexpr char WinterMode[] = "pl_wint"; // Pool logic module persisted key for field `pl_wint`.
 constexpr char PhAutoMode[] = "pl_pha"; // Pool logic module persisted key for field `pl_pha`.
 constexpr char OrpAutoMode[] = "pl_orpa"; // Pool logic module persisted key for field `pl_orpa`.
+constexpr char PhDosePlus[] = "pl_phpl"; // Pool logic module persisted key for field `pl_phpl`.
 constexpr char ElectrolyseMode[] = "pl_elec"; // Pool logic module persisted key for field `pl_elec`.
 constexpr char ElectroRunMode[] = "pl_erun"; // Pool logic module persisted key for field `pl_erun`.
 constexpr char TempLow[] = "pl_tlow"; // Pool logic module persisted key for field `pl_tlow`.
@@ -224,6 +225,8 @@ constexpr char FiltrationSlot[] = "pl_sfil"; // Pool logic module persisted key 
 constexpr char SwgSlot[] = "pl_sswg"; // Pool logic module persisted key for field `pl_sswg`.
 constexpr char RobotSlot[] = "pl_srob"; // Pool logic module persisted key for field `pl_srob`.
 constexpr char FillingSlot[] = "pl_sfill"; // Pool logic module persisted key for field `pl_sfill`.
+constexpr char PhPumpSlot[] = "pl_sphp"; // Pool logic module persisted key for field `pl_sphp`.
+constexpr char OrpPumpSlot[] = "pl_sorp"; // Pool logic module persisted key for field `pl_sorp`.
 constexpr char FiltrationCalcStart[] = "pl_fcst"; // Pool logic runtime key for calculated filtration start hour.
 constexpr char FiltrationCalcStop[] = "pl_fcen"; // Pool logic runtime key for calculated filtration stop hour.
 }  // namespace PoolLogic

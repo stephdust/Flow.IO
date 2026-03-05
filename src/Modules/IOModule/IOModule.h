@@ -7,6 +7,7 @@
 #include "Core/Module.h"
 #include "Core/NvsKeys.h"
 #include "Core/SystemLimits.h"
+#include "Core/WokwiDefaultOverrides.h"
 #include "Core/Layout/PoolIoMap.h"
 #include "Core/RuntimeSnapshotProvider.h"
 #include "Core/Services/Services.h"
@@ -26,22 +27,22 @@
 #include "Modules/IOModule/IOModuleDataModel.h"
 
 struct IOModuleConfig {
-    bool enabled = true;
-    int32_t i2cSda = 21;
-    int32_t i2cScl = 22;
-    int32_t adsPollMs = 125;
-    int32_t dsPollMs = 2000;
-    int32_t digitalPollMs = 100;
-    uint8_t adsInternalAddr = 0x48;
-    uint8_t adsExternalAddr = 0x49;
-    int32_t adsGain = ADS1X15_GAIN_6144MV;
-    int32_t adsRate = 1;
-    bool pcfEnabled = true;
-    uint8_t pcfAddress = 0x20;
-    uint8_t pcfMaskDefault = 0;
-    bool pcfActiveLow = true;
-    bool traceEnabled = true;
-    int32_t tracePeriodMs = (int32_t)Limits::IoTracePeriodMs;
+    bool enabled = FLOW_WIRDEF_IO_EN;
+    int32_t i2cSda = FLOW_WIRDEF_IO_SDA;
+    int32_t i2cScl = FLOW_WIRDEF_IO_SCL;
+    int32_t adsPollMs = FLOW_MODDEF_IO_ADS;
+    int32_t dsPollMs = FLOW_MODDEF_IO_DS;
+    int32_t digitalPollMs = FLOW_MODDEF_IO_DIN;
+    uint8_t adsInternalAddr = FLOW_WIRDEF_IO_AIAD;
+    uint8_t adsExternalAddr = FLOW_WIRDEF_IO_AEAD;
+    int32_t adsGain = FLOW_MODDEF_IO_AGAI;
+    int32_t adsRate = FLOW_MODDEF_IO_ARAT;
+    bool pcfEnabled = FLOW_WIRDEF_IO_PCFEN;
+    uint8_t pcfAddress = FLOW_WIRDEF_IO_PCFAD;
+    uint8_t pcfMaskDefault = FLOW_WIRDEF_IO_PCFMK;
+    bool pcfActiveLow = FLOW_WIRDEF_IO_PCFAL;
+    bool traceEnabled = FLOW_MODDEF_IO_TREN;
+    int32_t tracePeriodMs = FLOW_MODDEF_IO_TRMS;
 };
 
 enum IOAnalogSource : uint8_t {

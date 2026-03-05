@@ -55,6 +55,7 @@
 #include "Board/BoardSerialMap.h"
 #include "Core/SystemLimits.h"
 #include "Domain/Calibration.h"
+#include "Core/WokwiDefaultOverrides.h"
 #include <WiFi.h>
 #include <esp_system.h>
 #include <string.h>
@@ -112,21 +113,6 @@ struct BootOrchestratorState {
 static BootOrchestratorState gBootOrchestrator{};
 
 static constexpr uint8_t IO_DO_COUNT = FLOW_POOL_IO_BINDING_COUNT;
-
-static void setAdcDefaultCalib(IOAnalogDefinition& def,
-                               float internalC0,
-                               float internalC1,
-                               float externalC0,
-                               float externalC1)
-{
-    if (def.source == IO_SRC_ADS_EXTERNAL_DIFF) {
-        def.c0 = externalC0;
-        def.c1 = externalC1;
-    } else {
-        def.c0 = internalC0;
-        def.c1 = internalC1;
-    }
-}
 
 static void onIoFloatValue(void* ctx, float value) {
     if (!gIoDataStore) return;
@@ -302,10 +288,13 @@ void setup() {
     requireSetup(orp != nullptr, "missing sensor mapping ORP");
     snprintf(orpDef.id, sizeof(orpDef.id), "%s", orp->endpointId);
     orpDef.ioId = orp->ioId;
-    orpDef.source = IO_SRC_ADS_INTERNAL_SINGLE;
-    orpDef.channel = 0;
-    setAdcDefaultCalib(orpDef, Calib::Orp::InternalC0, Calib::Orp::InternalC1, Calib::Orp::ExternalC0, Calib::Orp::ExternalC1);
-    orpDef.precision = 0;
+    orpDef.source = FLOW_WIRDEF_IO_A0S;
+    orpDef.channel = FLOW_WIRDEF_IO_A0C;
+    orpDef.c0 = FLOW_WIRDEF_IO_A00;
+    orpDef.c1 = FLOW_WIRDEF_IO_A01;
+    orpDef.precision = FLOW_WIRDEF_IO_A0P;
+    orpDef.minValid = FLOW_WIRDEF_IO_A0N;
+    orpDef.maxValid = FLOW_WIRDEF_IO_A0X;
     orpDef.onValueChanged = onIoFloatValue;
     orpDef.onValueCtx = (void*)(uintptr_t)orp->runtimeIndex;
     requireSetup(ioModule.defineAnalogInput(orpDef), "define analog ORP");
@@ -315,10 +304,13 @@ void setup() {
     requireSetup(ph != nullptr, "missing sensor mapping pH");
     snprintf(phDef.id, sizeof(phDef.id), "%s", ph->endpointId);
     phDef.ioId = ph->ioId;
-    phDef.source = IO_SRC_ADS_INTERNAL_SINGLE;
-    phDef.channel = 1;
-    setAdcDefaultCalib(phDef, Calib::Ph::InternalC0, Calib::Ph::InternalC1, Calib::Ph::ExternalC0, Calib::Ph::ExternalC1);
-    phDef.precision = 1;
+    phDef.source = FLOW_WIRDEF_IO_A1S;
+    phDef.channel = FLOW_WIRDEF_IO_A1C;
+    phDef.c0 = FLOW_WIRDEF_IO_A10;
+    phDef.c1 = FLOW_WIRDEF_IO_A11;
+    phDef.precision = FLOW_WIRDEF_IO_A1P;
+    phDef.minValid = FLOW_WIRDEF_IO_A1N;
+    phDef.maxValid = FLOW_WIRDEF_IO_A1X;
     phDef.onValueChanged = onIoFloatValue;
     phDef.onValueCtx = (void*)(uintptr_t)ph->runtimeIndex;
     requireSetup(ioModule.defineAnalogInput(phDef), "define analog pH");
@@ -328,11 +320,13 @@ void setup() {
     requireSetup(psi != nullptr, "missing sensor mapping PSI");
     snprintf(psiDef.id, sizeof(psiDef.id), "%s", psi->endpointId);
     psiDef.ioId = psi->ioId;
-    psiDef.source = IO_SRC_ADS_INTERNAL_SINGLE;
-    psiDef.channel = 2;
-    psiDef.c0 = Calib::Psi::DefaultC0;
-    psiDef.c1 = Calib::Psi::DefaultC1;
-    psiDef.precision = 1;
+    psiDef.source = FLOW_WIRDEF_IO_A2S;
+    psiDef.channel = FLOW_WIRDEF_IO_A2C;
+    psiDef.c0 = FLOW_WIRDEF_IO_A20;
+    psiDef.c1 = FLOW_WIRDEF_IO_A21;
+    psiDef.precision = FLOW_WIRDEF_IO_A2P;
+    psiDef.minValid = FLOW_WIRDEF_IO_A2N;
+    psiDef.maxValid = FLOW_WIRDEF_IO_A2X;
     psiDef.onValueChanged = onIoFloatValue;
     psiDef.onValueCtx = (void*)(uintptr_t)psi->runtimeIndex;
     requireSetup(ioModule.defineAnalogInput(psiDef), "define analog PSI");
@@ -342,12 +336,14 @@ void setup() {
     requireSetup(spare != nullptr, "missing sensor mapping Spare");
     snprintf(spareDef.id, sizeof(spareDef.id), "%s", spare->endpointId);
     spareDef.ioId = spare->ioId;
-    spareDef.source = IO_SRC_ADS_INTERNAL_SINGLE;
+    spareDef.source = FLOW_WIRDEF_IO_A3S;
     // ADS1115 has channels 0..3. This spare uses the 4th input channel.
-    spareDef.channel = 3;
-    spareDef.c0 = 1.0f;
-    spareDef.c1 = 0.0f;
-    spareDef.precision = 3;
+    spareDef.channel = FLOW_WIRDEF_IO_A3C;
+    spareDef.c0 = FLOW_WIRDEF_IO_A30;
+    spareDef.c1 = FLOW_WIRDEF_IO_A31;
+    spareDef.precision = FLOW_WIRDEF_IO_A3P;
+    spareDef.minValid = FLOW_WIRDEF_IO_A3N;
+    spareDef.maxValid = FLOW_WIRDEF_IO_A3X;
     spareDef.onValueChanged = onIoFloatValue;
     spareDef.onValueCtx = (void*)(uintptr_t)spare->runtimeIndex;
     requireSetup(ioModule.defineAnalogInput(spareDef), "define analog Spare");
@@ -357,11 +353,13 @@ void setup() {
     requireSetup(water != nullptr, "missing sensor mapping Water Temperature");
     snprintf(waterDef.id, sizeof(waterDef.id), "%s", water->endpointId);
     waterDef.ioId = water->ioId;
-    waterDef.source = IO_SRC_DS18_WATER;
-    waterDef.channel = 0;
-    waterDef.precision = 1;
-    waterDef.minValid = Calib::Temperature::Ds18MinValidC;
-    waterDef.maxValid = Calib::Temperature::Ds18MaxValidC;
+    waterDef.source = FLOW_WIRDEF_IO_A4S;
+    waterDef.channel = FLOW_WIRDEF_IO_A4C;
+    waterDef.c0 = FLOW_WIRDEF_IO_A40;
+    waterDef.c1 = FLOW_WIRDEF_IO_A41;
+    waterDef.precision = FLOW_WIRDEF_IO_A4P;
+    waterDef.minValid = FLOW_WIRDEF_IO_A4N;
+    waterDef.maxValid = FLOW_WIRDEF_IO_A4X;
     waterDef.onValueChanged = onIoFloatValue;
     waterDef.onValueCtx = (void*)(uintptr_t)water->runtimeIndex;
     requireSetup(ioModule.defineAnalogInput(waterDef), "define analog water temperature");
@@ -371,11 +369,13 @@ void setup() {
     requireSetup(air != nullptr, "missing sensor mapping Air Temperature");
     snprintf(airDef.id, sizeof(airDef.id), "%s", air->endpointId);
     airDef.ioId = air->ioId;
-    airDef.source = IO_SRC_DS18_AIR;
-    airDef.channel = 0;
-    airDef.precision = 1;
-    airDef.minValid = Calib::Temperature::Ds18MinValidC;
-    airDef.maxValid = Calib::Temperature::Ds18MaxValidC;
+    airDef.source = FLOW_WIRDEF_IO_A5S;
+    airDef.channel = FLOW_WIRDEF_IO_A5C;
+    airDef.c0 = FLOW_WIRDEF_IO_A50;
+    airDef.c1 = FLOW_WIRDEF_IO_A51;
+    airDef.precision = FLOW_WIRDEF_IO_A5P;
+    airDef.minValid = FLOW_WIRDEF_IO_A5N;
+    airDef.maxValid = FLOW_WIRDEF_IO_A5X;
     airDef.onValueChanged = onIoFloatValue;
     airDef.onValueCtx = (void*)(uintptr_t)air->runtimeIndex;
     requireSetup(ioModule.defineAnalogInput(airDef), "define analog air temperature");

@@ -186,7 +186,9 @@ void RuntimeDispatchCore::tick(uint32_t nowMs, char* sharedBuf, size_t sharedBuf
     if (!sink_ || !sharedBuf || sharedBufLen == 0) return;
     if (!sink_->canPublish()) return;
 
+    uint8_t publishBudget = kMaxPublishesPerTick;
     for (uint8_t i = 0; i < routeCount_; ++i) {
+        if (publishBudget == 0) break;
         RouteSnapshot route{};
         if (!copyRouteSnapshot_(i, route)) continue;
         if (!route.provider || route.routeTarget[0] == '\0') continue;
@@ -208,6 +210,7 @@ void RuntimeDispatchCore::tick(uint32_t nowMs, char* sharedBuf, size_t sharedBuf
             continue;
         }
 
+        --publishBudget;
         if (sink_->publish(route.routeTarget, sharedBuf)) {
             onPublishSuccess_(i, route.dirtySeq, nowMs, ts);
         } else {

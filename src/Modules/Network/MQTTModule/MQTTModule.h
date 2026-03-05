@@ -7,17 +7,18 @@
 #include "Core/NvsKeys.h"
 #include "Core/ErrorCodes.h"
 #include "Core/SystemLimits.h"
+#include "Core/WokwiDefaultOverrides.h"
 #include "Core/Services/Services.h"
 #include <mqtt_client.h>
 
 /** @brief MQTT configuration values. */
 struct MQTTConfig {
-    bool enabled = true;
-    char host[Limits::Mqtt::Buffers::Host] = "flowio.cloud.shiftr.io";
-    int32_t port = Limits::Mqtt::Defaults::Port;
-    char user[Limits::Mqtt::Buffers::User] = "flowio";
-    char pass[Limits::Mqtt::Buffers::Pass] = "LNqGl1OPt4RhFuNE";
-    char baseTopic[Limits::Mqtt::Buffers::BaseTopic] = "flowio"; // Default value
+    bool enabled = FLOW_WIRDEF_MQ_EN;
+    char host[Limits::Mqtt::Buffers::Host] = FLOW_WIRDEF_MQ_HOST;
+    int32_t port = FLOW_WIRDEF_MQ_PORT;
+    char user[Limits::Mqtt::Buffers::User] = FLOW_WIRDEF_MQ_USER;
+    char pass[Limits::Mqtt::Buffers::Pass] = FLOW_WIRDEF_MQ_PASS;
+    char baseTopic[Limits::Mqtt::Buffers::BaseTopic] = FLOW_WIRDEF_MQ_BASE;
     // reserved for future runtime publisher config
 };
 
@@ -130,12 +131,6 @@ private:
         char payload[TxSmallPayloadMax] = {0};
     };
 
-    struct NormalCoalesceSlot {
-        bool used = false;
-        uint32_t seq = 0;
-        TxMsg msg{};
-    };
-
     struct LowLargeMsg {
         bool pending = false;
         uint8_t qos = 0;
@@ -145,9 +140,8 @@ private:
     };
 
     static constexpr uint8_t TxHighQueueLen = 4;
-    static constexpr uint8_t TxNormalQueueLen = 8;
+    static constexpr uint8_t TxNormalQueueLen = 12;
     static constexpr uint8_t TxLowQueueLen = 2;
-    static constexpr uint8_t TxNormalCoalesceSlots = 8;
 
     QueueHandle_t rxQ = nullptr;
     QueueHandle_t txHighQ_ = nullptr;
@@ -159,10 +153,7 @@ private:
     uint8_t* txHighQueueStorage_ = nullptr;
     uint8_t* txNormalQueueStorage_ = nullptr;
     uint8_t* txLowQueueStorage_ = nullptr;
-    NormalCoalesceSlot* txNormalCoalesce_ = nullptr;
     LowLargeMsg* txLowLarge_ = nullptr;
-    uint32_t txNormalCoalesceSeq_ = 0;
-    portMUX_TYPE txNormalCoalesceMux_ = portMUX_INITIALIZER_UNLOCKED;
     portMUX_TYPE txLowLargeMux_ = portMUX_INITIALIZER_UNLOCKED;
 
     char replyBuf[Limits::Mqtt::Buffers::Reply] = {0};
@@ -240,8 +231,6 @@ private:
     bool publishDirect_(const char* topic, const char* payload, int qos, bool retain);
     bool txEnqueue_(const char* topic, const char* payload, int qos, bool retain, TxPriority prio);
     bool txEnqueueSmall_(const TxMsg& msg, TxPriority prio);
-    bool txEnqueueNormalCoalesced_(const TxMsg& msg);
-    bool txDequeueNormalCoalesced_(TxMsg& out);
     bool txStoreLowLarge_(const char* topic, const char* payload, int qos, bool retain);
     bool txTakeLowLarge_(LowLargeMsg& out);
     void drainTx_();
@@ -296,6 +285,13 @@ private:
     uint32_t parseFailCount_ = 0;
     uint32_t handlerFailCount_ = 0;
     uint32_t oversizeDropCount_ = 0;
+    uint32_t txQFullHighCount_ = 0;
+    uint32_t txQFullNormalCount_ = 0;
+    uint32_t txQFullLowCount_ = 0;
+    uint32_t txLowLargeOverwriteCount_ = 0;
+    uint32_t txDropHighCount_ = 0;
+    uint32_t txDropNormalCount_ = 0;
+    uint32_t txDropLowCount_ = 0;
 
     void processRxCmd_(const RxMsg& msg);
     void processRxCfgSet_(const RxMsg& msg);

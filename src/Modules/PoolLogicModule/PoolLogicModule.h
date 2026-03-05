@@ -96,6 +96,7 @@ private:
     bool winterMode_ = false;
     bool phAutoMode_ = false;
     bool orpAutoMode_ = false;
+    bool phDosePlus_ = false;
     bool electrolyseMode_ = false;
     bool electroRunMode_ = false;
 
@@ -196,6 +197,9 @@ private:
     // CFGDOC: {"label":"Mode auto ORP","help":"Active la régulation automatique ORP/chlore."}
     ConfigVariable<bool,0> orpAutoModeVar_{NVS_KEY(NvsKeys::PoolLogic::OrpAutoMode), "orp_auto_mode", "poollogic", ConfigType::Bool,
                                            &orpAutoMode_, ConfigPersistence::Persistent, 0};
+    // CFGDOC: {"label":"Injection pH+","help":"Si activé, la pompe pH injecte du pH+ (sinon pH-)."}
+    ConfigVariable<bool,0> phDosePlusVar_{NVS_KEY(NvsKeys::PoolLogic::PhDosePlus), "ph_dose_plus", "poollogic", ConfigType::Bool,
+                                          &phDosePlus_, ConfigPersistence::Persistent, 0};
     // CFGDOC: {"label":"Electrolyse active","help":"Autorise l'usage de l'electrolyseur."}
     ConfigVariable<bool,0> electrolyseModeVar_{NVS_KEY(NvsKeys::PoolLogic::ElectrolyseMode), "elec_mode", "poollogic", ConfigType::Bool,
                                                &electrolyseMode_, ConfigPersistence::Persistent, 0};
@@ -324,6 +328,12 @@ private:
     // CFGDOC: {"label":"Slot remplissage","help":"Numéro de slot PDM associé au remplissage."}
     ConfigVariable<uint8_t,0> fillingDeviceVar_{NVS_KEY(NvsKeys::PoolLogic::FillingSlot), "fill_slot", "poollogic", ConfigType::UInt8,
                                                 &fillingDeviceSlot_, ConfigPersistence::Persistent, 0};
+    // CFGDOC: {"label":"Slot pompe pH","help":"Numéro de slot PDM associé à la pompe pH."}
+    ConfigVariable<uint8_t,0> phPumpDeviceVar_{NVS_KEY(NvsKeys::PoolLogic::PhPumpSlot), "ph_pump_slot", "poollogic", ConfigType::UInt8,
+                                               &phPumpDeviceSlot_, ConfigPersistence::Persistent, 0};
+    // CFGDOC: {"label":"Slot pompe chlore liquide","help":"Numéro de slot PDM associé à la pompe ORP/chlore liquide."}
+    ConfigVariable<uint8_t,0> orpPumpDeviceVar_{NVS_KEY(NvsKeys::PoolLogic::OrpPumpSlot), "orp_pump_slot", "poollogic", ConfigType::UInt8,
+                                                &orpPumpDeviceSlot_, ConfigPersistence::Persistent, 0};
 
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
@@ -363,5 +373,8 @@ private:
                           uint32_t& outputOnMsOut);
 
     void applyDeviceControl_(uint8_t deviceSlot, const char* label, DeviceFsm& fsm, bool desired, uint32_t nowMs);
+    void normalizeDeviceSlots_();
+    void logDeviceSlotConfig_() const;
+    void logDeviceSlotBinding_(const char* role, uint8_t slot, int8_t expectedType) const;
     void runControlLoop_(uint32_t nowMs);
 };

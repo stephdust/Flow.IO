@@ -41,6 +41,7 @@ public:
 private:
     static constexpr uint8_t kMaxProviders = 8;
     static constexpr uint32_t kNumericThrottleMs = 10000U;
+    static constexpr uint8_t kMaxPublishesPerTick = 2;
     static constexpr uint32_t kRetryMinMs = 250U;
     static constexpr uint32_t kRetryMaxMs = 5000U;
 

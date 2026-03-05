@@ -1,0 +1,8 @@
+{
+  "io_a0s": 1,
+  "io_a0c": 0,
+  "io_sda": 21,
+  "io_scl": 22,
+  "mq_host": "broker.hivemq.com",
+  "mq_port": 1883
+}
