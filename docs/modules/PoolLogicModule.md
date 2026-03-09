@@ -165,6 +165,17 @@ Les réponses d'erreur suivent `ErrorCode` (`MissingArgs`, `MissingValue`, `NotR
 - états actionneurs: lecture `pooldev.readActualOn(...)`
 - états alarmes PSI: via `alarmSvc->isActive(...)`
 
+### Priorité des règles (filtration)
+
+Ordre de décision appliqué à chaque cycle (`200 ms`):
+1. état réel et capteurs relus (`syncDeviceState_`, IO analog/digital)
+2. statut sécurité PSI recalculé (`psiError_`)
+3. si `psiError_==true` -> **filtration forcée OFF**, même en manuel
+4. sinon:
+   - mode manuel (`auto_mode=false`): consigne manuelle conservée
+   - mode auto: décision fenêtre scheduler / hiver / freeze-hold
+5. actionnement via `PoolDeviceService::writeDesired` (avec interlocks `PoolDeviceModule`)
+
 ### Pilotage filtration / robot / SWG / remplissage
 
 Logique principale:
@@ -188,10 +199,28 @@ Logique principale:
 - `AlarmId::PoolPsiLow`
   - latched
   - délai ON `2000 ms`, OFF `1000 ms`, répétition `60000 ms`
+  - condition active seulement si filtration ON et `runSec > psi_start_dly_s`
 - `AlarmId::PoolPsiHigh`
   - latched
   - sévérité critique
   - délai ON `0 ms`, OFF `1000 ms`, répétition `60000 ms`
+  - condition active seulement si filtration ON
+
+### Réarmement / acquittement PSI
+
+- source de vérité en nominal: `alarmSvc->isActive(PoolPsiLow|PoolPsiHigh)`
+- tant qu'une alarme PSI latched reste `active`, `psiError_` reste vrai et la filtration est bloquée
+- si l'alarme est acquittée alors que la condition est redevenue fausse, elle se clear après `offDelayMs`
+- si la filtration est redémarrée alors que la pression reste anormale:
+  - `psi_high` peut reraiser immédiatement
+  - `psi_low` reraisera après `psi_start_dly_s` (délai de démarrage)
+
+### Mode dégradé sans `AlarmService`
+
+Si le service alarmes est indisponible, `PoolLogic` applique un latch local PSI minimal:
+- détection locale `psi < low` (après délai de démarrage) ou `psi > high`
+- `psiError_` passe à vrai
+- pas de clear automatique local (mode dégradé conservatif)
 
 ## Régulation PID temporelle (pH / ORP)
 
@@ -207,7 +236,7 @@ Le mode PID est autorisé seulement si:
 
 Le calcul et la commande sont ensuite conditionnés par:
 - capteur disponible (`ph_io_id` / `orp_io_id`)
-- pas de défaut PSI latched
+- pas de défaut PSI latched (`psiError_==false`)
 - pour ORP péristaltique: `electrolys_mode == false` (en mode électrolyse, la pompe ORP liquide est inhibée)
 
 ### Convention d'erreur

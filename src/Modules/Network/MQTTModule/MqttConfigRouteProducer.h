@@ -5,7 +5,10 @@
 #include "Core/ServiceRegistry.h"
 #include "Core/Services/Services.h"
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
+#if defined(FLOW_PROFILE_FLOWIO)
 /**
  * @brief Reusable config MQTT producer for module-owned cfg/* publications.
  *
@@ -116,3 +119,63 @@ private:
     static void publishedStatic_(void* ctx, uint16_t messageId);
     static void droppedStatic_(void* ctx, uint16_t messageId);
 };
+#else
+/**
+ * @brief Supervisor/no-MQTT stub.
+ *
+ * Keeps config modules buildable without linking MQTT transport artifacts.
+ */
+class MqttConfigRouteProducer {
+public:
+    static constexpr uint8_t MaxRoutes = 32;
+    using CustomBuildFn = MqttBuildResult (*)(void* owner, uint16_t messageId, MqttBuildContext& ctx);
+
+    struct Route {
+        uint16_t messageId = 0;
+        ConfigBranchRef branch{};
+        const char* moduleName = nullptr;
+        const char* topicSuffix = nullptr;
+        uint8_t changePriority = (uint8_t)MqttPublishPriority::Normal;
+        CustomBuildFn customBuild = nullptr;
+        const char* topicBase = nullptr;
+    };
+
+    static bool buildRelativeTopic(char* dst,
+                                   size_t dstCap,
+                                   const char* base,
+                                   const char* suffix,
+                                   size_t& outLen)
+    {
+        outLen = 0U;
+        if (!dst || dstCap == 0U || !base || base[0] == '\0') return false;
+        const char* rel = (suffix) ? suffix : "";
+        const size_t baseLen = strlen(base);
+        const bool hasSuffix = (rel[0] != '\0');
+        const bool needSep = (hasSuffix && baseLen > 0U && base[baseLen - 1U] != '/');
+
+        int w = 0;
+        if (!hasSuffix) w = snprintf(dst, dstCap, "%s", base);
+        else if (needSep) w = snprintf(dst, dstCap, "%s/%s", base, rel);
+        else w = snprintf(dst, dstCap, "%s%s", base, rel);
+
+        if (!(w > 0 && (size_t)w < dstCap)) return false;
+        outLen = (size_t)w;
+        return true;
+    }
+
+    void configure(void* owner,
+                   uint8_t producerId,
+                   const Route* routes,
+                   uint8_t routeCount,
+                   ServiceRegistry& services)
+    {
+        (void)owner;
+        (void)producerId;
+        (void)routes;
+        (void)routeCount;
+        (void)services;
+    }
+
+    void requestFullSync(MqttPublishPriority prio = MqttPublishPriority::Low) { (void)prio; }
+};
+#endif
