@@ -5,6 +5,7 @@
 
 #include "Modules/HMIModule/ConfigMenuModel.h"
 
+#include "Core/BufferUsageTracker.h"
 #include "Core/SystemLimits.h"
 
 #include <ArduinoJson.h>
@@ -69,6 +70,11 @@ bool ConfigMenuModel::begin(const ConfigStoreService* cfgSvc)
         moduleList_ = (char(*)[28])calloc(MaxModules, sizeof(*moduleList_));
     }
     if (!rows_ || !moduleList_) return false;
+    BufferUsageTracker::note(TrackedBufferId::ConfigMenuHeap,
+                             0U,
+                             (size_t)MaxRows * sizeof(Row) + (size_t)MaxModules * sizeof(*moduleList_),
+                             "begin",
+                             nullptr);
 
     cfgSvc_ = cfgSvc;
     hints_ = nullptr;
@@ -400,6 +406,11 @@ bool ConfigMenuModel::loadHome_()
 
     currentModule_[0] = '\0';
     pageIndex_ = 0;
+    BufferUsageTracker::note(TrackedBufferId::ConfigMenuHeap,
+                             (size_t)rowCount_ * sizeof(Row) + (size_t)moduleCount_ * sizeof(*moduleList_),
+                             (size_t)MaxRows * sizeof(Row) + (size_t)MaxModules * sizeof(*moduleList_),
+                             "home",
+                             nullptr);
     return true;
 }
 
@@ -463,6 +474,11 @@ bool ConfigMenuModel::loadModule_(const char* module)
 
     copyStr_(currentModule_, sizeof(currentModule_), module);
     pageIndex_ = 0;
+    BufferUsageTracker::note(TrackedBufferId::ConfigMenuHeap,
+                             (size_t)rowCount_ * sizeof(Row) + (size_t)moduleCount_ * sizeof(*moduleList_),
+                             (size_t)MaxRows * sizeof(Row) + (size_t)MaxModules * sizeof(*moduleList_),
+                             module,
+                             nullptr);
     return true;
 }
 

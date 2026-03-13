@@ -417,46 +417,41 @@ void I2CCfgServerModule::collectActiveAlarmCodes_(uint8_t& activeAlarmCountOut, 
     activeAlarmCodeCountOut = (activeAlarmCodeSeen > kMaxAlarmCodes) ? kMaxAlarmCodes : (uint8_t)activeAlarmCodeSeen;
 }
 
-bool I2CCfgServerModule::buildRuntimeStatusJson_(bool& truncatedOut)
+bool I2CCfgServerModule::isValidStatusDomain_(FlowStatusDomain domain)
+{
+    switch (domain) {
+    case FlowStatusDomain::System:
+    case FlowStatusDomain::Wifi:
+    case FlowStatusDomain::Mqtt:
+    case FlowStatusDomain::I2c:
+    case FlowStatusDomain::Pool:
+    case FlowStatusDomain::Alarm:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool I2CCfgServerModule::buildRuntimeStatusDomainJson_(FlowStatusDomain domain, bool& truncatedOut)
+{
+    switch (domain) {
+    case FlowStatusDomain::System: return buildRuntimeStatusSystemJson_(truncatedOut);
+    case FlowStatusDomain::Wifi: return buildRuntimeStatusWifiJson_(truncatedOut);
+    case FlowStatusDomain::Mqtt: return buildRuntimeStatusMqttJson_(truncatedOut);
+    case FlowStatusDomain::I2c: return buildRuntimeStatusI2cJson_(truncatedOut);
+    case FlowStatusDomain::Pool: return buildRuntimeStatusPoolJson_(truncatedOut);
+    case FlowStatusDomain::Alarm: return buildRuntimeStatusAlarmJson_(truncatedOut);
+    default:
+        truncatedOut = false;
+        return false;
+    }
+}
+
+bool I2CCfgServerModule::buildRuntimeStatusSystemJson_(bool& truncatedOut)
 {
     truncatedOut = false;
-
-    const bool wifiUp = dataStore_ ? wifiReady(*dataStore_) : false;
-    const bool mqttUp = dataStore_ ? mqttReady(*dataStore_) : false;
-    const IpV4 ip = dataStore_ ? wifiIp(*dataStore_) : IpV4{0, 0, 0, 0};
-    const uint32_t mqttRxDropCnt = dataStore_ ? mqttRxDrop(*dataStore_) : 0;
-    const uint32_t mqttParseFailCnt = dataStore_ ? mqttParseFail(*dataStore_) : 0;
-    const uint32_t mqttHandlerFailCnt = dataStore_ ? mqttHandlerFail(*dataStore_) : 0;
-    const uint32_t mqttOversizeDropCnt = dataStore_ ? mqttOversizeDrop(*dataStore_) : 0;
-
-    char ipTxt[20] = {0};
-    if (!ipToText_(ip, ipTxt, sizeof(ipTxt))) {
-        snprintf(ipTxt, sizeof(ipTxt), "0.0.0.0");
-    }
-
-    int32_t rssi = 0;
-    bool hasRssi = false;
-    if (wifiUp && WiFi.status() == WL_CONNECTED) {
-        rssi = (int32_t)WiFi.RSSI();
-        hasRssi = true;
-    }
-
     SystemStatsSnapshot snap{};
     SystemStats::collect(snap);
-
-    const uint32_t nowMs = millis();
-    const bool hasSupervisorSeen = reqCount_ > 0;
-    const uint32_t lastReqAgoMs = hasSupervisorSeen ? (nowMs - lastReqMs_) : 0U;
-    const bool supervisorLinkOk = started_ && hasSupervisorSeen && (lastReqAgoMs <= 15000U);
-
-    bool poolHasMode = false;
-    bool poolAutoMode = false;
-    bool poolWinterMode = false;
-    (void)collectPoolModeFlags_(poolHasMode, poolAutoMode, poolWinterMode);
-
-    uint8_t activeAlarmCount = 0;
-    uint8_t activeAlarmCodeCount = 0;
-    collectActiveAlarmCodes_(activeAlarmCount, activeAlarmCodeCount);
 
     size_t pos = 0;
     statusJson_[0] = '\0';
@@ -470,36 +465,89 @@ bool I2CCfgServerModule::buildRuntimeStatusJson_(bool& truncatedOut)
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       ",\"heap\":{\"free\":%u,\"min\":%u,\"larg\":%u,\"frag\":%u}",
+                       ",\"heap\":{\"free\":%u,\"min\":%u,\"larg\":%u,\"frag\":%u}}",
                        (unsigned)snap.heap.freeBytes,
                        (unsigned)snap.heap.minFreeBytes,
                        (unsigned)snap.heap.largestFreeBlock,
                        (unsigned)snap.heap.fragPercent)) return false;
+    return true;
+}
+
+bool I2CCfgServerModule::buildRuntimeStatusWifiJson_(bool& truncatedOut)
+{
+    truncatedOut = false;
+
+    const bool wifiUp = dataStore_ ? wifiReady(*dataStore_) : false;
+    const IpV4 ip = dataStore_ ? wifiIp(*dataStore_) : IpV4{0, 0, 0, 0};
+
+    char ipTxt[20] = {0};
+    if (!ipToText_(ip, ipTxt, sizeof(ipTxt))) {
+        snprintf(ipTxt, sizeof(ipTxt), "0.0.0.0");
+    }
+
+    int32_t rssi = 0;
+    bool hasRssi = false;
+    if (wifiUp && WiFi.status() == WL_CONNECTED) {
+        rssi = (int32_t)WiFi.RSSI();
+        hasRssi = true;
+    }
+
+    size_t pos = 0;
+    statusJson_[0] = '\0';
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       ",\"wifi\":{\"rdy\":%s,\"ip\":",
+                       "{\"ok\":true,\"wifi\":{\"rdy\":%s,\"ip\":",
                        wifiUp ? "true" : "false")) return false;
     if (!appendEscapedJsonString_(statusJson_, sizeof(statusJson_), pos, ipTxt)) return false;
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       ",\"rssi\":%ld,\"hrss\":%s}",
+                       ",\"rssi\":%ld,\"hrss\":%s}}",
                        (long)rssi,
                        hasRssi ? "true" : "false")) return false;
+    return true;
+}
+
+bool I2CCfgServerModule::buildRuntimeStatusMqttJson_(bool& truncatedOut)
+{
+    truncatedOut = false;
+
+    const bool mqttUp = dataStore_ ? mqttReady(*dataStore_) : false;
+    const uint32_t mqttRxDropCnt = dataStore_ ? mqttRxDrop(*dataStore_) : 0;
+    const uint32_t mqttParseFailCnt = dataStore_ ? mqttParseFail(*dataStore_) : 0;
+    const uint32_t mqttHandlerFailCnt = dataStore_ ? mqttHandlerFail(*dataStore_) : 0;
+    const uint32_t mqttOversizeDropCnt = dataStore_ ? mqttOversizeDrop(*dataStore_) : 0;
+
+    size_t pos = 0;
+    statusJson_[0] = '\0';
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       ",\"mqtt\":{\"rdy\":%s,\"rxdrp\":%lu,\"prsf\":%lu,\"hndf\":%lu,\"ovr\":%lu}",
+                       "{\"ok\":true,\"mqtt\":{\"rdy\":%s,\"rxdrp\":%lu,\"prsf\":%lu,\"hndf\":%lu,\"ovr\":%lu}}",
                        mqttUp ? "true" : "false",
                        (unsigned long)mqttRxDropCnt,
                        (unsigned long)mqttParseFailCnt,
                        (unsigned long)mqttHandlerFailCnt,
                        (unsigned long)mqttOversizeDropCnt)) return false;
+    return true;
+}
+
+bool I2CCfgServerModule::buildRuntimeStatusI2cJson_(bool& truncatedOut)
+{
+    truncatedOut = false;
+
+    const uint32_t nowMs = millis();
+    const bool hasSupervisorSeen = reqCount_ > 0;
+    const uint32_t lastReqAgoMs = hasSupervisorSeen ? (nowMs - lastReqMs_) : 0U;
+    const bool supervisorLinkOk = started_ && hasSupervisorSeen && (lastReqAgoMs <= 15000U);
+
+    size_t pos = 0;
+    statusJson_[0] = '\0';
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       ",\"i2c\":{\"ena\":%s,\"sta\":%s,\"adr\":%u,\"req\":%lu,\"breq\":%lu,\"seen\":%s,\"ago\":%lu,\"lnk\":%s}",
+                       "{\"ok\":true,\"i2c\":{\"ena\":%s,\"sta\":%s,\"adr\":%u,\"req\":%lu,\"breq\":%lu,\"seen\":%s,\"ago\":%lu,\"lnk\":%s}}",
                        cfgData_.enabled ? "true" : "false",
                        started_ ? "true" : "false",
                        (unsigned)cfgData_.address,
@@ -508,17 +556,44 @@ bool I2CCfgServerModule::buildRuntimeStatusJson_(bool& truncatedOut)
                        hasSupervisorSeen ? "true" : "false",
                        (unsigned long)lastReqAgoMs,
                        supervisorLinkOk ? "true" : "false")) return false;
+    return true;
+}
+
+bool I2CCfgServerModule::buildRuntimeStatusPoolJson_(bool& truncatedOut)
+{
+    truncatedOut = false;
+
+    bool poolHasMode = false;
+    bool poolAutoMode = false;
+    bool poolWinterMode = false;
+    (void)collectPoolModeFlags_(poolHasMode, poolAutoMode, poolWinterMode);
+
+    size_t pos = 0;
+    statusJson_[0] = '\0';
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       ",\"pool\":{\"has\":%s,\"auto\":%s,\"wint\":%s}",
+                       "{\"ok\":true,\"pool\":{\"has\":%s,\"auto\":%s,\"wint\":%s}}",
                        poolHasMode ? "true" : "false",
                        poolAutoMode ? "true" : "false",
                        poolWinterMode ? "true" : "false")) return false;
+    return true;
+}
+
+bool I2CCfgServerModule::buildRuntimeStatusAlarmJson_(bool& truncatedOut)
+{
+    truncatedOut = false;
+
+    uint8_t activeAlarmCount = 0;
+    uint8_t activeAlarmCodeCount = 0;
+    collectActiveAlarmCodes_(activeAlarmCount, activeAlarmCodeCount);
+
+    size_t pos = 0;
+    statusJson_[0] = '\0';
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       ",\"alm\":{\"cnt\":%u,\"codes\":[",
+                       "{\"ok\":true,\"alm\":{\"cnt\":%u,\"codes\":[",
                        (unsigned)activeAlarmCount)) return false;
 
     for (uint8_t i = 0; i < activeAlarmCodeCount; ++i) {
@@ -917,8 +992,17 @@ void I2CCfgServerModule::handleRequest_(uint8_t op, uint8_t seq, const uint8_t* 
     }
 
     if (op == I2cCfgProtocol::OpGetRuntimeStatusBegin) {
+        if (payloadLen < 1) {
+            buildResponse_(op, seq, I2cCfgProtocol::StatusBadRequest, nullptr, 0);
+            return;
+        }
+        const FlowStatusDomain domain = static_cast<FlowStatusDomain>(payload[0]);
+        if (!isValidStatusDomain_(domain)) {
+            buildResponse_(op, seq, I2cCfgProtocol::StatusBadRequest, nullptr, 0);
+            return;
+        }
         bool truncated = false;
-        if (!buildRuntimeStatusJson_(truncated)) {
+        if (!buildRuntimeStatusDomainJson_(domain, truncated)) {
             statusJsonLen_ = 0;
             statusJsonValid_ = false;
             statusJsonTruncated_ = false;

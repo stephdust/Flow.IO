@@ -4,6 +4,7 @@
  */
 
 #include "HAModule.h"
+#include "Core/BufferUsageTracker.h"
 #include "Modules/Network/HAModule/HARuntime.h"
 #include "Core/MqttTopics.h"
 #include "Core/SystemLimits.h"
@@ -48,8 +49,8 @@ static void buildAvailabilityField(const MqttService* mqttSvc_,
         snprintf(
             out,
             outLen,
-            ",\"availability\":[{\"topic\":\"%s\",\"value_template\":\"%s\"}],"
-            "\"availability_mode\":\"all\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"",
+            ",\"avty\":[{\"t\":\"%s\",\"val_tpl\":\"%s\"}],"
+            "\"avty_mode\":\"all\",\"pl_avail\":\"online\",\"pl_not_avail\":\"offline\"",
             stateTopic,
             stateAvailabilityTemplate
         );
@@ -60,9 +61,9 @@ static void buildAvailabilityField(const MqttService* mqttSvc_,
         snprintf(
             out,
             outLen,
-            ",\"availability\":[{\"topic\":\"%s\",\"value_template\":\"%s\"},"
-            "{\"topic\":\"%s\",\"value_template\":\"{{ 'online' if value_json.online else 'offline' }}\"}],"
-            "\"availability_mode\":\"all\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"",
+            ",\"avty\":[{\"t\":\"%s\",\"val_tpl\":\"%s\"},"
+            "{\"t\":\"%s\",\"val_tpl\":\"{{ 'online' if value_json.online else 'offline' }}\"}],"
+            "\"avty_mode\":\"all\",\"pl_avail\":\"online\",\"pl_not_avail\":\"offline\"",
             stateTopic,
             stateAvailabilityTemplate,
             availabilityTopic
@@ -73,8 +74,8 @@ static void buildAvailabilityField(const MqttService* mqttSvc_,
     snprintf(
         out,
         outLen,
-        ",\"availability\":[{\"topic\":\"%s\",\"value_template\":\"{{ 'online' if value_json.online else 'offline' }}\"}],"
-        "\"availability_mode\":\"all\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"",
+        ",\"avty\":[{\"t\":\"%s\",\"val_tpl\":\"{{ 'online' if value_json.online else 'offline' }}\"}],"
+        "\"avty_mode\":\"all\",\"pl_avail\":\"online\",\"pl_not_avail\":\"offline\"",
         availabilityTopic
     );
 }
@@ -197,6 +198,15 @@ bool HAModule::addSensorEntry(const HASensorEntry& entry)
 
     if (sensorCount_ >= MAX_HA_SENSORS) return false;
     sensors_[sensorCount_++] = entry;
+    BufferUsageTracker::note(TrackedBufferId::HaEntityTables,
+                             (size_t)sensorCount_ * sizeof(sensors_[0]) +
+                                 (size_t)binarySensorCount_ * sizeof(binarySensors_[0]) +
+                                 (size_t)switchCount_ * sizeof(switches_[0]) +
+                                 (size_t)numberCount_ * sizeof(numbers_[0]) +
+                                 (size_t)buttonCount_ * sizeof(buttons_[0]),
+                             sizeof(sensors_) + sizeof(binarySensors_) + sizeof(switches_) + sizeof(numbers_) + sizeof(buttons_),
+                             entry.objectSuffix,
+                             nullptr);
     requestAutoconfigRefresh();
     return true;
 }
@@ -218,6 +228,15 @@ bool HAModule::addBinarySensorEntry(const HABinarySensorEntry& entry)
 
     if (binarySensorCount_ >= MAX_HA_BINARY_SENSORS) return false;
     binarySensors_[binarySensorCount_++] = entry;
+    BufferUsageTracker::note(TrackedBufferId::HaEntityTables,
+                             (size_t)sensorCount_ * sizeof(sensors_[0]) +
+                                 (size_t)binarySensorCount_ * sizeof(binarySensors_[0]) +
+                                 (size_t)switchCount_ * sizeof(switches_[0]) +
+                                 (size_t)numberCount_ * sizeof(numbers_[0]) +
+                                 (size_t)buttonCount_ * sizeof(buttons_[0]),
+                             sizeof(sensors_) + sizeof(binarySensors_) + sizeof(switches_) + sizeof(numbers_) + sizeof(buttons_),
+                             entry.objectSuffix,
+                             nullptr);
     requestAutoconfigRefresh();
     return true;
 }
@@ -240,6 +259,15 @@ bool HAModule::addSwitchEntry(const HASwitchEntry& entry)
 
     if (switchCount_ >= MAX_HA_SWITCHES) return false;
     switches_[switchCount_++] = entry;
+    BufferUsageTracker::note(TrackedBufferId::HaEntityTables,
+                             (size_t)sensorCount_ * sizeof(sensors_[0]) +
+                                 (size_t)binarySensorCount_ * sizeof(binarySensors_[0]) +
+                                 (size_t)switchCount_ * sizeof(switches_[0]) +
+                                 (size_t)numberCount_ * sizeof(numbers_[0]) +
+                                 (size_t)buttonCount_ * sizeof(buttons_[0]),
+                             sizeof(sensors_) + sizeof(binarySensors_) + sizeof(switches_) + sizeof(numbers_) + sizeof(buttons_),
+                             entry.objectSuffix,
+                             nullptr);
     requestAutoconfigRefresh();
     return true;
 }
@@ -262,6 +290,15 @@ bool HAModule::addNumberEntry(const HANumberEntry& entry)
 
     if (numberCount_ >= MAX_HA_NUMBERS) return false;
     numbers_[numberCount_++] = entry;
+    BufferUsageTracker::note(TrackedBufferId::HaEntityTables,
+                             (size_t)sensorCount_ * sizeof(sensors_[0]) +
+                                 (size_t)binarySensorCount_ * sizeof(binarySensors_[0]) +
+                                 (size_t)switchCount_ * sizeof(switches_[0]) +
+                                 (size_t)numberCount_ * sizeof(numbers_[0]) +
+                                 (size_t)buttonCount_ * sizeof(buttons_[0]),
+                             sizeof(sensors_) + sizeof(binarySensors_) + sizeof(switches_) + sizeof(numbers_) + sizeof(buttons_),
+                             entry.objectSuffix,
+                             nullptr);
     requestAutoconfigRefresh();
     return true;
 }
@@ -283,6 +320,15 @@ bool HAModule::addButtonEntry(const HAButtonEntry& entry)
 
     if (buttonCount_ >= MAX_HA_BUTTONS) return false;
     buttons_[buttonCount_++] = entry;
+    BufferUsageTracker::note(TrackedBufferId::HaEntityTables,
+                             (size_t)sensorCount_ * sizeof(sensors_[0]) +
+                                 (size_t)binarySensorCount_ * sizeof(binarySensors_[0]) +
+                                 (size_t)switchCount_ * sizeof(switches_[0]) +
+                                 (size_t)numberCount_ * sizeof(numbers_[0]) +
+                                 (size_t)buttonCount_ * sizeof(buttons_[0]),
+                             sizeof(sensors_) + sizeof(binarySensors_) + sizeof(switches_) + sizeof(numbers_) + sizeof(buttons_),
+                             entry.objectSuffix,
+                             nullptr);
     requestAutoconfigRefresh();
     return true;
 }
@@ -350,15 +396,15 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
 
     char unitField[64] = {0};
     if (unit) {
-        snprintf(unitField, sizeof(unitField), ",\"unit_of_measurement\":\"%s\"", unit);
+        snprintf(unitField, sizeof(unitField), ",\"unit_of_meas\":\"%s\"", unit);
     }
     char entityCategoryField[64] = {0};
     if (entityCategory && entityCategory[0] != '\0') {
-        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"entity_category\":\"%s\"", entityCategory);
+        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"ent_cat\":\"%s\"", entityCategory);
     }
     char iconField[64] = {0};
     if (icon && icon[0] != '\0') {
-        snprintf(iconField, sizeof(iconField), ",\"icon\":\"%s\"", icon);
+        snprintf(iconField, sizeof(iconField), ",\"ic\":\"%s\"", icon);
     }
     (void)hasEntityName;
     const char* hasEntityNameField = ",\"has_entity_name\":false";
@@ -370,11 +416,11 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
     buildAvailabilityField(mqttSvc_, availabilityField, sizeof(availabilityField), stateTopic, availabilityTemplate);
 
     if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
-             "{\"name\":\"%s\",\"object_id\":\"%s\",\"default_entity_id\":\"%s\",\"unique_id\":\"%s\","
-             "\"state_topic\":\"%s\",\"value_template\":\"%s\",\"state_class\":\"measurement\"%s%s%s%s%s,"
-             "\"origin\":{\"name\":\"Flow.IO\"},"
-             "\"device\":{\"identifiers\":[\"%s\"],\"name\":\"%s\","
-             "\"manufacturer\":\"%s\",\"model\":\"%s\",\"sw_version\":\"%s\"}}",
+             "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
+             "\"stat_t\":\"%s\",\"val_tpl\":\"%s\",\"stat_cla\":\"measurement\"%s%s%s%s%s,"
+             "\"o\":{\"name\":\"Flow.IO\"},"
+             "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
+             "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
              name, objectId, defaultEntityId, uniqueId,
              stateTopic, valueTemplate,
              entityCategoryField, iconField, unitField, hasEntityNameField, availabilityField,
@@ -404,24 +450,24 @@ bool HAModule::publishBinarySensor(const char* objectId, const char* name,
     buildAvailabilityField(mqttSvc_, availabilityField, sizeof(availabilityField));
     char deviceClassField[64] = {0};
     if (deviceClass && deviceClass[0] != '\0') {
-        snprintf(deviceClassField, sizeof(deviceClassField), ",\"device_class\":\"%s\"", deviceClass);
+        snprintf(deviceClassField, sizeof(deviceClassField), ",\"dev_cla\":\"%s\"", deviceClass);
     }
     char entityCategoryField[64] = {0};
     if (entityCategory && entityCategory[0] != '\0') {
-        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"entity_category\":\"%s\"", entityCategory);
+        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"ent_cat\":\"%s\"", entityCategory);
     }
     char iconField[64] = {0};
     if (icon && icon[0] != '\0') {
-        snprintf(iconField, sizeof(iconField), ",\"icon\":\"%s\"", icon);
+        snprintf(iconField, sizeof(iconField), ",\"ic\":\"%s\"", icon);
     }
 
     if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
-             "{\"name\":\"%s\",\"object_id\":\"%s\",\"default_entity_id\":\"%s\",\"unique_id\":\"%s\","
-             "\"state_topic\":\"%s\",\"value_template\":\"%s\",\"payload_on\":\"True\",\"payload_off\":\"False\","
+             "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
+             "\"stat_t\":\"%s\",\"val_tpl\":\"%s\",\"pl_on\":\"True\",\"pl_off\":\"False\","
              "\"has_entity_name\":false%s%s%s%s,"
-             "\"origin\":{\"name\":\"Flow.IO\"},"
-             "\"device\":{\"identifiers\":[\"%s\"],\"name\":\"%s\","
-             "\"manufacturer\":\"%s\",\"model\":\"%s\",\"sw_version\":\"%s\"}}",
+             "\"o\":{\"name\":\"Flow.IO\"},"
+             "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
+             "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
              name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
              deviceClassField, entityCategoryField, iconField, availabilityField,
              deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FIRMW)) {
@@ -451,18 +497,18 @@ bool HAModule::publishSwitch(const char* objectId, const char* name,
     buildAvailabilityField(mqttSvc_, availabilityField, sizeof(availabilityField));
     char entityCategoryField[64] = {0};
     if (entityCategory && entityCategory[0] != '\0') {
-        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"entity_category\":\"%s\"", entityCategory);
+        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"ent_cat\":\"%s\"", entityCategory);
     }
 
     if (icon && icon[0] != '\0') {
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
-                 "{\"name\":\"%s\",\"object_id\":\"%s\",\"default_entity_id\":\"%s\",\"unique_id\":\"%s\",\"state_topic\":\"%s\","
-                 "\"value_template\":\"%s\",\"state_on\":\"ON\",\"state_off\":\"OFF\","
-                 "\"command_topic\":\"%s\",\"payload_on\":\"%s\",\"payload_off\":\"%s\","
-                 "\"icon\":\"%s\"%s%s,"
-                 "\"origin\":{\"name\":\"Flow.IO\"},"
-                 "\"device\":{\"identifiers\":[\"%s\"],\"name\":\"%s\","
-                 "\"manufacturer\":\"%s\",\"model\":\"%s\",\"sw_version\":\"%s\"}}",
+                 "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\",\"stat_t\":\"%s\","
+                 "\"val_tpl\":\"%s\",\"stat_on\":\"ON\",\"stat_off\":\"OFF\","
+                 "\"cmd_t\":\"%s\",\"pl_on\":\"%s\",\"pl_off\":\"%s\","
+                 "\"ic\":\"%s\"%s%s,"
+                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
                  commandTopic, payloadOn, payloadOff, icon,
                  entityCategoryField, availabilityField,
@@ -472,12 +518,12 @@ bool HAModule::publishSwitch(const char* objectId, const char* name,
         }
     } else {
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
-                 "{\"name\":\"%s\",\"object_id\":\"%s\",\"default_entity_id\":\"%s\",\"unique_id\":\"%s\",\"state_topic\":\"%s\","
-                 "\"value_template\":\"%s\",\"state_on\":\"ON\",\"state_off\":\"OFF\","
-                 "\"command_topic\":\"%s\",\"payload_on\":\"%s\",\"payload_off\":\"%s\"%s%s,"
-                 "\"origin\":{\"name\":\"Flow.IO\"},"
-                 "\"device\":{\"identifiers\":[\"%s\"],\"name\":\"%s\","
-                 "\"manufacturer\":\"%s\",\"model\":\"%s\",\"sw_version\":\"%s\"}}",
+                 "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\",\"stat_t\":\"%s\","
+                 "\"val_tpl\":\"%s\",\"stat_on\":\"ON\",\"stat_off\":\"OFF\","
+                 "\"cmd_t\":\"%s\",\"pl_on\":\"%s\",\"pl_off\":\"%s\"%s%s,"
+                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
                  commandTopic, payloadOn, payloadOff, entityCategoryField, availabilityField,
                  deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FIRMW)) {
@@ -507,21 +553,21 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
 
     char unitField[48] = {0};
     if (unit && unit[0] != '\0') {
-        snprintf(unitField, sizeof(unitField), ",\"unit_of_measurement\":\"%s\"", unit);
+        snprintf(unitField, sizeof(unitField), ",\"unit_of_meas\":\"%s\"", unit);
     }
     char entityCategoryField[48] = {0};
     if (entityCategory && entityCategory[0] != '\0') {
-        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"entity_category\":\"%s\"", entityCategory);
+        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"ent_cat\":\"%s\"", entityCategory);
     }
 
     if (icon && icon[0] != '\0') {
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
-                 "{\"name\":\"%s\",\"object_id\":\"%s\",\"default_entity_id\":\"%s\",\"unique_id\":\"%s\",\"state_topic\":\"%s\","
-                 "\"value_template\":\"%s\",\"command_topic\":\"%s\",\"command_template\":\"%s\","
-                 "\"min\":%.3f,\"max\":%.3f,\"step\":%.3f,\"mode\":\"%s\",\"icon\":\"%s\"%s%s%s,"
-                 "\"origin\":{\"name\":\"Flow.IO\"},"
-                 "\"device\":{\"identifiers\":[\"%s\"],\"name\":\"%s\","
-                 "\"manufacturer\":\"%s\",\"model\":\"%s\",\"sw_version\":\"%s\"}}",
+                 "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\",\"stat_t\":\"%s\","
+                 "\"val_tpl\":\"%s\",\"cmd_t\":\"%s\",\"cmd_tpl\":\"%s\","
+                 "\"min\":%.3f,\"max\":%.3f,\"step\":%.3f,\"mode\":\"%s\",\"ic\":\"%s\"%s%s%s,"
+                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
                  (double)minValue, (double)maxValue, (double)step, mode ? mode : "slider", icon, entityCategoryField, unitField, availabilityField,
                  deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FIRMW)) {
@@ -530,12 +576,12 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
         }
     } else {
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
-                 "{\"name\":\"%s\",\"object_id\":\"%s\",\"default_entity_id\":\"%s\",\"unique_id\":\"%s\",\"state_topic\":\"%s\","
-                 "\"value_template\":\"%s\",\"command_topic\":\"%s\",\"command_template\":\"%s\","
+                 "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\",\"stat_t\":\"%s\","
+                 "\"val_tpl\":\"%s\",\"cmd_t\":\"%s\",\"cmd_tpl\":\"%s\","
                  "\"min\":%.3f,\"max\":%.3f,\"step\":%.3f,\"mode\":\"%s\"%s%s%s,"
-                 "\"origin\":{\"name\":\"Flow.IO\"},"
-                 "\"device\":{\"identifiers\":[\"%s\"],\"name\":\"%s\","
-                 "\"manufacturer\":\"%s\",\"model\":\"%s\",\"sw_version\":\"%s\"}}",
+                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
                  (double)minValue, (double)maxValue, (double)step, mode ? mode : "slider", entityCategoryField, unitField, availabilityField,
                  deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FIRMW)) {
@@ -562,16 +608,16 @@ bool HAModule::publishButton(const char* objectId, const char* name,
     buildAvailabilityField(mqttSvc_, availabilityField, sizeof(availabilityField));
     char entityCategoryField[64] = {0};
     if (entityCategory && entityCategory[0] != '\0') {
-        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"entity_category\":\"%s\"", entityCategory);
+        snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"ent_cat\":\"%s\"", entityCategory);
     }
 
     if (icon && icon[0] != '\0') {
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
-                 "{\"name\":\"%s\",\"object_id\":\"%s\",\"default_entity_id\":\"%s\",\"unique_id\":\"%s\","
-                 "\"command_topic\":\"%s\",\"payload_press\":\"%s\",\"icon\":\"%s\"%s%s,"
-                 "\"origin\":{\"name\":\"Flow.IO\"},"
-                 "\"device\":{\"identifiers\":[\"%s\"],\"name\":\"%s\","
-                 "\"manufacturer\":\"%s\",\"model\":\"%s\",\"sw_version\":\"%s\"}}",
+                 "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
+                 "\"cmd_t\":\"%s\",\"pl_prs\":\"%s\",\"ic\":\"%s\"%s%s,"
+                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId,
                  commandTopic, payloadPress, icon,
                  entityCategoryField, availabilityField,
@@ -581,11 +627,11 @@ bool HAModule::publishButton(const char* objectId, const char* name,
         }
     } else {
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
-                 "{\"name\":\"%s\",\"object_id\":\"%s\",\"default_entity_id\":\"%s\",\"unique_id\":\"%s\","
-                 "\"command_topic\":\"%s\",\"payload_press\":\"%s\"%s%s,"
-                 "\"origin\":{\"name\":\"Flow.IO\"},"
-                 "\"device\":{\"identifiers\":[\"%s\"],\"name\":\"%s\","
-                 "\"manufacturer\":\"%s\",\"model\":\"%s\",\"sw_version\":\"%s\"}}",
+                 "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
+                 "\"cmd_t\":\"%s\",\"pl_prs\":\"%s\"%s%s,"
+                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId,
                  commandTopic, payloadPress,
                  entityCategoryField, availabilityField,

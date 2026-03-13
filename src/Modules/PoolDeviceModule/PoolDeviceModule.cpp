@@ -4,6 +4,7 @@
  */
 
 #include "PoolDeviceModule.h"
+#include "Core/BufferUsageTracker.h"
 #include "Core/ErrorCodes.h"
 #include "Core/Layout/PoolIoMap.h"
 #include "Core/MqttTopics.h"
@@ -32,6 +33,17 @@ static constexpr uint16_t kCfgMsgBasePdm = 1;
 static constexpr uint16_t kCfgMsgBasePdmrt = 2;
 static constexpr uint16_t kCfgMsgPdmSlotBase = 16;
 static constexpr uint16_t kCfgMsgPdmrtSlotBase = 32;
+
+template <size_t Rows, size_t Cols>
+size_t charTableUsage_(const char (&table)[Rows][Cols])
+{
+    size_t total = 0U;
+    for (size_t row = 0; row < Rows; ++row) {
+        const size_t len = strnlen(table[row], Cols);
+        if (len > 0U) total += len + 1U;
+    }
+    return total;
+}
 
 static constexpr uint8_t poolDeviceCfgBranchFromSlot_(uint8_t slot)
 {
@@ -753,6 +765,11 @@ bool PoolDeviceModule::persistMetrics_(uint8_t slotIdx, PoolDeviceSlot& slot, ui
         return false;
     }
     if (!cfgStore_->set(cfgRuntimeVar_[slotIdx], encoded)) return false;
+    BufferUsageTracker::note(TrackedBufferId::PoolDeviceRuntimePersistTable,
+                             charTableUsage_(runtimePersistBuf_),
+                             sizeof(runtimePersistBuf_),
+                             slot.id,
+                             encoded);
 
     slot.lastPersistMs = nowMs;
     slot.persistDirty = false;
@@ -1710,6 +1727,11 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
     for (uint8_t i = 0; i < POOL_DEVICE_MAX; ++i) {
         if (slots_[i].used) ++count;
     }
+    BufferUsageTracker::note(TrackedBufferId::PoolDeviceSlots,
+                             (size_t)count * sizeof(PoolDeviceSlot),
+                             sizeof(slots_),
+                             "init",
+                             nullptr);
     LOGI("PoolDevice module ready (devices=%u)", (unsigned)count);
     (void)logHub_;
 }
@@ -1731,6 +1753,13 @@ void PoolDeviceModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
     for (uint8_t i = 0; i < POOL_DEVICE_MAX; ++i) {
         PoolDeviceSlot& s = slots_[i];
         if (!s.used) continue;
+        if (runtimePersistBuf_[i][0] != '\0') {
+            BufferUsageTracker::note(TrackedBufferId::PoolDeviceRuntimePersistTable,
+                                     charTableUsage_(runtimePersistBuf_),
+                                     sizeof(runtimePersistBuf_),
+                                     s.id,
+                                     runtimePersistBuf_[i]);
+        }
         (void)loadPersistedMetrics_(i, s);
     }
     requestPeriodReconcile_();

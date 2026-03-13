@@ -22,6 +22,7 @@
 #include <type_traits>
 
 #include "ConfigTypes.h"
+#include "Core/BufferUsageTracker.h"
 #include "Core/NvsKeys.h"
 #include "Core/Log.h"
 #include "Core/SystemLimits.h"
@@ -140,6 +141,11 @@ void ConfigStore::registerVar(ConfigVariable<T, H>& var)
 
     // ✅ champ par champ (évite initializer list incompatible)
     ConfigMeta& m = _meta[_metaCount++];
+    BufferUsageTracker::note(TrackedBufferId::ConfigMetaTable,
+                             (size_t)_metaCount * sizeof(ConfigMeta),
+                             sizeof(_meta),
+                             var.moduleName,
+                             var.jsonName);
 
     if (!_metaNearCapacityWarned) {
         const uint16_t warnMargin = 5U;

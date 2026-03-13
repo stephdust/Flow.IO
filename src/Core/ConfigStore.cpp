@@ -3,6 +3,7 @@
  * @brief Implementation file.
  */
 #include "Core/ConfigStore.h"
+#include "Core/BufferUsageTracker.h"
 #include "Core/NvsKeys.h"
 #include "Core/Log.h"
 #include "Core/SnprintfCheck.h"
@@ -406,10 +407,25 @@ bool ConfigStore::applyJson(const char* json)
     doc.clear();
     const DeserializationError err = deserializeJson(doc, json);
     if (err || !doc.is<JsonObjectConst>()) {
+        BufferUsageTracker::note(TrackedBufferId::ConfigApplyJsonDoc,
+                                 doc.memoryUsage(),
+                                 sizeof(doc),
+                                 "applyJson",
+                                 nullptr);
         Log::warn(LOG_MODULE_ID, "applyJson: invalid json");
         return false;
     }
     JsonObjectConst root = doc.as<JsonObjectConst>();
+    const char* peakSource = "applyJson";
+    for (JsonPairConst kv : root) {
+        peakSource = kv.key().c_str();
+        break;
+    }
+    BufferUsageTracker::note(TrackedBufferId::ConfigApplyJsonDoc,
+                             doc.memoryUsage(),
+                             sizeof(doc),
+                             peakSource,
+                             "<json>");
 
     Log::debug(LOG_MODULE_ID, "applyJson: start");
     for (uint16_t i = 0; i < _metaCount; ++i) {

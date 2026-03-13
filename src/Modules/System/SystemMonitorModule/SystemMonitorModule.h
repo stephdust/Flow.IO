@@ -64,6 +64,7 @@ private:
     void logBootInfo();
     void logHeapStats();
     void logTaskStacks();
+    void logTrackedBuffers();
     void buildHealthJson(char* out, size_t outLen);
     void registerHaEntities_(ServiceRegistry& services);
 

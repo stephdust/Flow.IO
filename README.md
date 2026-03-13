@@ -77,6 +77,7 @@ Résultat: une eau plus stable, une maintenance plus prévisible et une meilleur
 La documentation complète (architecture, services Core, flux EventBus/DataStore/MQTT, et fiche détaillée par module) est disponible ici:
 
 - [Documentation complète](docs/README.md)
+- [Protocole Flow.IO <-> Supervisor (I2C cfg/status)](docs/core/flow-supervisor-i2c-protocol.md)
 - [Quality Gates Modules (notes + description des 10 points)](docs/core/module-quality-gates.md)
 
 ## Référence rapide

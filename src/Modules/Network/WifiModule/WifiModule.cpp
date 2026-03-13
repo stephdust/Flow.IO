@@ -3,6 +3,7 @@
  * @brief Implementation file.
  */
 #include "WifiModule.h"
+#include "Core/BufferUsageTracker.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::WifiModule)
 #include "Core/ModuleLog.h"
 #include "Core/Runtime.h"
@@ -478,6 +479,11 @@ void WifiModule::processScan_()
         scanLastDoneMs_ = millis();
         ++scanGeneration_;
         portEXIT_CRITICAL(&scanMux_);
+        BufferUsageTracker::note(TrackedBufferId::WifiScanEntries,
+                                 (size_t)localCount * sizeof(WifiScanEntry),
+                                 sizeof(scanEntries_),
+                                 "scan",
+                                 (localCount > 0U) ? local[0].ssid : nullptr);
 
         WiFi.scanDelete();
         LOGI("WiFi scan done total=%d kept=%u", (int)total, (unsigned)localCount);

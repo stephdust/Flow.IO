@@ -3,6 +3,7 @@
  * @brief Implementation file.
  */
 #include "SystemMonitorModule.h"
+#include "Core/BufferUsageTracker.h"
 #include "Core/ModuleManager.h"   ///< required for iteration
 #include <Arduino.h>
 #include <WiFi.h>                ///< only for RSSI (optional)
@@ -220,6 +221,22 @@ void SystemMonitorModule::logTaskStacks() {
     }
 }
 
+void SystemMonitorModule::logTrackedBuffers()
+{
+    TrackedBufferSnapshot snapshots[(size_t)TrackedBufferId::Count]{};
+    const size_t count = BufferUsageTracker::snapshot(snapshots, (size_t)TrackedBufferId::Count);
+    for (size_t i = 0; i < count; ++i) {
+        const TrackedBufferSnapshot& s = snapshots[i];
+        if (!s.name) continue;
+        LOGD("Buf %s peak=%lu/%lu mult=%s src=%s",
+             s.name,
+             (unsigned long)s.peakUsed,
+             (unsigned long)s.capacity,
+             (s.multiplicity && s.multiplicity[0]) ? s.multiplicity : "1",
+             s.source[0] ? s.source : "-");
+    }
+}
+
 void SystemMonitorModule::buildHealthJson(char* out, size_t outLen) {
     SystemStatsSnapshot snap{};
     SystemStats::collect(snap);
@@ -272,6 +289,7 @@ void SystemMonitorModule::loop() {
         lastTraceLogMs = now;
         logTaskStacks();
         logHeapStats();
+        logTrackedBuffers();
     }
 
     vTaskDelay(pdMS_TO_TICKS(200));

@@ -299,90 +299,106 @@ void SupervisorHMIModule::pollFlowStatus_()
         view_.flowAlarmCodes[i][0] = '\0';
     }
 
-    if (!flowCfgSvc_ || !flowCfgSvc_->runtimeStatusJson) return;
+    if (!flowCfgSvc_ || !flowCfgSvc_->runtimeStatusDomainJson) return;
     if (flowCfgSvc_->isReady && !flowCfgSvc_->isReady(flowCfgSvc_->ctx)) return;
 
-    memset(flowStatusJsonBuf_, 0, sizeof(flowStatusJsonBuf_));
-    if (!flowCfgSvc_->runtimeStatusJson(flowCfgSvc_->ctx, flowStatusJsonBuf_, sizeof(flowStatusJsonBuf_))) return;
+    bool anyDomainOk = false;
+    StaticJsonDocument<640> doc;
 
-    static bool filterInit = false;
-    static StaticJsonDocument<512> filter;
-    if (!filterInit) {
-        filter["ok"] = true;
-        filter["fw"] = true;
-        filter["wifi"]["hrss"] = true;
-        filter["wifi"]["rssi"] = true;
-        filter["heap"]["frag"] = true;
-        filter["mqtt"]["rdy"] = true;
-        filter["mqtt"]["rxdrp"] = true;
-        filter["mqtt"]["prsf"] = true;
-        filter["i2c"]["lnk"] = true;
-        filter["i2c"]["req"] = true;
-        filter["i2c"]["breq"] = true;
-        filter["i2c"]["ago"] = true;
-        filter["pool"]["has"] = true;
-        filter["pool"]["auto"] = true;
-        filter["pool"]["wint"] = true;
-        filter["alm"]["cnt"] = true;
-        JsonArray filterCompactCodes = filter["alm"]["codes"].to<JsonArray>();
-        filterCompactCodes.add(true);
-        filterInit = true;
-    }
+    auto fetchDomain = [&](FlowStatusDomain domain) -> JsonObjectConst {
+        memset(flowStatusScratchBuf_, 0, sizeof(flowStatusScratchBuf_));
+        if (!flowCfgSvc_->runtimeStatusDomainJson(flowCfgSvc_->ctx, domain, flowStatusScratchBuf_, sizeof(flowStatusScratchBuf_))) {
+            doc.clear();
+            return JsonObjectConst();
+        }
+        doc.clear();
+        const DeserializationError err = deserializeJson(doc, flowStatusScratchBuf_);
+        if (err || !doc.is<JsonObjectConst>()) {
+            doc.clear();
+            return JsonObjectConst();
+        }
+        JsonObjectConst root = doc.as<JsonObjectConst>();
+        if (!(root["ok"] | false)) {
+            doc.clear();
+            return JsonObjectConst();
+        }
+        anyDomainOk = true;
+        return root;
+    };
 
-    static StaticJsonDocument<1024> doc;
-    doc.clear();
-    const DeserializationError err = deserializeJson(doc,
-                                                     flowStatusJsonBuf_,
-                                                     DeserializationOption::Filter(filter));
-    if (err || !doc.is<JsonObjectConst>()) return;
-
-    JsonObjectConst root = doc.as<JsonObjectConst>();
-    const bool ok = root["ok"] | false;
-    if (!ok) return;
-
-    view_.flowCfgReady = true;
-    copyText_(view_.flowFirmware, sizeof(view_.flowFirmware), root["fw"] | "");
-
-    JsonObjectConst flowWifi = root["wifi"];
-    view_.flowHasRssi = flowWifi["hrss"] | false;
-    view_.flowRssiDbm = (int32_t)(flowWifi["rssi"] | -127);
-
-    JsonObjectConst flowHeap = root["heap"];
-    if (!flowHeap.isNull()) {
-        view_.flowHasHeapFrag = true;
-        view_.flowHeapFragPct = (uint8_t)(flowHeap["frag"] | 0U);
-    }
-
-    JsonObjectConst flowMqtt = root["mqtt"];
-    view_.flowMqttReady = flowMqtt["rdy"] | false;
-    view_.flowMqttRxDrop = (uint32_t)(flowMqtt["rxdrp"] | 0U);
-    view_.flowMqttParseFail = (uint32_t)(flowMqtt["prsf"] | 0U);
-
-    JsonObjectConst i2c = root["i2c"];
-    view_.flowLinkOk = i2c["lnk"] | false;
-    view_.flowI2cReqCount = (uint32_t)(i2c["req"] | 0U);
-    view_.flowI2cBadReqCount = (uint32_t)(i2c["breq"] | 0U);
-    view_.flowI2cLastReqAgoMs = (uint32_t)(i2c["ago"] | 0U);
-
-    JsonObjectConst poolMode = root["pool"];
-    if (!poolMode.isNull()) {
-        view_.flowHasPoolModes = poolMode["has"] | false;
-        view_.flowFiltrationAuto = poolMode["auto"] | false;
-        view_.flowWinterMode = poolMode["wint"] | false;
-    }
-
-    JsonObjectConst alarms = root["alm"];
-    if (!alarms.isNull()) {
-        view_.flowAlarmActiveCount = (uint8_t)(alarms["cnt"] | 0U);
-        JsonArrayConst activeCodes = alarms["codes"].as<JsonArrayConst>();
-        for (JsonVariantConst codeV : activeCodes) {
-            const size_t idx = (size_t)view_.flowAlarmCodeCount;
-            if (idx >= (sizeof(view_.flowAlarmCodes) / sizeof(view_.flowAlarmCodes[0]))) break;
-            const char* code = codeV.as<const char*>();
-            copyText_(view_.flowAlarmCodes[idx], sizeof(view_.flowAlarmCodes[idx]), code ? code : "");
-            view_.flowAlarmCodeCount++;
+    {
+        JsonObjectConst root = fetchDomain(FlowStatusDomain::System);
+        if (!root.isNull()) {
+            copyText_(view_.flowFirmware, sizeof(view_.flowFirmware), root["fw"] | "");
+            JsonObjectConst flowHeap = root["heap"];
+            if (!flowHeap.isNull()) {
+                view_.flowHasHeapFrag = true;
+                view_.flowHeapFragPct = (uint8_t)(flowHeap["frag"] | 0U);
+            }
         }
     }
+
+    {
+        JsonObjectConst root = fetchDomain(FlowStatusDomain::Wifi);
+        if (!root.isNull()) {
+            JsonObjectConst flowWifi = root["wifi"];
+            view_.flowHasRssi = flowWifi["hrss"] | false;
+            view_.flowRssiDbm = (int32_t)(flowWifi["rssi"] | -127);
+        }
+    }
+
+    {
+        JsonObjectConst root = fetchDomain(FlowStatusDomain::Mqtt);
+        if (!root.isNull()) {
+            JsonObjectConst flowMqtt = root["mqtt"];
+            view_.flowMqttReady = flowMqtt["rdy"] | false;
+            view_.flowMqttRxDrop = (uint32_t)(flowMqtt["rxdrp"] | 0U);
+            view_.flowMqttParseFail = (uint32_t)(flowMqtt["prsf"] | 0U);
+        }
+    }
+
+    {
+        JsonObjectConst root = fetchDomain(FlowStatusDomain::I2c);
+        if (!root.isNull()) {
+            JsonObjectConst i2c = root["i2c"];
+            view_.flowLinkOk = i2c["lnk"] | false;
+            view_.flowI2cReqCount = (uint32_t)(i2c["req"] | 0U);
+            view_.flowI2cBadReqCount = (uint32_t)(i2c["breq"] | 0U);
+            view_.flowI2cLastReqAgoMs = (uint32_t)(i2c["ago"] | 0U);
+        }
+    }
+
+    {
+        JsonObjectConst root = fetchDomain(FlowStatusDomain::Pool);
+        if (!root.isNull()) {
+            JsonObjectConst poolMode = root["pool"];
+            if (!poolMode.isNull()) {
+                view_.flowHasPoolModes = poolMode["has"] | false;
+                view_.flowFiltrationAuto = poolMode["auto"] | false;
+                view_.flowWinterMode = poolMode["wint"] | false;
+            }
+        }
+    }
+
+    {
+        JsonObjectConst root = fetchDomain(FlowStatusDomain::Alarm);
+        if (!root.isNull()) {
+            JsonObjectConst alarms = root["alm"];
+            if (!alarms.isNull()) {
+                view_.flowAlarmActiveCount = (uint8_t)(alarms["cnt"] | 0U);
+                JsonArrayConst activeCodes = alarms["codes"].as<JsonArrayConst>();
+                for (JsonVariantConst codeV : activeCodes) {
+                    const size_t idx = (size_t)view_.flowAlarmCodeCount;
+                    if (idx >= (sizeof(view_.flowAlarmCodes) / sizeof(view_.flowAlarmCodes[0]))) break;
+                    const char* code = codeV.as<const char*>();
+                    copyText_(view_.flowAlarmCodes[idx], sizeof(view_.flowAlarmCodes[idx]), code ? code : "");
+                    view_.flowAlarmCodeCount++;
+                }
+            }
+        }
+    }
+
+    view_.flowCfgReady = anyDomainOk;
 }
 
 void SupervisorHMIModule::triggerWifiReset_()

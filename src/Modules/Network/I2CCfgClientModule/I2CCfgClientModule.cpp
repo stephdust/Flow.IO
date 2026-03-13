@@ -15,6 +15,7 @@ namespace {
 constexpr uint8_t kInterlinkBus = 1;  // Interlink is fixed on I2C controller 1 (Wire1 on ESP32).
 constexpr uint8_t kI2cClientCfgProducerId = 51;
 constexpr uint8_t kI2cClientCfgBranch = 2;
+constexpr size_t kRuntimeStatusDomainBufSize = 448;
 static constexpr MqttConfigRouteProducer::Route kI2cClientCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::I2cCfg, kI2cClientCfgBranch}, "i2c/cfg/client", "i2c/cfg/client", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
@@ -50,6 +51,59 @@ const char* statusName(uint8_t st)
         case I2cCfgProtocol::StatusFailed: return "failed";
         default: return "unknown";
     }
+}
+
+const char* statusDomainName(FlowStatusDomain domain)
+{
+    switch (domain) {
+    case FlowStatusDomain::System: return "system";
+    case FlowStatusDomain::Wifi: return "wifi";
+    case FlowStatusDomain::Mqtt: return "mqtt";
+    case FlowStatusDomain::I2c: return "i2c";
+    case FlowStatusDomain::Pool: return "pool";
+    case FlowStatusDomain::Alarm: return "alarm";
+    default: return "unknown";
+    }
+}
+
+bool appendTextChecked_(char* out, size_t outLen, size_t& pos, const char* text)
+{
+    if (!out || !text || outLen == 0 || pos >= outLen) return false;
+    const size_t n = strlen(text);
+    if (n >= (outLen - pos)) {
+        out[outLen - 1] = '\0';
+        return false;
+    }
+    memcpy(out + pos, text, n);
+    pos += n;
+    out[pos] = '\0';
+    return true;
+}
+
+bool appendDomainFields_(char* out, size_t outLen, size_t& pos, const char* domainJson)
+{
+    static constexpr const char* kPrefix = "{\"ok\":true";
+    if (!domainJson) return false;
+    const size_t prefixLen = strlen(kPrefix);
+    if (strncmp(domainJson, kPrefix, prefixLen) != 0) return false;
+
+    const char* body = domainJson + prefixLen;
+    if (*body == '}') return true;
+    if (*body != ',') return false;
+    ++body;
+
+    const size_t bodyLen = strlen(body);
+    if (bodyLen == 0 || body[bodyLen - 1] != '}') return false;
+
+    if (!appendTextChecked_(out, outLen, pos, ",")) return false;
+    if ((bodyLen - 1U) >= (outLen - pos)) {
+        out[outLen - 1] = '\0';
+        return false;
+    }
+    memcpy(out + pos, body, bodyLen - 1U);
+    pos += (bodyLen - 1U);
+    out[pos] = '\0';
+    return true;
 }
 
 }  // namespace
@@ -665,17 +719,63 @@ bool I2CCfgClientModule::applyPatchJson_(const char* patch, char* out, size_t ou
 bool I2CCfgClientModule::runtimeStatusJson_(char* out, size_t outLen)
 {
     if (!out || outLen == 0) return false;
+    out[0] = '\0';
+
+    static constexpr FlowStatusDomain kDomains[] = {
+        FlowStatusDomain::System,
+        FlowStatusDomain::Wifi,
+        FlowStatusDomain::Mqtt,
+        FlowStatusDomain::I2c,
+        FlowStatusDomain::Pool,
+        FlowStatusDomain::Alarm,
+    };
+
+    char domainBuf[kRuntimeStatusDomainBufSize] = {0};
+    size_t pos = 0;
+    if (!appendTextChecked_(out, outLen, pos, "{\"ok\":true")) {
+        (void)writeErrorJson(out, outLen, ErrorCode::InternalAckOverflow, "flowcfg.runtime_status.aggregate");
+        return false;
+    }
+
+    for (size_t i = 0; i < (sizeof(kDomains) / sizeof(kDomains[0])); ++i) {
+        memset(domainBuf, 0, sizeof(domainBuf));
+        if (!runtimeStatusDomainJson_(kDomains[i], domainBuf, sizeof(domainBuf))) {
+            if (domainBuf[0] != '\0') {
+                snprintf(out, outLen, "%s", domainBuf);
+            } else {
+                (void)writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.runtime_status.aggregate");
+            }
+            return false;
+        }
+        if (!appendDomainFields_(out, outLen, pos, domainBuf)) {
+            (void)writeErrorJson(out, outLen, ErrorCode::InternalAckOverflow, "flowcfg.runtime_status.aggregate");
+            return false;
+        }
+    }
+
+    if (!appendTextChecked_(out, outLen, pos, "}")) {
+        (void)writeErrorJson(out, outLen, ErrorCode::InternalAckOverflow, "flowcfg.runtime_status.aggregate");
+        return false;
+    }
+    return true;
+}
+
+bool I2CCfgClientModule::runtimeStatusDomainJson_(FlowStatusDomain domain, char* out, size_t outLen)
+{
+    if (!out || outLen == 0) return false;
     if (!ensureReady_()) {
         (void)writeErrorJson(out, outLen, ErrorCode::NotReady, "flowcfg.runtime_status");
         return false;
     }
 
+    const uint8_t domainId = (uint8_t)domain;
     uint8_t status = 0;
     uint8_t resp[96] = {0};
     size_t respLen = 0;
+    const uint8_t beginReq[1] = {domainId};
     const bool okBegin = transact_(I2cCfgProtocol::OpGetRuntimeStatusBegin,
-                                   nullptr,
-                                   0,
+                                   beginReq,
+                                   sizeof(beginReq),
                                    status,
                                    resp,
                                    sizeof(resp),
@@ -683,7 +783,8 @@ bool I2CCfgClientModule::runtimeStatusJson_(char* out, size_t outLen)
     if (!okBegin ||
         status != I2cCfgProtocol::StatusOk ||
         respLen < 3) {
-        LOGW("runtimeStatus failed step=begin transport=%s status=%u (%s) resp_len=%u",
+        LOGW("runtimeStatus domain=%s failed step=begin transport=%s status=%u (%s) resp_len=%u",
+             statusDomainName(domain),
              okBegin ? "ok" : "failed",
              (unsigned)status,
              statusName(status),
@@ -718,7 +819,8 @@ bool I2CCfgClientModule::runtimeStatusJson_(char* out, size_t outLen)
                                        sizeof(resp),
                                        respLen);
         if (!okChunk || status != I2cCfgProtocol::StatusOk) {
-            LOGW("runtimeStatus failed step=chunk off=%u want=%u transport=%s status=%u (%s) resp_len=%u",
+            LOGW("runtimeStatus domain=%s failed step=chunk off=%u want=%u transport=%s status=%u (%s) resp_len=%u",
+                 statusDomainName(domain),
                  (unsigned)written,
                  (unsigned)want,
                  okChunk ? "ok" : "failed",
@@ -729,7 +831,8 @@ bool I2CCfgClientModule::runtimeStatusJson_(char* out, size_t outLen)
             return false;
         }
         if (respLen == 0 || (written + respLen) > totalLen) {
-            LOGW("runtimeStatus invalid chunk off=%u resp_len=%u total=%u",
+            LOGW("runtimeStatus domain=%s invalid chunk off=%u resp_len=%u total=%u",
+                 statusDomainName(domain),
                  (unsigned)written,
                  (unsigned)respLen,
                  (unsigned)totalLen);
@@ -741,7 +844,7 @@ bool I2CCfgClientModule::runtimeStatusJson_(char* out, size_t outLen)
     }
     out[written] = '\0';
     if (isTruncated) {
-        LOGW("runtimeStatus truncated bytes=%u", (unsigned)written);
+        LOGW("runtimeStatus domain=%s truncated bytes=%u", statusDomainName(domain), (unsigned)written);
     }
     return true;
 }
@@ -811,6 +914,12 @@ bool I2CCfgClientModule::svcGetModuleJson_(void* ctx, const char* module, char* 
 {
     I2CCfgClientModule* self = static_cast<I2CCfgClientModule*>(ctx);
     return self ? self->getModuleJson_(module, out, outLen, truncated) : false;
+}
+
+bool I2CCfgClientModule::svcRuntimeStatusDomainJson_(void* ctx, FlowStatusDomain domain, char* out, size_t outLen)
+{
+    I2CCfgClientModule* self = static_cast<I2CCfgClientModule*>(ctx);
+    return self ? self->runtimeStatusDomainJson_(domain, out, outLen) : false;
 }
 
 bool I2CCfgClientModule::svcRuntimeStatusJson_(void* ctx, char* out, size_t outLen)

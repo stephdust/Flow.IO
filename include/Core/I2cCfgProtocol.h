@@ -35,6 +35,15 @@ enum Op : uint8_t {
     OpSystemAction = 0x40
 };
 
+enum StatusDomain : uint8_t {
+    StatusDomainSystem = 1,
+    StatusDomainWifi = 2,
+    StatusDomainMqtt = 3,
+    StatusDomainI2c = 4,
+    StatusDomainPool = 5,
+    StatusDomainAlarm = 6
+};
+
 enum Status : uint8_t {
     StatusOk = 0,
     StatusBadRequest = 1,

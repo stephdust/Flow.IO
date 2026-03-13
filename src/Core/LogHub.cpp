@@ -3,6 +3,7 @@
  * @brief Implementation file.
  */
 #include "Core/LogHub.h"
+#include "Core/BufferUsageTracker.h"
 #include "Core/ConfigStore.h"
 #include "Core/LogModuleIds.h"
 #include <stdio.h>
@@ -53,17 +54,33 @@ bool LogHub::registerConfigVar_(ModuleRegistration& slot)
 }
 
 void LogHub::init(int queueLen) {
+    queueLen_ = (queueLen > 0) ? (uint16_t)queueLen : Limits::LogQueueLen;
     q = xQueueCreate(queueLen, sizeof(LogEntry));
+    BufferUsageTracker::note(TrackedBufferId::LogHubQueue, 0U, (size_t)queueLen_ * sizeof(LogEntry), "init", nullptr);
 }
 
 bool LogHub::enqueue(const LogEntry& e) {
     if (!q) return false;
-    return xQueueSend(q, &e, 0) == pdTRUE;  ///< 0 => non bloquant
+    const bool ok = xQueueSend(q, &e, 0) == pdTRUE;  ///< 0 => non bloquant
+    const UBaseType_t queued = q ? uxQueueMessagesWaiting(q) : 0U;
+    BufferUsageTracker::note(TrackedBufferId::LogHubQueue,
+                             (size_t)queued * sizeof(LogEntry),
+                             (size_t)queueLen_ * sizeof(LogEntry),
+                             logModuleNameFromId(e.moduleId),
+                             nullptr);
+    return ok;
 }
 
 bool LogHub::dequeue(LogEntry& out, TickType_t waitTicks) {
     if (!q) return false;
-    return xQueueReceive(q, &out, waitTicks) == pdTRUE;
+    const bool ok = xQueueReceive(q, &out, waitTicks) == pdTRUE;
+    const UBaseType_t queued = q ? uxQueueMessagesWaiting(q) : 0U;
+    BufferUsageTracker::note(TrackedBufferId::LogHubQueue,
+                             (size_t)queued * sizeof(LogEntry),
+                             (size_t)queueLen_ * sizeof(LogEntry),
+                             ok ? "dequeue" : "idle",
+                             nullptr);
+    return ok;
 }
 
 void LogHub::attachConfig(ConfigStore* cfg, uint8_t cfgModuleId, uint8_t cfgLocalBranchId)
@@ -93,6 +110,11 @@ bool LogHub::registerModule(LogModuleId moduleId, const char* moduleName)
 
     strncpy(slot->name, moduleName, sizeof(slot->name) - 1);
     slot->name[sizeof(slot->name) - 1] = '\0';
+    BufferUsageTracker::note(TrackedBufferId::LogHubModules,
+                             (size_t)moduleCount_ * sizeof(ModuleRegistration),
+                             sizeof(modules_),
+                             moduleName,
+                             nullptr);
     if (cfg_) (void)registerConfigVar_(*slot);
     return true;
 }

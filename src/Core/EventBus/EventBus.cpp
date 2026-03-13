@@ -4,6 +4,7 @@
  */
 #include "EventBus.h"
 #include <Arduino.h>  // micros(), millis()
+#include "Core/BufferUsageTracker.h"
 #include "Core/Log.h"
 
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::CoreEventBus)
@@ -21,6 +22,11 @@ static bool canWarnNow() {
 EventBus::EventBus() {
     _queue = xQueueCreate(QUEUE_LENGTH, sizeof(QueuedEvent));
     _winStartMs = millis();
+    BufferUsageTracker::note(TrackedBufferId::EventBusRuntime,
+                             0U,
+                             (size_t)QUEUE_LENGTH * sizeof(QueuedEvent) + sizeof(_subs),
+                             "init",
+                             nullptr);
 }
 
 bool EventBus::subscribe(EventId id, EventCallback cb, void* user) {
@@ -37,6 +43,12 @@ bool EventBus::subscribe(EventId id, EventCallback cb, void* user) {
     _subs[_count].cb = cb;
     _subs[_count].user = user;
     _count++;
+    const UBaseType_t queued = _queue ? uxQueueMessagesWaiting(_queue) : 0U;
+    BufferUsageTracker::note(TrackedBufferId::EventBusRuntime,
+                             (size_t)_count * sizeof(Subscriber) + (size_t)queued * sizeof(QueuedEvent),
+                             (size_t)QUEUE_LENGTH * sizeof(QueuedEvent) + sizeof(_subs),
+                             "subscribe",
+                             nullptr);
     return true;
 }
 
@@ -108,6 +120,12 @@ bool EventBus::post(EventId id, const void* payload, size_t len) {
         if (_winCurrentDropBurst > _winMaxDropBurst) _winMaxDropBurst = _winCurrentDropBurst;
     }
     portEXIT_CRITICAL(&_statsMux);
+    const UBaseType_t queued = _queue ? uxQueueMessagesWaiting(_queue) : 0U;
+    BufferUsageTracker::note(TrackedBufferId::EventBusRuntime,
+                             (size_t)_count * sizeof(Subscriber) + (size_t)queued * sizeof(QueuedEvent),
+                             (size_t)QUEUE_LENGTH * sizeof(QueuedEvent) + sizeof(_subs),
+                             ok == pdTRUE ? "post" : "post_drop",
+                             nullptr);
     return ok == pdTRUE;
 }
 
@@ -159,6 +177,12 @@ bool EventBus::postFromISR(EventId id, const void* payload, size_t len) {
     if (higherWoken == pdTRUE) {
         portYIELD_FROM_ISR();
     }
+    const UBaseType_t queued = _queue ? uxQueueMessagesWaitingFromISR(_queue) : 0U;
+    BufferUsageTracker::noteFromISR(TrackedBufferId::EventBusRuntime,
+                                    (size_t)_count * sizeof(Subscriber) + (size_t)queued * sizeof(QueuedEvent),
+                                    (size_t)QUEUE_LENGTH * sizeof(QueuedEvent) + sizeof(_subs),
+                                    ok == pdTRUE ? "post_isr" : "post_isr_drop",
+                                    nullptr);
     return ok == pdTRUE;
 }
 

@@ -5,6 +5,7 @@
 
 #include "MQTTModule.h"
 
+#include "Core/BufferUsageTracker.h"
 #include "Core/Runtime.h"
 #include "Core/MqttTopics.h"
 #include "Core/SystemLimits.h"
@@ -575,6 +576,11 @@ void MQTTModule::processJobs_(uint32_t nowMs)
                 if (ctx.topicLen == 0U || ctx.payloadLen == 0U) {
                     buildResult = MqttBuildResult::PermanentError;
                 } else {
+                    BufferUsageTracker::note(TrackedBufferId::MqttPayloadBuf,
+                                             ctx.payloadLen,
+                                             sizeof(payloadBuf_),
+                                             ctx.topic,
+                                             nullptr);
                     published = tryPublishNow_(ctx.topic, ctx.payload, ctx.qos, ctx.retain);
                 }
             }
@@ -788,6 +794,12 @@ void MQTTModule::updateAndReportQueueOccupancy_(uint32_t nowMs)
     if (highCount > occMaxHigh_) occMaxHigh_ = highCount;
     if (normalCount > occMaxNormal_) occMaxNormal_ = normalCount;
     if (lowCount > occMaxLow_) occMaxLow_ = lowCount;
+    BufferUsageTracker::note(TrackedBufferId::MqttJobsAndQueues,
+                             (size_t)jobsUsed * sizeof(Job) +
+                                 (size_t)(highCount + normalCount + lowCount) * sizeof(JobQueueItem),
+                             sizeof(jobs_) + sizeof(highQ_) + sizeof(normalQ_) + sizeof(lowQ_),
+                             "occ",
+                             nullptr);
 
     if (occLastReportMs_ == 0U) {
         occLastReportMs_ = nowMs;
@@ -858,7 +870,15 @@ void MQTTModule::onMessage_(const char* topic,
 
     if (xQueueSend(rxQ_, &msg, 0) != pdTRUE) {
         countRxDrop_();
+        return;
     }
+
+    const UBaseType_t queued = uxQueueMessagesWaiting(rxQ_);
+    BufferUsageTracker::note(TrackedBufferId::MqttRxQueueStorage,
+                             (size_t)queued * sizeof(RxMsg),
+                             (size_t)Limits::Mqtt::Capacity::RxQueueLen * sizeof(RxMsg),
+                             msg.topic,
+                             nullptr);
 }
 
 void MQTTModule::mqttEventHandlerStatic_(void* handler_args,
@@ -917,6 +937,16 @@ bool MQTTModule::enqueueAck_(const char* topicSuffix,
     snprintf(m.topicSuffix, sizeof(m.topicSuffix), "%s", topicSuffix);
     snprintf(m.payload, sizeof(m.payload), "%s", payload);
 
+    uint8_t ackUsedCount = 0U;
+    for (uint8_t i = 0; i < MaxAckMessages; ++i) {
+        if (ackMessages_[i].used) ++ackUsedCount;
+    }
+    BufferUsageTracker::note(TrackedBufferId::MqttAckMessages,
+                             (size_t)ackUsedCount * sizeof(AckMessage),
+                             sizeof(ackMessages_),
+                             topicSuffix,
+                             nullptr);
+
     ++ackNextMessageId_;
     if (ackNextMessageId_ == 0U) ++ackNextMessageId_;
 
@@ -950,6 +980,11 @@ void MQTTModule::processRxCmd_(const RxMsg& msg)
     doc.clear();
     DeserializationError err = deserializeJson(doc, msg.payload);
     if (err || !doc.is<JsonObjectConst>()) {
+        BufferUsageTracker::note(TrackedBufferId::MqttCmdDoc,
+                                 doc.memoryUsage(),
+                                 sizeof(doc),
+                                 "cmd",
+                                 nullptr);
         publishRxError_(MqttTopics::SuffixAck, ErrorCode::BadCmdJson, "cmd", true);
         return;
     }
@@ -966,6 +1001,11 @@ void MQTTModule::processRxCmd_(const RxMsg& msg)
         publishRxError_(MqttTopics::SuffixAck, ErrorCode::MissingCmd, "cmd", true);
         return;
     }
+    BufferUsageTracker::note(TrackedBufferId::MqttCmdDoc,
+                             doc.memoryUsage(),
+                             sizeof(doc),
+                             cmdVal,
+                             nullptr);
 
     if (!cmdSvc_ || !cmdSvc_->execute) {
         publishRxError_(MqttTopics::SuffixAck, ErrorCode::CmdServiceUnavailable, "cmd", false);
@@ -995,6 +1035,11 @@ void MQTTModule::processRxCmd_(const RxMsg& msg)
         publishRxError_(MqttTopics::SuffixAck, ErrorCode::CmdHandlerFailed, "cmd", false);
         return;
     }
+    BufferUsageTracker::note(TrackedBufferId::MqttReplyBuf,
+                             strnlen(replyBuf_, sizeof(replyBuf_)),
+                             sizeof(replyBuf_),
+                             cmd,
+                             nullptr);
 
     const int wrote = snprintf(payloadBuf_, sizeof(payloadBuf_),
                                "{\"ok\":true,\"cmd\":\"%s\",\"reply\":%s}",
@@ -1004,6 +1049,11 @@ void MQTTModule::processRxCmd_(const RxMsg& msg)
         publishRxError_(MqttTopics::SuffixAck, ErrorCode::InternalAckOverflow, "cmd", false);
         return;
     }
+    BufferUsageTracker::note(TrackedBufferId::MqttPayloadBuf,
+                             (size_t)wrote,
+                             sizeof(payloadBuf_),
+                             cmd,
+                             nullptr);
 
     (void)enqueueAck_(MqttTopics::SuffixAck, payloadBuf_, 0, false, MqttPublishPriority::High);
 }
@@ -1021,9 +1071,25 @@ void MQTTModule::processRxCfgSet_(const RxMsg& msg)
 
     const DeserializationError cfgErr = deserializeJson(cfgDoc, msg.payload);
     if (cfgErr || !cfgDoc.is<JsonObjectConst>()) {
+        BufferUsageTracker::note(TrackedBufferId::MqttCfgDoc,
+                                 cfgDoc.memoryUsage(),
+                                 sizeof(cfgDoc),
+                                 "cfg/set",
+                                 nullptr);
         publishRxError_(MqttTopics::SuffixCfgAck, ErrorCode::BadCfgJson, "cfg/set", true);
         return;
     }
+    const char* cfgPeakSource = "cfg/set";
+    JsonObjectConst cfgRoot = cfgDoc.as<JsonObjectConst>();
+    for (JsonPairConst kv : cfgRoot) {
+        cfgPeakSource = kv.key().c_str();
+        break;
+    }
+    BufferUsageTracker::note(TrackedBufferId::MqttCfgDoc,
+                             cfgDoc.memoryUsage(),
+                             sizeof(cfgDoc),
+                             cfgPeakSource,
+                             "<json>");
 
     if (!cfgSvc_->applyJson(cfgSvc_->ctx, msg.payload)) {
         publishRxError_(MqttTopics::SuffixCfgAck, ErrorCode::CfgApplyFailed, "cfg/set", false);
@@ -1033,6 +1099,11 @@ void MQTTModule::processRxCfgSet_(const RxMsg& msg)
     if (!writeOkJson(payloadBuf_, sizeof(payloadBuf_), "cfg/set")) {
         snprintf(payloadBuf_, sizeof(payloadBuf_), "{\"ok\":true}");
     }
+    BufferUsageTracker::note(TrackedBufferId::MqttPayloadBuf,
+                             strnlen(payloadBuf_, sizeof(payloadBuf_)),
+                             sizeof(payloadBuf_),
+                             "cfg/set",
+                             nullptr);
     (void)enqueueAck_(MqttTopics::SuffixCfgAck, payloadBuf_, 1, false, MqttPublishPriority::High);
 }
 
@@ -1046,6 +1117,11 @@ void MQTTModule::publishRxError_(const char* ackTopicSuffix, ErrorCode code, con
     if (!writeErrorJson(payloadBuf_, sizeof(payloadBuf_), code, where)) {
         snprintf(payloadBuf_, sizeof(payloadBuf_), "{\"ok\":false}");
     }
+    BufferUsageTracker::note(TrackedBufferId::MqttPayloadBuf,
+                             strnlen(payloadBuf_, sizeof(payloadBuf_)),
+                             sizeof(payloadBuf_),
+                             where,
+                             nullptr);
 
     (void)enqueueAck_(ackTopicSuffix, payloadBuf_, 0, false, MqttPublishPriority::High);
 }
@@ -1143,6 +1219,15 @@ void MQTTModule::onAckPublished_(uint16_t messageId)
         AckMessage& msg = ackMessages_[i];
         if (msg.used && msg.messageId == messageId) {
             msg.used = false;
+            uint8_t ackUsedCount = 0U;
+            for (uint8_t j = 0; j < MaxAckMessages; ++j) {
+                if (ackMessages_[j].used) ++ackUsedCount;
+            }
+            BufferUsageTracker::note(TrackedBufferId::MqttAckMessages,
+                                     (size_t)ackUsedCount * sizeof(AckMessage),
+                                     sizeof(ackMessages_),
+                                     "ack_free",
+                                     nullptr);
             break;
         }
     }

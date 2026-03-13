@@ -4,6 +4,7 @@
  */
 
 #include "IOModule.h"
+#include "Core/BufferUsageTracker.h"
 #include "Core/MqttTopics.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::IOModule)
 #include "Core/ModuleLog.h"
@@ -31,6 +32,17 @@ static constexpr uint8_t kCfgBranchIoD4 = 13;
 static constexpr uint8_t kCfgBranchIoD5 = 14;
 static constexpr uint8_t kCfgBranchIoD6 = 15;
 static constexpr uint8_t kCfgBranchIoD7 = 16;
+
+template <size_t Rows, size_t Cols>
+size_t charTableUsage_(const char (&table)[Rows][Cols])
+{
+    size_t total = 0U;
+    for (size_t row = 0; row < Rows; ++row) {
+        const size_t len = strnlen(table[row], Cols);
+        if (len > 0U) total += len + 1U;
+    }
+    return total;
+}
 static constexpr uint8_t kCfgBranchIoI0 = 17;
 static constexpr uint8_t kCfgBranchIoI1 = 18;
 static constexpr uint8_t kCfgBranchIoI2 = 19;
@@ -720,11 +732,41 @@ void IOModule::registerHaAnalogSensors_()
     static constexpr const char* kIoValueAvailabilityTpl = "{{ 'online' if value_json.available else 'offline' }}";
 
     buildHaValueTemplate_(0, haValueTpl_[0], sizeof(haValueTpl_[0]));
+    BufferUsageTracker::note(TrackedBufferId::IoHaValueTplTable,
+                             charTableUsage_(haValueTpl_),
+                             sizeof(haValueTpl_),
+                             "a0",
+                             haValueTpl_[0]);
     buildHaValueTemplate_(1, haValueTpl_[1], sizeof(haValueTpl_[1]));
+    BufferUsageTracker::note(TrackedBufferId::IoHaValueTplTable,
+                             charTableUsage_(haValueTpl_),
+                             sizeof(haValueTpl_),
+                             "a1",
+                             haValueTpl_[1]);
     buildHaValueTemplate_(2, haValueTpl_[2], sizeof(haValueTpl_[2]));
+    BufferUsageTracker::note(TrackedBufferId::IoHaValueTplTable,
+                             charTableUsage_(haValueTpl_),
+                             sizeof(haValueTpl_),
+                             "a2",
+                             haValueTpl_[2]);
     buildHaValueTemplate_(3, haValueTpl_[3], sizeof(haValueTpl_[3]));
+    BufferUsageTracker::note(TrackedBufferId::IoHaValueTplTable,
+                             charTableUsage_(haValueTpl_),
+                             sizeof(haValueTpl_),
+                             "a3",
+                             haValueTpl_[3]);
     buildHaValueTemplate_(4, haValueTpl_[4], sizeof(haValueTpl_[4]));
+    BufferUsageTracker::note(TrackedBufferId::IoHaValueTplTable,
+                             charTableUsage_(haValueTpl_),
+                             sizeof(haValueTpl_),
+                             "a4",
+                             haValueTpl_[4]);
     buildHaValueTemplate_(5, haValueTpl_[5], sizeof(haValueTpl_[5]));
+    BufferUsageTracker::note(TrackedBufferId::IoHaValueTplTable,
+                             charTableUsage_(haValueTpl_),
+                             sizeof(haValueTpl_),
+                             "a5",
+                             haValueTpl_[5]);
 
     const HASensorEntry s0{"io", "io_orp", "ORP", "rt/io/input/a0", haValueTpl_[0], nullptr, "mdi:flash", "mV", false, kIoValueAvailabilityTpl};
     const HASensorEntry s1{"io", "io_ph", "pH", "rt/io/input/a1", haValueTpl_[1], nullptr, "mdi:ph", "", false, kIoValueAvailabilityTpl};
@@ -1671,6 +1713,16 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
                 LOGW("HA switch command payload truncated slot=%u", (unsigned)b.slot);
                 continue;
             }
+            BufferUsageTracker::note(TrackedBufferId::IoHaSwitchPayloadOnTable,
+                                     charTableUsage_(haSwitchPayloadOn_),
+                                     sizeof(haSwitchPayloadOn_),
+                                     b.haObjectSuffix,
+                                     haSwitchPayloadOn_[i]);
+            BufferUsageTracker::note(TrackedBufferId::IoHaSwitchPayloadOffTable,
+                                     charTableUsage_(haSwitchPayloadOff_),
+                                     sizeof(haSwitchPayloadOff_),
+                                     b.haObjectSuffix,
+                                     haSwitchPayloadOff_[i]);
 
             const HASwitchEntry sw{
                 "io",

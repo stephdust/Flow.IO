@@ -56,6 +56,7 @@ private:
     bool registerConfigVar_(ModuleRegistration& slot);
 
     QueueHandle_t q = nullptr;
+    uint16_t queueLen_ = Limits::LogQueueLen;
     ModuleRegistration modules_[MAX_REGISTERED_MODULES]{};
     uint8_t moduleCount_ = 0;
     ConfigStore* cfg_ = nullptr;

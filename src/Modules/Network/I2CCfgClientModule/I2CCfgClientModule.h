@@ -79,6 +79,7 @@ private:
         svcListModulesJson_,
         svcListChildrenJson_,
         svcGetModuleJson_,
+        svcRuntimeStatusDomainJson_,
         svcRuntimeStatusJson_,
         svcApplyPatchJson_,
         this
@@ -90,6 +91,7 @@ private:
     bool listModulesJson_(char* out, size_t outLen);
     bool listChildrenJson_(const char* prefix, char* out, size_t outLen);
     bool getModuleJson_(const char* module, char* out, size_t outLen, bool* truncated);
+    bool runtimeStatusDomainJson_(FlowStatusDomain domain, char* out, size_t outLen);
     bool runtimeStatusJson_(char* out, size_t outLen);
     bool applyPatchJson_(const char* patch, char* out, size_t outLen);
     bool executeSystemActionJson_(uint8_t action, char* out, size_t outLen);
@@ -107,6 +109,7 @@ private:
     static bool svcListModulesJson_(void* ctx, char* out, size_t outLen);
     static bool svcListChildrenJson_(void* ctx, const char* prefix, char* out, size_t outLen);
     static bool svcGetModuleJson_(void* ctx, const char* module, char* out, size_t outLen, bool* truncated);
+    static bool svcRuntimeStatusDomainJson_(void* ctx, FlowStatusDomain domain, char* out, size_t outLen);
     static bool svcRuntimeStatusJson_(void* ctx, char* out, size_t outLen);
     static bool svcApplyPatchJson_(void* ctx, const char* patch, char* out, size_t outLen);
     static bool cmdFlowReboot_(void* userCtx, const CommandRequest&, char* reply, size_t replyLen);

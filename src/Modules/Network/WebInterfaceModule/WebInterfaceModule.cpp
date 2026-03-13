@@ -57,6 +57,35 @@ constexpr uint32_t kHttpLatencyWarnMs = 120U;
 constexpr uint32_t kHttpLatencyFlowCfgInfoMs = 200U;
 constexpr uint32_t kHttpLatencyFlowCfgWarnMs = 900U;
 
+bool parseFlowStatusDomainParam_(const String& raw, FlowStatusDomain& domainOut)
+{
+    if (raw.equalsIgnoreCase("system")) {
+        domainOut = FlowStatusDomain::System;
+        return true;
+    }
+    if (raw.equalsIgnoreCase("wifi")) {
+        domainOut = FlowStatusDomain::Wifi;
+        return true;
+    }
+    if (raw.equalsIgnoreCase("mqtt")) {
+        domainOut = FlowStatusDomain::Mqtt;
+        return true;
+    }
+    if (raw.equalsIgnoreCase("i2c")) {
+        domainOut = FlowStatusDomain::I2c;
+        return true;
+    }
+    if (raw.equalsIgnoreCase("pool")) {
+        domainOut = FlowStatusDomain::Pool;
+        return true;
+    }
+    if (raw.equalsIgnoreCase("alarm")) {
+        domainOut = FlowStatusDomain::Alarm;
+        return true;
+    }
+    return false;
+}
+
 const char* httpMethodName_(uint8_t method)
 {
     switch (method) {
@@ -627,63 +656,145 @@ void WebInterfaceModule::startServer_()
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>("flowcfg");
         }
-        if (!flowCfgSvc_ || !flowCfgSvc_->runtimeStatusJson) {
+        if (!flowCfgSvc_ || !flowCfgSvc_->runtimeStatusDomainJson) {
             request->send(503, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flow.status\"}}");
             return;
         }
 
-        char out[Limits::Mqtt::Buffers::StateCfg] = {0};
-        if (!flowCfgSvc_->runtimeStatusJson(flowCfgSvc_->ctx, out, sizeof(out))) {
-            if (out[0] != '\0') {
-                request->send(500, "application/json", out);
+        char domainBuf[448] = {0};
+        StaticJsonDocument<512> domainDoc;
+        StaticJsonDocument<640> compactDoc;
+        compactDoc["ok"] = true;
+
+        bool anyDomainOk = false;
+        auto loadDomain = [&](FlowStatusDomain domain) -> JsonObjectConst {
+            memset(domainBuf, 0, sizeof(domainBuf));
+            if (!flowCfgSvc_->runtimeStatusDomainJson(flowCfgSvc_->ctx, domain, domainBuf, sizeof(domainBuf))) {
+                domainDoc.clear();
+                return JsonObjectConst();
+            }
+            domainDoc.clear();
+            const DeserializationError err = deserializeJson(domainDoc, domainBuf);
+            if (err || !domainDoc.is<JsonObjectConst>()) {
+                domainDoc.clear();
+                return JsonObjectConst();
+            }
+            JsonObjectConst root = domainDoc.as<JsonObjectConst>();
+            if (!(root["ok"] | false)) {
+                domainDoc.clear();
+                return JsonObjectConst();
+            }
+            anyDomainOk = true;
+            return root;
+        };
+
+        {
+            JsonObjectConst root = loadDomain(FlowStatusDomain::System);
+            if (!root.isNull()) {
+                compactDoc["fw"] = String(root["fw"] | "");
+                compactDoc["upms"] = root["upms"] | 0U;
+                JsonObject heapOut = compactDoc.createNestedObject("heap");
+                JsonObjectConst heapIn = root["heap"];
+                heapOut["free"] = heapIn["free"] | 0U;
+                heapOut["min"] = heapIn["min"] | 0U;
+            }
+        }
+
+        {
+            JsonObjectConst root = loadDomain(FlowStatusDomain::Wifi);
+            if (!root.isNull()) {
+                JsonObject wifiOut = compactDoc.createNestedObject("wifi");
+                JsonObjectConst wifiIn = root["wifi"];
+                wifiOut["rdy"] = wifiIn["rdy"] | false;
+                wifiOut["ip"] = String(wifiIn["ip"] | "");
+                wifiOut["hrss"] = wifiIn["hrss"] | false;
+                wifiOut["rssi"] = wifiIn["rssi"] | -127;
+            }
+        }
+
+        {
+            JsonObjectConst root = loadDomain(FlowStatusDomain::Mqtt);
+            if (!root.isNull()) {
+                JsonObject mqttOut = compactDoc.createNestedObject("mqtt");
+                JsonObjectConst mqttIn = root["mqtt"];
+                mqttOut["rdy"] = mqttIn["rdy"] | false;
+                mqttOut["rxdrp"] = mqttIn["rxdrp"] | 0U;
+                mqttOut["prsf"] = mqttIn["prsf"] | 0U;
+                mqttOut["hndf"] = mqttIn["hndf"] | 0U;
+                mqttOut["ovr"] = mqttIn["ovr"] | 0U;
+            }
+        }
+
+        {
+            JsonObjectConst root = loadDomain(FlowStatusDomain::I2c);
+            if (!root.isNull()) {
+                JsonObject i2cOut = compactDoc.createNestedObject("i2c");
+                JsonObjectConst i2cIn = root["i2c"];
+                i2cOut["lnk"] = i2cIn["lnk"] | false;
+                i2cOut["seen"] = i2cIn["seen"] | false;
+                i2cOut["req"] = i2cIn["req"] | 0U;
+                i2cOut["breq"] = i2cIn["breq"] | 0U;
+                i2cOut["ago"] = i2cIn["ago"] | 0U;
+            }
+        }
+
+        if (!anyDomainOk) {
+            request->send(500, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status\"}}");
+            return;
+        }
+
+        char compactOut[768] = {0};
+        const size_t compactLen = serializeJson(compactDoc, compactOut, sizeof(compactOut));
+        if (compactLen == 0 || compactLen >= sizeof(compactOut)) {
+            request->send(500, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status.pack\"}}");
+            return;
+        }
+        request->send(200, "application/json", compactOut);
+    });
+
+    server_.on("/api/flow/status/domain", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request,
+                                 "/api/flow/status/domain",
+                                 kHttpLatencyFlowCfgInfoMs,
+                                 kHttpLatencyFlowCfgWarnMs);
+        if (!flowCfgSvc_ && services_) {
+            flowCfgSvc_ = services_->get<FlowCfgRemoteService>("flowcfg");
+        }
+        if (!flowCfgSvc_ || !flowCfgSvc_->runtimeStatusDomainJson) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flow.status.domain\"}}");
+            return;
+        }
+
+        if (!request->hasParam("d")) {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"flow.status.domain\"}}");
+            return;
+        }
+        const AsyncWebParameter* domainParam = request->getParam("d");
+
+        FlowStatusDomain domain = FlowStatusDomain::System;
+        if (!parseFlowStatusDomainParam_(domainParam->value(), domain)) {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"BadDomain\",\"where\":\"flow.status.domain\"}}");
+            return;
+        }
+
+        char domainBuf[448] = {0};
+        if (!flowCfgSvc_->runtimeStatusDomainJson(flowCfgSvc_->ctx, domain, domainBuf, sizeof(domainBuf))) {
+            if (domainBuf[0] != '\0') {
+                request->send(500, "application/json", domainBuf);
             } else {
                 request->send(500, "application/json",
-                              "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status\"}}");
+                              "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status.domain.fetch\"}}");
             }
             return;
         }
 
-        // Send a compact payload to keep HTTP response allocation low on supervisor.
-        StaticJsonDocument<512> filter;
-        filter["ok"] = true;
-        filter["fw"] = true;
-        filter["upms"] = true;
-        filter["wifi"]["rdy"] = true;
-        filter["wifi"]["ip"] = true;
-        filter["wifi"]["hrss"] = true;
-        filter["wifi"]["rssi"] = true;
-        filter["mqtt"]["rdy"] = true;
-        filter["mqtt"]["rxdrp"] = true;
-        filter["mqtt"]["prsf"] = true;
-        filter["mqtt"]["hndf"] = true;
-        filter["mqtt"]["ovr"] = true;
-        filter["heap"]["free"] = true;
-        filter["heap"]["min"] = true;
-        filter["i2c"]["lnk"] = true;
-        filter["i2c"]["seen"] = true;
-        filter["i2c"]["req"] = true;
-        filter["i2c"]["breq"] = true;
-        filter["i2c"]["ago"] = true;
-
-        StaticJsonDocument<1152> compactDoc;
-        const DeserializationError compactErr =
-            deserializeJson(compactDoc, out, DeserializationOption::Filter(filter));
-        if (compactErr || !compactDoc.is<JsonObjectConst>()) {
-            request->send(200, "application/json", out);
-            return;
-        }
-
-        JsonObject compactRoot = compactDoc.as<JsonObject>();
-        compactRoot["ok"] = true;
-
-        char compactOut[1152] = {0};
-        const size_t compactLen = serializeJson(compactDoc, compactOut, sizeof(compactOut));
-        if (compactLen == 0 || compactLen >= sizeof(compactOut)) {
-            request->send(200, "application/json", out);
-            return;
-        }
-        request->send(200, "application/json", compactOut);
+        request->send(200, "application/json", domainBuf);
     });
 
     server_.on("/api/flowcfg/modules", HTTP_GET, [this](AsyncWebServerRequest* request) {
@@ -1089,7 +1200,30 @@ void WebInterfaceModule::onWsEvent_(AsyncWebSocket*,
                                  size_t len)
 {
     if (type == WS_EVT_CONNECT) {
-        if (client) client->text("[webinterface] connecté");
+        ++wsFlowConnectCount_;
+        if (client) {
+            client->setCloseClientOnQueueFull(false);
+            client->keepAlivePeriod(15);
+            client->text("[webinterface] connecté");
+            LOGI("wsserial connect id=%lu clients=%u connects=%lu",
+                 (unsigned long)client->id(),
+                 (unsigned)ws_.count(),
+                 (unsigned long)wsFlowConnectCount_);
+        }
+        return;
+    }
+
+    if (type == WS_EVT_DISCONNECT) {
+        ++wsFlowDisconnectCount_;
+        LOGW("wsserial disconnect id=%lu clients=%u disconnects=%lu sent=%lu dropped=%lu partial=%lu discarded=%lu heap=%lu",
+             (unsigned long)(client ? client->id() : 0U),
+             (unsigned)ws_.count(),
+             (unsigned long)wsFlowDisconnectCount_,
+             (unsigned long)wsFlowSentCount_,
+             (unsigned long)wsFlowDropCount_,
+             (unsigned long)wsFlowPartialCount_,
+             (unsigned long)wsFlowDiscardCount_,
+             (unsigned long)ESP.getFreeHeap());
         return;
     }
 
@@ -1121,7 +1255,11 @@ void WebInterfaceModule::onWsLogEvent_(AsyncWebSocket*,
                                        size_t)
 {
     if (type == WS_EVT_CONNECT) {
-        if (client) client->text("[webinterface] logs supervisor connectes");
+        if (client) {
+            client->setCloseClientOnQueueFull(false);
+            client->keepAlivePeriod(15);
+            client->text("[webinterface] logs supervisor connectes");
+        }
     }
 }
 
@@ -1370,7 +1508,31 @@ void WebInterfaceModule::flushLine_(bool force)
     if (!force) return;
 
     lineBuf_[lineLen_] = '\0';
-    ws_.textAll(lineBuf_);
+    if (ws_.count() == 0) {
+        lineLen_ = 0;
+        return;
+    }
+
+    if (!ws_.availableForWriteAll()) {
+        ++wsFlowDropCount_;
+        logWsFlowPressure_("queue_full");
+        lineLen_ = 0;
+        return;
+    }
+
+    const AsyncWebSocket::SendStatus status = ws_.textAll(lineBuf_);
+    if (status == AsyncWebSocket::ENQUEUED) {
+        ++wsFlowSentCount_;
+    } else {
+        ++wsFlowDropCount_;
+        if (status == AsyncWebSocket::PARTIALLY_ENQUEUED) {
+            ++wsFlowPartialCount_;
+            logWsFlowPressure_("partial_enqueue");
+        } else {
+            ++wsFlowDiscardCount_;
+            logWsFlowPressure_("discarded");
+        }
+    }
     lineLen_ = 0;
 }
 
@@ -1382,6 +1544,21 @@ void WebInterfaceModule::flushLocalLogQueue_()
     while (xQueueReceive(localLogQueue_, line, 0) == pdTRUE) {
         wsLog_.textAll(line);
     }
+}
+
+void WebInterfaceModule::logWsFlowPressure_(const char* reason)
+{
+    const uint32_t nowMs = millis();
+    if ((nowMs - wsFlowLastPressureLogMs_) < 2000U) return;
+    wsFlowLastPressureLogMs_ = nowMs;
+    LOGW("wsserial pressure reason=%s clients=%u sent=%lu dropped=%lu partial=%lu discarded=%lu heap=%lu",
+         reason ? reason : "unknown",
+         (unsigned)ws_.count(),
+         (unsigned long)wsFlowSentCount_,
+         (unsigned long)wsFlowDropCount_,
+         (unsigned long)wsFlowPartialCount_,
+         (unsigned long)wsFlowDiscardCount_,
+         (unsigned long)ESP.getFreeHeap());
 }
 
 void WebInterfaceModule::loop()

@@ -149,6 +149,14 @@
     let supCfgCurrentData = {};
     let wifiScanAutoRequested = false;
     let flowStatusReqSeq = 0;
+    const flowStatusDomainTtlMs = 20000;
+    const flowStatusDomainKeys = ['system', 'wifi', 'mqtt', 'i2c'];
+    const flowStatusDomainCache = {
+      system: { data: null, fetchedAt: 0 },
+      wifi: { data: null, fetchedAt: 0 },
+      mqtt: { data: null, fetchedAt: 0 },
+      i2c: { data: null, fetchedAt: 0 }
+    };
 
     const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
     let logSource = 'flow';
@@ -227,9 +235,10 @@
         if (socket !== logSocket) return;
         setWsStatusText('connecté');
       };
-      socket.onclose = () => {
+      socket.onclose = (ev) => {
         if (socket !== logSocket) return;
-        setWsStatusText('déconnecté');
+        const code = ev && Number.isFinite(ev.code) ? ev.code : 0;
+        setWsStatusText(code ? ('déconnecté (' + code + ')') : 'déconnecté');
       };
       socket.onerror = () => {
         if (socket !== logSocket) return;
@@ -470,6 +479,92 @@
       return s + 's';
     }
 
+    function normalizeIpValue(ip) {
+      if (typeof ip === 'string') {
+        const trimmed = ip.trim();
+        return trimmed || '-';
+      }
+      if (Array.isArray(ip)) {
+        return ip.map((part) => String(part)).join('.') || '-';
+      }
+      if (ip && typeof ip === 'object') {
+        const keys = Object.keys(ip).sort((a, b) => Number(a) - Number(b));
+        if (keys.length > 0) {
+          return keys.map((key) => String(ip[key])).join('.') || '-';
+        }
+      }
+      if (typeof ip === 'number' && Number.isFinite(ip)) {
+        return String(ip);
+      }
+      return '-';
+    }
+
+    function buildFlowStatusFromDomains(domainData) {
+      const merged = { ok: true };
+      let anyDomainOk = false;
+
+      const system = domainData.system;
+      if (system && system.ok === true) {
+        anyDomainOk = true;
+        merged.fw = system.fw || '';
+        merged.upms = system.upms ?? 0;
+        merged.heap = (system.heap && typeof system.heap === 'object') ? system.heap : {};
+      }
+
+      const wifi = domainData.wifi;
+      if (wifi && wifi.ok === true && wifi.wifi && typeof wifi.wifi === 'object') {
+        anyDomainOk = true;
+        merged.wifi = Object.assign({}, wifi.wifi, { ip: normalizeIpValue(wifi.wifi.ip) });
+      }
+
+      const mqtt = domainData.mqtt;
+      if (mqtt && mqtt.ok === true && mqtt.mqtt && typeof mqtt.mqtt === 'object') {
+        anyDomainOk = true;
+        merged.mqtt = mqtt.mqtt;
+      }
+
+      const i2c = domainData.i2c;
+      if (i2c && i2c.ok === true && i2c.i2c && typeof i2c.i2c === 'object') {
+        anyDomainOk = true;
+        merged.i2c = i2c.i2c;
+      }
+
+      return anyDomainOk ? merged : null;
+    }
+
+    function getCachedFlowStatusData() {
+      const domainData = {};
+      flowStatusDomainKeys.forEach((domainKey) => {
+        domainData[domainKey] = flowStatusDomainCache[domainKey].data;
+      });
+      return buildFlowStatusFromDomains(domainData);
+    }
+
+    async function fetchFlowStatusDomain(domainKey, forceRefresh) {
+      const cacheEntry = flowStatusDomainCache[domainKey];
+      const now = Date.now();
+      const cacheValid = !!cacheEntry.data && ((now - cacheEntry.fetchedAt) < flowStatusDomainTtlMs);
+      if (!forceRefresh && cacheValid) {
+        return cacheEntry.data;
+      }
+
+      try {
+        const res = await fetch('/api/flow/status/domain?d=' + encodeURIComponent(domainKey), { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || data.ok !== true) {
+          throw new Error('statut ' + domainKey + ' indisponible');
+        }
+        cacheEntry.data = data;
+        cacheEntry.fetchedAt = Date.now();
+        return data;
+      } catch (err) {
+        if (cacheEntry.data) {
+          return cacheEntry.data;
+        }
+        throw err;
+      }
+    }
+
     function appendFlowStatusCard(title, rows) {
       const card = document.createElement('div');
       card.className = 'status-card';
@@ -532,12 +627,9 @@
       for (let i = 0; i < 4; ++i) {
         appendFlowStatusSkeletonCard();
       }
-      flowStatusRaw.classList.add('is-skeleton');
+      flowStatusRaw.hidden = true;
+      flowStatusRaw.classList.remove('is-skeleton');
       flowStatusRaw.innerHTML = '';
-      const rawWidths = [95, 88, 92, 85, 90, 84, 58];
-      rawWidths.forEach((w) => {
-        flowStatusRaw.appendChild(createSkeletonLine('', w));
-      });
     }
 
     function renderFlowStatus(data) {
@@ -548,7 +640,7 @@
       const firmware = data.fw || '-';
       const uptimeMs = data.upms || 0;
       const wifiReady = !!wifi.rdy;
-      const wifiIp = wifi.ip || '-';
+      const wifiIp = normalizeIpValue(wifi.ip);
       const wifiHasRssi = !!wifi.hrss;
       const wifiRssi = wifi.rssi ?? '-';
       const mqttReady = !!mqtt.rdy;
@@ -565,8 +657,7 @@
       appendFlowStatusCard('Réseau', [
         ['WiFi connecté', wifiReady],
         ['IP', wifiIp],
-        ['RSSI (dBm)', wifiHasRssi ? wifiRssi : '-'],
-        ['MQTT connecté', mqttReady]
+        ['RSSI (dBm)', wifiHasRssi ? wifiRssi : '-']
       ]);
       appendFlowStatusCard('I2C Supervisor', [
         ['Lien actif', i2cLinkOk],
@@ -580,7 +671,8 @@
         ['Heap libre', heap.free],
         ['Heap min', heap.min]
       ]);
-      appendFlowStatusCard('Diagnostic MQTT', [
+      appendFlowStatusCard('MQTT', [
+        ['Connecté', mqttReady],
         ['RX drop', mqttRxDrop],
         ['Parse fail', mqttParseFail],
         ['Handler fail', mqttHandlerFail],
@@ -588,27 +680,42 @@
       ]);
 
       flowStatusChip.textContent = i2cLinkOk ? 'Flow.IO en ligne (I2C OK)' : 'Flow.IO partiel / lien I2C faible';
+      flowStatusRaw.hidden = true;
       flowStatusRaw.classList.remove('is-skeleton');
-      flowStatusRaw.textContent = JSON.stringify(data, null, 2);
+      flowStatusRaw.innerHTML = '';
     }
 
-    async function refreshFlowStatus() {
+    async function refreshFlowStatus(forceRefresh) {
       const reqSeq = ++flowStatusReqSeq;
-      renderFlowStatusSkeleton();
+      const cachedData = !forceRefresh ? getCachedFlowStatusData() : null;
+      if (cachedData) {
+        renderFlowStatus(cachedData);
+      } else {
+        renderFlowStatusSkeleton();
+      }
       try {
-        const res = await fetch('/api/flow/status', { cache: 'no-store' });
-        const data = await res.json();
-        if (reqSeq !== flowStatusReqSeq) return;
-        if (!res.ok || !data || data.ok !== true) {
-          throw new Error('statut indisponible');
+        const domainData = {};
+        for (const domainKey of flowStatusDomainKeys) {
+          domainData[domainKey] = await fetchFlowStatusDomain(domainKey, !!forceRefresh);
+          if (reqSeq !== flowStatusReqSeq) return;
         }
+        if (reqSeq !== flowStatusReqSeq) return;
+        const data = buildFlowStatusFromDomains(domainData);
+        if (!data) throw new Error('statut indisponible');
         renderFlowStatus(data);
       } catch (err) {
         if (reqSeq !== flowStatusReqSeq) return;
+        const fallbackData = getCachedFlowStatusData();
+        if (fallbackData) {
+          renderFlowStatus(fallbackData);
+          flowStatusChip.textContent = 'statut affiché depuis le cache local';
+          return;
+        }
+        flowStatusRaw.hidden = true;
         flowStatusRaw.classList.remove('is-skeleton');
         flowStatusChip.textContent = 'erreur lecture statut';
         flowStatusGrid.innerHTML = '';
-        flowStatusRaw.textContent = 'Erreur: ' + err;
+        flowStatusRaw.innerHTML = '';
       }
     }
 
@@ -1415,7 +1522,7 @@
       }
     });
     flowStatusRefreshBtn.addEventListener('click', async () => {
-      await refreshFlowStatus();
+      await refreshFlowStatus(true);
     });
     upSupervisorBtn.addEventListener('click', () => startUpgrade('supervisor'));
     upFlowBtn.addEventListener('click', () => startUpgrade('flowio'));

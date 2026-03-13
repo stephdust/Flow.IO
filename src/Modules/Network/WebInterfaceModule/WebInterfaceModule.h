@@ -89,6 +89,13 @@ private:
 
     char lineBuf_[kLineBufferSize] = {0};
     size_t lineLen_ = 0;
+    uint32_t wsFlowConnectCount_ = 0;
+    uint32_t wsFlowDisconnectCount_ = 0;
+    uint32_t wsFlowSentCount_ = 0;
+    uint32_t wsFlowDropCount_ = 0;
+    uint32_t wsFlowPartialCount_ = 0;
+    uint32_t wsFlowDiscardCount_ = 0;
+    uint32_t wsFlowLastPressureLogMs_ = 0;
 
     void startServer_();
     void onWsEvent_(AsyncWebSocket* server,
@@ -108,6 +115,7 @@ private:
     bool getNetworkIp_(char* out, size_t len, NetworkAccessMode* modeOut) const;
     void flushLine_(bool force);
     void flushLocalLogQueue_();
+    void logWsFlowPressure_(const char* reason);
     static bool isLogByte_(uint8_t c);
     static char levelChar_(LogLevel lvl);
     static const char* levelColor_(LogLevel lvl);

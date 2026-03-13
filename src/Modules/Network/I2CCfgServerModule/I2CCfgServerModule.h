@@ -86,7 +86,7 @@ private:
     portMUX_TYPE actionMux_ = portMUX_INITIALIZER_UNLOCKED;
 
     static constexpr size_t kModuleJsonBufSize = Limits::JsonCfgBuf;
-    static constexpr size_t kStatusJsonBufSize = 1024;
+    static constexpr size_t kStatusJsonBufSize = 448;
     static constexpr size_t kPatchBufSize = Limits::JsonCfgBuf + 1U;
     static constexpr size_t kPoolModeJsonBufSize = 192;
     static constexpr size_t kAlarmSnapshotBufSize = Limits::Alarm::SnapshotJsonBuf;
@@ -124,9 +124,16 @@ private:
 
     void startLink_();
     void resetPatchState_();
+    static bool isValidStatusDomain_(FlowStatusDomain domain);
     bool collectPoolModeFlags_(bool& hasModeOut, bool& autoModeOut, bool& winterModeOut);
     void collectActiveAlarmCodes_(uint8_t& activeAlarmCountOut, uint8_t& activeAlarmCodeCountOut);
-    bool buildRuntimeStatusJson_(bool& truncatedOut);
+    bool buildRuntimeStatusDomainJson_(FlowStatusDomain domain, bool& truncatedOut);
+    bool buildRuntimeStatusSystemJson_(bool& truncatedOut);
+    bool buildRuntimeStatusWifiJson_(bool& truncatedOut);
+    bool buildRuntimeStatusMqttJson_(bool& truncatedOut);
+    bool buildRuntimeStatusI2cJson_(bool& truncatedOut);
+    bool buildRuntimeStatusPoolJson_(bool& truncatedOut);
+    bool buildRuntimeStatusAlarmJson_(bool& truncatedOut);
     void ensureActionTask_();
     void queueSystemAction_(PendingSystemAction action);
     PendingSystemAction takePendingSystemAction_();

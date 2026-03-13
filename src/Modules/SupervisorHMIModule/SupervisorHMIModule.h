@@ -68,7 +68,7 @@ private:
     uint32_t lastRenderedMinute_ = 0;
     bool hasLastRenderKey_ = false;
     bool lastBacklightOn_ = false;
-    char flowStatusJsonBuf_[1024] = {0};
+    char flowStatusScratchBuf_[448] = {0};
 
     bool buttonPressed_ = false;
     bool buttonTriggered_ = false;
