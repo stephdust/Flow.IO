@@ -70,6 +70,7 @@ private:
     const LogHubService* logHub_ = nullptr;
     const ConfigStoreService* cfgSvc_ = nullptr;
     const CommandService* cmdSvc_ = nullptr;
+    const AlarmService* alarmSvc_ = nullptr;
     DataStore* dataStore_ = nullptr;
     ConfigStore* cfgStore_ = nullptr;
     I2cLink link_{};
@@ -85,8 +86,11 @@ private:
     portMUX_TYPE actionMux_ = portMUX_INITIALIZER_UNLOCKED;
 
     static constexpr size_t kModuleJsonBufSize = Limits::JsonCfgBuf;
-    static constexpr size_t kStatusJsonBufSize = 640;
+    static constexpr size_t kStatusJsonBufSize = 1024;
     static constexpr size_t kPatchBufSize = Limits::JsonCfgBuf + 1U;
+    static constexpr size_t kPoolModeJsonBufSize = 192;
+    static constexpr size_t kAlarmSnapshotBufSize = Limits::Alarm::SnapshotJsonBuf;
+    static constexpr uint8_t kMaxAlarmCodes = 10;
     char moduleJson_[kModuleJsonBufSize] = {0};
     size_t moduleJsonLen_ = 0;
     bool moduleJsonValid_ = false;
@@ -95,6 +99,9 @@ private:
     size_t statusJsonLen_ = 0;
     bool statusJsonValid_ = false;
     bool statusJsonTruncated_ = false;
+    char poolModeJsonScratch_[kPoolModeJsonBufSize] = {0};
+    char alarmJsonScratch_[kAlarmSnapshotBufSize] = {0};
+    char activeAlarmCodes_[kMaxAlarmCodes][24] = {{0}};
 
     char patchBuf_[kPatchBufSize] = {0};
     size_t patchExpected_ = 0;
@@ -117,6 +124,8 @@ private:
 
     void startLink_();
     void resetPatchState_();
+    bool collectPoolModeFlags_(bool& hasModeOut, bool& autoModeOut, bool& winterModeOut);
+    void collectActiveAlarmCodes_(uint8_t& activeAlarmCountOut, uint8_t& activeAlarmCodeCountOut);
     bool buildRuntimeStatusJson_(bool& truncatedOut);
     void ensureActionTask_();
     void queueSystemAction_(PendingSystemAction action);

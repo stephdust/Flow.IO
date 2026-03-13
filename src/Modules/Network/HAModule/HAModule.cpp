@@ -125,16 +125,16 @@ void HAModule::sanitizeId(const char* in, char* out, size_t outLen)
     out[w] = '\0';
 }
 
-uint16_t HAModule::hash3Digits(const char* in)
+uint16_t HAModule::hash2Digits(const char* in)
 {
-    // 32-bit FNV-1a reduced to 3 decimal digits for short per-device entity prefixes.
+    // 32-bit FNV-1a reduced to 2 decimal digits for short per-device entity prefixes.
     uint32_t h = 2166136261u;
     const char* p = in ? in : "";
     while (*p) {
         h ^= (uint8_t)(*p++);
         h *= 16777619u;
     }
-    return (uint16_t)(h % 1000u);
+    return (uint16_t)(h % 100u);
 }
 
 bool HAModule::svcAddSensor(void* ctx, const HASensorEntry* entry)
@@ -291,7 +291,7 @@ bool HAModule::buildObjectId(const char* suffix, char* out, size_t outLen) const
 {
     if (!suffix || !out || outLen == 0) return false;
     char raw[256] = {0};
-    snprintf(raw, sizeof(raw), "flowio%03u_%s", (unsigned)entityHash3_, suffix);
+    snprintf(raw, sizeof(raw), "fio%02u_%s", (unsigned)entityHash2_, suffix);
     sanitizeId(raw, out, outLen);
     return out[0] != '\0';
 }
@@ -627,7 +627,7 @@ void HAModule::refreshIdentityFromConfig()
 
     // HA `device.identifiers` should follow the effective MQTT topic device id when available.
     snprintf(deviceIdent_, sizeof(deviceIdent_), "%s-%s", cfgData_.vendor, idForEntityPrefix);
-    entityHash3_ = hash3Digits(idForEntityPrefix);
+    entityHash2_ = hash2Digits(idForEntityPrefix);
 }
 
 bool HAModule::resolveMqttTopicDeviceId_(char* out, size_t outLen) const

@@ -643,7 +643,47 @@ void WebInterfaceModule::startServer_()
             }
             return;
         }
-        request->send(200, "application/json", out);
+
+        // Send a compact payload to keep HTTP response allocation low on supervisor.
+        StaticJsonDocument<512> filter;
+        filter["ok"] = true;
+        filter["fw"] = true;
+        filter["upms"] = true;
+        filter["wifi"]["rdy"] = true;
+        filter["wifi"]["ip"] = true;
+        filter["wifi"]["hrss"] = true;
+        filter["wifi"]["rssi"] = true;
+        filter["mqtt"]["rdy"] = true;
+        filter["mqtt"]["rxdrp"] = true;
+        filter["mqtt"]["prsf"] = true;
+        filter["mqtt"]["hndf"] = true;
+        filter["mqtt"]["ovr"] = true;
+        filter["heap"]["free"] = true;
+        filter["heap"]["min"] = true;
+        filter["i2c"]["lnk"] = true;
+        filter["i2c"]["seen"] = true;
+        filter["i2c"]["req"] = true;
+        filter["i2c"]["breq"] = true;
+        filter["i2c"]["ago"] = true;
+
+        StaticJsonDocument<1152> compactDoc;
+        const DeserializationError compactErr =
+            deserializeJson(compactDoc, out, DeserializationOption::Filter(filter));
+        if (compactErr || !compactDoc.is<JsonObjectConst>()) {
+            request->send(200, "application/json", out);
+            return;
+        }
+
+        JsonObject compactRoot = compactDoc.as<JsonObject>();
+        compactRoot["ok"] = true;
+
+        char compactOut[1152] = {0};
+        const size_t compactLen = serializeJson(compactDoc, compactOut, sizeof(compactOut));
+        if (compactLen == 0 || compactLen >= sizeof(compactOut)) {
+            request->send(200, "application/json", out);
+            return;
+        }
+        request->send(200, "application/json", compactOut);
     });
 
     server_.on("/api/flowcfg/modules", HTTP_GET, [this](AsyncWebServerRequest* request) {

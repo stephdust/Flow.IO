@@ -39,6 +39,19 @@
       background: var(--md-bg);
       color: var(--md-on-surface);
     }
+    @keyframes skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skeleton-line,
+    .control-chip-skeleton,
+    .control-input-skeleton,
+    .control-switch-skeleton {
+      border-radius: 10px;
+      background: linear-gradient(100deg, #d9e3ee 20%, #f3f7fb 50%, #d9e3ee 80%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.2s ease-in-out infinite;
+    }
     .app { display: flex; min-height: 100vh; }
     .drawer {
       width: 252px;
@@ -79,22 +92,19 @@
       justify-content: center;
       padding-top: 14px;
     }
-    .app-icon-shell {
-      width: 100%;
-      max-width: 210px;
-      border-radius: 10px;
-      background: transparent;
-      border: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
+    .app-wordmark {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--menu-active-edge);
+      opacity: 0.96;
+      transition: font-size 0.2s ease, letter-spacing 0.2s ease, opacity 0.2s ease;
     }
-    .app-icon {
-      width: 100%;
-      max-width: 203px;
-      height: auto;
-      display: block;
+    .drawer.collapsed .app-wordmark {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      opacity: 0.82;
     }
     .menu-item {
       border: 0;
@@ -124,6 +134,9 @@
       display: inline-flex;
       justify-content: center;
       align-items: center;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
     }
     .menu-item .ico-svg {
       font-size: 22px;
@@ -276,6 +289,30 @@
       font-size: 12px;
       line-height: 1.35;
       white-space: pre-wrap;
+    }
+    .status-card-skeleton .skeleton-title {
+      height: 13px;
+      margin-bottom: 9px;
+    }
+    .status-card-skeleton .status-kv div {
+      align-items: center;
+    }
+    .status-card-skeleton .skeleton-key,
+    .status-card-skeleton .skeleton-value {
+      height: 11px;
+    }
+    .status-raw.is-skeleton {
+      white-space: normal;
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+    .status-raw.is-skeleton .skeleton-line {
+      height: 10px;
+      margin-bottom: 8px;
+      border-radius: 8px;
+    }
+    .status-raw.is-skeleton .skeleton-line:last-child {
+      margin-bottom: 0;
     }
     .card {
       background: var(--panel-frame-bg);
@@ -703,6 +740,15 @@
       background: #D7EAF1;
       color: #2CA8B4;
     }
+    .control-chip-skeleton {
+      height: 32px;
+      min-width: 82px;
+      padding: 0;
+      border: 1px solid var(--panel-frame-border);
+      background-color: #d9e3ee;
+      pointer-events: none;
+      cursor: default;
+    }
     .control-chip-empty {
       padding: 9px 13px;
       border: 1px dashed #C9D5E0;
@@ -725,6 +771,38 @@
       border: 1px solid var(--panel-frame-border);
       border-radius: 12px;
       background: var(--panel-frame-bg);
+    }
+    .control-row-skeleton {
+      pointer-events: none;
+    }
+    .control-row-skeleton .control-label-wrap {
+      flex: 1 1 auto;
+    }
+    .control-row-skeleton .skeleton-line {
+      height: 12px;
+      margin-bottom: 6px;
+      border-radius: 8px;
+    }
+    .control-row-skeleton .skeleton-line:last-child {
+      margin-bottom: 0;
+    }
+    .control-input-skeleton {
+      width: 240px;
+      max-width: 42%;
+      height: 40px;
+      border: 1px solid var(--panel-frame-border);
+      border-radius: 12px;
+      flex: 0 0 auto;
+    }
+    .control-switch-skeleton {
+      width: 52px;
+      height: 32px;
+      border-radius: 999px;
+      border: 1px solid var(--panel-frame-border);
+      flex: 0 0 auto;
+    }
+    .control-title-breadcrumb.is-loading {
+      opacity: 0.86;
     }
     .control-label {
       font-size: 14px;
@@ -860,4 +938,15 @@
         min-width: 156px;
       }
       .status-grid { grid-template-columns: 1fr; }
+      .control-input-skeleton {
+        max-width: 56%;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton-line,
+      .control-chip-skeleton,
+      .control-input-skeleton,
+      .control-switch-skeleton {
+        animation: none;
+      }
     }

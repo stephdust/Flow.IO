@@ -97,6 +97,14 @@ Les tableaux ci-dessous résument les GPIO effectivement utilisés dans les prof
 | 33 | UART Nextion RX (upload TFT) | `fwupdate` | `FLOW_SUPERVISOR_NEXTION_RX` / `NEXT_RX` |
 | 32 | UART Nextion TX (upload TFT) | `fwupdate` | `FLOW_SUPERVISOR_NEXTION_TX` / `NEXT_TX` |
 | 13 | Reboot matériel Nextion | `fwupdate` | `FLOW_SUPERVISOR_NEXTION_REBOOT` |
+| 14 | TFT ST7789 backlight | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_BL` |
+| 15 | TFT ST7789 CS | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_CS` |
+| 4 | TFT ST7789 DC | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_DC` |
+| 5 | TFT ST7789 RST | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_RST` |
+| 18 | TFT ST7789 MOSI (soft SPI) | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_MOSI` |
+| 19 | TFT ST7789 SCLK (soft SPI) | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_SCLK` |
+| 27 | PIR présence écran | `hmi.supervisor` | `FLOW_SUPERVISOR_PIR_PIN` |
+| 23 | Bouton reset WiFi (appui long) | `hmi.supervisor` | `FLOW_SUPERVISOR_WIFI_RESET_PIN` |
 | 1 / 3 | UART0 TX/RX (console logs par défaut) | `log.sink.serial` | USB/serial monitor |
 
 ## Dossier modules (1 fichier par module)
@@ -112,6 +120,7 @@ Les tableaux ci-dessous résument les GPIO effectivement utilisés dans les prof
 - [SystemModule](modules/SystemModule.md)
 - [SystemMonitorModule](modules/SystemMonitorModule.md)
 - [HMIModule](modules/HMIModule.md)
+- [SupervisorHMIModule](modules/SupervisorHMIModule.md)
 - [AlarmModule](modules/AlarmModule.md)
 - [WifiModule](modules/WifiModule.md)
 - [TimeModule](modules/TimeModule.md)

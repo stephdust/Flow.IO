@@ -19,9 +19,32 @@
       }
     }
 
+    function startUpgradeStatusPolling() {
+      if (upgradeStatusPollTimer) return;
+      upgradeStatusPollTimer = setInterval(() => {
+        refreshUpgradeStatus().catch(() => {});
+      }, 4000);
+    }
+
+    function stopUpgradeStatusPolling() {
+      if (!upgradeStatusPollTimer) return;
+      clearInterval(upgradeStatusPollTimer);
+      upgradeStatusPollTimer = null;
+    }
+
     function showPage(pageId) {
       pages.forEach((el) => el.classList.toggle('active', el.id === pageId));
       menuItems.forEach((el) => el.classList.toggle('active', el.dataset.page === pageId));
+      terminalActive = pageId === 'page-terminal';
+      if (terminalActive) {
+        connectLogSocket();
+      } else {
+        closeLogSocket();
+        setWsStatusText('inactif');
+      }
+      if (pageId === 'page-status') {
+        refreshFlowStatus().catch(() => {});
+      }
       if (pageId === 'page-config') {
         onConfigPageShown().catch(() => {});
       }
@@ -31,19 +54,12 @@
       if (pageId === 'page-local-config') {
         onLocalConfigPageShown().catch(() => {});
       }
-      closeMobileDrawer();
-    }
-
-    async function ouvrirPageParDefautSelonModeReseau() {
-      try {
-        const res = await fetch('/api/network/mode', { cache: 'no-store' });
-        const data = await res.json();
-        if (res.ok && data && data.ok === true && data.mode === 'ap') {
-          showPage('page-config');
-        }
-      } catch (err) {
-        // Keep default page when network mode endpoint is unavailable.
+      if (pageId === 'page-upgrade') {
+        onUpgradePageShown().catch(() => {});
+      } else {
+        stopUpgradeStatusPolling();
       }
+      closeMobileDrawer();
     }
 
     menuItems.forEach((item) => item.addEventListener('click', () => showPage(item.dataset.page)));
@@ -71,6 +87,7 @@
     const clearBtn = document.getElementById('clear');
     const toggleAutoscrollInput = document.getElementById('toggleAutoscroll');
     let autoScrollEnabled = true;
+    let terminalActive = false;
     const lineDefaultPlaceholder = line ? line.placeholder : '';
 
     const updateHost = document.getElementById('updateHost');
@@ -116,18 +133,22 @@
     const supCfgFields = document.getElementById('supCfgFields');
     const supCfgStatus = document.getElementById('supCfgStatus');
     let wifiScanPollTimer = null;
+    let upgradeStatusPollTimer = null;
     let flowCfgCurrentModule = '';
     let flowCfgCurrentData = {};
     let flowCfgChildrenCache = {};
     let flowCfgPath = [];
     let flowCfgDocs = {};
     let flowCfgDocsLoaded = false;
+    let flowCfgLoadingDepth = 0;
+    let upgradeCfgLoadedOnce = false;
     let wifiConfigLoadedOnce = false;
     let flowCfgLoadedOnce = false;
     let supCfgLoadedOnce = false;
     let supCfgCurrentModule = '';
     let supCfgCurrentData = {};
     let wifiScanAutoRequested = false;
+    let flowStatusReqSeq = 0;
 
     const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
     let logSource = 'flow';
@@ -234,7 +255,9 @@
         logSourceSelect.value = logSource;
       }
       updateTerminalInputState();
-      connectLogSocket();
+      if (terminalActive) {
+        connectLogSocket();
+      }
     }
 
     function refreshAutoscrollUi() {
@@ -293,7 +316,9 @@
       });
     }
     refreshAutoscrollUi();
-    setLogSource(logSourceSelect ? logSourceSelect.value : 'flow');
+    logSource = logSourceSelect ? logSourceSelect.value : 'flow';
+    updateTerminalInputState();
+    setWsStatusText('inactif');
     flowCfgApplyBtn.disabled = true;
     supCfgApplyBtn.disabled = true;
 
@@ -468,55 +493,132 @@
       flowStatusGrid.appendChild(card);
     }
 
+    function createSkeletonLine(className, widthPercent) {
+      const line = document.createElement('div');
+      line.className = className ? ('skeleton-line ' + className) : 'skeleton-line';
+      if (Number.isFinite(widthPercent) && widthPercent > 0) {
+        line.style.width = widthPercent + '%';
+      }
+      return line;
+    }
+
+    function appendFlowStatusSkeletonCard() {
+      const card = document.createElement('div');
+      card.className = 'status-card status-card-skeleton';
+      const title = createSkeletonLine('skeleton-title', 46);
+      card.appendChild(title);
+
+      const kv = document.createElement('div');
+      kv.className = 'status-kv';
+      const widths = [
+        [44, 24],
+        [40, 30],
+        [35, 20],
+        [48, 26]
+      ];
+      widths.forEach((pair) => {
+        const row = document.createElement('div');
+        row.appendChild(createSkeletonLine('skeleton-key', pair[0]));
+        row.appendChild(createSkeletonLine('skeleton-value', pair[1]));
+        kv.appendChild(row);
+      });
+      card.appendChild(kv);
+      flowStatusGrid.appendChild(card);
+    }
+
+    function renderFlowStatusSkeleton() {
+      flowStatusChip.textContent = 'chargement...';
+      flowStatusGrid.innerHTML = '';
+      for (let i = 0; i < 4; ++i) {
+        appendFlowStatusSkeletonCard();
+      }
+      flowStatusRaw.classList.add('is-skeleton');
+      flowStatusRaw.innerHTML = '';
+      const rawWidths = [95, 88, 92, 85, 90, 84, 58];
+      rawWidths.forEach((w) => {
+        flowStatusRaw.appendChild(createSkeletonLine('', w));
+      });
+    }
+
     function renderFlowStatus(data) {
       const wifi = (data && typeof data.wifi === 'object') ? data.wifi : {};
       const mqtt = (data && typeof data.mqtt === 'object') ? data.mqtt : {};
       const heap = (data && data.heap && typeof data.heap === 'object') ? data.heap : {};
       const i2c = (data && data.i2c && typeof data.i2c === 'object') ? data.i2c : {};
+      const firmware = data.fw || '-';
+      const uptimeMs = data.upms || 0;
+      const wifiReady = !!wifi.rdy;
+      const wifiIp = wifi.ip || '-';
+      const wifiHasRssi = !!wifi.hrss;
+      const wifiRssi = wifi.rssi ?? '-';
+      const mqttReady = !!mqtt.rdy;
+      const mqttRxDrop = mqtt.rxdrp ?? 0;
+      const mqttParseFail = mqtt.prsf ?? 0;
+      const mqttHandlerFail = mqtt.hndf ?? 0;
+      const mqttOversizeDrop = mqtt.ovr ?? 0;
+      const i2cLinkOk = !!i2c.lnk;
+      const i2cSeen = !!i2c.seen;
+      const i2cReqCount = i2c.req ?? 0;
+      const i2cAgo = i2c.ago ?? 0;
 
       flowStatusGrid.innerHTML = '';
       appendFlowStatusCard('Réseau', [
-        ['WiFi connecté', !!wifi.ready],
-        ['IP', wifi.ip || '-'],
-        ['RSSI (dBm)', wifi.has_rssi ? wifi.rssi_dbm : '-'],
-        ['MQTT connecté', !!mqtt.ready]
+        ['WiFi connecté', wifiReady],
+        ['IP', wifiIp],
+        ['RSSI (dBm)', wifiHasRssi ? wifiRssi : '-'],
+        ['MQTT connecté', mqttReady]
       ]);
       appendFlowStatusCard('I2C Supervisor', [
-        ['Lien actif', !!i2c.supervisor_link_ok],
-        ['Supervisor vu', !!i2c.supervisor_seen],
-        ['Req total', i2c.request_count],
-        ['Dernière req (ms)', i2c.last_request_ago_ms]
+        ['Lien actif', i2cLinkOk],
+        ['Supervisor vu', i2cSeen],
+        ['Req total', i2cReqCount],
+        ['Dernière req (ms)', i2cAgo]
       ]);
       appendFlowStatusCard('Système Flow.IO', [
-        ['Firmware', data.firmware || '-'],
-        ['Uptime', fmtFlowUptime(data.uptime_ms)],
+        ['Firmware', firmware],
+        ['Uptime', fmtFlowUptime(uptimeMs)],
         ['Heap libre', heap.free],
         ['Heap min', heap.min]
       ]);
       appendFlowStatusCard('Diagnostic MQTT', [
-        ['RX drop', mqtt.rx_drop],
-        ['Parse fail', mqtt.parse_fail],
-        ['Handler fail', mqtt.handler_fail],
-        ['Oversize drop', mqtt.oversize_drop]
+        ['RX drop', mqttRxDrop],
+        ['Parse fail', mqttParseFail],
+        ['Handler fail', mqttHandlerFail],
+        ['Oversize drop', mqttOversizeDrop]
       ]);
 
-      flowStatusChip.textContent = i2c.supervisor_link_ok ? 'Flow.IO en ligne (I2C OK)' : 'Flow.IO partiel / lien I2C faible';
+      flowStatusChip.textContent = i2cLinkOk ? 'Flow.IO en ligne (I2C OK)' : 'Flow.IO partiel / lien I2C faible';
+      flowStatusRaw.classList.remove('is-skeleton');
       flowStatusRaw.textContent = JSON.stringify(data, null, 2);
     }
 
     async function refreshFlowStatus() {
+      const reqSeq = ++flowStatusReqSeq;
+      renderFlowStatusSkeleton();
       try {
         const res = await fetch('/api/flow/status', { cache: 'no-store' });
         const data = await res.json();
+        if (reqSeq !== flowStatusReqSeq) return;
         if (!res.ok || !data || data.ok !== true) {
           throw new Error('statut indisponible');
         }
         renderFlowStatus(data);
       } catch (err) {
+        if (reqSeq !== flowStatusReqSeq) return;
+        flowStatusRaw.classList.remove('is-skeleton');
         flowStatusChip.textContent = 'erreur lecture statut';
         flowStatusGrid.innerHTML = '';
         flowStatusRaw.textContent = 'Erreur: ' + err;
       }
+    }
+
+    async function onUpgradePageShown() {
+      if (!upgradeCfgLoadedOnce) {
+        upgradeCfgLoadedOnce = true;
+        await loadUpgradeConfig();
+      }
+      await refreshUpgradeStatus();
+      startUpgradeStatusPolling();
     }
 
     function stopWifiScanPolling() {
@@ -833,6 +935,66 @@
       return p.length > 0 ? p : '__root__';
     }
 
+    function renderFlowCfgSectionsSkeleton() {
+      flowCfgSections.innerHTML = '';
+      const widths = [16, 22, 14, 20, 18];
+      widths.forEach((w) => {
+        const chip = document.createElement('span');
+        chip.className = 'control-chip control-chip-skeleton';
+        chip.style.width = w + '%';
+        flowCfgSections.appendChild(chip);
+      });
+    }
+
+    function renderFlowCfgFieldsSkeleton() {
+      flowCfgFields.innerHTML = '';
+      for (let i = 0; i < 5; ++i) {
+        const row = document.createElement('div');
+        row.className = 'control-row control-row-skeleton';
+
+        const labelWrap = document.createElement('div');
+        labelWrap.className = 'control-label-wrap';
+        labelWrap.appendChild(createSkeletonLine('', i % 2 === 0 ? 38 : 44));
+        if (i % 2 === 0) {
+          labelWrap.appendChild(createSkeletonLine('', 62));
+        }
+        row.appendChild(labelWrap);
+
+        const inputSkel = document.createElement('div');
+        if (i === 1) {
+          inputSkel.className = 'control-switch-skeleton';
+        } else {
+          inputSkel.className = 'control-input-skeleton';
+        }
+        row.appendChild(inputSkel);
+        flowCfgFields.appendChild(row);
+      }
+    }
+
+    function beginFlowCfgLoading(statusText) {
+      flowCfgLoadingDepth += 1;
+      if (flowCfgLoadingDepth === 1) {
+        flowCfgTitle.classList.add('is-loading');
+        flowCfgRefreshBtn.disabled = true;
+        flowCfgApplyBtn.disabled = true;
+        renderFlowCfgSectionsSkeleton();
+        renderFlowCfgFieldsSkeleton();
+      }
+      if (statusText) {
+        flowCfgStatus.textContent = statusText;
+      }
+    }
+
+    function endFlowCfgLoading() {
+      if (flowCfgLoadingDepth > 0) {
+        flowCfgLoadingDepth -= 1;
+      }
+      if (flowCfgLoadingDepth === 0) {
+        flowCfgTitle.classList.remove('is-loading');
+        flowCfgRefreshBtn.disabled = false;
+      }
+    }
+
     async function chargerFlowCfgDocs() {
       flowCfgDocsLoaded = true;
       try {
@@ -1039,13 +1201,14 @@
     }
 
     async function chargerFlowCfgModule(moduleName) {
+      beginFlowCfgLoading('Chargement de la branche distante...');
       const m = nettoyerNomFlowCfg(moduleName);
-      if (!m) {
-        renderFlowCfgTitle(cheminFlowCfgCourant());
-        resetFlowCfgEditor('Aucune branche sélectionnée.');
-        return;
-      }
       try {
+        if (!m) {
+          renderFlowCfgTitle(cheminFlowCfgCourant());
+          resetFlowCfgEditor('Aucune branche sélectionnée.');
+          return;
+        }
         const res = await fetch('/api/flowcfg/module?name=' + encodeURIComponent(m), { cache: 'no-store' });
         const data = await res.json();
         if (!res.ok || !data || data.ok !== true || typeof data.data !== 'object') {
@@ -1062,27 +1225,35 @@
       } catch (err) {
         renderFlowCfgTitle(cheminFlowCfgCourant());
         resetFlowCfgEditor('Chargement branche échoué: ' + err);
+      } finally {
+        endFlowCfgLoading();
       }
     }
 
     async function renderFlowCfgNavigator(forceReloadCurrent) {
-      const currentPath = cheminFlowCfgCourant();
-      const node = await chargerFlowCfgChildren(currentPath, !!forceReloadCurrent);
-      renderFlowCfgTitle(currentPath);
-      renderFlowCfgSections(node, currentPath);
-      if (node.hasExact) {
-        await chargerFlowCfgModule(currentPath);
-        return;
-      }
-      if (node.children.length > 0) {
-        resetFlowCfgEditor('Sélectionnez une section.');
-      } else {
-        resetFlowCfgEditor('Aucune sous-branche disponible.');
+      beginFlowCfgLoading('Chargement de la configuration distante...');
+      try {
+        const currentPath = cheminFlowCfgCourant();
+        const node = await chargerFlowCfgChildren(currentPath, !!forceReloadCurrent);
+        renderFlowCfgTitle(currentPath);
+        renderFlowCfgSections(node, currentPath);
+        if (node.hasExact) {
+          await chargerFlowCfgModule(currentPath);
+          return;
+        }
+        if (node.children.length > 0) {
+          resetFlowCfgEditor('Sélectionnez une section.');
+        } else {
+          resetFlowCfgEditor('Aucune sous-branche disponible.');
+        }
+      } finally {
+        endFlowCfgLoading();
       }
     }
 
     async function chargerFlowCfgModules(forceReload) {
       const force = !!forceReload;
+      beginFlowCfgLoading('Chargement de la configuration distante...');
       try {
         if (force) {
           flowCfgChildrenCache = {};
@@ -1096,6 +1267,8 @@
         await renderFlowCfgNavigator(force);
       } catch (err) {
         flowCfgStatus.textContent = 'Chargement des branches échoué: ' + err;
+      } finally {
+        endFlowCfgLoading();
       }
     }
 
@@ -1330,10 +1503,29 @@
         closeFlowCfgCrumbMenus();
       }
     });
+    document.addEventListener('visibilitychange', () => {
+      const active = document.querySelector('.page.active');
+      const onUpgradePage = !!active && active.id === 'page-upgrade';
+      const onTerminalPage = !!active && active.id === 'page-terminal';
+      if (document.hidden || !onUpgradePage) {
+        stopUpgradeStatusPolling();
+      } else {
+        startUpgradeStatusPolling();
+      }
+      if (document.hidden || !onTerminalPage) {
+        closeLogSocket();
+        setWsStatusText('inactif');
+      } else if (terminalActive) {
+        connectLogSocket();
+      }
+    });
 
-    loadUpgradeConfig();
     setUpgradeProgress(0);
-    refreshFlowStatus().catch(() => {});
-    ouvrirPageParDefautSelonModeReseau();
-    refreshUpgradeStatus();
-    setInterval(refreshUpgradeStatus, 2000);
+    {
+      const activePage = document.querySelector('.page.active');
+      if (activePage && activePage.id) {
+        showPage(activePage.id);
+      } else {
+        showPage('page-status');
+      }
+    }

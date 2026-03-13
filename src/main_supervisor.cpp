@@ -29,6 +29,7 @@
 #include "Modules/Network/FirmwareUpdateModule/FirmwareUpdateModule.h"
 #include "Modules/System/SystemModule/SystemModule.h"
 #include "Modules/System/SystemMonitorModule/SystemMonitorModule.h"
+#include "Modules/SupervisorHMIModule/SupervisorHMIModule.h"
 
 static Preferences preferences;
 static ConfigStore registry;
@@ -53,6 +54,7 @@ static WebInterfaceModule webInterfaceModule;
 static FirmwareUpdateModule firmwareUpdateModule;
 static SystemModule systemModule;
 static SystemMonitorModule systemMonitorModule;
+static SupervisorHMIModule supervisorHMIModule;
 
 void setup()
 {
@@ -79,6 +81,7 @@ void setup()
     moduleManager.add(&i2cCfgClientModule);
     moduleManager.add(&webInterfaceModule);
     moduleManager.add(&firmwareUpdateModule);
+    moduleManager.add(&supervisorHMIModule);
     moduleManager.add(&systemModule);
 
     systemMonitorModule.setModuleManager(&moduleManager);

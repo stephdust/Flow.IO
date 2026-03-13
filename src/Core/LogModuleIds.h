@@ -74,6 +74,7 @@ static inline LogModuleId logModuleIdFromModuleName(const char* moduleName)
     if (strcmp(moduleName, "pooldev") == 0) return (LogModuleId)LogModuleIdValue::PoolDeviceModule;
     if (strcmp(moduleName, "poollogic") == 0) return (LogModuleId)LogModuleIdValue::PoolLogicModule;
     if (strcmp(moduleName, "hmi") == 0) return (LogModuleId)LogModuleIdValue::HMIModule;
+    if (strcmp(moduleName, "hmi.supervisor") == 0) return (LogModuleId)LogModuleIdValue::HMIModule;
 
     return (LogModuleId)LogModuleIdValue::Unknown;
 }

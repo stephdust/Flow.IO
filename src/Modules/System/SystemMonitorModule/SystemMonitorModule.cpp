@@ -50,7 +50,7 @@ void SystemMonitorModule::registerHaEntities_(ServiceRegistry& services)
 
     const HASensorEntry uptimeSeconds{
         "system",
-        "uptime_seconds",
+        "sys_upt_s",
         "Uptime",
         "rt/system/state",
         "{{ value_json.upt_s | int(0) }}",
@@ -62,7 +62,7 @@ void SystemMonitorModule::registerHaEntities_(ServiceRegistry& services)
     };
     const HASensorEntry heapFreeBytes{
         "system",
-        "heap_free_bytes",
+        "sys_hp_free",
         "Heap Free",
         "rt/system/state",
         "{{ ((value_json.heap.free | float(0)) / 1024) | round(1) }}",
@@ -74,7 +74,7 @@ void SystemMonitorModule::registerHaEntities_(ServiceRegistry& services)
     };
     const HASensorEntry heapMinFreeBytes{
         "system",
-        "heap_min_free_bytes",
+        "sys_hp_min",
         "Heap Min Free",
         "rt/system/state",
         "{{ ((value_json.heap.min | float(0)) / 1024) | round(1) }}",
@@ -86,7 +86,7 @@ void SystemMonitorModule::registerHaEntities_(ServiceRegistry& services)
     };
     const HASensorEntry heapFragPercent{
         "system",
-        "heap_fragmentation",
+        "sys_hp_frag",
         "Heap Fragmentation",
         "rt/system/state",
         "{{ value_json.heap.frag | int(0) }}",

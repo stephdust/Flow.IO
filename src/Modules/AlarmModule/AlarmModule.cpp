@@ -657,7 +657,7 @@ void AlarmModule::registerHaEntities_(ServiceRegistry& services)
 
     const HASensorEntry alarmsPack{
         "alarms",
-        "alarms_pack",
+        "alm_pack",
         "Alarms Pack",
         "rt/alarms/p",
         "{{ value_json.p | int(0) }}",
@@ -670,7 +670,7 @@ void AlarmModule::registerHaEntities_(ServiceRegistry& services)
     if (haSvc_->addSensor(haSvc_->ctx, &alarmsPack)) {
         haEntitiesRegistered_ = true;
     } else {
-        LOGW("HA registration failed: alarms_pack");
+        LOGW("HA registration failed: alm_pack");
     }
 }
 

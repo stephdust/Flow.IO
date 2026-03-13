@@ -10,8 +10,8 @@
 
 namespace Limits {
 
-/** @brief MQTT topic buffer length used by runtime snapshot routing in `main.cpp`. */
-constexpr size_t TopicBuf = 128;
+/** @brief MQTT full topic buffer length used by runtime snapshot publications in `main.cpp`. */
+constexpr size_t TopicBuf = 70;
 /** @brief JSON capacity for MQTT cfg patch parsing in `MQTTModule::publishConfigBlocksFromPatch`. */
 constexpr size_t JsonPatchBuf = 1024;
 /** @brief JSON capacity for MQTT `cmd` payload parsing in `MQTTModule::processRxCmd_`. */
@@ -69,11 +69,11 @@ constexpr size_t User = 32;
 /** @brief MQTT config buffer length for `MQTTConfig::pass` in `MQTTModule`. */
 constexpr size_t Pass = 32;
 /** @brief MQTT config buffer length for `MQTTConfig::baseTopic` in `MQTTModule`. */
-constexpr size_t BaseTopic = 64;
+constexpr size_t BaseTopic = 15;
 /** @brief MQTT device identifier buffer length used by `MQTTModule::deviceId` (e.g. `ESP32-XXXXXX`). */
-constexpr size_t DeviceId = 24;
-/** @brief MQTT topic buffer length used by `MQTTModule` fixed topics (`cmd`, `ack`, `status`, `cfg/*`). */
-constexpr size_t Topic = 128;
+constexpr size_t DeviceId = 15;
+/** @brief MQTT full topic buffer length used by `MQTTModule` fixed topics (`cmd`, `ack`, `status`, `cfg/*`). */
+constexpr size_t Topic = 70;
 /** @brief MQTT temporary topic buffer length for dynamic subtopics in `MQTTModule` (`cfg/<module>`, scheduler slots). */
 constexpr size_t DynamicTopic = 160;
 /** @brief RX command topic buffer length inside `MQTTModule::RxMsg`. */

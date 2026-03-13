@@ -1571,13 +1571,13 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
     if (haSvc_ && haSvc_->addSensor) {
         if (slots_[POOL_IO_SLOT_CHLORINE_PUMP].used) {
             const HASensorEntry s0{
-                "pooldev", "chlorine_pump_uptime_s", "Pump uptime Chlorine",
+                "pooldev", "pd_chl_pmp_upt", "Pump uptime Chlorine",
                 "rt/pdm/metrics/pd2", "{{ value_json.running.day_s | int(0) }}",
                 nullptr, "mdi:timer-outline", "s"
             };
             (void)haSvc_->addSensor(haSvc_->ctx, &s0);
             const HASensorEntry s0b{
-                "pooldev", "chlorine_tank_remaining_l", "Tank remaining Chlorine",
+                "pooldev", "pd_chl_tnk_rem", "Tank remaining Chlorine",
                 "rt/pdm/metrics/pd2", "{{ ((value_json.tank.remaining_ml | float(0)) / 1000) | round(2) }}",
                 nullptr, "mdi:water-check", "L"
             };
@@ -1585,13 +1585,13 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
         if (slots_[POOL_IO_SLOT_PH_PUMP].used) {
             const HASensorEntry s1{
-                "pooldev", "ph_pump_uptime_s", "Pump uptime pH",
+                "pooldev", "pd_ph_pmp_upt", "Pump uptime pH",
                 "rt/pdm/metrics/pd1", "{{ value_json.running.day_s | int(0) }}",
                 nullptr, "mdi:timer-outline", "s"
             };
             (void)haSvc_->addSensor(haSvc_->ctx, &s1);
             const HASensorEntry s1b{
-                "pooldev", "ph_tank_remaining_l", "Tank remaining pH",
+                "pooldev", "pd_ph_tnk_rem", "Tank remaining pH",
                 "rt/pdm/metrics/pd1", "{{ ((value_json.tank.remaining_ml | float(0)) / 1000) | round(2) }}",
                 nullptr, "mdi:beaker-check-outline", "L", false
             };
@@ -1599,7 +1599,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
         if (slots_[POOL_IO_SLOT_FILL_PUMP].used) {
             const HASensorEntry s2{
-                "pooldev", "fill_pump_uptime_mn", "Pump uptime Fill",
+                "pooldev", "pd_fill_upt_mn", "Pump uptime Fill",
                 "rt/pdm/metrics/pd4", "{{ ((value_json.running.day_s | float(0)) / 60) | round(0) | int(0) }}",
                 nullptr, "mdi:timer-outline", "mn"
             };
@@ -1607,7 +1607,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
         if (slots_[POOL_IO_SLOT_FILTRATION_PUMP].used) {
             const HASensorEntry s3{
-                "pooldev", "filtration_uptime_mn", "Pump uptime Filtration",
+                "pooldev", "pd_flt_upt_mn", "Pump uptime Filtration",
                 "rt/pdm/metrics/pd0", "{{ ((value_json.running.day_s | float(0)) / 60) | round(0) | int(0) }}",
                 nullptr, "mdi:timer-outline", "mn"
             };
@@ -1615,7 +1615,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
         if (slots_[POOL_IO_SLOT_CHLORINE_GENERATOR].used) {
             const HASensorEntry s4{
-                "pooldev", "chlorine_generator_uptime_mn", "Pump uptime Chlorine Generator",
+                "pooldev", "pd_chl_gen_upt", "Pump uptime Chlorine Generator",
                 "rt/pdm/metrics/pd5", "{{ ((value_json.running.day_s | float(0)) / 60) | round(0) | int(0) }}",
                 nullptr, "mdi:timer-outline", "mn"
             };
@@ -1626,7 +1626,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
     if (haSvc_ && haSvc_->addNumber) {
         if (slots_[0].used) {
             const HANumberEntry n0{
-                "pooldev", "pd0_flow_l_h", "Filtration Pump Flowrate",
+                "pooldev", "pd0_flow", "Filtration Pump Flowrate",
                 "cfg/pdm/pd0", "{{ value_json.flow_l_h }}",
                 MqttTopics::SuffixCfgSet, "{\\\"pdm/pd0\\\":{\\\"flow_l_h\\\":{{ value | float(0) }}}}",
                 0.0f, 3.0f, 0.1f, "slider", "config", "mdi:water-sync", "L/h"
@@ -1635,7 +1635,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
         if (slots_[1].used) {
             const HANumberEntry n1{
-                "pooldev", "pd1_flow_l_h", "pH Pump Flowrate",
+                "pooldev", "pd1_flow", "pH Pump Flowrate",
                 "cfg/pdm/pd1", "{{ value_json.flow_l_h }}",
                 MqttTopics::SuffixCfgSet, "{\\\"pdm/pd1\\\":{\\\"flow_l_h\\\":{{ value | float(0) }}}}",
                 0.0f, 3.0f, 0.1f, "slider", "config", "mdi:water-sync", "L/h"
@@ -1644,7 +1644,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
         if (slots_[2].used) {
             const HANumberEntry n2{
-                "pooldev", "pd2_flow_l_h", "Chlorine Pump Flowrate",
+                "pooldev", "pd2_flow", "Chlorine Pump Flowrate",
                 "cfg/pdm/pd2", "{{ value_json.flow_l_h }}",
                 MqttTopics::SuffixCfgSet, "{\\\"pdm/pd2\\\":{\\\"flow_l_h\\\":{{ value | float(0) }}}}",
                 0.0f, 3.0f, 0.1f, "slider", "config", "mdi:water-sync", "L/h"
@@ -1653,7 +1653,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
         if (slots_[POOL_IO_SLOT_PH_PUMP].used) {
             const HANumberEntry n3{
-                "pooldev", "pd1_max_uptime_min", "Max uptime pH Pump",
+                "pooldev", "pd1_max_upt", "Max uptime pH Pump",
                 "cfg/pdm/pd1", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
                 MqttTopics::SuffixCfgSet, "{\\\"pdm/pd1\\\":{\\\"max_uptime_day_s\\\":{{ (value | float(0) * 60) | round(0) | int(0) }}}}",
                 0.0f, 1440.0f, 1.0f, "slider", "config", "mdi:timer-cog-outline", "min"
@@ -1662,7 +1662,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
         if (slots_[POOL_IO_SLOT_CHLORINE_PUMP].used) {
             const HANumberEntry n4{
-                "pooldev", "pd2_max_uptime_min", "Max uptime Chlorine Pump",
+                "pooldev", "pd2_max_upt", "Max uptime Chlorine Pump",
                 "cfg/pdm/pd2", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
                 MqttTopics::SuffixCfgSet, "{\\\"pdm/pd2\\\":{\\\"max_uptime_day_s\\\":{{ (value | float(0) * 60) | round(0) | int(0) }}}}",
                 0.0f, 1440.0f, 1.0f, "slider", "config", "mdi:timer-cog-outline", "min"
@@ -1671,7 +1671,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
         if (slots_[POOL_IO_SLOT_CHLORINE_GENERATOR].used) {
             const HANumberEntry n5{
-                "pooldev", "pd5_max_uptime_min", "Max uptime Chlorine Generator",
+                "pooldev", "pd5_max_upt", "Max uptime Chlorine Generator",
                 "cfg/pdm/pd5", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
                 MqttTopics::SuffixCfgSet, "{\\\"pdm/pd5\\\":{\\\"max_uptime_day_s\\\":{{ (value | float(0) * 60) | round(0) | int(0) }}}}",
                 0.0f, 1440.0f, 1.0f, "slider", "config", "mdi:timer-cog-outline", "min"
@@ -1683,7 +1683,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         if (slots_[POOL_IO_SLOT_PH_PUMP].used) {
             const HAButtonEntry refillPhTank{
                 "pooldev",
-                "refill_ph_tank",
+                "pd_refill_ph",
                 "Fill pH Tank",
                 MqttTopics::SuffixCmd,
                 "{\\\"cmd\\\":\\\"pool.refill\\\",\\\"args\\\":{\\\"slot\\\":1}}",
@@ -1695,7 +1695,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         if (slots_[POOL_IO_SLOT_CHLORINE_PUMP].used) {
             const HAButtonEntry refillChlorineTank{
                 "pooldev",
-                "refill_chlorine_tank",
+                "pd_refill_chl",
                 "Fill Chlorine Tank",
                 MqttTopics::SuffixCmd,
                 "{\\\"cmd\\\":\\\"pool.refill\\\",\\\"args\\\":{\\\"slot\\\":2}}",

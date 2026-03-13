@@ -66,7 +66,7 @@ private:
     char deviceId_[32] = {0};
     char deviceIdent_[96] = {0};
     char nodeTopicId_[32] = {0};
-    uint16_t entityHash3_ = 0;
+    uint16_t entityHash2_ = 0;
 
     char stateTopicBuf_[192] = {0};
     char objectIdBuf_[192] = {0};
@@ -195,5 +195,5 @@ private:
     static void makeDeviceId(char* out, size_t len);
     static void makeHexNodeId(char* out, size_t len);
     static void sanitizeId(const char* in, char* out, size_t outLen);
-    static uint16_t hash3Digits(const char* in);
+    static uint16_t hash2Digits(const char* in);
 };

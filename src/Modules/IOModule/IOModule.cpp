@@ -726,12 +726,12 @@ void IOModule::registerHaAnalogSensors_()
     buildHaValueTemplate_(4, haValueTpl_[4], sizeof(haValueTpl_[4]));
     buildHaValueTemplate_(5, haValueTpl_[5], sizeof(haValueTpl_[5]));
 
-    const HASensorEntry s0{"io", "orp", "ORP", "rt/io/input/a0", haValueTpl_[0], nullptr, "mdi:flash", "mV", false, kIoValueAvailabilityTpl};
-    const HASensorEntry s1{"io", "ph", "pH", "rt/io/input/a1", haValueTpl_[1], nullptr, "mdi:ph", "", false, kIoValueAvailabilityTpl};
-    const HASensorEntry s2{"io", "psi", "PSI", "rt/io/input/a2", haValueTpl_[2], nullptr, "mdi:gauge", "PSI", false, kIoValueAvailabilityTpl};
-    const HASensorEntry s3{"io", "spare", "Spare", "rt/io/input/a3", haValueTpl_[3], nullptr, "mdi:sine-wave", nullptr, false, kIoValueAvailabilityTpl};
-    const HASensorEntry s4{"io", "water_temperature", "Water Temperature", "rt/io/input/a4", haValueTpl_[4], nullptr, "mdi:water-thermometer", "\xC2\xB0""C", false, kIoValueAvailabilityTpl};
-    const HASensorEntry s5{"io", "air_temperature", "Air Temperature", "rt/io/input/a5", haValueTpl_[5], nullptr, "mdi:thermometer", "\xC2\xB0""C", false, kIoValueAvailabilityTpl};
+    const HASensorEntry s0{"io", "io_orp", "ORP", "rt/io/input/a0", haValueTpl_[0], nullptr, "mdi:flash", "mV", false, kIoValueAvailabilityTpl};
+    const HASensorEntry s1{"io", "io_ph", "pH", "rt/io/input/a1", haValueTpl_[1], nullptr, "mdi:ph", "", false, kIoValueAvailabilityTpl};
+    const HASensorEntry s2{"io", "io_psi", "PSI", "rt/io/input/a2", haValueTpl_[2], nullptr, "mdi:gauge", "PSI", false, kIoValueAvailabilityTpl};
+    const HASensorEntry s3{"io", "io_spare", "Spare", "rt/io/input/a3", haValueTpl_[3], nullptr, "mdi:sine-wave", nullptr, false, kIoValueAvailabilityTpl};
+    const HASensorEntry s4{"io", "io_wat_tmp", "Water Temperature", "rt/io/input/a4", haValueTpl_[4], nullptr, "mdi:water-thermometer", "\xC2\xB0""C", false, kIoValueAvailabilityTpl};
+    const HASensorEntry s5{"io", "io_air_tmp", "Air Temperature", "rt/io/input/a5", haValueTpl_[5], nullptr, "mdi:thermometer", "\xC2\xB0""C", false, kIoValueAvailabilityTpl};
     (void)haSvc_->addSensor(haSvc_->ctx, &s0);
     (void)haSvc_->addSensor(haSvc_->ctx, &s1);
     (void)haSvc_->addSensor(haSvc_->ctx, &s2);
@@ -747,7 +747,7 @@ void IOModule::registerHaDigitalInputBinarySensors_()
     static constexpr const char* kBoolTpl = "{{ 'True' if value_json.value else 'False' }}";
     const HABinarySensorEntry poolLevel{
         "io",
-        "pool_level",
+        "io_pool_lvl",
         "Pool Level",
         "rt/io/input/i0",
         kBoolTpl,
@@ -757,7 +757,7 @@ void IOModule::registerHaDigitalInputBinarySensors_()
     };
     const HABinarySensorEntry phLevel{
         "io",
-        "ph_level",
+        "io_ph_lvl",
         "pH Level",
         "rt/io/input/i1",
         kBoolTpl,
@@ -767,7 +767,7 @@ void IOModule::registerHaDigitalInputBinarySensors_()
     };
     const HABinarySensorEntry chlorineLevel{
         "io",
-        "chlorine_level",
+        "io_chl_lvl",
         "Chlorine Level",
         "rt/io/input/i2",
         kBoolTpl,

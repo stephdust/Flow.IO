@@ -222,7 +222,7 @@ private:
     JobRing<LowQueueCap> lowQ_{};
     portMUX_TYPE jobsMux_ = portMUX_INITIALIZER_UNLOCKED;
 
-    char topicBuf_[Limits::Mqtt::Buffers::DynamicTopic] = {0};
+    char topicBuf_[Limits::Mqtt::Buffers::Topic] = {0};
     char payloadBuf_[Limits::Mqtt::Buffers::Publish] = {0};
     char replyBuf_[Limits::Mqtt::Buffers::Reply] = {0};
 

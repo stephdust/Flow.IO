@@ -13,6 +13,7 @@
 
 #include <WiFi.h>
 #include <new>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -88,6 +89,159 @@ bool ipToText_(const IpV4& ip, char* out, size_t outLen)
     return n > 0 && (size_t)n < outLen;
 }
 
+bool findJsonValue_(const char* json, const char* key, const char*& valueOut)
+{
+    if (!json || !key) return false;
+    char pattern[32] = {0};
+    const int n = snprintf(pattern, sizeof(pattern), "\"%s\":", key);
+    if (n <= 0 || (size_t)n >= sizeof(pattern)) return false;
+
+    const char* value = strstr(json, pattern);
+    if (!value) return false;
+    value += (size_t)n;
+    while (*value == ' ' || *value == '\t' || *value == '\r' || *value == '\n') ++value;
+    valueOut = value;
+    return true;
+}
+
+bool parseJsonBoolField_(const char* json, const char* key, bool& valueOut)
+{
+    const char* value = nullptr;
+    if (!findJsonValue_(json, key, value)) return false;
+    if (strncmp(value, "true", 4) == 0) {
+        valueOut = true;
+        return true;
+    }
+    if (strncmp(value, "false", 5) == 0) {
+        valueOut = false;
+        return true;
+    }
+    return false;
+}
+
+bool extractJsonString_(const char* start, char* out, size_t outLen, const char*& nextOut)
+{
+    if (!start || !out || outLen == 0) return false;
+
+    size_t pos = 0;
+    const char* p = start;
+    while (*p != '\0') {
+        char c = *p++;
+        if (c == '"') {
+            out[pos] = '\0';
+            nextOut = p;
+            return true;
+        }
+        if (c == '\\') {
+            if (*p == '\0') break;
+            c = *p++;
+        }
+        if (pos + 1 >= outLen) {
+            out[outLen - 1] = '\0';
+            return false;
+        }
+        out[pos++] = c;
+    }
+
+    out[outLen - 1] = '\0';
+    return false;
+}
+
+bool appendText_(char* out, size_t outLen, size_t& pos, const char* text)
+{
+    if (!out || !text || outLen == 0 || pos >= outLen) return false;
+    const size_t n = strlen(text);
+    if (n >= (outLen - pos)) {
+        out[outLen - 1] = '\0';
+        return false;
+    }
+    memcpy(out + pos, text, n);
+    pos += n;
+    out[pos] = '\0';
+    return true;
+}
+
+bool appendFormat_(char* out, size_t outLen, size_t& pos, const char* fmt, ...)
+{
+    if (!out || !fmt || outLen == 0 || pos >= outLen) return false;
+
+    va_list args;
+    va_start(args, fmt);
+    const int wrote = vsnprintf(out + pos, outLen - pos, fmt, args);
+    va_end(args);
+
+    if (wrote < 0) return false;
+    if ((size_t)wrote >= (outLen - pos)) {
+        out[outLen - 1] = '\0';
+        return false;
+    }
+    pos += (size_t)wrote;
+    return true;
+}
+
+size_t jsonEscapedLen_(const char* text)
+{
+    size_t len = 2;  // quotes
+    if (!text) return len;
+
+    for (const char* p = text; *p != '\0'; ++p) {
+        switch (*p) {
+        case '\\':
+        case '"':
+        case '\b':
+        case '\f':
+        case '\n':
+        case '\r':
+        case '\t':
+            len += 2;
+            break;
+        default:
+            len += ((unsigned char)*p < 0x20U) ? 1U : 1U;
+            break;
+        }
+    }
+    return len;
+}
+
+bool appendEscapedJsonString_(char* out, size_t outLen, size_t& pos, const char* text)
+{
+    if (!appendText_(out, outLen, pos, "\"")) return false;
+    if (text) {
+        for (const char* p = text; *p != '\0'; ++p) {
+            const char c = *p;
+            switch (c) {
+            case '\\':
+                if (!appendText_(out, outLen, pos, "\\\\")) return false;
+                break;
+            case '"':
+                if (!appendText_(out, outLen, pos, "\\\"")) return false;
+                break;
+            case '\b':
+                if (!appendText_(out, outLen, pos, "\\b")) return false;
+                break;
+            case '\f':
+                if (!appendText_(out, outLen, pos, "\\f")) return false;
+                break;
+            case '\n':
+                if (!appendText_(out, outLen, pos, "\\n")) return false;
+                break;
+            case '\r':
+                if (!appendText_(out, outLen, pos, "\\r")) return false;
+                break;
+            case '\t':
+                if (!appendText_(out, outLen, pos, "\\t")) return false;
+                break;
+            default: {
+                const char safe[2] = {((unsigned char)c < 0x20U) ? '?' : c, '\0'};
+                if (!appendText_(out, outLen, pos, safe)) return false;
+                break;
+            }
+            }
+        }
+    }
+    return appendText_(out, outLen, pos, "\"");
+}
+
 }  // namespace
 
 void I2CCfgServerModule::init(ConfigStore& cfg, ServiceRegistry& services)
@@ -104,6 +258,7 @@ void I2CCfgServerModule::init(ConfigStore& cfg, ServiceRegistry& services)
     logHub_ = services.get<LogHubService>("loghub");
     cfgSvc_ = services.get<ConfigStoreService>("config");
     cmdSvc_ = services.get<CommandService>("cmd");
+    alarmSvc_ = services.get<AlarmService>("alarms");
     const DataStoreService* dsSvc = services.get<DataStoreService>("datastore");
     dataStore_ = dsSvc ? dsSvc->store : nullptr;
     cfgStore_ = &cfg;
@@ -168,6 +323,100 @@ void I2CCfgServerModule::resetPatchState_()
     patchBuf_[0] = '\0';
 }
 
+bool I2CCfgServerModule::collectPoolModeFlags_(bool& hasModeOut, bool& autoModeOut, bool& winterModeOut)
+{
+    hasModeOut = false;
+    autoModeOut = false;
+    winterModeOut = false;
+    memset(poolModeJsonScratch_, 0, sizeof(poolModeJsonScratch_));
+
+    bool truncated = false;
+    bool ok = false;
+    if (cfgStore_) {
+        ok = cfgStore_->toJsonModule("poollogic/mode",
+                                     poolModeJsonScratch_,
+                                     sizeof(poolModeJsonScratch_),
+                                     &truncated,
+                                     true);
+    } else if (cfgSvc_ && cfgSvc_->toJsonModule) {
+        ok = cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                                   "poollogic/mode",
+                                   poolModeJsonScratch_,
+                                   sizeof(poolModeJsonScratch_),
+                                   &truncated);
+    }
+    (void)truncated;
+    if (!ok) return false;
+
+    hasModeOut = true;
+    (void)parseJsonBoolField_(poolModeJsonScratch_, "auto_mode", autoModeOut);
+    (void)parseJsonBoolField_(poolModeJsonScratch_, "winter_mode", winterModeOut);
+    return true;
+}
+
+void I2CCfgServerModule::collectActiveAlarmCodes_(uint8_t& activeAlarmCountOut, uint8_t& activeAlarmCodeCountOut)
+{
+    activeAlarmCountOut = 0;
+    activeAlarmCodeCountOut = 0;
+    memset(activeAlarmCodes_, 0, sizeof(activeAlarmCodes_));
+
+    uint16_t activeAlarmCodeSeen = 0;
+    if (alarmSvc_ && alarmSvc_->activeCount) {
+        activeAlarmCountOut = alarmSvc_->activeCount(alarmSvc_->ctx);
+    }
+
+    if (alarmSvc_ && alarmSvc_->buildSnapshot) {
+        memset(alarmJsonScratch_, 0, sizeof(alarmJsonScratch_));
+        if (alarmSvc_->buildSnapshot(alarmSvc_->ctx, alarmJsonScratch_, sizeof(alarmJsonScratch_))) {
+            const char* p = alarmJsonScratch_;
+            while ((p = strstr(p, "\"code\":\"")) != nullptr) {
+                p += 8;
+
+                char code[sizeof(activeAlarmCodes_[0])] = {0};
+                const char* afterCode = nullptr;
+                if (!extractJsonString_(p, code, sizeof(code), afterCode)) break;
+
+                const char* activeValue = strstr(afterCode, "\"active\":");
+                if (!activeValue) break;
+                activeValue += strlen("\"active\":");
+                while (*activeValue == ' ' || *activeValue == '\t' || *activeValue == '\r' || *activeValue == '\n') {
+                    ++activeValue;
+                }
+                if (strncmp(activeValue, "true", 4) == 0) {
+                    if (activeAlarmCodeSeen < kMaxAlarmCodes) {
+                        snprintf(activeAlarmCodes_[activeAlarmCodeSeen],
+                                 sizeof(activeAlarmCodes_[0]),
+                                 "%s",
+                                 code);
+                    }
+                    ++activeAlarmCodeSeen;
+                }
+                p = afterCode;
+            }
+        }
+    }
+
+    if (activeAlarmCodeSeen == 0U && alarmSvc_ && alarmSvc_->listIds && alarmSvc_->isActive) {
+        AlarmId ids[Limits::Alarm::MaxAlarms]{};
+        const uint8_t idCount = alarmSvc_->listIds(alarmSvc_->ctx, ids, (uint8_t)Limits::Alarm::MaxAlarms);
+        for (uint8_t i = 0; i < idCount; ++i) {
+            if (!alarmSvc_->isActive(alarmSvc_->ctx, ids[i])) continue;
+            if (activeAlarmCodeSeen < kMaxAlarmCodes) {
+                snprintf(activeAlarmCodes_[activeAlarmCodeSeen],
+                         sizeof(activeAlarmCodes_[0]),
+                         "alarm_%u",
+                         (unsigned)((uint16_t)ids[i]));
+            }
+            ++activeAlarmCodeSeen;
+        }
+    }
+
+    if (activeAlarmCountOut < activeAlarmCodeSeen) {
+        activeAlarmCountOut = (activeAlarmCodeSeen > 255U) ? 255U : (uint8_t)activeAlarmCodeSeen;
+    }
+    activeAlarmCodeCountOut = (activeAlarmCodeSeen > kMaxAlarmCodes) ? kMaxAlarmCodes : (uint8_t)activeAlarmCodeSeen;
+}
+
 bool I2CCfgServerModule::buildRuntimeStatusJson_(bool& truncatedOut)
 {
     truncatedOut = false;
@@ -200,46 +449,90 @@ bool I2CCfgServerModule::buildRuntimeStatusJson_(bool& truncatedOut)
     const uint32_t lastReqAgoMs = hasSupervisorSeen ? (nowMs - lastReqMs_) : 0U;
     const bool supervisorLinkOk = started_ && hasSupervisorSeen && (lastReqAgoMs <= 15000U);
 
-    const int n = snprintf(
-        statusJson_,
-        sizeof(statusJson_),
-        "{\"ok\":true,"
-        "\"firmware\":\"%s\","
-        "\"uptime_ms\":%llu,"
-        "\"heap\":{\"free\":%lu,\"min\":%lu,\"largest\":%lu,\"frag\":%u},"
-        "\"wifi\":{\"ready\":%s,\"ip\":\"%s\",\"rssi_dbm\":%ld,\"has_rssi\":%s},"
-        "\"mqtt\":{\"ready\":%s,\"rx_drop\":%lu,\"parse_fail\":%lu,\"handler_fail\":%lu,\"oversize_drop\":%lu},"
-        "\"i2c\":{\"enabled\":%s,\"started\":%s,\"address\":%u,\"request_count\":%lu,"
-        "\"bad_request_count\":%lu,\"supervisor_seen\":%s,\"last_request_ago_ms\":%lu,\"supervisor_link_ok\":%s}}",
-        FIRMW,
-        (unsigned long long)snap.uptimeMs64,
-        (unsigned long)snap.heap.freeBytes,
-        (unsigned long)snap.heap.minFreeBytes,
-        (unsigned long)snap.heap.largestFreeBlock,
-        (unsigned)snap.heap.fragPercent,
-        wifiUp ? "true" : "false",
-        ipTxt,
-        (long)rssi,
-        hasRssi ? "true" : "false",
-        mqttUp ? "true" : "false",
-        (unsigned long)mqttRxDropCnt,
-        (unsigned long)mqttParseFailCnt,
-        (unsigned long)mqttHandlerFailCnt,
-        (unsigned long)mqttOversizeDropCnt,
-        cfgData_.enabled ? "true" : "false",
-        started_ ? "true" : "false",
-        (unsigned)cfgData_.address,
-        (unsigned long)reqCount_,
-        (unsigned long)badReqCount_,
-        hasSupervisorSeen ? "true" : "false",
-        (unsigned long)lastReqAgoMs,
-        supervisorLinkOk ? "true" : "false");
-    if (n <= 0) return false;
-    if ((size_t)n >= sizeof(statusJson_)) {
-        statusJson_[sizeof(statusJson_) - 1] = '\0';
-        truncatedOut = true;
+    bool poolHasMode = false;
+    bool poolAutoMode = false;
+    bool poolWinterMode = false;
+    (void)collectPoolModeFlags_(poolHasMode, poolAutoMode, poolWinterMode);
+
+    uint8_t activeAlarmCount = 0;
+    uint8_t activeAlarmCodeCount = 0;
+    collectActiveAlarmCodes_(activeAlarmCount, activeAlarmCodeCount);
+
+    size_t pos = 0;
+    statusJson_[0] = '\0';
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, "{\"ok\":true,\"fw\":")) return false;
+    if (!appendEscapedJsonString_(statusJson_, sizeof(statusJson_), pos, FIRMW)) return false;
+    if (!appendFormat_(statusJson_,
+                       sizeof(statusJson_),
+                       pos,
+                       ",\"upms\":%llu",
+                       (unsigned long long)snap.uptimeMs64)) return false;
+    if (!appendFormat_(statusJson_,
+                       sizeof(statusJson_),
+                       pos,
+                       ",\"heap\":{\"free\":%u,\"min\":%u,\"larg\":%u,\"frag\":%u}",
+                       (unsigned)snap.heap.freeBytes,
+                       (unsigned)snap.heap.minFreeBytes,
+                       (unsigned)snap.heap.largestFreeBlock,
+                       (unsigned)snap.heap.fragPercent)) return false;
+    if (!appendFormat_(statusJson_,
+                       sizeof(statusJson_),
+                       pos,
+                       ",\"wifi\":{\"rdy\":%s,\"ip\":",
+                       wifiUp ? "true" : "false")) return false;
+    if (!appendEscapedJsonString_(statusJson_, sizeof(statusJson_), pos, ipTxt)) return false;
+    if (!appendFormat_(statusJson_,
+                       sizeof(statusJson_),
+                       pos,
+                       ",\"rssi\":%ld,\"hrss\":%s}",
+                       (long)rssi,
+                       hasRssi ? "true" : "false")) return false;
+    if (!appendFormat_(statusJson_,
+                       sizeof(statusJson_),
+                       pos,
+                       ",\"mqtt\":{\"rdy\":%s,\"rxdrp\":%lu,\"prsf\":%lu,\"hndf\":%lu,\"ovr\":%lu}",
+                       mqttUp ? "true" : "false",
+                       (unsigned long)mqttRxDropCnt,
+                       (unsigned long)mqttParseFailCnt,
+                       (unsigned long)mqttHandlerFailCnt,
+                       (unsigned long)mqttOversizeDropCnt)) return false;
+    if (!appendFormat_(statusJson_,
+                       sizeof(statusJson_),
+                       pos,
+                       ",\"i2c\":{\"ena\":%s,\"sta\":%s,\"adr\":%u,\"req\":%lu,\"breq\":%lu,\"seen\":%s,\"ago\":%lu,\"lnk\":%s}",
+                       cfgData_.enabled ? "true" : "false",
+                       started_ ? "true" : "false",
+                       (unsigned)cfgData_.address,
+                       (unsigned long)reqCount_,
+                       (unsigned long)badReqCount_,
+                       hasSupervisorSeen ? "true" : "false",
+                       (unsigned long)lastReqAgoMs,
+                       supervisorLinkOk ? "true" : "false")) return false;
+    if (!appendFormat_(statusJson_,
+                       sizeof(statusJson_),
+                       pos,
+                       ",\"pool\":{\"has\":%s,\"auto\":%s,\"wint\":%s}",
+                       poolHasMode ? "true" : "false",
+                       poolAutoMode ? "true" : "false",
+                       poolWinterMode ? "true" : "false")) return false;
+    if (!appendFormat_(statusJson_,
+                       sizeof(statusJson_),
+                       pos,
+                       ",\"alm\":{\"cnt\":%u,\"codes\":[",
+                       (unsigned)activeAlarmCount)) return false;
+
+    for (uint8_t i = 0; i < activeAlarmCodeCount; ++i) {
+        const size_t reserve = 4U;  // ]}} plus trailing null
+        const size_t needed = (i > 0 ? 1U : 0U) + jsonEscapedLen_(activeAlarmCodes_[i]) + reserve;
+        if ((pos + needed) >= sizeof(statusJson_)) {
+            truncatedOut = true;
+            break;
+        }
+        if (i > 0 && !appendText_(statusJson_, sizeof(statusJson_), pos, ",")) return false;
+        if (!appendEscapedJsonString_(statusJson_, sizeof(statusJson_), pos, activeAlarmCodes_[i])) return false;
     }
-    return true;
+
+    return appendText_(statusJson_, sizeof(statusJson_), pos, "]}}");
 }
 
 void I2CCfgServerModule::ensureActionTask_()
