@@ -13,6 +13,7 @@
 #include <Update.h>
 #include <string.h>
 
+#include "Board/BoardSpec.h"
 #include "Core/ErrorCodes.h"
 
 #include <ESPNexUpload.h>
@@ -21,21 +22,66 @@
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::FirmwareUpdateModule)
 #include "Core/ModuleLog.h"
 
-#ifndef FLOW_SUPERVISOR_NEXTION_UPLOAD_BAUD
-#define FLOW_SUPERVISOR_NEXTION_UPLOAD_BAUD 115200
-#endif
+namespace {
 
-#ifndef FLOW_SUPERVISOR_NEXTION_RX
-#define FLOW_SUPERVISOR_NEXTION_RX 33
-#endif
+const SupervisorBoardSpec& supervisorBoardSpec_(const BoardSpec& board)
+{
+    static constexpr SupervisorBoardSpec kFallback{
+        {
+            240,
+            320,
+            1,
+            0,
+            33,
+            14,
+            15,
+            4,
+            5,
+            19,
+            18,
+            true,
+            false,
+            40000000U,
+            80
+        },
+        {
+            36,
+            120,
+            true,
+            23,
+            40
+        },
+        {
+            25,
+            26,
+            13,
+            115200U
+        }
+    };
+    const SupervisorBoardSpec* cfg = boardSupervisorConfig(board);
+    return cfg ? *cfg : kFallback;
+}
 
-#ifndef FLOW_SUPERVISOR_NEXTION_TX
-#define FLOW_SUPERVISOR_NEXTION_TX 32
-#endif
+const UartSpec& panelUartSpec_(const BoardSpec& board)
+{
+    static constexpr UartSpec kFallback{"panel", 2, 33, 32, 115200, false};
+    const UartSpec* spec = boardFindUart(board, "panel");
+    return spec ? *spec : kFallback;
+}
 
-#ifndef FLOW_SUPERVISOR_NEXTION_REBOOT
-#define FLOW_SUPERVISOR_NEXTION_REBOOT 13
-#endif
+}  // namespace
+
+FirmwareUpdateModule::FirmwareUpdateModule(const BoardSpec& board)
+{
+    const SupervisorBoardSpec& boardCfg = supervisorBoardSpec_(board);
+    const UartSpec& panelUart = panelUartSpec_(board);
+    flowIoEnablePin_ = boardCfg.update.flowIoEnablePin;
+    flowIoBootPin_ = boardCfg.update.flowIoBootPin;
+    nextionRxPin_ = panelUart.rxPin;
+    nextionTxPin_ = panelUart.txPin;
+    nextionRebootPin_ = boardCfg.update.nextionRebootPin;
+    nextionUploadBaud_ = boardCfg.update.nextionUploadBaud;
+}
 
 static bool writeSimpleError_(char* out, size_t outLen, const char* msg)
 {
@@ -455,6 +501,11 @@ bool FirmwareUpdateModule::startUpdate_(FirmwareUpdateTarget target,
 
 bool FirmwareUpdateModule::runFlowIoUpdate_(const char* url, char* errOut, size_t errOutLen)
 {
+    if (flowIoBootPin_ < 0 || flowIoEnablePin_ < 0) {
+        writeSimpleError_(errOut, errOutLen, "flowio board pins not configured");
+        return false;
+    }
+
     setStatus_(UpdateState::Downloading, FirmwareUpdateTarget::FlowIO, 0, "downloading");
 
     HTTPClient http;
@@ -493,7 +544,7 @@ bool FirmwareUpdateModule::runFlowIoUpdate_(const char* url, char* errOut, size_
     }
 
     bool ok = false;
-    ESP32Flasher flasher;
+    ESP32Flasher flasher(flowIoBootPin_, flowIoEnablePin_);
     flasher.setUpdateProgressCallback([this]() {
         this->onProgressChunk_(1024U);
     });
@@ -638,20 +689,25 @@ bool FirmwareUpdateModule::runSupervisorUpdate_(const char* url, char* errOut, s
 
 bool FirmwareUpdateModule::runNextionUpdate_(const char* url, char* errOut, size_t errOutLen)
 {
+    if (flowIoEnablePin_ < 0 || nextionRebootPin_ < 0 || nextionRxPin_ < 0 || nextionTxPin_ < 0) {
+        writeSimpleError_(errOut, errOutLen, "nextion board pins not configured");
+        return false;
+    }
+
     setStatus_(UpdateState::Downloading, FirmwareUpdateTarget::Nextion, 0, "downloading");
 
-    pinMode(FLOW_SUPERVISOR_FLOWIO_EN_PIN, OUTPUT);
-    digitalWrite(FLOW_SUPERVISOR_FLOWIO_EN_PIN, LOW);
+    pinMode(flowIoEnablePin_, OUTPUT);
+    digitalWrite(flowIoEnablePin_, LOW);
 
-    pinMode(FLOW_SUPERVISOR_NEXTION_REBOOT, OUTPUT);
-    digitalWrite(FLOW_SUPERVISOR_NEXTION_REBOOT, HIGH);
+    pinMode(nextionRebootPin_, OUTPUT);
+    digitalWrite(nextionRebootPin_, HIGH);
 
     HTTPClient http;
     http.setReuse(false);
     if (!http.begin(url)) {
         writeSimpleError_(errOut, errOutLen, "http begin failed");
-        digitalWrite(FLOW_SUPERVISOR_FLOWIO_EN_PIN, HIGH);
-        pinMode(FLOW_SUPERVISOR_FLOWIO_EN_PIN, INPUT);
+        digitalWrite(flowIoEnablePin_, HIGH);
+        pinMode(flowIoEnablePin_, INPUT);
         return false;
     }
 
@@ -662,15 +718,15 @@ bool FirmwareUpdateModule::runNextionUpdate_(const char* url, char* errOut, size
         snprintf(msg, sizeof(msg), "http %d: %s", code, http.errorToString(code).c_str());
         writeSimpleError_(errOut, errOutLen, msg);
         http.end();
-        digitalWrite(FLOW_SUPERVISOR_FLOWIO_EN_PIN, HIGH);
-        pinMode(FLOW_SUPERVISOR_FLOWIO_EN_PIN, INPUT);
+        digitalWrite(flowIoEnablePin_, HIGH);
+        pinMode(flowIoEnablePin_, INPUT);
         return false;
     }
     if (contentLength <= 0) {
         writeSimpleError_(errOut, errOutLen, "invalid content-length");
         http.end();
-        digitalWrite(FLOW_SUPERVISOR_FLOWIO_EN_PIN, HIGH);
-        pinMode(FLOW_SUPERVISOR_FLOWIO_EN_PIN, INPUT);
+        digitalWrite(flowIoEnablePin_, HIGH);
+        pinMode(flowIoEnablePin_, INPUT);
         return false;
     }
 
@@ -681,7 +737,7 @@ bool FirmwareUpdateModule::runNextionUpdate_(const char* url, char* errOut, size
     portEXIT_CRITICAL(&lock_);
 
     bool ok = false;
-    ESPNexUpload nextion(FLOW_SUPERVISOR_NEXTION_UPLOAD_BAUD);
+    ESPNexUpload nextion(nextionUploadBaud_, nextionRxPin_, nextionTxPin_);
     nextion.setUpdateProgressCallback([this]() {
         this->onProgressChunk_(2048U);
     });
@@ -695,12 +751,12 @@ bool FirmwareUpdateModule::runNextionUpdate_(const char* url, char* errOut, size
     }
     nextion.end();
 
-    pinMode(FLOW_SUPERVISOR_NEXTION_RX, INPUT);
-    pinMode(FLOW_SUPERVISOR_NEXTION_TX, INPUT);
+    pinMode(nextionRxPin_, INPUT);
+    pinMode(nextionTxPin_, INPUT);
 
     http.end();
-    digitalWrite(FLOW_SUPERVISOR_FLOWIO_EN_PIN, HIGH);
-    pinMode(FLOW_SUPERVISOR_FLOWIO_EN_PIN, INPUT);
+    digitalWrite(flowIoEnablePin_, HIGH);
+    pinMode(flowIoEnablePin_, INPUT);
 
     if (!ok) return false;
 

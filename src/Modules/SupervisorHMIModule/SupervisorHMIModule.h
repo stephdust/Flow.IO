@@ -8,9 +8,12 @@
 #include "Core/Services/Services.h"
 #include "Modules/SupervisorHMIModule/Drivers/St7789SupervisorDriver.h"
 
+struct BoardSpec;
+struct SupervisorRuntimeOptions;
+
 class SupervisorHMIModule : public Module {
 public:
-    SupervisorHMIModule();
+    SupervisorHMIModule(const BoardSpec& board, const SupervisorRuntimeOptions& runtime);
 
     const char* moduleId() const override { return "hmi.supervisor"; }
     const char* taskName() const override { return "hmi.sup"; }
@@ -32,7 +35,7 @@ public:
     void loop() override;
 
 private:
-    static St7789SupervisorDriverConfig makeDriverConfig_();
+    static St7789SupervisorDriverConfig makeDriverConfig_(const BoardSpec& board);
     static void copyText_(char* out, size_t outLen, const char* in);
     uint32_t buildRenderKey_() const;
     uint32_t currentClockMinute_() const;
@@ -44,6 +47,7 @@ private:
     void updateWifiResetButton_();
     void triggerWifiReset_();
     void rebuildBanner_();
+    void setDefaultBanner_();
 
     const LogHubService* logHub_ = nullptr;
     const ConfigStoreService* cfgSvc_ = nullptr;
@@ -52,9 +56,18 @@ private:
     const FirmwareUpdateService* fwUpdateSvc_ = nullptr;
     const FlowCfgRemoteService* flowCfgSvc_ = nullptr;
 
+    St7789SupervisorDriverConfig driverCfg_{};
     St7789SupervisorDriver driver_;
     SupervisorHmiViewModel view_{};
     bool driverReady_ = false;
+
+    int8_t pirPin_ = -1;
+    int8_t wifiResetPin_ = -1;
+    uint32_t pirTimeoutMs_ = 120000U;
+    uint32_t pirDebounceMs_ = 120U;
+    bool pirActiveHigh_ = true;
+    uint32_t wifiResetHoldMs_ = 3000U;
+    uint32_t wifiResetDebounceMs_ = 40U;
 
     bool fwBusyOrPending_ = false;
     bool wifiResetPending_ = false;

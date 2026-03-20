@@ -9,8 +9,12 @@
 #include "Core/ConfigTypes.h"
 #include "Core/CommandRegistry.h"
 
+struct BoardSpec;
+
 class FirmwareUpdateModule : public Module {
 public:
+    explicit FirmwareUpdateModule(const BoardSpec& board);
+
     const char* moduleId() const override { return "fwupdate"; }
     const char* taskName() const override { return "fwupdate"; }
     BaseType_t taskCore() const override { return 0; }
@@ -95,6 +99,13 @@ private:
     const CommandService* cmdSvc_ = nullptr;
     const WifiService* wifiSvc_ = nullptr;
     const WebInterfaceService* webInterfaceSvc_ = nullptr;
+
+    int8_t flowIoEnablePin_ = -1;
+    int8_t flowIoBootPin_ = -1;
+    int8_t nextionRxPin_ = -1;
+    int8_t nextionTxPin_ = -1;
+    int8_t nextionRebootPin_ = -1;
+    uint32_t nextionUploadBaud_ = 115200U;
 
     portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
     UpdateJob queuedJob_{};

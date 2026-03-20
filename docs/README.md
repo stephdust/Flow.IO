@@ -5,6 +5,7 @@ Cette documentation couvre l'architecture complète du firmware Flow.IO (ESP32),
 ## Sommaire
 
 - [Architecture Core](core/architecture.md)
+- [Profils, App, Board et Domain](core/profiles-board-domain-app.md)
 - [Services Core et invocation](core/services.md)
 - [Modèle DataStore + EventBus + Config](core/data-event-model.md)
 - [Topologie MQTT détaillée](core/mqtt-topics.md)
@@ -91,21 +92,21 @@ Les tableaux ci-dessous résument les GPIO effectivement utilisés dans les prof
 |---|---|---|---|
 | 21 | I2C interlink SDA (Supervisor -> Flow.IO, bus 1) | `i2ccfg.client` | Pin configurable (`i2c/cfg/client/sda`), bus fixé à 1 |
 | 22 | I2C interlink SCL (Supervisor -> Flow.IO, bus 1) | `i2ccfg.client` | Pin configurable (`i2c/cfg/client/scl`), bus fixé à 1 |
-| 16 | UART2 RX (bridge WebSerial et flash Flow.IO) | `webinterface`, `fwupdate` | Peut être redéfini via `FLOW_SUPERVISOR_WEBSERIAL_RX` |
-| 17 | UART2 TX (bridge WebSerial et flash Flow.IO) | `webinterface`, `fwupdate` | Peut être redéfini via `FLOW_SUPERVISOR_WEBSERIAL_TX` |
-| 25 | Contrôle `EN` du Flow.IO cible (reset/enable) | `fwupdate` | `FLOW_SUPERVISOR_FLOWIO_EN_PIN` |
-| 26 | Contrôle `BOOT` du Flow.IO cible (mode bootloader) | `fwupdate` | `FLOW_SUPERVISOR_FLOWIO_BOOT_PIN` |
-| 33 | UART Nextion RX (upload TFT) | `fwupdate` | `FLOW_SUPERVISOR_NEXTION_RX` / `NEXT_RX` |
-| 32 | UART Nextion TX (upload TFT) | `fwupdate` | `FLOW_SUPERVISOR_NEXTION_TX` / `NEXT_TX` |
-| 13 | Reboot matériel Nextion | `fwupdate` | `FLOW_SUPERVISOR_NEXTION_REBOOT` |
-| 14 | TFT ST7789 backlight | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_BL` |
-| 15 | TFT ST7789 CS | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_CS` |
-| 4 | TFT ST7789 DC | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_DC` |
-| 5 | TFT ST7789 RST | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_RST` |
-| 18 | TFT ST7789 MOSI (soft SPI) | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_MOSI` |
-| 19 | TFT ST7789 SCLK (soft SPI) | `hmi.supervisor` | `FLOW_SUPERVISOR_TFT_SCLK` |
-| 27 | PIR présence écran | `hmi.supervisor` | `FLOW_SUPERVISOR_PIR_PIN` |
-| 23 | Bouton reset WiFi (appui long) | `hmi.supervisor` | `FLOW_SUPERVISOR_WIFI_RESET_PIN` |
+| 16 | UART2 RX (bridge WebSerial vers Flow.IO) | `webinterface` | `src/Board/SupervisorBoardRev1.h` (`bridge` UART) |
+| 17 | UART2 TX (bridge WebSerial vers Flow.IO) | `webinterface` | `src/Board/SupervisorBoardRev1.h` (`bridge` UART) |
+| 25 | Contrôle `EN` du Flow.IO cible (reset/enable) | `fwupdate` | `src/Board/SupervisorBoardRev1.h` (`update.flowIoEnablePin`) |
+| 26 | Contrôle `BOOT` du Flow.IO cible (mode bootloader) | `fwupdate` | `src/Board/SupervisorBoardRev1.h` (`update.flowIoBootPin`) |
+| 33 | UART Nextion RX (upload TFT) | `fwupdate` | `src/Board/SupervisorBoardRev1.h` (`panel` UART) |
+| 32 | UART Nextion TX (upload TFT) | `fwupdate` | `src/Board/SupervisorBoardRev1.h` (`panel` UART) |
+| 13 | Reboot matériel Nextion | `fwupdate` | `src/Board/SupervisorBoardRev1.h` (`update.nextionRebootPin`) |
+| 14 | TFT ST7789 backlight | `hmi.supervisor` | `src/Board/SupervisorBoardRev1.h` (`display.backlightPin`) |
+| 15 | TFT ST7789 CS | `hmi.supervisor` | `src/Board/SupervisorBoardRev1.h` (`display.csPin`) |
+| 4 | TFT ST7789 DC | `hmi.supervisor` | `src/Board/SupervisorBoardRev1.h` (`display.dcPin`) |
+| 5 | TFT ST7789 RST | `hmi.supervisor` | `src/Board/SupervisorBoardRev1.h` (`display.rstPin`) |
+| 19 | TFT ST7789 MOSI (soft SPI) | `hmi.supervisor` | `src/Board/SupervisorBoardRev1.h` (`display.mosiPin`) |
+| 18 | TFT ST7789 SCLK (soft SPI) | `hmi.supervisor` | `src/Board/SupervisorBoardRev1.h` (`display.sclkPin`) |
+| 36 | PIR présence écran | `hmi.supervisor` | `src/Board/SupervisorBoardRev1.h` (`inputs.pirPin`) |
+| 23 | Bouton reset WiFi (appui long) | `hmi.supervisor` | `src/Board/SupervisorBoardRev1.h` (`inputs.wifiResetPin`) |
 | 1 / 3 | UART0 TX/RX (console logs par défaut) | `log.sink.serial` | USB/serial monitor |
 
 ## Dossier modules (1 fichier par module)
@@ -137,7 +138,7 @@ Les tableaux ci-dessous résument les GPIO effectivement utilisés dans les prof
 
 ## Capacités de slots (profil Flow.IO)
 
-Les valeurs ci-dessous correspondent au profil `Flow.IO` actuel (wiring et modules enregistrés dans `main_flowio.cpp`).
+Les valeurs ci-dessous correspondent au profil `Flow.IO` actuel (wiring et modules enregistrés dans le bootstrap de profil `FlowIO`).
 
 | Domaine | Slots pré-définis (max) | Slots utilisés actuellement | Variable/constante de capacité (fichier) |
 |---|---:|---:|---|
@@ -151,7 +152,7 @@ Les valeurs ci-dessous correspondent au profil `Flow.IO` actuel (wiring et modul
 | HAModule - switches | 16 | 12 | `HAModule::MAX_HA_SWITCHES` ([src/Modules/Network/HAModule/HAModule.h](../src/Modules/Network/HAModule/HAModule.h)) |
 | HAModule - numbers | 16 | 13 | `HAModule::MAX_HA_NUMBERS` ([src/Modules/Network/HAModule/HAModule.h](../src/Modules/Network/HAModule/HAModule.h)) |
 | HAModule - buttons | 8 | 3 | `HAModule::MAX_HA_BUTTONS` ([src/Modules/Network/HAModule/HAModule.h](../src/Modules/Network/HAModule/HAModule.h)) |
-| MQTTModule - runtime publishers | 8 | dépend du wiring (`main_flowio.cpp`) | `Limits::Mqtt::Capacity::MaxPublishers` ([include/Core/SystemLimits.h](../include/Core/SystemLimits.h)) |
+| MQTTModule - runtime publishers | 8 | dépend du wiring du bootstrap `FlowIO` | `Limits::Mqtt::Capacity::MaxPublishers` ([include/Core/SystemLimits.h](../include/Core/SystemLimits.h)) |
 | Runtime routes MQTT (`RuntimeProducer`) | 36 | dépend des providers enregistrés | `Limits::MaxRuntimeRoutes` ([include/Core/SystemLimits.h](../include/Core/SystemLimits.h)) |
 | MQTT jobs (slots globaux) | 80 | max observé via log `queue occ max/boot` | `MQTTModule::MaxJobs` ([src/Modules/Network/MQTTModule/MQTTModule.h](../src/Modules/Network/MQTTModule/MQTTModule.h)) |
 | MQTT queue High / Normal / Low | 80 / 80 / 60 | max observé via log `queue occ max/boot` | `MQTTModule::HighQueueCap/NormalQueueCap/LowQueueCap` ([src/Modules/Network/MQTTModule/MQTTModule.h](../src/Modules/Network/MQTTModule/MQTTModule.h)) |

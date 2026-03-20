@@ -9,9 +9,9 @@
 #include "Core/NvsKeys.h"
 #include "Core/SystemLimits.h"
 #include "Core/WokwiDefaultOverrides.h"
-#include "Core/Layout/PoolIoMap.h"
 #include "Core/RuntimeSnapshotProvider.h"
 #include "Core/Services/Services.h"
+#include "Domain/Pool/PoolBindings.h"
 #include "Modules/IOModule/IOBus/I2CBus.h"
 #include "Modules/IOModule/IOBus/OneWireBus.h"
 #include "Modules/IOModule/IODrivers/Ads1115Driver.h"
@@ -352,9 +352,9 @@ private:
     int32_t haPrecisionLast_[ANALOG_CFG_SLOTS]{};
     bool haPrecisionLastInit_ = false;
     char haValueTpl_[ANALOG_CFG_SLOTS][128]{};
-    char haSwitchStateSuffix_[FLOW_POOL_IO_BINDING_COUNT][24]{};
-    char haSwitchPayloadOn_[FLOW_POOL_IO_BINDING_COUNT][Limits::IoHaSwitchPayloadBuf]{};
-    char haSwitchPayloadOff_[FLOW_POOL_IO_BINDING_COUNT][Limits::IoHaSwitchPayloadBuf]{};
+    char haSwitchStateSuffix_[PoolBinding::kDeviceBindingCount][24]{};
+    char haSwitchPayloadOn_[PoolBinding::kDeviceBindingCount][Limits::IoHaSwitchPayloadBuf]{};
+    char haSwitchPayloadOff_[PoolBinding::kDeviceBindingCount][Limits::IoHaSwitchPayloadBuf]{};
 
     ConfigVariable<bool,0> enabledVar_ { NVS_KEY(NvsKeys::Io::IO_EN),"enabled","io",ConfigType::Bool,&cfgData_.enabled,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> i2cSdaVar_ { NVS_KEY(NvsKeys::Io::IO_SDA),"i2c_sda","io",ConfigType::Int32,&cfgData_.i2cSda,ConfigPersistence::Persistent,0 };

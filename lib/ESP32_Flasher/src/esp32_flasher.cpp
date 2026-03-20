@@ -535,20 +535,20 @@ int ESP32Flasher::espConnect(void) {
   do { Serial.print("[DEBUG] Initiating download mode sequence..."); Serial.print("\r\n"); } while (0);
 
   // Step 1: Assert BOOT pin
-  digitalWrite(BOOT_PIN, LOW);
+  digitalWrite(bootPin_, LOW);
   do { Serial.print("[DEBUG] BOOT pin set LOW - enabling download mode"); Serial.print("\r\n"); } while (0);
   delay(50);
 
   // Step 2: Reset sequence
-  digitalWrite(EN_PIN, LOW);
+  digitalWrite(enablePin_, LOW);
   do { Serial.print("[DEBUG] EN pin set LOW - starting reset"); Serial.print("\r\n"); } while (0);
   delay(100);
-  digitalWrite(EN_PIN, HIGH);
+  digitalWrite(enablePin_, HIGH);
   do { Serial.print("[DEBUG] EN pin set HIGH - completing reset"); Serial.print("\r\n"); } while (0);
   delay(50);
 
   // Step 3: Release BOOT pin
-  digitalWrite(BOOT_PIN, HIGH);
+  digitalWrite(bootPin_, HIGH);
   do { Serial.print("[DEBUG] BOOT pin set HIGH - ready for sync"); Serial.print("\r\n"); } while (0);
 
   // Attempt synchronization with timeout and retry
@@ -670,12 +670,12 @@ void ESP32Flasher::espFlasherInit(void) {
   do { Serial.print("[DEBUG] Serial2 communication initialized at 115200 baud"); Serial.print("\r\n"); } while (0);
 
   // Configure control pins
-  pinMode(BOOT_PIN, OUTPUT);  // Boot mode control
-  pinMode(EN_PIN, OUTPUT);    // Reset control
+  pinMode(bootPin_, OUTPUT);    // Boot mode control
+  pinMode(enablePin_, OUTPUT);  // Reset control
 
   do { Serial.print("[DEBUG] Control pins configured:"); Serial.print("\r\n"); } while (0);
-  Serial.printf("  - BOOT_PIN: %d\n", BOOT_PIN);
-  Serial.printf("  - EN_PIN: %d\n", EN_PIN);
+  Serial.printf("  - BOOT_PIN: %d\n", bootPin_);
+  Serial.printf("  - EN_PIN: %d\n", enablePin_);
 
   do { Serial.print("[INFO] ESP32 Flasher initialization complete"); Serial.print("\r\n"); } while (0);
   do { Serial.print("================================================\n"); Serial.print("\r\n"); } while (0);
@@ -707,9 +707,9 @@ int ESP32Flasher::espFlashBinStream(Stream &myFile, uint32_t size)  // Flash bin
 
   // Reset ESP32 after a clean FLASH_END.
   do { Serial.print("[INFO] Flash completed, resetting ESP32..."); Serial.print("\r\n"); } while (0);
-  digitalWrite(EN_PIN, LOW);
+  digitalWrite(enablePin_, LOW);
   delay(100);
-  digitalWrite(EN_PIN, HIGH);
+  digitalWrite(enablePin_, HIGH);
 
   do { Serial.print("================================================\n"); Serial.print("\r\n"); } while (0);
   return SUCCESS;
@@ -744,9 +744,9 @@ int ESP32Flasher::espFlashBinStream(Stream &myFile, uint32_t size)  // Flash bin
 
   // Reset ESP32
   do { Serial.print("[INFO] Resetting ESP32..."); Serial.print("\r\n"); } while (0);
-  digitalWrite(EN_PIN, LOW);
+  digitalWrite(enablePin_, LOW);
   delay(100);
-  digitalWrite(EN_PIN, HIGH);
+  digitalWrite(enablePin_, HIGH);
 
   do { Serial.print("================================================\n"); Serial.print("\r\n"); } while (0);
 }*/

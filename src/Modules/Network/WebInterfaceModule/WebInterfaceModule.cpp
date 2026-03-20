@@ -5,6 +5,9 @@
 
 #include "WebInterfaceModule.h"
 
+#include "Board/BoardSpec.h"
+#include "Core/FirmwareVersion.h"
+
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::WebInterfaceModule)
 #include "Core/ModuleLog.h"
 
@@ -58,25 +61,11 @@ constexpr uint32_t kHttpLatencyWarnMs = 120U;
 constexpr uint32_t kHttpLatencyFlowCfgInfoMs = 200U;
 constexpr uint32_t kHttpLatencyFlowCfgWarnMs = 900U;
 constexpr const char* kWebAssetVersionToken = "__FLOW_WEB_ASSET_VERSION__";
+constexpr const char* kFirmwareVersionToken = "__FLOW_FIRMWARE_VERSION__";
 
 const char* webAssetVersion_()
 {
-    static bool initialized = false;
-    static char version[32] = {0};
-    if (!initialized) {
-        snprintf(version, sizeof(version), "%s_%s", __DATE__, __TIME__);
-        for (size_t i = 0; version[i] != '\0'; ++i) {
-            const char c = version[i];
-            const bool isAlphaNum = ((c >= 'a' && c <= 'z') ||
-                                     (c >= 'A' && c <= 'Z') ||
-                                     (c >= '0' && c <= '9'));
-            if (!isAlphaNum) {
-                version[i] = '-';
-            }
-        }
-        initialized = true;
-    }
-    return version;
+    return FirmwareVersion::BuildRef;
 }
 
 void addNoCacheHeaders_(AsyncWebServerResponse* response)
@@ -104,6 +93,7 @@ bool sendVersionedIndexHtml_(AsyncWebServerRequest* request)
     if (html.length() == 0) return false;
 
     html.replace(kWebAssetVersionToken, webAssetVersion_());
+    html.replace(kFirmwareVersionToken, FirmwareVersion::Full);
     AsyncWebServerResponse* response = request->beginResponse(200, "text/html", html);
     addNoCacheHeaders_(response);
     request->send(response);
@@ -195,6 +185,13 @@ struct HttpLatencyScope {
         }
     }
 };
+
+const UartSpec& webBridgeUartSpec_(const BoardSpec& board)
+{
+    static constexpr UartSpec kFallback{"bridge", 2, 16, 17, 115200, false};
+    const UartSpec* spec = boardFindUart(board, "bridge");
+    return spec ? *spec : kFallback;
+}
 } // namespace
 
 static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
@@ -207,6 +204,14 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
 <p>Veuillez charger SPIFFS puis recharger cette page.</p>
 </body></html>
 )HTML";
+
+WebInterfaceModule::WebInterfaceModule(const BoardSpec& board)
+{
+    const UartSpec& uart = webBridgeUartSpec_(board);
+    uartBaud_ = uart.baud;
+    uartRxPin_ = uart.rxPin;
+    uartTxPin_ = uart.txPin;
+}
 
 void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
@@ -237,7 +242,7 @@ void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
     services.add("webinterface", &webInterfaceSvc);
 
     uart_.setRxBufferSize(kUartRxBufferSize);
-    uart_.begin(kUartBaud, SERIAL_8N1, kUartRxPin, kUartTxPin);
+    uart_.begin(uartBaud_, SERIAL_8N1, uartRxPin_, uartTxPin_);
     netReady_ = dataStore_ ? wifiReady(*dataStore_) : false;
 
     if (!localLogQueue_) {
@@ -256,9 +261,9 @@ void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
     }
 
     LOGI("WebInterface init uart=Serial2 baud=%lu rx=%d tx=%d line_buf=%u rx_buf=%u (server deferred)",
-         (unsigned long)kUartBaud,
-         kUartRxPin,
-         kUartTxPin,
+         (unsigned long)uartBaud_,
+         uartRxPin_,
+         uartTxPin_,
          (unsigned)kLineBufferSize,
          (unsigned)kUartRxBufferSize);
 }

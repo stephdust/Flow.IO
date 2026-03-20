@@ -22,15 +22,6 @@ typedef std::function<void(void)> THandlerFunction;
 static const uint8_t C0_REPLACEMENT[2] = {0xDB, 0xDC};  // Escape sequence for 0xC0
 static const uint8_t DB_REPLACEMENT[2] = {0xDB, 0xDD};  // Escape sequence for 0xDB
 
-// Hardware configuration
-#ifndef FLOW_SUPERVISOR_FLOWIO_BOOT_PIN
-#define FLOW_SUPERVISOR_FLOWIO_BOOT_PIN 26
-#endif
-#ifndef FLOW_SUPERVISOR_FLOWIO_EN_PIN
-#define FLOW_SUPERVISOR_FLOWIO_EN_PIN 25
-#endif
-#define BOOT_PIN FLOW_SUPERVISOR_FLOWIO_BOOT_PIN // ESP32 BOOT pin for entering download mode
-#define EN_PIN FLOW_SUPERVISOR_FLOWIO_EN_PIN     // ESP32 EN (Reset) pin
 #define SYNC_TIMEOUT 1000                 // Timeout for sync operation (ms)
 
 // Flash parameters
@@ -84,6 +75,8 @@ static const uint8_t DB_REPLACEMENT[2] = {0xDB, 0xDD};  // Escape sequence for 0
 
 class ESP32Flasher {
   private:
+    int8_t bootPin_ = 26;
+    int8_t enablePin_ = 25;
     uint32_t s_flash_write_size = 0;    // Current flash write block size
     uint32_t s_sequence_number = 0;     // Packet sequence counter
     uint32_t s_time_end = 0;           // Operation timeout timestamp
@@ -106,7 +99,13 @@ class ESP32Flasher {
     int flashBinaryStream(Stream &myFile, uint32_t size, uint32_t address);
 
   public:
-	  void setUpdateProgressCallback(THandlerFunction value);
+    explicit ESP32Flasher(int8_t bootPin = 26, int8_t enablePin = 25)
+        : bootPin_(bootPin),
+          enablePin_(enablePin)
+    {
+    }
+
+    void setUpdateProgressCallback(THandlerFunction value);
     void espFlasherInit(void);           // Initialize flasher
     int espConnect(void);                // Establish connection
     //void espFlashBinFile(const char* bin_file_name);  // Flash binary file

@@ -6,10 +6,10 @@
 #include "PoolDeviceModule.h"
 #include "Core/BufferUsageTracker.h"
 #include "Core/ErrorCodes.h"
-#include "Core/Layout/PoolIoMap.h"
 #include "Core/MqttTopics.h"
 #include "Core/NvsKeys.h"
 #include "Core/SystemLimits.h"
+#include "Domain/Pool/PoolBindings.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
 #include "Core/ModuleLog.h"
 #include "Modules/Network/TimeModule/TimeRuntime.h"
@@ -1586,7 +1586,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.refill", cmdPoolRefill_, this);
     }
     if (haSvc_ && haSvc_->addSensor) {
-        if (slots_[POOL_IO_SLOT_CHLORINE_PUMP].used) {
+        if (slots_[PoolBinding::kDeviceSlotChlorinePump].used) {
             const HASensorEntry s0{
                 "pooldev", "pd_chl_pmp_upt", "Pump uptime Chlorine",
                 "rt/pdm/metrics/pd2", "{{ value_json.running.day_s | int(0) }}",
@@ -1600,7 +1600,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
             };
             (void)haSvc_->addSensor(haSvc_->ctx, &s0b);
         }
-        if (slots_[POOL_IO_SLOT_PH_PUMP].used) {
+        if (slots_[PoolBinding::kDeviceSlotPhPump].used) {
             const HASensorEntry s1{
                 "pooldev", "pd_ph_pmp_upt", "Pump uptime pH",
                 "rt/pdm/metrics/pd1", "{{ value_json.running.day_s | int(0) }}",
@@ -1614,7 +1614,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
             };
             (void)haSvc_->addSensor(haSvc_->ctx, &s1b);
         }
-        if (slots_[POOL_IO_SLOT_FILL_PUMP].used) {
+        if (slots_[PoolBinding::kDeviceSlotFillPump].used) {
             const HASensorEntry s2{
                 "pooldev", "pd_fill_upt_mn", "Pump uptime Fill",
                 "rt/pdm/metrics/pd4", "{{ ((value_json.running.day_s | float(0)) / 60) | round(0) | int(0) }}",
@@ -1622,7 +1622,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
             };
             (void)haSvc_->addSensor(haSvc_->ctx, &s2);
         }
-        if (slots_[POOL_IO_SLOT_FILTRATION_PUMP].used) {
+        if (slots_[PoolBinding::kDeviceSlotFiltrationPump].used) {
             const HASensorEntry s3{
                 "pooldev", "pd_flt_upt_mn", "Pump uptime Filtration",
                 "rt/pdm/metrics/pd0", "{{ ((value_json.running.day_s | float(0)) / 60) | round(0) | int(0) }}",
@@ -1630,7 +1630,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
             };
             (void)haSvc_->addSensor(haSvc_->ctx, &s3);
         }
-        if (slots_[POOL_IO_SLOT_CHLORINE_GENERATOR].used) {
+        if (slots_[PoolBinding::kDeviceSlotChlorineGenerator].used) {
             const HASensorEntry s4{
                 "pooldev", "pd_chl_gen_upt", "Pump uptime Chlorine Generator",
                 "rt/pdm/metrics/pd5", "{{ ((value_json.running.day_s | float(0)) / 60) | round(0) | int(0) }}",
@@ -1668,7 +1668,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
             };
             (void)haSvc_->addNumber(haSvc_->ctx, &n2);
         }
-        if (slots_[POOL_IO_SLOT_PH_PUMP].used) {
+        if (slots_[PoolBinding::kDeviceSlotPhPump].used) {
             const HANumberEntry n3{
                 "pooldev", "pd1_max_upt", "Max uptime pH Pump",
                 "cfg/pdm/pd1", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
@@ -1677,7 +1677,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
             };
             (void)haSvc_->addNumber(haSvc_->ctx, &n3);
         }
-        if (slots_[POOL_IO_SLOT_CHLORINE_PUMP].used) {
+        if (slots_[PoolBinding::kDeviceSlotChlorinePump].used) {
             const HANumberEntry n4{
                 "pooldev", "pd2_max_upt", "Max uptime Chlorine Pump",
                 "cfg/pdm/pd2", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
@@ -1686,7 +1686,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
             };
             (void)haSvc_->addNumber(haSvc_->ctx, &n4);
         }
-        if (slots_[POOL_IO_SLOT_CHLORINE_GENERATOR].used) {
+        if (slots_[PoolBinding::kDeviceSlotChlorineGenerator].used) {
             const HANumberEntry n5{
                 "pooldev", "pd5_max_upt", "Max uptime Chlorine Generator",
                 "cfg/pdm/pd5", "{{ ((value_json.max_uptime_day_s | float(0)) / 60) | round(0) | int(0) }}",
@@ -1697,7 +1697,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         }
     }
     if (haSvc_ && haSvc_->addButton) {
-        if (slots_[POOL_IO_SLOT_PH_PUMP].used) {
+        if (slots_[PoolBinding::kDeviceSlotPhPump].used) {
             const HAButtonEntry refillPhTank{
                 "pooldev",
                 "pd_refill_ph",
@@ -1709,7 +1709,7 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
             };
             (void)haSvc_->addButton(haSvc_->ctx, &refillPhTank);
         }
-        if (slots_[POOL_IO_SLOT_CHLORINE_PUMP].used) {
+        if (slots_[PoolBinding::kDeviceSlotChlorinePump].used) {
             const HAButtonEntry refillChlorineTank{
                 "pooldev",
                 "pd_refill_chl",

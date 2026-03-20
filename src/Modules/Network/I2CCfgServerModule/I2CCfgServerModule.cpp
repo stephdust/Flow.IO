@@ -5,6 +5,7 @@
 
 #include "I2CCfgServerModule.h"
 #include "Core/ErrorCodes.h"
+#include "Core/FirmwareVersion.h"
 #include "Core/SystemStats.h"
 #include "Modules/Network/MQTTModule/MQTTRuntime.h"
 #include "Modules/Network/WifiModule/WifiRuntime.h"
@@ -16,10 +17,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifndef FIRMW
-#define FIRMW "unknown"
-#endif
 
 namespace {
 constexpr uint8_t kInterlinkBus = 1;  // Interlink is fixed on I2C controller 1 (Wire1 on ESP32).
@@ -456,7 +453,7 @@ bool I2CCfgServerModule::buildRuntimeStatusSystemJson_(bool& truncatedOut)
     size_t pos = 0;
     statusJson_[0] = '\0';
     if (!appendText_(statusJson_, sizeof(statusJson_), pos, "{\"ok\":true,\"fw\":")) return false;
-    if (!appendEscapedJsonString_(statusJson_, sizeof(statusJson_), pos, FIRMW)) return false;
+    if (!appendEscapedJsonString_(statusJson_, sizeof(statusJson_), pos, FirmwareVersion::Full)) return false;
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,

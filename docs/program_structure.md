@@ -62,8 +62,8 @@ end
 
 %% Layer 4: Applications
 subgraph L4["Firmwares"]
-  AFlow["Flow.IO (main_flowio.cpp)"]
-  ASup["Supervisor (main_supervisor.cpp)"]
+  AFlow["Flow.IO (src/main.cpp + Profiles/FlowIO)"]
+  ASup["Supervisor (src/main.cpp + Profiles/Supervisor)"]
 end
 
 %% Layer wiring

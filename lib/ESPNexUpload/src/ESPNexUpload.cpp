@@ -42,14 +42,8 @@
 	#endif
 
 #elif defined ESP32
-
-	#ifndef NEXT_RX
-		#define NEXT_RX 33 // Nextion RX pin | Default 16
-		#define NEXT_TX 32 // Nextion TX pin | Default 17
-	#endif
 	#ifndef nexSerial
 		#define nexSerial Serial1
-		#define nexSerialBegin(a) nexSerial.begin(a, SERIAL_8N1, NEXT_RX, NEXT_TX)
 	#endif
 
 #endif
@@ -69,8 +63,23 @@
 
 
 
-ESPNexUpload::ESPNexUpload(uint32_t upload_baudrate){
+ESPNexUpload::ESPNexUpload(uint32_t upload_baudrate, int8_t rx_pin, int8_t tx_pin){
     _upload_baudrate = upload_baudrate;
+    _rxPin = rx_pin;
+    _txPin = tx_pin;
+}
+
+void ESPNexUpload::_beginSerial(uint32_t baudrate)
+{
+#if defined ESP8266
+    nexSerial.begin(baudrate);
+#elif defined ESP32
+    const int8_t rxPin = (_rxPin >= 0) ? _rxPin : 33;
+    const int8_t txPin = (_txPin >= 0) ? _txPin : 32;
+    nexSerial.begin(baudrate, SERIAL_8N1, rxPin, txPin);
+#else
+    nexSerial.begin(baudrate);
+#endif
 }
 
 
@@ -151,7 +160,7 @@ bool ESPNexUpload::_searchBaudrate(uint32_t baudrate){
 	dbSerialPrint(F("init nextion serial interface on baudrate: "));
 	dbSerialPrintln(baudrate);
 
-    nexSerialBegin(baudrate);
+    _beginSerial(baudrate);
 	_printInfoLine(F("ESP baudrate established, try to connect to display"));
 	const char _nextion_FF_FF[3] = {0xFF, 0xFF, 0x00};
 
@@ -309,7 +318,7 @@ bool ESPNexUpload::_setPrepareForFirmwareUpdate(uint32_t upload_baudrate){
 	// The flush command forced the ESP to wait until the 'transmit buffer' is empty
 	nexSerial.flush();
 	
-	nexSerialBegin(upload_baudrate);
+	_beginSerial(upload_baudrate);
     _printInfoLine(F("changing upload baudrate..."));
     _printInfoLine(String(upload_baudrate));
 

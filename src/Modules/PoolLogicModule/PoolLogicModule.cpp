@@ -749,12 +749,12 @@ void PoolLogicModule::normalizeDeviceSlots_()
         }
     };
 
-    normalize(filtrationDeviceSlot_, POOL_IO_SLOT_FILTRATION_PUMP, filtrationDeviceVar_, "filtration");
-    normalize(swgDeviceSlot_, POOL_IO_SLOT_CHLORINE_GENERATOR, swgDeviceVar_, "swg");
-    normalize(robotDeviceSlot_, POOL_IO_SLOT_ROBOT, robotDeviceVar_, "robot");
-    normalize(fillingDeviceSlot_, POOL_IO_SLOT_FILL_PUMP, fillingDeviceVar_, "filling");
-    normalize(phPumpDeviceSlot_, POOL_IO_SLOT_PH_PUMP, phPumpDeviceVar_, "ph_pump");
-    normalize(orpPumpDeviceSlot_, POOL_IO_SLOT_CHLORINE_PUMP, orpPumpDeviceVar_, "orp_pump");
+    normalize(filtrationDeviceSlot_, PoolBinding::kDeviceSlotFiltrationPump, filtrationDeviceVar_, "filtration");
+    normalize(swgDeviceSlot_, PoolBinding::kDeviceSlotChlorineGenerator, swgDeviceVar_, "swg");
+    normalize(robotDeviceSlot_, PoolBinding::kDeviceSlotRobot, robotDeviceVar_, "robot");
+    normalize(fillingDeviceSlot_, PoolBinding::kDeviceSlotFillPump, fillingDeviceVar_, "filling");
+    normalize(phPumpDeviceSlot_, PoolBinding::kDeviceSlotPhPump, phPumpDeviceVar_, "ph_pump");
+    normalize(orpPumpDeviceSlot_, PoolBinding::kDeviceSlotChlorinePump, orpPumpDeviceVar_, "orp_pump");
 }
 
 void PoolLogicModule::logDeviceSlotConfig_() const
@@ -777,7 +777,7 @@ void PoolLogicModule::logDeviceSlotConfig_() const
 
 void PoolLogicModule::logDeviceSlotBinding_(const char* role, uint8_t slot, int8_t expectedType) const
 {
-    const PoolIoBinding* binding = flowPoolIoBindingBySlot(slot);
+    const PoolIoBinding* binding = PoolBinding::ioBindingBySlot(slot);
     if (binding) {
         LOGI("PoolLogic role=%s slot=%u io=%u map=%s",
              role ? role : "?",

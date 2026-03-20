@@ -79,8 +79,10 @@ public: /* methods */
      * Constructor. 
      * 
      * @param uint32_t upload_baudrate - set upload baudrate.
+     * @param int8_t rx_pin - optional RX pin override.
+     * @param int8_t tx_pin - optional TX pin override.
      */
-    ESPNexUpload(uint32_t upload_baudrate);
+    ESPNexUpload(uint32_t upload_baudrate, int8_t rx_pin = -1, int8_t tx_pin = -1);
     
     /**
      * destructor. 
@@ -173,6 +175,7 @@ private: /* methods */
      * @return true if success, false for failure. 
      */
     bool _setPrepareForFirmwareUpdate(uint32_t upload_baudrate);
+    void _beginSerial(uint32_t baudrate);
 
     /*
      * set Nextion running mode.
@@ -266,6 +269,8 @@ private: /* data */
     uint32_t _undownloadByte; 	    /* undownload byte of tft file */
     uint32_t _upload_baudrate;      /* upload baudrate */
     uint16_t _sent_packets = 0;     /* upload baudrate */
+    int8_t _rxPin = -1;
+    int8_t _txPin = -1;
 	
 	THandlerFunction _updateProgressCallback;
 };

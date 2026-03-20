@@ -5,9 +5,11 @@
 
 #include "Modules/SupervisorHMIModule/SupervisorHMIModule.h"
 
+#include "Board/BoardSpec.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::HMIModule)
 #include "Core/ModuleLog.h"
 
+#include "App/FirmwareProfile.h"
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <esp_system.h>
@@ -16,113 +18,84 @@
 #include <time.h>
 
 namespace {
-
-#ifndef FLOW_SUPERVISOR_TFT_RESX
-#define FLOW_SUPERVISOR_TFT_RESX 240
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_RESY
-#define FLOW_SUPERVISOR_TFT_RESY 320
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_ROTATION
-#define FLOW_SUPERVISOR_TFT_ROTATION 1
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_COLSTART
-#define FLOW_SUPERVISOR_TFT_COLSTART 0
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_ROWSTART
-#define FLOW_SUPERVISOR_TFT_ROWSTART 33
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_BL
-#define FLOW_SUPERVISOR_TFT_BL 14
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_CS
-#define FLOW_SUPERVISOR_TFT_CS 15
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_DC
-#define FLOW_SUPERVISOR_TFT_DC 4
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_RST
-#define FLOW_SUPERVISOR_TFT_RST 5
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_MOSI
-#define FLOW_SUPERVISOR_TFT_MOSI 19
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_SCLK
-#define FLOW_SUPERVISOR_TFT_SCLK 18
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_COLOR_SWAP_BYTES
-#define FLOW_SUPERVISOR_TFT_COLOR_SWAP_BYTES 1
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_INVERT_COLORS
-#define FLOW_SUPERVISOR_TFT_INVERT_COLORS 0
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_SPI_HZ
-#define FLOW_SUPERVISOR_TFT_SPI_HZ 40000000
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_MIN_RENDER_GAP_MS
-#define FLOW_SUPERVISOR_TFT_MIN_RENDER_GAP_MS 80
-#endif
-
-#ifndef FLOW_SUPERVISOR_PIR_PIN
-#define FLOW_SUPERVISOR_PIR_PIN 36
-#endif
-#ifndef FLOW_SUPERVISOR_TFT_PIR_TIMEOUT_MS
-#define FLOW_SUPERVISOR_TFT_PIR_TIMEOUT_MS 120000
-#endif
-#ifndef FLOW_SUPERVISOR_PIR_DEBOUNCE_MS
-#define FLOW_SUPERVISOR_PIR_DEBOUNCE_MS 120
-#endif
-#ifndef FLOW_SUPERVISOR_PIR_ACTIVE_HIGH
-#define FLOW_SUPERVISOR_PIR_ACTIVE_HIGH 1
-#endif
-
-#ifndef FLOW_SUPERVISOR_WIFI_RESET_PIN
-#define FLOW_SUPERVISOR_WIFI_RESET_PIN 23
-#endif
-#ifndef FLOW_SUPERVISOR_WIFI_RESET_HOLD_MS
-#define FLOW_SUPERVISOR_WIFI_RESET_HOLD_MS 3000
-#endif
-#ifndef FLOW_SUPERVISOR_WIFI_RESET_DEBOUNCE_MS
-#define FLOW_SUPERVISOR_WIFI_RESET_DEBOUNCE_MS 40
-#endif
-
-static constexpr int8_t kPirPin = FLOW_SUPERVISOR_PIR_PIN;
-static constexpr int8_t kWifiResetPin = FLOW_SUPERVISOR_WIFI_RESET_PIN;
-static constexpr uint32_t kPirTimeoutMs = (uint32_t)FLOW_SUPERVISOR_TFT_PIR_TIMEOUT_MS;
-static constexpr uint32_t kPirDebounceMs = (uint32_t)FLOW_SUPERVISOR_PIR_DEBOUNCE_MS;
-static constexpr bool kPirActiveHigh = (FLOW_SUPERVISOR_PIR_ACTIVE_HIGH != 0);
-static constexpr uint32_t kWifiResetHoldMs = (uint32_t)FLOW_SUPERVISOR_WIFI_RESET_HOLD_MS;
-static constexpr uint32_t kWifiResetDebounceMs = (uint32_t)FLOW_SUPERVISOR_WIFI_RESET_DEBOUNCE_MS;
 static constexpr uint32_t kFwPollMs = 500U;
 static constexpr uint32_t kStartupSplashHoldMs = 5000U;
 static constexpr uint32_t kButtonBootGuardMs = 8000U;
 static constexpr uint32_t kButtonArmHighStableMs = 500U;
 
-} // namespace
-
-SupervisorHMIModule::SupervisorHMIModule()
-    : driver_(makeDriverConfig_())
+const SupervisorBoardSpec& supervisorBoardSpec_(const BoardSpec& board)
 {
+    static constexpr SupervisorBoardSpec kFallback{
+        {
+            240,
+            320,
+            1,
+            0,
+            33,
+            14,
+            15,
+            4,
+            5,
+            19,
+            18,
+            true,
+            false,
+            40000000U,
+            80
+        },
+        {
+            36,
+            120,
+            true,
+            23,
+            40
+        },
+        {
+            25,
+            26,
+            13,
+            115200U
+        }
+    };
+    const SupervisorBoardSpec* cfg = boardSupervisorConfig(board);
+    return cfg ? *cfg : kFallback;
 }
 
-St7789SupervisorDriverConfig SupervisorHMIModule::makeDriverConfig_()
+} // namespace
+
+SupervisorHMIModule::SupervisorHMIModule(const BoardSpec& board, const SupervisorRuntimeOptions& runtime)
+    : driverCfg_(makeDriverConfig_(board)),
+      driver_(driverCfg_)
 {
+    const SupervisorBoardSpec& boardCfg = supervisorBoardSpec_(board);
+    pirPin_ = boardCfg.inputs.pirPin;
+    wifiResetPin_ = boardCfg.inputs.wifiResetPin;
+    pirTimeoutMs_ = runtime.pirTimeoutMs;
+    pirDebounceMs_ = boardCfg.inputs.pirDebounceMs;
+    pirActiveHigh_ = boardCfg.inputs.pirActiveHigh;
+    wifiResetHoldMs_ = runtime.wifiResetHoldMs;
+    wifiResetDebounceMs_ = boardCfg.inputs.wifiResetDebounceMs;
+}
+
+St7789SupervisorDriverConfig SupervisorHMIModule::makeDriverConfig_(const BoardSpec& board)
+{
+    const SupervisorBoardSpec& boardCfg = supervisorBoardSpec_(board);
     St7789SupervisorDriverConfig cfg{};
-    cfg.resX = (uint16_t)FLOW_SUPERVISOR_TFT_RESX;
-    cfg.resY = (uint16_t)FLOW_SUPERVISOR_TFT_RESY;
-    cfg.rotation = (uint8_t)FLOW_SUPERVISOR_TFT_ROTATION;
-    cfg.colStart = (int8_t)FLOW_SUPERVISOR_TFT_COLSTART;
-    cfg.rowStart = (int8_t)FLOW_SUPERVISOR_TFT_ROWSTART;
-    cfg.backlightPin = (int8_t)FLOW_SUPERVISOR_TFT_BL;
-    cfg.csPin = (int8_t)FLOW_SUPERVISOR_TFT_CS;
-    cfg.dcPin = (int8_t)FLOW_SUPERVISOR_TFT_DC;
-    cfg.rstPin = (int8_t)FLOW_SUPERVISOR_TFT_RST;
-    cfg.mosiPin = (int8_t)FLOW_SUPERVISOR_TFT_MOSI;
-    cfg.sclkPin = (int8_t)FLOW_SUPERVISOR_TFT_SCLK;
-    cfg.swapColorBytes = (FLOW_SUPERVISOR_TFT_COLOR_SWAP_BYTES != 0);
-    cfg.invertColors = (FLOW_SUPERVISOR_TFT_INVERT_COLORS != 0);
-    cfg.spiHz = (uint32_t)FLOW_SUPERVISOR_TFT_SPI_HZ;
-    cfg.minRenderGapMs = (uint16_t)FLOW_SUPERVISOR_TFT_MIN_RENDER_GAP_MS;
+    cfg.resX = boardCfg.display.resX;
+    cfg.resY = boardCfg.display.resY;
+    cfg.rotation = boardCfg.display.rotation;
+    cfg.colStart = boardCfg.display.colStart;
+    cfg.rowStart = boardCfg.display.rowStart;
+    cfg.backlightPin = boardCfg.display.backlightPin;
+    cfg.csPin = boardCfg.display.csPin;
+    cfg.dcPin = boardCfg.display.dcPin;
+    cfg.rstPin = boardCfg.display.rstPin;
+    cfg.mosiPin = boardCfg.display.mosiPin;
+    cfg.sclkPin = boardCfg.display.sclkPin;
+    cfg.swapColorBytes = boardCfg.display.swapColorBytes;
+    cfg.invertColors = boardCfg.display.invertColors;
+    cfg.spiHz = boardCfg.display.spiHz;
+    cfg.minRenderGapMs = boardCfg.display.minRenderGapMs;
     return cfg;
 }
 
@@ -180,24 +153,24 @@ void SupervisorHMIModule::init(ConfigStore&, ServiceRegistry& services)
     flowCfgSvc_ = services.get<FlowCfgRemoteService>("flowcfg");
     (void)logHub_;
 
-    if (kPirPin >= 0) {
+    if (pirPin_ >= 0) {
         int pirMode = INPUT;
 #if defined(ESP32)
         // ESP32 GPIO 34..39 are input-only and don't support internal pull resistors.
-        if (kPirPin <= 33) {
-            pirMode = kPirActiveHigh ? INPUT_PULLDOWN : INPUT_PULLUP;
+        if (pirPin_ <= 33) {
+            pirMode = pirActiveHigh_ ? INPUT_PULLDOWN : INPUT_PULLUP;
         }
 #endif
-        pinMode(kPirPin, pirMode);
-        const bool pirLevelHigh = (digitalRead(kPirPin) == HIGH);
-        const bool rawPir = kPirActiveHigh ? pirLevelHigh : !pirLevelHigh;
+        pinMode(pirPin_, pirMode);
+        const bool pirLevelHigh = (digitalRead(pirPin_) == HIGH);
+        const bool rawPir = pirActiveHigh_ ? pirLevelHigh : !pirLevelHigh;
         pirRawState_ = rawPir;
         pirStableState_ = rawPir;
         pirDebounceChangedAtMs_ = millis();
     }
-    if (kWifiResetPin >= 0) {
-        pinMode(kWifiResetPin, INPUT_PULLUP);
-        const bool rawPressed = (digitalRead(kWifiResetPin) == LOW);
+    if (wifiResetPin_ >= 0) {
+        pinMode(wifiResetPin_, INPUT_PULLUP);
+        const bool rawPressed = (digitalRead(wifiResetPin_) == LOW);
         buttonRawPressed_ = rawPressed;
         buttonStablePressed_ = rawPressed;
         buttonDebounceChangedAtMs_ = millis();
@@ -206,21 +179,21 @@ void SupervisorHMIModule::init(ConfigStore&, ServiceRegistry& services)
     lastMotionMs_ = millis();
     copyText_(view_.fwState, sizeof(view_.fwState), "idle");
     copyText_(view_.fwTarget, sizeof(view_.fwTarget), "none");
-    copyText_(view_.banner, sizeof(view_.banner), "Hold WiFi button 3s to reset credentials");
+    setDefaultBanner_();
 
     LOGI("Supervisor HMI initialized tft_cs=%d tft_dc=%d tft_rst=%d tft_bl=%d tft_mosi=%d tft_sclk=%d rot=%d colstart=%d rowstart=%d pir=%d pir_active_high=%d wifi_reset=%d",
-         (int)FLOW_SUPERVISOR_TFT_CS,
-         (int)FLOW_SUPERVISOR_TFT_DC,
-         (int)FLOW_SUPERVISOR_TFT_RST,
-         (int)FLOW_SUPERVISOR_TFT_BL,
-         (int)FLOW_SUPERVISOR_TFT_MOSI,
-         (int)FLOW_SUPERVISOR_TFT_SCLK,
-         (int)FLOW_SUPERVISOR_TFT_ROTATION,
-         (int)FLOW_SUPERVISOR_TFT_COLSTART,
-         (int)FLOW_SUPERVISOR_TFT_ROWSTART,
-         (int)kPirPin,
-         (int)(kPirActiveHigh ? 1 : 0),
-         (int)kWifiResetPin);
+         (int)driverCfg_.csPin,
+         (int)driverCfg_.dcPin,
+         (int)driverCfg_.rstPin,
+         (int)driverCfg_.backlightPin,
+         (int)driverCfg_.mosiPin,
+         (int)driverCfg_.sclkPin,
+         (int)driverCfg_.rotation,
+         (int)driverCfg_.colStart,
+         (int)driverCfg_.rowStart,
+         (int)pirPin_,
+         (int)(pirActiveHigh_ ? 1 : 0),
+         (int)wifiResetPin_);
 }
 
 void SupervisorHMIModule::pollWifiAndNetwork_()
@@ -430,16 +403,16 @@ void SupervisorHMIModule::triggerWifiReset_()
 
 void SupervisorHMIModule::updateWifiResetButton_()
 {
-    if (kWifiResetPin < 0) return;
+    if (wifiResetPin_ < 0) return;
 
     const uint32_t now = millis();
-    const bool rawPressed = (digitalRead(kWifiResetPin) == LOW);
+    const bool rawPressed = (digitalRead(wifiResetPin_) == LOW);
 
     if (rawPressed != buttonRawPressed_) {
         buttonRawPressed_ = rawPressed;
         buttonDebounceChangedAtMs_ = now;
     }
-    if ((uint32_t)(now - buttonDebounceChangedAtMs_) >= kWifiResetDebounceMs) {
+    if ((uint32_t)(now - buttonDebounceChangedAtMs_) >= wifiResetDebounceMs_) {
         buttonStablePressed_ = buttonRawPressed_;
     }
 
@@ -485,7 +458,7 @@ void SupervisorHMIModule::updateWifiResetButton_()
     }
 
     if (buttonTriggered_) return;
-    if ((uint32_t)(now - buttonPressedAtMs_) < kWifiResetHoldMs) return;
+    if ((uint32_t)(now - buttonPressedAtMs_) < wifiResetHoldMs_) return;
 
     buttonTriggered_ = true;
     triggerWifiReset_();
@@ -495,14 +468,14 @@ void SupervisorHMIModule::updateBacklight_()
 {
     const uint32_t now = millis();
     bool motion = false;
-    if (kPirPin >= 0) {
-        const bool pirLevelHigh = (digitalRead(kPirPin) == HIGH);
-        const bool rawMotion = kPirActiveHigh ? pirLevelHigh : !pirLevelHigh;
+    if (pirPin_ >= 0) {
+        const bool pirLevelHigh = (digitalRead(pirPin_) == HIGH);
+        const bool rawMotion = pirActiveHigh_ ? pirLevelHigh : !pirLevelHigh;
         if (rawMotion != pirRawState_) {
             pirRawState_ = rawMotion;
             pirDebounceChangedAtMs_ = now;
         }
-        if ((uint32_t)(now - pirDebounceChangedAtMs_) >= kPirDebounceMs) {
+        if ((uint32_t)(now - pirDebounceChangedAtMs_) >= pirDebounceMs_) {
             pirStableState_ = pirRawState_;
         }
         motion = pirStableState_;
@@ -511,12 +484,12 @@ void SupervisorHMIModule::updateBacklight_()
         lastMotionMs_ = now;
     }
 
-    if (kPirPin < 0) {
+    if (pirPin_ < 0) {
         driver_.setBacklight(true);
         return;
     }
 
-    const bool keepOn = fwBusyOrPending_ || ((uint32_t)(now - lastMotionMs_) <= kPirTimeoutMs);
+    const bool keepOn = fwBusyOrPending_ || ((uint32_t)(now - lastMotionMs_) <= pirTimeoutMs_);
     driver_.setBacklight(keepOn);
 }
 
@@ -527,7 +500,13 @@ void SupervisorHMIModule::rebuildBanner_()
         copyText_(view_.banner, sizeof(view_.banner), "PIR idle: backlight off");
         return;
     }
-    copyText_(view_.banner, sizeof(view_.banner), "Hold WiFi button 3s to reset credentials");
+    setDefaultBanner_();
+}
+
+void SupervisorHMIModule::setDefaultBanner_()
+{
+    const uint32_t holdSeconds = (wifiResetHoldMs_ + 999U) / 1000U;
+    snprintf(view_.banner, sizeof(view_.banner), "Hold WiFi button %lus to reset credentials", (unsigned long)holdSeconds);
 }
 
 void SupervisorHMIModule::loop()

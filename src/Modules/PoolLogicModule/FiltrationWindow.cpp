@@ -4,7 +4,7 @@
  */
 
 #include "Modules/PoolLogicModule/FiltrationWindow.h"
-#include "Domain/PoolLogicDefaults.h"
+#include "Domain/Pool/PoolDefaults.h"
 #include <math.h>
 
 bool computeFiltrationWindowDeterministic(const FiltrationWindowInput& in, FiltrationWindowOutput& out)

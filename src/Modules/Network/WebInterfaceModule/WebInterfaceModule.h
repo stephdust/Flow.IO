@@ -12,8 +12,12 @@
 #include <freertos/queue.h>
 #include "Core/EventBus/EventBus.h"
 
+struct BoardSpec;
+
 class WebInterfaceModule : public Module {
 public:
+    explicit WebInterfaceModule(const BoardSpec& board);
+
     const char* moduleId() const override { return "webinterface"; }
     const char* taskName() const override { return "webinterface"; }
     BaseType_t taskCore() const override { return 0; }
@@ -36,24 +40,6 @@ public:
 private:
     static constexpr int kServerPort = 80;
 
-#ifndef FLOW_SUPERVISOR_WEBSERIAL_BAUD
-    static constexpr uint32_t kUartBaud = 115200;
-#else
-    static constexpr uint32_t kUartBaud = FLOW_SUPERVISOR_WEBSERIAL_BAUD;
-#endif
-
-#ifndef FLOW_SUPERVISOR_WEBSERIAL_RX
-    static constexpr int kUartRxPin = 16;
-#else
-    static constexpr int kUartRxPin = FLOW_SUPERVISOR_WEBSERIAL_RX;
-#endif
-
-#ifndef FLOW_SUPERVISOR_WEBSERIAL_TX
-    static constexpr int kUartTxPin = 17;
-#else
-    static constexpr int kUartTxPin = FLOW_SUPERVISOR_WEBSERIAL_TX;
-#endif
-
     // Keep UART framing aligned with core log entry limits.
     static constexpr size_t kSerialLogLineChars =
         (size_t)LOG_MSG_MAX + (size_t)LOG_MODULE_NAME_MAX + 64U;
@@ -61,6 +47,9 @@ private:
     static constexpr size_t kUartRxBufferSize = kLineBufferSize * 2U;
 
     HardwareSerial& uart_ = Serial2;
+    uint32_t uartBaud_ = 115200U;
+    int uartRxPin_ = 16;
+    int uartTxPin_ = 17;
     AsyncWebServer server_{kServerPort};
     AsyncWebSocket ws_{"/wsserial"};
     AsyncWebSocket wsLog_{"/wslog"};

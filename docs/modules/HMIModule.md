@@ -47,7 +47,7 @@ Des hints peuvent forcer le widget et les contraintes (bornes/options).
 
 ## Driver Nextion (V1)
 
-- Transport: mappé via `include/Board/BoardSerialMap.h`
+- Transport: mappé via `src/Board/BoardSerialMap.h`
   - mode normal: logs -> `Serial`, Nextion -> `Serial2` (RX16/TX17)
   - inversion: définir `FLOW_SWAP_LOG_HMI_SERIAL=1` au build pour
     logs -> `Serial2` (RX16/TX17), Nextion -> `Serial`

@@ -8,4 +8,5 @@
  * - FLOW_WIRDEF_* : profile-owned defaults (board/wiring/integration)
  */
 
+#include "Domain/Calibration.h"
 #include "Core/Generated/WokwiDefaultOverrides_Generated.h"

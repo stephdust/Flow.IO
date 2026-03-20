@@ -41,7 +41,7 @@ Interfaces runtime exposées:
   - `rt/poollogic/ph`
   - `rt/poollogic/orp`
 
-Ces snapshots sont routés vers MQTT via `MQTTModule::RuntimeProducer` (providers enregistrés dans `main_flowio.cpp`), pas publiés directement par `PoolLogicModule`.
+Ces snapshots sont routés vers MQTT via `MQTTModule::RuntimeProducer` (providers enregistrés dans le bootstrap de profil `FlowIO`), pas publiés directement par `PoolLogicModule`.
 
 ## Config / NVS
 

@@ -1609,8 +1609,8 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
     }
 
     // Default labels for digital output slots (can be overridden by persisted config).
-    for (uint8_t i = 0; i < FLOW_POOL_IO_BINDING_COUNT; ++i) {
-        const PoolIoBinding& b = FLOW_POOL_IO_BINDINGS[i];
+    for (uint8_t i = 0; i < PoolBinding::kDeviceBindingCount; ++i) {
+        const PoolIoBinding& b = PoolBinding::kIoBindings[i];
         if (b.ioId < IO_ID_DO_BASE) continue;
         const uint8_t logical = (uint8_t)(b.ioId - IO_ID_DO_BASE);
         if (logical >= DIGITAL_CFG_SLOTS) continue;
@@ -1672,15 +1672,15 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
         if (haSvc_->addBinarySensor) registerHaDigitalInputBinarySensors_();
     }
     if (haSvc_ && haSvc_->addSwitch) {
-        for (uint8_t i = 0; i < FLOW_POOL_IO_BINDING_COUNT; ++i) {
-            const PoolIoBinding& b = FLOW_POOL_IO_BINDINGS[i];
+        for (uint8_t i = 0; i < PoolBinding::kDeviceBindingCount; ++i) {
+            const PoolIoBinding& b = PoolBinding::kIoBindings[i];
             if (b.ioId < IO_ID_DO_BASE) continue;
             const uint8_t logical = (uint8_t)(b.ioId - IO_ID_DO_BASE);
             if (logical >= MAX_DIGITAL_OUTPUTS) continue;
 
             snprintf(haSwitchStateSuffix_[i], sizeof(haSwitchStateSuffix_[i]), "rt/io/output/d%u", (unsigned)logical);
             bool payloadOk = true;
-            if (b.slot == 0) {
+            if (b.slot == PoolBinding::kDeviceSlotFiltrationPump) {
                 int wrote = snprintf(
                     haSwitchPayloadOn_[i],
                     sizeof(haSwitchPayloadOn_[i]),
@@ -1716,17 +1716,17 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
             BufferUsageTracker::note(TrackedBufferId::IoHaSwitchPayloadOnTable,
                                      charTableUsage_(haSwitchPayloadOn_),
                                      sizeof(haSwitchPayloadOn_),
-                                     b.haObjectSuffix,
+                                     b.objectSuffix,
                                      haSwitchPayloadOn_[i]);
             BufferUsageTracker::note(TrackedBufferId::IoHaSwitchPayloadOffTable,
                                      charTableUsage_(haSwitchPayloadOff_),
                                      sizeof(haSwitchPayloadOff_),
-                                     b.haObjectSuffix,
+                                     b.objectSuffix,
                                      haSwitchPayloadOff_[i]);
 
             const HASwitchEntry sw{
                 "io",
-                b.haObjectSuffix,
+                b.objectSuffix,
                 b.name,
                 haSwitchStateSuffix_[i],
                 "{% if value_json.value %}ON{% else %}OFF{% endif %}",

@@ -8,7 +8,7 @@
 #include "Board/BoardSerialMap.h"
 #include "Core/EventBus/EventPayloads.h"
 #include "Core/AlarmIds.h"
-#include "Core/Layout/PoolIoMap.h"
+#include "Domain/Pool/PoolBindings.h"
 #include "Modules/Network/MQTTModule/MQTTRuntime.h"
 #include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
 #include <ArduinoJson.h>
@@ -243,9 +243,9 @@ void HMIModule::updatePumpRuntimeAlarmFromSlot_(uint8_t slot)
         entry.valid &&
         entry.blockReason == POOL_DEVICE_BLOCK_MAX_UPTIME;
 
-    if (slot == POOL_IO_SLOT_PH_PUMP) {
+    if (slot == PoolBinding::kDeviceSlotPhPump) {
         phPumpRuntimeAlarm_ = active;
-    } else if (slot == POOL_IO_SLOT_CHLORINE_PUMP) {
+    } else if (slot == PoolBinding::kDeviceSlotChlorinePump) {
         chlorinePumpRuntimeAlarm_ = active;
     }
 }
@@ -254,8 +254,8 @@ void HMIModule::refreshRuntimeFlags_()
 {
     if (!dsSvc_ || !dsSvc_->store) return;
     mqttReady_ = mqttReady(*dsSvc_->store);
-    updatePumpRuntimeAlarmFromSlot_(POOL_IO_SLOT_PH_PUMP);
-    updatePumpRuntimeAlarmFromSlot_(POOL_IO_SLOT_CHLORINE_PUMP);
+    updatePumpRuntimeAlarmFromSlot_(PoolBinding::kDeviceSlotPhPump);
+    updatePumpRuntimeAlarmFromSlot_(PoolBinding::kDeviceSlotChlorinePump);
 }
 
 void HMIModule::refreshAlarmFlags_()
@@ -333,11 +333,11 @@ void HMIModule::onEvent_(const Event& e)
         if (p->id == DATAKEY_MQTT_READY) {
             refreshRuntimeFlags_();
             ledDirty = true;
-        } else if (p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + POOL_IO_SLOT_PH_PUMP)) {
-            updatePumpRuntimeAlarmFromSlot_(POOL_IO_SLOT_PH_PUMP);
+        } else if (p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + PoolBinding::kDeviceSlotPhPump)) {
+            updatePumpRuntimeAlarmFromSlot_(PoolBinding::kDeviceSlotPhPump);
             ledDirty = true;
-        } else if (p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + POOL_IO_SLOT_CHLORINE_PUMP)) {
-            updatePumpRuntimeAlarmFromSlot_(POOL_IO_SLOT_CHLORINE_PUMP);
+        } else if (p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + PoolBinding::kDeviceSlotChlorinePump)) {
+            updatePumpRuntimeAlarmFromSlot_(PoolBinding::kDeviceSlotChlorinePump);
             ledDirty = true;
         }
     } else if ((e.id == EventId::AlarmRaised || e.id == EventId::AlarmCleared) &&
