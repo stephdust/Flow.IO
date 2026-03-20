@@ -37,6 +37,10 @@ public:
     bool setModuleMinLevel(LogModuleId moduleId, LogLevel level);
     /** @brief Read a module minimum level. */
     LogLevel getModuleMinLevel(LogModuleId moduleId) const;
+    /** @brief Snapshot queue/truncation counters for diagnostics. */
+    void getStats(LogHubStatsSnapshot& out) const;
+    /** @brief Record a message formatting truncation before enqueue. */
+    void noteFormatTruncation(LogModuleId moduleId, uint32_t wrote);
 
 private:
     struct ModuleRegistration {
@@ -57,6 +61,15 @@ private:
 
     QueueHandle_t q = nullptr;
     uint16_t queueLen_ = Limits::LogQueueLen;
+    mutable portMUX_TYPE statsMux_ = portMUX_INITIALIZER_UNLOCKED;
+    uint16_t peakQueued_ = 0;
+    uint32_t enqueuedCount_ = 0;
+    uint32_t droppedCount_ = 0;
+    uint32_t formatTruncCount_ = 0;
+    uint32_t lastDropMs_ = 0;
+    uint32_t lastFormatTruncMs_ = 0;
+    LogModuleId lastDropModuleId_ = (LogModuleId)LogModuleIdValue::Unknown;
+    LogModuleId lastFormatTruncModuleId_ = (LogModuleId)LogModuleIdValue::Unknown;
     ModuleRegistration modules_[MAX_REGISTERED_MODULES]{};
     uint8_t moduleCount_ = 0;
     ConfigStore* cfg_ = nullptr;

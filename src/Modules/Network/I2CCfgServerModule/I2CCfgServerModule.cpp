@@ -241,6 +241,21 @@ bool appendEscapedJsonString_(char* out, size_t outLen, size_t& pos, const char*
 
 }  // namespace
 
+const ModuleTaskSpec* I2CCfgServerModule::taskSpecs() const
+{
+    static ModuleTaskSpec spec;
+    if (!started_) return nullptr;
+    spec = {
+        "I2CfgAct",
+        2560,
+        1,
+        0,
+        &I2CCfgServerModule::actionTaskStatic_,
+        const_cast<I2CCfgServerModule*>(this)
+    };
+    return &spec;
+}
+
 void I2CCfgServerModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
     constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::I2cCfg;
@@ -304,7 +319,6 @@ void I2CCfgServerModule::startLink_()
     }
     link_.setSlaveCallbacks(onReceiveStatic_, onRequestStatic_, this);
     started_ = true;
-    ensureActionTask_();
     LOGI("I2C cfg server started app_role=server i2c_role=slave addr=0x%02X bus=%u sda=%ld scl=%ld freq=%ld",
          (unsigned)cfgData_.address,
          (unsigned)kInterlinkBus,
@@ -462,7 +476,7 @@ bool I2CCfgServerModule::buildRuntimeStatusSystemJson_(bool& truncatedOut)
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       ",\"heap\":{\"free\":%u,\"min\":%u,\"larg\":%u,\"frag\":%u}}",
+                       ",\"heap\":{\"free\":%u,\"min_free\":%u,\"larg\":%u,\"frag\":%u}}",
                        (unsigned)snap.heap.freeBytes,
                        (unsigned)snap.heap.minFreeBytes,
                        (unsigned)snap.heap.largestFreeBlock,
@@ -607,30 +621,12 @@ bool I2CCfgServerModule::buildRuntimeStatusAlarmJson_(bool& truncatedOut)
     return appendText_(statusJson_, sizeof(statusJson_), pos, "]}}");
 }
 
-void I2CCfgServerModule::ensureActionTask_()
-{
-    if (actionTask_) return;
-    const BaseType_t ok = xTaskCreatePinnedToCore(
-        &I2CCfgServerModule::actionTaskStatic_,
-        "I2CfgAct",
-        3072,
-        this,
-        1,
-        &actionTask_,
-        0);
-    if (ok != pdPASS) {
-        actionTask_ = nullptr;
-        LOGW("Failed to start system action task");
-    }
-}
-
 void I2CCfgServerModule::queueSystemAction_(PendingSystemAction action)
 {
     if (action == PendingSystemAction::None) return;
     portENTER_CRITICAL(&actionMux_);
     pendingAction_ = (uint8_t)action;
     portEXIT_CRITICAL(&actionMux_);
-    ensureActionTask_();
 }
 
 I2CCfgServerModule::PendingSystemAction I2CCfgServerModule::takePendingSystemAction_()
@@ -949,9 +945,6 @@ void I2CCfgServerModule::handleRequest_(uint8_t op, uint8_t seq, const uint8_t* 
             moduleJsonTruncated_ = false;
             buildResponse_(op, seq, I2cCfgProtocol::StatusRange, nullptr, 0);
             return;
-        }
-        if (exportRawSecrets) {
-            LOGW("flowcfg.get module=wifi exported with clear password (debug/sync path)");
         }
         moduleJsonLen_ = strnlen(moduleJson_, sizeof(moduleJson_));
         moduleJsonValid_ = true;

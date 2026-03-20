@@ -160,7 +160,7 @@
     let flowCfgCurrentData = {};
     let flowCfgChildrenCache = {};
     let flowCfgPath = [];
-    let flowCfgDocs = {};
+    let cfgDocSources = [];
     let flowCfgDocsLoaded = false;
     let flowCfgLoadingDepth = 0;
     let upgradeCfgLoadedOnce = false;
@@ -937,7 +937,9 @@
       const key = flowCfgCacheKey(p);
       const node = flowCfgChildrenCache[key];
       if (!node || !Array.isArray(node.children)) return [];
-      return node.children.slice();
+      return node.children
+        .filter((name) => !isConfigPathHidden(p ? (p + '/' + name) : name))
+        .slice();
     }
 
     function closeFlowCfgCrumbMenus(except) {
@@ -1052,7 +1054,10 @@
 
     function renderFlowCfgSections(node, currentPath) {
       flowCfgSections.innerHTML = '';
-      const children = (node && Array.isArray(node.children)) ? node.children : [];
+      const cleanPath = nettoyerNomFlowCfg(currentPath);
+      const children = (node && Array.isArray(node.children))
+        ? node.children.filter((name) => !isConfigPathHidden(cleanPath ? (cleanPath + '/' + name) : name))
+        : [];
       if (children.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'control-chip-empty';
@@ -1148,27 +1153,143 @@
         if (!res.ok || !data || typeof data !== 'object') {
           throw new Error('invalid docs payload');
         }
-        const docs = data.docs;
-        if (!docs || typeof docs !== 'object') {
-          flowCfgDocs = {};
-          return;
+        const docs = (data.docs && typeof data.docs === 'object') ? data.docs : {};
+        const meta = (data._meta && typeof data._meta === 'object') ? data._meta : {};
+        cfgDocSources = [{ docs: docs, meta: meta }];
+        try {
+          const modsRes = await fetch(versionedWebAssetUrl('/webinterface/cfgmods.fr.json'), { cache: 'no-store' });
+          const modsData = await modsRes.json();
+          if (modsRes.ok && modsData && typeof modsData === 'object') {
+            const modsDocs = (modsData.docs && typeof modsData.docs === 'object') ? modsData.docs : {};
+            const modsMeta = (modsData._meta && typeof modsData._meta === 'object') ? modsData._meta : {};
+            cfgDocSources.push({ docs: modsDocs, meta: modsMeta });
+          }
+        } catch (err) {
+          // Ignore optional manual cfgmods file failures.
         }
-        flowCfgDocs = docs;
       } catch (err) {
-        flowCfgDocs = {};
+        cfgDocSources = [];
       }
     }
 
-    function flowCfgDocFor(moduleName, key) {
+    function normalizeDocSource(source) {
+      if (!source || typeof source !== 'object') return null;
+      const docs = (source.docs && typeof source.docs === 'object') ? source.docs : {};
+      const meta = (source.meta && typeof source.meta === 'object') ? source.meta : {};
+      return { docs: docs, meta: meta };
+    }
+
+    function resolveEnumOptions(enumSetName, sources) {
+      const setName = String(enumSetName || '').trim();
+      if (!setName) return null;
+      for (const src of sources) {
+        const normalized = normalizeDocSource(src);
+        if (!normalized) continue;
+        const enumSets = (normalized.meta && normalized.meta.enum_sets &&
+          typeof normalized.meta.enum_sets === 'object')
+          ? normalized.meta.enum_sets
+          : null;
+        if (enumSets && Array.isArray(enumSets[setName])) {
+          return enumSets[setName];
+        }
+      }
+      return null;
+    }
+
+    function enrichResolvedDoc(doc, sources) {
+      if (!doc || typeof doc !== 'object') return null;
+      const resolved = Object.assign({}, doc);
+      const enumSetName = (typeof resolved.enum_set === 'string') ? resolved.enum_set.trim() : '';
+      const enumOptions = resolveEnumOptions(enumSetName, sources);
+      if (enumSetName && Array.isArray(enumOptions)) {
+        resolved._enumOptions = enumOptions;
+      }
+      return resolved;
+    }
+
+    function formatConfigValueForDisplay(value, displayFormat) {
+      if (displayFormat === 'hex' && typeof value === 'number' && Number.isFinite(value)) {
+        const raw = Math.max(0, Math.trunc(value));
+        const width = raw <= 0xFF ? 2 : 0;
+        const hex = raw.toString(16).toUpperCase();
+        return '0x' + (width > 0 ? hex.padStart(width, '0') : hex);
+      }
+      return String(value ?? '');
+    }
+
+    function parseConfigNumericValue(rawValue, kind, displayFormat) {
+      const raw = String(rawValue ?? '').trim();
+      if (displayFormat === 'hex') {
+        const normalized = raw.length > 0 ? raw : '0';
+        const parsed = normalized.startsWith('0x') || normalized.startsWith('0X')
+          ? Number.parseInt(normalized, 16)
+          : Number.parseInt(normalized, 16);
+        if (!Number.isFinite(parsed)) return 0;
+        return (kind === 'float') ? parsed : parsed;
+      }
+      if (kind === 'float') {
+        const parsed = Number.parseFloat(raw);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+      const parsed = Number.parseInt(raw, 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function configDocFor(moduleName, key, extraSources) {
       const m = nettoyerNomFlowCfg(moduleName);
       const k = String(key || '').trim();
       if (!m || !k) return null;
-      const full = m + '/' + k;
-      const exact = flowCfgDocs[full];
-      if (exact && typeof exact === 'object') return exact;
-      const wildcard = flowCfgDocs['*/' + k];
-      if (wildcard && typeof wildcard === 'object') return wildcard;
-      return null;
+
+      const sources = [];
+      if (Array.isArray(extraSources)) {
+        extraSources.forEach((src) => {
+          const normalized = normalizeDocSource(src);
+          if (normalized) sources.push(normalized);
+        });
+      }
+      cfgDocSources.forEach((src) => {
+        const normalized = normalizeDocSource(src);
+        if (normalized) sources.push(normalized);
+      });
+
+      let merged = null;
+      for (const source of sources) {
+        const docs = source.docs;
+        const full = m + '/' + k;
+        const wildcard = docs['*/' + k];
+        if (wildcard && typeof wildcard === 'object') {
+          merged = Object.assign(merged || {}, wildcard);
+        }
+        const exact = docs[full];
+        if (exact && typeof exact === 'object') {
+          merged = Object.assign(merged || {}, exact);
+        }
+      }
+      return enrichResolvedDoc(merged, sources);
+    }
+
+    function configPathMeta(pathValue) {
+      const p = nettoyerNomFlowCfg(pathValue);
+      if (!p) return null;
+      const sources = [];
+      for (const src of cfgDocSources) {
+        const normalized = normalizeDocSource(src);
+        if (!normalized) continue;
+        sources.push(normalized);
+      }
+      let merged = null;
+      for (const normalized of sources) {
+        const exact = normalized.docs[p];
+        if (exact && typeof exact === 'object') {
+          merged = Object.assign(merged || {}, exact);
+        }
+      }
+      return enrichResolvedDoc(merged, sources);
+    }
+
+    function isConfigPathHidden(pathValue) {
+      const meta = configPathMeta(pathValue);
+      return !!(meta && meta.hidden === true);
     }
 
     async function chargerFlowCfgChildren(prefix, forceReload) {
@@ -1232,7 +1353,7 @@
         const row = document.createElement('div');
         row.className = 'control-row';
 
-        const doc = flowCfgDocFor(moduleName, key);
+        const doc = configDocFor(moduleName, key, []);
         const labelWrap = document.createElement('div');
         labelWrap.className = 'control-label-wrap';
         const label = document.createElement('span');
@@ -1248,6 +1369,8 @@
           labelWrap.appendChild(help);
         }
         row.appendChild(labelWrap);
+
+        const enumOptions = (doc && Array.isArray(doc._enumOptions)) ? doc._enumOptions : null;
 
         if (typeof value === 'boolean') {
           const sw = document.createElement('span');
@@ -1265,14 +1388,42 @@
           sw.appendChild(track);
           sw.appendChild(thumb);
           row.appendChild(sw);
+        } else if (enumOptions && enumOptions.length > 0) {
+          const select = document.createElement('select');
+          select.className = 'control-input';
+          select.dataset.key = key;
+          select.dataset.kind = (typeof value === 'number' && Number.isInteger(value)) ? 'int' : (typeof value === 'number' ? 'float' : 'string');
+          if (doc && typeof doc.display_format === 'string') {
+            select.dataset.format = doc.display_format;
+          }
+          const currentValue = String(value);
+          enumOptions.forEach((opt) => {
+            if (!opt || typeof opt !== 'object') return;
+            const optionEl = document.createElement('option');
+            optionEl.value = String(opt.value);
+            optionEl.textContent = (typeof opt.label === 'string' && opt.label.length > 0)
+              ? opt.label
+              : String(opt.value);
+            if (optionEl.value === currentValue) {
+              optionEl.selected = true;
+            }
+            select.appendChild(optionEl);
+          });
+          row.appendChild(select);
         } else if (typeof value === 'number') {
           const input = document.createElement('input');
           input.className = 'control-input';
-          input.type = 'number';
-          input.value = String(value);
-          input.step = Number.isInteger(value) ? '1' : '0.001';
+          const displayFormat = (doc && typeof doc.display_format === 'string') ? doc.display_format : '';
+          input.type = displayFormat === 'hex' ? 'text' : 'number';
+          input.value = formatConfigValueForDisplay(value, displayFormat);
+          if (displayFormat !== 'hex') {
+            input.step = Number.isInteger(value) ? '1' : '0.001';
+          }
           input.dataset.key = key;
           input.dataset.kind = Number.isInteger(value) ? 'int' : 'float';
+          if (displayFormat) {
+            input.dataset.format = displayFormat;
+          }
           row.appendChild(input);
         } else {
           const isSecret = /pass|token|secret/i.test(key);
@@ -1313,19 +1464,18 @@
       fields.forEach((el) => {
         const key = el.dataset.key;
         const kind = el.dataset.kind;
+        const displayFormat = String(el.dataset.format || '').trim();
         if (!key || !kind) return;
         if (kind === 'bool') {
           modulePatch[key] = !!el.checked;
           return;
         }
         if (kind === 'int') {
-          const v = Number.parseInt(el.value, 10);
-          modulePatch[key] = Number.isFinite(v) ? v : 0;
+          modulePatch[key] = parseConfigNumericValue(el.value, kind, displayFormat);
           return;
         }
         if (kind === 'float') {
-          const v = Number.parseFloat(el.value);
-          modulePatch[key] = Number.isFinite(v) ? v : 0;
+          modulePatch[key] = parseConfigNumericValue(el.value, kind, displayFormat);
           return;
         }
         const masked = el.dataset.masked === '1';
@@ -1487,6 +1637,7 @@
           .filter((name) => typeof name === 'string' && name.length > 0)
           .map((name) => nettoyerNomFlowCfg(name))
           .filter((name) => name.length > 0)
+          .filter((name) => !isConfigPathHidden(name))
           .sort((a, b) => a.localeCompare(b));
 
         supCfgModuleSelect.innerHTML = '';

@@ -40,6 +40,13 @@ void LogHubModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     hubSvc.getModuleMinLevel = [](void* ctx, LogModuleId moduleId) -> LogLevel {
         return static_cast<const LogHub*>(ctx)->getModuleMinLevel(moduleId);
     };
+    hubSvc.getStats = [](void* ctx, LogHubStatsSnapshot* out) {
+        if (!out) return;
+        static_cast<const LogHub*>(ctx)->getStats(*out);
+    };
+    hubSvc.noteFormatTruncation = [](void* ctx, LogModuleId moduleId, uint32_t wrote) {
+        static_cast<LogHub*>(ctx)->noteFormatTruncation(moduleId, wrote);
+    };
     hubSvc.ctx = &hub;
 
     /// expose sink registry service
@@ -59,6 +66,10 @@ void LogHubModule::init(ConfigStore& cfg, ServiceRegistry& services) {
 
     Log::setHub(&hubSvc);
     (void)Log::registerModule((LogModuleId)LogModuleIdValue::LogHub, moduleId());
+    (void)Log::registerModule((LogModuleId)LogModuleIdValue::CoreI2cLink, "core.i2clink");
+    (void)Log::registerModule((LogModuleId)LogModuleIdValue::CoreModuleManager, "core.modulemanager");
+    (void)Log::registerModule((LogModuleId)LogModuleIdValue::CoreConfigStore, "core.configstore");
+    (void)Log::registerModule((LogModuleId)LogModuleIdValue::CoreEventBus, "core.eventbus");
 }
 
 void LogHubModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)

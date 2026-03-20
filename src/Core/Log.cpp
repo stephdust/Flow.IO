@@ -19,7 +19,10 @@ namespace {
         e.lvl = lvl;
         e.moduleId = moduleId;
 
-        vsnprintf(e.msg, LOG_MSG_MAX, fmt, ap);
+        const int wrote = vsnprintf(e.msg, LOG_MSG_MAX, fmt, ap);
+        if ((wrote < 0 || wrote >= LOG_MSG_MAX) && g_hub->noteFormatTruncation) {
+            g_hub->noteFormatTruncation(g_hub->ctx, moduleId, (wrote < 0) ? 0U : (uint32_t)wrote);
+        }
         g_hub->enqueue(g_hub->ctx, e);
     }
 }

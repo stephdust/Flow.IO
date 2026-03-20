@@ -102,7 +102,7 @@ bool WifiModule::svcSetStaRetryEnabled(void* ctx, bool enabled)
     if (self->staRetryEnabled_ == enabled) return true;
     self->staRetryEnabled_ = enabled;
 
-    LOGI("STA retries %s", enabled ? "enabled" : "disabled");
+    LOGD("STA retries %s", enabled ? "enabled" : "disabled");
 
     if (!enabled) {
         self->reconnectKickSent_ = true;
@@ -128,7 +128,11 @@ void WifiModule::onWifiEventSys_(arduino_event_t* event)
         const uint8_t reason = (uint8_t)event->event_info.wifi_sta_disconnected.reason;
         self->lastDisconnectReason_ = reason;
         const char* reasonName = WiFi.disconnectReasonName((wifi_err_reason_t)reason);
-        LOGW("STA disconnected reason=%u(%s)", (unsigned)reason, reasonName ? reasonName : "?");
+        if (self->isStartupTransientWindow_()) {
+            LOGD("STA disconnected reason=%u(%s)", (unsigned)reason, reasonName ? reasonName : "?");
+        } else {
+            LOGW("STA disconnected reason=%u(%s)", (unsigned)reason, reasonName ? reasonName : "?");
+        }
         break;
     }
     default:
@@ -214,7 +218,7 @@ void WifiModule::logConfigSummary_() const
         return;
     }
 
-    LOGI("WiFi config loaded enabled=%d ssid='%s' ssid_len=%u pass_len=%u mdns='%s' mdns_len=%u",
+    LOGD("WiFi config loaded enabled=%d ssid='%s' ssid_len=%u pass_len=%u mdns='%s' mdns_len=%u",
          (int)cfgData.enabled,
          cfgData.ssid,
          (unsigned)ssidLen,
@@ -223,13 +227,22 @@ void WifiModule::logConfigSummary_() const
          (unsigned)mdnsLen);
 }
 
-bool WifiModule::startConnectFallback_()
+bool WifiModule::isStartupTransientWindow_() const
+{
+    return !hadSuccessfulConnection_ && startupTransientLogUntilMs_ != 0U && millis() < startupTransientLogUntilMs_;
+}
+
+bool WifiModule::startConnectFallback_(bool transientBoot)
 {
     wifi_config_t conf;
     memset(&conf, 0, sizeof(conf));
 
     if (!WiFi.enableSTA(true)) {
-        LOGE("Fallback enableSTA failed");
+        if (transientBoot) {
+            LOGD("Fallback enableSTA not ready during boot");
+        } else {
+            LOGE("Fallback enableSTA failed");
+        }
         return false;
     }
 
@@ -260,7 +273,11 @@ bool WifiModule::startConnectFallback_()
 
     const esp_err_t derr = esp_wifi_disconnect();
     if (derr != ESP_OK && derr != ESP_ERR_WIFI_NOT_CONNECT) {
-        LOGW("Fallback esp_wifi_disconnect failed err=%s(%d)", espErrName_(derr), (int)derr);
+        if (transientBoot) {
+            LOGD("Fallback esp_wifi_disconnect failed err=%s(%d)", espErrName_(derr), (int)derr);
+        } else {
+            LOGW("Fallback esp_wifi_disconnect failed err=%s(%d)", espErrName_(derr), (int)derr);
+        }
     }
 
     const esp_err_t serr = esp_wifi_set_config((wifi_interface_t)ESP_IF_WIFI_STA, &conf);
@@ -275,7 +292,11 @@ bool WifiModule::startConnectFallback_()
         return false;
     }
 
-    LOGW("Fallback connect path armed (esp_wifi_set_config + esp_wifi_connect)");
+    if (transientBoot) {
+        LOGD("Fallback connect path armed (esp_wifi_set_config + esp_wifi_connect)");
+    } else {
+        LOGW("Fallback connect path armed (esp_wifi_set_config + esp_wifi_connect)");
+    }
     return true;
 }
 
@@ -283,6 +304,11 @@ void WifiModule::setState(WifiState s) {
     if (s == state) return;
     state = s;
     stateTs = millis();
+
+    if (state == WifiState::Connected) {
+        hadSuccessfulConnection_ = true;
+        lastDisconnectReason_ = 0;
+    }
 
     if (state == WifiState::Idle || state == WifiState::ErrorWait || state == WifiState::Disabled) {
         stopMdns_();
@@ -294,6 +320,7 @@ void WifiModule::setState(WifiState s) {
 }
 
 void WifiModule::startConnect() {
+    const bool transientBoot = isStartupTransientWindow_();
     const size_t ssidLen = strnlen(cfgData.ssid, sizeof(cfgData.ssid));
     bool ssidOnlySpaces = true;
     for (size_t i = 0; i < ssidLen; ++i) {
@@ -315,7 +342,7 @@ void WifiModule::startConnect() {
 
     ++connectAttempt_;
     const size_t passLen = strnlen(cfgData.pass, sizeof(cfgData.pass));
-    LOGI("Connecting #%lu to ssid='%s' pass_len=%u",
+    LOGD("Connecting #%lu to ssid='%s' pass_len=%u",
          (unsigned long)connectAttempt_,
          cfgData.ssid,
          (unsigned)passLen);
@@ -324,12 +351,14 @@ void WifiModule::startConnect() {
     lastDisconnectReason_ = 0;
     lastConnectingLogMs_ = millis();
 
-    WiFi.disconnect(false, false);
-    delay(50);
-
     if (!WiFi.enableSTA(true)) {
-        LOGE("enableSTA failed before connect");
-        setState(WifiState::ErrorWait);
+        if (transientBoot) {
+            LOGD("enableSTA not ready yet during boot");
+            setState(WifiState::Idle);
+        } else {
+            LOGE("enableSTA failed before connect");
+            setState(WifiState::ErrorWait);
+        }
         return;
     }
 
@@ -341,10 +370,20 @@ void WifiModule::startConnect() {
         LOGW("WiFi.mode failed requested=%d current=%d", (int)wantedMode, (int)WiFi.getMode());
     }
     WiFi.setSleep(false);               ///< ✅ important (stability)
+
+    if (connectAttempt_ > 1U) {
+        WiFi.disconnect(false, false);
+        delay(50);
+    }
+
     const wl_status_t beginStatus = WiFi.begin(cfgData.ssid, cfgData.pass);
     if (beginStatus == WL_CONNECT_FAILED) {
-        LOGW("WiFi.begin returned CONNECT_FAILED for ssid='%s'", cfgData.ssid);
-        (void)startConnectFallback_();
+        if (transientBoot) {
+            LOGD("WiFi.begin returned CONNECT_FAILED during boot for ssid='%s'", cfgData.ssid);
+        } else {
+            LOGW("WiFi.begin returned CONNECT_FAILED for ssid='%s'", cfgData.ssid);
+        }
+        (void)startConnectFallback_(transientBoot);
     }
 
     setState(WifiState::Connecting);
@@ -610,7 +649,7 @@ void WifiModule::init(ConfigStore& cfg,
         if (!ok) {
             LOGW("wifi.dump_cfg registration failed");
         } else {
-            LOGI("Command registered: wifi.dump_cfg");
+            LOGD("Command registered: wifi.dump_cfg");
         }
     } else {
         LOGW("Command service unavailable: wifi.dump_cfg not registered");
@@ -620,13 +659,16 @@ void WifiModule::init(ConfigStore& cfg,
     WiFi.persistent(false);
     WiFi.setAutoReconnect(true);
     gWifiModuleInstance = this;
+    hadSuccessfulConnection_ = false;
+    initialConnectNotBeforeMs_ = millis() + kInitialConnectDelayMs;
+    startupTransientLogUntilMs_ = millis() + kStartupTransientLogWindowMs;
     if (wifiEventHandlerId_ != 0U) {
         WiFi.removeEvent(wifiEventHandlerId_);
         wifiEventHandlerId_ = 0U;
     }
     wifiEventHandlerId_ = WiFi.onEvent(WifiModule::onWifiEventSys_);
 
-    LOGI("WifiService registered");
+    LOGD("WifiService registered");
     setState(WifiState::Idle);
 }
 
@@ -651,6 +693,8 @@ void WifiModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
         setState(WifiState::Disabled);
         return;
     }
+    initialConnectNotBeforeMs_ = millis() + kInitialConnectDelayMs;
+    startupTransientLogUntilMs_ = millis() + kStartupTransientLogWindowMs;
     setState(WifiState::Idle);
 }
 
@@ -661,7 +705,7 @@ void WifiModule::applyProfileMdnsHost_()
     if (strncmp(cfgData.mdns, forcedHost, sizeof(cfgData.mdns)) == 0) return;
 
     snprintf(cfgData.mdns, sizeof(cfgData.mdns), "%s", forcedHost);
-    LOGI("mDNS host forced by profile: %s", cfgData.mdns);
+    LOGD("mDNS host forced by profile: %s", cfgData.mdns);
 }
 
 void WifiModule::stopMdns_()
@@ -670,7 +714,7 @@ void WifiModule::stopMdns_()
     MDNS.end();
     mdnsStarted = false;
     mdnsApplied[0] = '\0';
-    LOGI("mDNS stopped");
+    LOGD("mDNS stopped");
 }
 
 void WifiModule::syncMdns_()
@@ -721,7 +765,7 @@ void WifiModule::syncMdns_()
 
     mdnsStarted = true;
     snprintf(mdnsApplied, sizeof(mdnsApplied), "%s", host);
-    LOGI("mDNS started host=%s.local", mdnsApplied);
+    LOGD("mDNS started host=%s.local", mdnsApplied);
 }
 
 void WifiModule::loop() {
@@ -736,6 +780,10 @@ void WifiModule::loop() {
     case WifiState::Idle:
         if (!staRetryEnabled_) {
             vTaskDelay(pdMS_TO_TICKS(500));
+            break;
+        }
+        if (initialConnectNotBeforeMs_ != 0U && millis() < initialConnectNotBeforeMs_) {
+            vTaskDelay(pdMS_TO_TICKS(200));
             break;
         }
         startConnect();
@@ -761,7 +809,7 @@ void WifiModule::loop() {
             const int rssi = WiFi.isConnected() ? WiFi.RSSI() : -127;
             const char* wlName = wlStatusName_(wl);
             const char* reasonName = WiFi.disconnectReasonName((wifi_err_reason_t)lastDisconnectReason_);
-            LOGI("Connecting status=%s(%d) rssi=%d last_reason=%u(%s) elapsed_ms=%lu",
+            LOGD("Connecting status=%s(%d) rssi=%d last_reason=%u(%s) elapsed_ms=%lu",
                  wlName,
                  (int)wl,
                  rssi,

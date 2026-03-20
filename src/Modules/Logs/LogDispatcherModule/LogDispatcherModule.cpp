@@ -13,6 +13,20 @@ struct DispatcherCtx {
 
 static DispatcherCtx g_ctx;
 
+const ModuleTaskSpec* LogDispatcherModule::taskSpecs() const {
+    static ModuleTaskSpec spec;
+    if (!_hub || !_sinkReg) return nullptr;
+    spec = {
+        "LogDispatch",
+        3072,
+        1,
+        1,
+        &LogDispatcherModule::taskFn,
+        &g_ctx
+    };
+    return &spec;
+}
+
 void LogDispatcherModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     (void)cfg;
 
@@ -30,21 +44,14 @@ void LogDispatcherModule::init(ConfigStore& cfg, ServiceRegistry& services) {
 
     g_ctx.hub = _hub;
     g_ctx.sinks = _sinkReg;
-
-    /// Crée la task log
-    xTaskCreatePinnedToCore(
-        LogDispatcherModule::taskFn,
-        "LogDispatch",
-        4096,                ///< stack
-        &g_ctx,              ///< param
-        1,                   ///< priorité basse
-        nullptr,
-        1                    ///< core 1 (optionnel)
-    );
 }
 
 void LogDispatcherModule::taskFn(void* pv) {
     auto* ctx = static_cast<DispatcherCtx*>(pv);
+    if (!ctx || !ctx->hub || !ctx->sinks) {
+        vTaskDelete(nullptr);
+        return;
+    }
     LogEntry e;
 
     while (true) {

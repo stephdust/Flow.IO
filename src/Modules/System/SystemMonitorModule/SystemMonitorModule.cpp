@@ -5,6 +5,7 @@
 #include "SystemMonitorModule.h"
 #include "Core/BufferUsageTracker.h"
 #include "Core/ModuleManager.h"   ///< required for iteration
+#include "Core/Services/ILogger.h"
 #include <Arduino.h>
 #include <WiFi.h>                ///< only for RSSI (optional)
 #include <new>
@@ -75,10 +76,10 @@ void SystemMonitorModule::registerHaEntities_(ServiceRegistry& services)
     };
     const HASensorEntry heapMinFreeBytes{
         "system",
-        "sys_hp_min",
+        "sys_hp_min_free",
         "Heap Min Free",
         "rt/system/state",
-        "{{ ((value_json.heap.min | float(0)) / 1024) | round(1) }}",
+        "{{ ((value_json.heap.min_free | float(0)) / 1024) | round(1) }}",
         "diagnostic",
         "mdi:memory",
         "ko",
@@ -139,11 +140,41 @@ void SystemMonitorModule::logHeapStats() {
     SystemStatsSnapshot snap{};
     SystemStats::collect(snap);
 
-    LOGD("Heap free=%lu min=%lu largest=%lu frag=%u%%",
+    if (!logHub || !logHub->getStats) {
+        LOGD("Heap free=%lu min_free=%lu largest=%lu frag=%u%%",
+             (unsigned long)snap.heap.freeBytes,
+             (unsigned long)snap.heap.minFreeBytes,
+             (unsigned long)snap.heap.largestFreeBlock,
+             (unsigned int)snap.heap.fragPercent);
+        return;
+    }
+
+    LogHubStatsSnapshot stats{};
+    logHub->getStats(logHub->ctx, &stats);
+    LOGD("Heap free=%lu min_free=%lu largest=%lu frag=%u%% LogQ=%u/%u drop=%lu trunc=%lu",
          (unsigned long)snap.heap.freeBytes,
          (unsigned long)snap.heap.minFreeBytes,
          (unsigned long)snap.heap.largestFreeBlock,
-         (unsigned int)snap.heap.fragPercent);
+         (unsigned int)snap.heap.fragPercent,
+         (unsigned)stats.peakQueued,
+         (unsigned)stats.queueLen,
+         (unsigned long)stats.droppedCount,
+         (unsigned long)stats.formatTruncCount);
+
+    if (stats.droppedCount > 0 || stats.formatTruncCount > 0) {
+        const char* lastDropModule =
+            (logHub->resolveModuleName && stats.lastDropModuleId != (LogModuleId)LogModuleIdValue::Unknown)
+                ? logHub->resolveModuleName(logHub->ctx, stats.lastDropModuleId)
+                : "-";
+        const char* lastTruncModule =
+            (logHub->resolveModuleName && stats.lastFormatTruncModuleId != (LogModuleId)LogModuleIdValue::Unknown)
+                ? logHub->resolveModuleName(logHub->ctx, stats.lastFormatTruncModuleId)
+                : "-";
+        LOGD("LogQ src drop=%s trunc=%s now=%u",
+             lastDropModule ? lastDropModule : "-",
+             lastTruncModule ? lastTruncModule : "-",
+             (unsigned)stats.queuedNow);
+    }
 }
 
 void SystemMonitorModule::logTaskStacks() {
@@ -152,29 +183,34 @@ void SystemMonitorModule::logTaskStacks() {
         return;
     }
 
-    static constexpr uint8_t kTasksPerLine = 6;
-    char line[384];
+    static constexpr char kStackPrefix[] = "Stack ";
+    static constexpr uint8_t kMaxTasksPerLine = 3;
+    static constexpr size_t kLineMsgBudget = (size_t)LOG_MSG_MAX - sizeof(kStackPrefix);
+    char line[kLineMsgBudget + 1];
     size_t off = 0;
     line[0] = '\0';
     uint8_t tasksOnLine = 0;
     bool hasTask = false;
 
-    const uint8_t n = moduleManager->getCount();
+    const uint8_t n = moduleManager->getTaskEntryCount();
     for (uint8_t i = 0; i < n; ++i) {
-        Module* m = moduleManager->getModule(i);
-        if (!m) continue;
+        const ModuleManager::TaskEntry* task = moduleManager->getTaskEntry(i);
+        if (!task || !task->module || !task->handle) continue;
 
-        TaskHandle_t h = m->getTaskHandle();
-        if (!h) continue;
+        const ModuleTaskSpec* specs = task->module->taskSpecs();
+        const uint8_t taskCount = task->module->taskCount();
+        if (!specs || task->taskIndex >= taskCount) continue;
+        const ModuleTaskSpec& spec = specs[task->taskIndex];
 
-        UBaseType_t hw = uxTaskGetStackHighWaterMark(h);
+        UBaseType_t hw = uxTaskGetStackHighWaterMark(task->handle);
         hasTask = true;
         const bool isLow = (hw < 300);
 
         char entry[80];
-        const int ew = snprintf(entry, sizeof(entry), "%s@c%ld=%u%s",
-                                m->moduleId(),
-                                (long)m->taskCore(),
+        const int ew = snprintf(entry, sizeof(entry), "%s/%s@c%ld=%u%s",
+                                task->module->moduleId() ? task->module->moduleId() : "?",
+                                spec.name ? spec.name : "?",
+                                (long)spec.coreId,
                                 (unsigned)hw,
                                 isLow ? "!" : "");
         if (ew < 0) continue;
@@ -182,7 +218,7 @@ void SystemMonitorModule::logTaskStacks() {
         const size_t entryLen = (size_t)ew;
         const size_t sepLen = (tasksOnLine > 0) ? 1U : 0U;
 
-        if (tasksOnLine >= kTasksPerLine || (off + sepLen + entryLen) >= sizeof(line)) {
+        if (tasksOnLine >= kMaxTasksPerLine || (off + sepLen + entryLen) > kLineMsgBudget) {
             if (tasksOnLine > 0) {
                 LOGD("Stack %s", line);
             }
@@ -191,7 +227,7 @@ void SystemMonitorModule::logTaskStacks() {
             tasksOnLine = 0;
         }
 
-        if ((off + sepLen + entryLen) >= sizeof(line)) {
+        if ((off + sepLen + entryLen) > kLineMsgBudget) {
             continue;
         }
 
@@ -203,7 +239,7 @@ void SystemMonitorModule::logTaskStacks() {
         off += entryLen;
         ++tasksOnLine;
 
-        if (tasksOnLine >= kTasksPerLine) {
+        if (tasksOnLine >= kMaxTasksPerLine) {
             LOGD("Stack %s", line);
             off = 0;
             line[0] = '\0';
@@ -225,15 +261,63 @@ void SystemMonitorModule::logTrackedBuffers()
 {
     TrackedBufferSnapshot snapshots[(size_t)TrackedBufferId::Count]{};
     const size_t count = BufferUsageTracker::snapshot(snapshots, (size_t)TrackedBufferId::Count);
+    static constexpr char kBufPrefix[] = "Buf ";
+    static constexpr size_t kLineMsgBudget = (size_t)LOG_MSG_MAX - sizeof(kBufPrefix);
+    char line[kLineMsgBudget + 1];
+    size_t off = 0;
+    uint8_t itemsOnLine = 0;
+    bool loggedAny = false;
+    line[0] = '\0';
+
     for (size_t i = 0; i < count; ++i) {
         const TrackedBufferSnapshot& s = snapshots[i];
         if (!s.name) continue;
-        LOGD("Buf %s peak=%lu/%lu mult=%s src=%s",
-             s.name,
-             (unsigned long)s.peakUsed,
-             (unsigned long)s.capacity,
-             (s.multiplicity && s.multiplicity[0]) ? s.multiplicity : "1",
-             s.source[0] ? s.source : "-");
+        if (s.peakUsed == 0U && s.capacity == 0U) continue;
+
+        char entry[96];
+        const bool isFull = (s.capacity > 0U) && (s.peakUsed >= s.capacity);
+        const int ew = s.source[0]
+            ? snprintf(entry, sizeof(entry), "%s=%lu/%lu%s@%s",
+                       s.name,
+                       (unsigned long)s.peakUsed,
+                       (unsigned long)s.capacity,
+                       isFull ? "!" : "",
+                       s.source)
+            : snprintf(entry, sizeof(entry), "%s=%lu/%lu%s",
+                       s.name,
+                       (unsigned long)s.peakUsed,
+                       (unsigned long)s.capacity,
+                       isFull ? "!" : "");
+        if (ew <= 0) continue;
+
+        const size_t entryLen = (size_t)ew;
+        const size_t sepLen = (itemsOnLine > 0U) ? 1U : 0U;
+        if (itemsOnLine > 0U && (off + sepLen + entryLen) > kLineMsgBudget) {
+            LOGD("Buf %s", line);
+            line[0] = '\0';
+            off = 0;
+            itemsOnLine = 0;
+        }
+        if ((off + ((itemsOnLine > 0U) ? 1U : 0U) + entryLen) > kLineMsgBudget) {
+            if (entryLen > kLineMsgBudget) continue;
+        }
+        if (itemsOnLine > 0U) {
+            line[off++] = ' ';
+            line[off] = '\0';
+        }
+        memcpy(line + off, entry, entryLen + 1U);
+        off += entryLen;
+        ++itemsOnLine;
+        loggedAny = true;
+    }
+
+    if (!loggedAny) {
+        LOGD("Buf none");
+        return;
+    }
+
+    if (itemsOnLine > 0U) {
+        LOGD("Buf %s", line);
     }
 }
 
@@ -259,7 +343,7 @@ void SystemMonitorModule::buildHealthJson(char* out, size_t outLen) {
             "\"upt_ms\":%llu,"
             "\"heap\":{"
                 "\"free\":%lu,"
-                "\"min\":%lu,"
+                "\"min_free\":%lu,"
                 "\"largest\":%lu,"
                 "\"frag\":%u"
             "}"
@@ -283,13 +367,36 @@ void SystemMonitorModule::loop() {
         cfgStore_->logNvsWriteSummaryIfDue(now, 60000U);
     }
 
-    uint32_t periodMs = (cfgData_.tracePeriodMs > 0) ? (uint32_t)cfgData_.tracePeriodMs : 5000U;
+    const uint32_t periodMs = (cfgData_.tracePeriodMs > 0) ? (uint32_t)cfgData_.tracePeriodMs : 5000U;
+    const uint32_t heapOffsetMs = periodMs / 3U;
+    const uint32_t bufOffsetMs = (periodMs * 2U) / 3U;
 
-    if (lastTraceLogMs == 0U || (uint32_t)(now - lastTraceLogMs) >= periodMs) {
-        lastTraceLogMs = now;
+    if (traceCycleStartMs_ == 0U) {
+        traceCycleStartMs_ = now;
+        stackLoggedThisCycle_ = false;
+        heapLoggedThisCycle_ = false;
+        buffersLoggedThisCycle_ = false;
+    }
+
+    while ((uint32_t)(now - traceCycleStartMs_) >= periodMs) {
+        traceCycleStartMs_ += periodMs;
+        stackLoggedThisCycle_ = false;
+        heapLoggedThisCycle_ = false;
+        buffersLoggedThisCycle_ = false;
+    }
+
+    const uint32_t cycleElapsedMs = (uint32_t)(now - traceCycleStartMs_);
+    if (!stackLoggedThisCycle_) {
         logTaskStacks();
+        stackLoggedThisCycle_ = true;
+    }
+    if (!heapLoggedThisCycle_ && cycleElapsedMs >= heapOffsetMs) {
         logHeapStats();
+        heapLoggedThisCycle_ = true;
+    }
+    if (!buffersLoggedThisCycle_ && cycleElapsedMs >= bufOffsetMs) {
         logTrackedBuffers();
+        buffersLoggedThisCycle_ = true;
     }
 
     vTaskDelay(pdMS_TO_TICKS(200));

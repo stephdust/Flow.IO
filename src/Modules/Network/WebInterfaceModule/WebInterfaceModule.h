@@ -22,6 +22,8 @@ public:
     const char* taskName() const override { return "webinterface"; }
     BaseType_t taskCore() const override { return 0; }
     uint16_t taskStackSize() const override { return 4096; }
+    uint8_t taskCount() const override { return 1; }
+    const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
 
     uint8_t dependencyCount() const override { return 6; }
     const char* dependency(uint8_t i) const override {

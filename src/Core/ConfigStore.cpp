@@ -115,10 +115,10 @@ void ConfigStore::logNvsWriteSummaryIfDue(uint32_t nowMs, uint32_t periodMs)
     const uint32_t windowWrites = _nvsWriteWindow.exchange(0U, std::memory_order_relaxed);
     const uint32_t totalWrites = _nvsWriteTotal.load(std::memory_order_relaxed);
 
-    Log::info(LOG_MODULE_ID, "NVS writes: last_%lus=%lu total=%lu",
-              (unsigned long)(periodMs / 1000U),
-              (unsigned long)windowWrites,
-              (unsigned long)totalWrites);
+    Log::debug(LOG_MODULE_ID, "NVS writes: last_%lus=%lu total=%lu",
+               (unsigned long)(periodMs / 1000U),
+               (unsigned long)windowWrites,
+               (unsigned long)totalWrites);
 }
 
 bool ConfigStore::writePersistent(const ConfigMeta& m)

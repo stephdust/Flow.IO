@@ -15,6 +15,8 @@ class LogDispatcherModule : public ModulePassive {
 public:
     /** @brief Module id. */
     const char* moduleId() const override { return "log.dispatcher"; }
+    uint8_t taskCount() const override { return (_hub && _sinkReg) ? 1 : 0; }
+    const ModuleTaskSpec* taskSpecs() const override;
 
     /** @brief Depends on log hub. */
     uint8_t dependencyCount() const override { return 1; }

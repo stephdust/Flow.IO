@@ -16,10 +16,11 @@ void SystemStats::collect(SystemStatsSnapshot& out) {
     out.uptimeMs = (uint32_t)uptimeMs64;
 
     const uint32_t free8 = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    const uint32_t minFree8 = (uint32_t)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
     const uint32_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 
     out.heap.freeBytes = free8;
-    out.heap.minFreeBytes = ESP.getMinFreeHeap();
+    out.heap.minFreeBytes = minFree8;
     out.heap.largestFreeBlock = largest;
 
     /// Fragmentation estimation:

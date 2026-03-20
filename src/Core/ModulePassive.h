@@ -10,9 +10,6 @@
  */
 class ModulePassive : public Module {
 public:
-    /** @brief Passive modules do not create a task. */
-    bool hasTask() const override { return false; }
-
     /** @brief No task name for passive modules. */
     const char* taskName() const override { return ""; }
 

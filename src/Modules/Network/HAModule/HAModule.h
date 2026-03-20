@@ -18,7 +18,9 @@ public:
     const char* moduleId() const override { return "ha"; }
     const char* taskName() const override { return "ha"; }
     BaseType_t taskCore() const override { return 0; }
-    uint16_t taskStackSize() const override { return 4096; }
+    uint16_t taskStackSize() const override { return 3072; }
+    uint8_t taskCount() const override { return 1; }
+    const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
 
     uint8_t dependencyCount() const override { return 4; }
     const char* dependency(uint8_t i) const override {

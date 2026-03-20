@@ -31,6 +31,10 @@ static void dbgDumpModules(Module* modules[], uint8_t count) {
     delay(50);
 }
 
+static bool isValidTaskSpec(const ModuleTaskSpec& spec) {
+    return spec.name && spec.name[0] != '\0' && spec.stackSize > 0 && spec.entry != nullptr;
+}
+
 bool ModuleManager::add(Module* m) {
     if (!m) {
         Log::error(LOG_MODULE_ID, "add failed: null module");
@@ -175,20 +179,72 @@ bool ModuleManager::initAll(ConfigStore& cfg, ServiceRegistry& services) {
         ordered[i]->onConfigLoaded(cfg, services);
     }
 
+    taskEntryCount = 0;
     for (uint8_t i = 0; i < orderedCount; ++i) {
-        ///Logger::log(LogLevel::Info, "MOD", "Start %s", ordered[i]->moduleId());
-        if (!ordered[i]->hasTask()) {
-        continue;
-    }
-        Log::info(LOG_MODULE_ID, "startTask module=%s task=%s core=%ld prio=%u stack=%u",
-                  ordered[i]->moduleId(),
-                  ordered[i]->taskName(),
-                  (long)ordered[i]->taskCore(),
-                  (unsigned)ordered[i]->taskPriority(),
-                  (unsigned)ordered[i]->taskStackSize());
-        ordered[i]->startTask();
-        if (!ordered[i]->getTaskHandle()) {
-            Log::error(LOG_MODULE_ID, "startTask failed module=%s", ordered[i]->moduleId());
+        Module* module = ordered[i];
+        if (!module) continue;
+
+        module->resetPrimaryTaskHandle_();
+
+        const uint8_t declaredTaskCount = module->taskCount();
+        if (declaredTaskCount == 0) {
+            continue;
+        }
+
+        const ModuleTaskSpec* specs = module->taskSpecs();
+        if (!specs) {
+            Log::error(LOG_MODULE_ID, "taskSpecs missing module=%s taskCount=%u",
+                       module->moduleId(),
+                       (unsigned)declaredTaskCount);
+            return false;
+        }
+
+        for (uint8_t taskIndex = 0; taskIndex < declaredTaskCount; ++taskIndex) {
+            const ModuleTaskSpec& spec = specs[taskIndex];
+            if (!isValidTaskSpec(spec)) {
+                Log::error(LOG_MODULE_ID, "invalid task spec module=%s index=%u",
+                           module->moduleId(),
+                           (unsigned)taskIndex);
+                return false;
+            }
+            if (taskEntryCount >= MAX_MODULE_TASKS) {
+                Log::error(LOG_MODULE_ID, "task registry full at module=%s limit=%u",
+                           module->moduleId(),
+                           (unsigned)MAX_MODULE_TASKS);
+                return false;
+            }
+
+            TaskHandle_t handle = nullptr;
+            Log::debug(LOG_MODULE_ID, "startTask module=%s task=%s core=%ld prio=%u stack=%lu",
+                       module->moduleId(),
+                       spec.name,
+                       (long)spec.coreId,
+                       (unsigned)spec.priority,
+                       (unsigned long)spec.stackSize);
+
+            const BaseType_t ok = xTaskCreatePinnedToCore(
+                spec.entry,
+                spec.name,
+                spec.stackSize,
+                spec.context,
+                spec.priority,
+                &handle,
+                spec.coreId
+            );
+            if (ok != pdPASS || !handle) {
+                Log::error(LOG_MODULE_ID, "startTask failed module=%s task=%s err=%ld",
+                           module->moduleId(),
+                           spec.name,
+                           (long)ok);
+                return false;
+            }
+
+            module->setPrimaryTaskHandle_(handle);
+            taskEntries[taskEntryCount++] = {
+                module,
+                handle,
+                taskIndex
+            };
         }
     }
 

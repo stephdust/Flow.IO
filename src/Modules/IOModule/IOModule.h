@@ -132,6 +132,8 @@ public:
     const char* taskName() const override { return "io"; }
     BaseType_t taskCore() const override { return 1; }
     uint16_t taskStackSize() const override { return 2560; }
+    uint8_t taskCount() const override { return 1; }
+    const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
 
 #if defined(FLOW_PROFILE_SUPERVISOR)
     uint8_t dependencyCount() const override { return 2; }

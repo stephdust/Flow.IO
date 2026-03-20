@@ -70,6 +70,11 @@ public:
 
     /** @brief Load persistent values from NVS into registered variables. */
     void loadPersistent();
+    /** @brief Load a single persistent variable from NVS immediately. */
+    template<typename T, size_t H>
+    void loadPersistentVar(ConfigVariable<T, H>& var);
+    template<size_t H>
+    void loadPersistentVar(ConfigVariable<char, H>& var);
     /** @brief Save persistent values from registered variables into NVS. */
     void savePersistent();
     /** @brief Erase all persistent keys in the active Preferences namespace. */
@@ -228,6 +233,36 @@ bool ConfigStore::set(ConfigVariable<T, H>& var, const T& value)
     return true;
 }
 
+template<typename T, size_t H>
+void ConfigStore::loadPersistentVar(ConfigVariable<T, H>& var)
+{
+    if (!_prefs || !var.value || var.persistence != ConfigPersistence::Persistent || !var.nvsKey) return;
+
+    switch (var.type) {
+        case ConfigType::Int32:
+            *(int32_t*)var.value = _prefs->getInt(var.nvsKey, *(int32_t*)var.value);
+            break;
+        case ConfigType::UInt8:
+            *(uint8_t*)var.value = _prefs->getUChar(var.nvsKey, *(uint8_t*)var.value);
+            break;
+        case ConfigType::Bool:
+            *(bool*)var.value = _prefs->getBool(var.nvsKey, *(bool*)var.value);
+            break;
+        case ConfigType::Float:
+            *(float*)var.value = _prefs->getFloat(var.nvsKey, *(float*)var.value);
+            break;
+        case ConfigType::Double: {
+            double tmp = *(double*)var.value;
+            _prefs->getBytes(var.nvsKey, &tmp, sizeof(double));
+            *(double*)var.value = tmp;
+            break;
+        }
+        case ConfigType::CharArray:
+        default:
+            break;
+    }
+}
+
 template<size_t H>
 bool ConfigStore::set(ConfigVariable<char, H>& var, const char* str)
 {
@@ -256,4 +291,11 @@ bool ConfigStore::set(ConfigVariable<char, H>& var, const char* str)
     var.notify();
     notifyChanged(var.nvsKey, var.moduleName, var.moduleId, var.localBranchId);
     return true;
+}
+
+template<size_t H>
+void ConfigStore::loadPersistentVar(ConfigVariable<char, H>& var)
+{
+    if (!_prefs || !var.value || var.persistence != ConfigPersistence::Persistent || !var.nvsKey || var.size == 0) return;
+    _prefs->getString(var.nvsKey, var.value, var.size);
 }

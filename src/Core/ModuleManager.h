@@ -7,6 +7,8 @@
 
 /** @brief Maximum number of modules supported at runtime. */
 constexpr size_t MAX_MODULES = 25;
+/** @brief Maximum number of declared tasks supported at runtime. */
+constexpr size_t MAX_MODULE_TASKS = 32;
 
 /**
  * @brief Registers modules, resolves dependencies, and starts tasks.
@@ -22,8 +24,9 @@ public:
     
     /** @brief Task handle tracking for monitoring. */
     struct TaskEntry {
-        const char* moduleId;
+        Module* module;
         TaskHandle_t handle;
+        uint8_t taskIndex;
     };
 
     /** @brief Current module count. */
@@ -33,12 +36,21 @@ public:
         if (idx >= count) return nullptr;
         return modules[idx];
     }
+    /** @brief Number of started module tasks. */
+    uint8_t getTaskEntryCount() const { return taskEntryCount; }
+    /** @brief Get a started task entry by index. */
+    const TaskEntry* getTaskEntry(uint8_t idx) const {
+        if (idx >= taskEntryCount) return nullptr;
+        return &taskEntries[idx];
+    }
 private:
     Module* modules[MAX_MODULES];
     uint8_t count = 0;
 
     Module* ordered[MAX_MODULES];
     uint8_t orderedCount = 0;
+    TaskEntry taskEntries[MAX_MODULE_TASKS]{};
+    uint8_t taskEntryCount = 0;
 
     Module* findById(const char* id);
     bool buildInitOrder();

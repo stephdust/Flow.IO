@@ -37,6 +37,8 @@ public:
     const char* taskName() const override { return "wifi"; }
     /** @brief Pin network module on core 0. */
     BaseType_t taskCore() const override { return 0; }
+    uint8_t taskCount() const override { return 1; }
+    const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
     /** @brief Give extra headroom to WiFi stack/callback activity. */
     uint16_t taskStackSize() const override {
 #if defined(FLOW_PROFILE_SUPERVISOR)
@@ -64,6 +66,8 @@ public:
 private:
     static constexpr uint8_t kScanMaxResults = 24;
     static constexpr uint32_t kScanThrottleMs = 8000U;
+    static constexpr uint32_t kInitialConnectDelayMs = 1200U;
+    static constexpr uint32_t kStartupTransientLogWindowMs = 10000U;
 
     struct WifiScanEntry {
         char ssid[33];
@@ -82,9 +86,12 @@ private:
     uint32_t connectAttempt_ = 0;
     bool reconnectKickSent_ = false;
     bool staRetryEnabled_ = true;
+    bool hadSuccessfulConnection_ = false;
     wl_status_t lastConnectStatus_ = WL_IDLE_STATUS;
     uint8_t lastDisconnectReason_ = 0;
     uint32_t lastConnectingLogMs_ = 0;
+    uint32_t initialConnectNotBeforeMs_ = 0;
+    uint32_t startupTransientLogUntilMs_ = 0;
     wifi_event_id_t wifiEventHandlerId_ = 0;
     uint32_t lastEmptySsidLogMs = 0;
     char mdnsApplied[sizeof(cfgData.mdns)] = {0};
@@ -153,8 +160,9 @@ private:
     static void onWifiEventSys_(arduino_event_t* event);
     static const char* stateName_(WifiState s);
     static const char* wlStatusName_(wl_status_t st);
+    bool isStartupTransientWindow_() const;
     void logConfigSummary_() const;
-    bool startConnectFallback_();
+    bool startConnectFallback_(bool transientBoot);
     void startConnect();
     void stopMdns_();
     void syncMdns_();

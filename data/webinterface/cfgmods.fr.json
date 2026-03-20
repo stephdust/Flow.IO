@@ -1,0 +1,73 @@
+{
+  "_meta": {
+    "generated": false,
+    "locale": "fr",
+    "version": 1,
+    "enum_sets": {
+      "io_analog_source": [
+        { "value": 0, "label": "ADS Interne" },
+        { "value": 1, "label": "ADS Externe" },
+        { "value": 2, "label": "Sonde temperature eau" },
+        { "value": 3, "label": "Sonde temperature air" }
+      ],
+      "io_digital_pull_mode": [
+        { "value": 0, "label": "Aucun" },
+        { "value": 1, "label": "Pull-up" },
+        { "value": 2, "label": "Pull-down" }
+      ],
+      "log_levels": [
+        { "value": 0, "label": "Debug" },
+        { "value": 1, "label": "Info" },
+        { "value": 2, "label": "Warning" },
+        { "value": 3, "label": "Error" }
+      ]
+    }
+  },
+  "docs": {
+    "io/ads_ext_addr": { "display_format": "hex" },
+    "io/ads_int_addr": { "display_format": "hex" },
+    "io/pcf_address": { "display_format": "hex" },
+    "io/input/a0/a0_source": { "enum_set": "io_analog_source" },
+    "io/input/a1/a1_source": { "enum_set": "io_analog_source" },
+    "io/input/a2/a2_source": { "enum_set": "io_analog_source" },
+    "io/input/a3/a3_source": { "enum_set": "io_analog_source" },
+    "io/input/a4/a4_source": { "enum_set": "io_analog_source" },
+    "io/input/a5/a5_source": { "enum_set": "io_analog_source" },
+    "io/input/i0/i0_pull_mode": { "enum_set": "io_digital_pull_mode" },
+    "io/input/i1/i1_pull_mode": { "enum_set": "io_digital_pull_mode" },
+    "io/input/i2/i2_pull_mode": { "enum_set": "io_digital_pull_mode" },
+    "io/input/i3/i3_pull_mode": { "enum_set": "io_digital_pull_mode" },
+    "io/input/i4/i4_pull_mode": { "enum_set": "io_digital_pull_mode" },
+
+    "log/levels/m2_lvl": { "label": "loghub", "help": "Niveau minimal de logs pour le hub de logs.", "enum_set": "log_levels" },
+    "log/levels/m3_lvl": { "label": "log.dispatcher", "help": "Niveau minimal de logs pour le dispatcher asynchrone.", "enum_set": "log_levels" },
+    "log/levels/m4_lvl": { "label": "log.sink.serial", "help": "Niveau minimal de logs pour la sortie serie.", "enum_set": "log_levels" },
+    "log/levels/m5_lvl": { "label": "log.sink.alarm", "help": "Niveau minimal de logs pour le sink d'alarmes.", "enum_set": "log_levels" },
+    "log/levels/m6_lvl": { "label": "eventbus", "help": "Niveau minimal de logs pour le module EventBus.", "enum_set": "log_levels" },
+    "log/levels/m7_lvl": { "label": "config", "help": "Niveau minimal de logs pour le module de configuration.", "enum_set": "log_levels" },
+    "log/levels/m9_lvl": { "label": "cmd", "help": "Niveau minimal de logs pour le module de commandes.", "enum_set": "log_levels" },
+    "log/levels/m10_lvl": { "label": "alarms", "help": "Niveau minimal de logs pour le moteur d'alarmes.", "enum_set": "log_levels" },
+    "log/levels/m11_lvl": { "label": "wifi", "help": "Niveau minimal de logs pour la connexion Wi-Fi.", "enum_set": "log_levels" },
+    "log/levels/m12_lvl": { "label": "wifiprov", "help": "Niveau minimal de logs pour le portail d'autoconfiguration Wi-Fi.", "enum_set": "log_levels" },
+    "log/levels/m13_lvl": { "label": "time", "help": "Niveau minimal de logs pour la synchronisation horaire.", "enum_set": "log_levels" },
+    "log/levels/m14_lvl": { "label": "i2ccfg.client", "help": "Niveau minimal de logs pour le client I2C de configuration.", "enum_set": "log_levels" },
+    "log/levels/m15_lvl": { "label": "i2ccfg.server", "help": "Niveau minimal de logs pour le serveur I2C de configuration.", "enum_set": "log_levels" },
+    "log/levels/m16_lvl": { "label": "webinterface", "help": "Niveau minimal de logs pour l'interface web.", "enum_set": "log_levels" },
+    "log/levels/m17_lvl": { "label": "fwupdate", "help": "Niveau minimal de logs pour les mises a jour firmware.", "enum_set": "log_levels" },
+    "log/levels/m18_lvl": { "label": "system", "help": "Niveau minimal de logs pour le module systeme.", "enum_set": "log_levels" },
+    "log/levels/m19_lvl": { "label": "sysmon", "help": "Niveau minimal de logs pour la supervision systeme.", "enum_set": "log_levels" },
+    "log/levels/m20_lvl": { "label": "ha", "help": "Niveau minimal de logs pour Home Assistant.", "enum_set": "log_levels" },
+    "log/levels/m21_lvl": { "label": "mqtt", "help": "Niveau minimal de logs pour MQTT.", "enum_set": "log_levels" },
+    "log/levels/m22_lvl": { "label": "io", "help": "Niveau minimal de logs pour les E/S.", "enum_set": "log_levels" },
+    "log/levels/m23_lvl": { "label": "pooldev", "help": "Niveau minimal de logs pour les equipements du bassin.", "enum_set": "log_levels" },
+    "log/levels/m24_lvl": { "label": "poollogic", "help": "Niveau minimal de logs pour la logique piscine.", "enum_set": "log_levels" },
+    "log/levels/m25_lvl": { "label": "hmi", "help": "Niveau minimal de logs pour l'IHM.", "enum_set": "log_levels" },
+    "log/levels/m40_lvl": { "label": "core.i2clink", "help": "Niveau minimal de logs pour le lien I2C coeur.", "enum_set": "log_levels" },
+    "log/levels/m41_lvl": { "label": "core.modulemanager", "help": "Niveau minimal de logs pour le gestionnaire de modules.", "enum_set": "log_levels" },
+    "log/levels/m42_lvl": { "label": "core.configstore", "help": "Niveau minimal de logs pour le stockage de configuration.", "enum_set": "log_levels" },
+    "log/levels/m43_lvl": { "label": "core.eventbus", "help": "Niveau minimal de logs pour l'EventBus coeur.", "enum_set": "log_levels" },
+
+    "pdmrt": { "hidden": true },
+    "time/scheduler": { "hidden": true }
+  }
+}

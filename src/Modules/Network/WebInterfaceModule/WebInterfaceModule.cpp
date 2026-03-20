@@ -355,6 +355,19 @@ void WebInterfaceModule::startServer_()
         addNoCacheHeaders_(response);
         request->send(response);
     });
+    server_.on("/webinterface/cfgmods.fr.json", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        if (spiffsReady_ && SPIFFS.exists("/webinterface/cfgmods.fr.json")) {
+            AsyncWebServerResponse* response =
+                request->beginResponse(SPIFFS, "/webinterface/cfgmods.fr.json", "application/json");
+            addVersionedAssetCacheHeaders_(response);
+            request->send(response);
+            return;
+        }
+        AsyncWebServerResponse* response =
+            request->beginResponse(200, "application/json", "{\"_meta\":{\"generated\":false},\"docs\":{}}");
+        addNoCacheHeaders_(response);
+        request->send(response);
+    });
     server_.on("/webinterface", HTTP_GET, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/webinterface");
         if (spiffsReady_ && SPIFFS.exists("/webinterface/index.html") && sendVersionedIndexHtml_(request)) {
@@ -772,7 +785,7 @@ void WebInterfaceModule::startServer_()
                 JsonObject heapOut = compactDoc.createNestedObject("heap");
                 JsonObjectConst heapIn = root["heap"];
                 heapOut["free"] = heapIn["free"] | 0U;
-                heapOut["min"] = heapIn["min"] | 0U;
+                heapOut["min_free"] = heapIn["min_free"] | 0U;
             }
         }
 

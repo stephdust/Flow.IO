@@ -8,7 +8,7 @@
 /** @brief Heap snapshot (no dynamic allocation). */
 struct HeapStats {
     uint32_t freeBytes;           // heap_caps_get_free_size(MALLOC_CAP_8BIT)
-    uint32_t minFreeBytes;        // ESP.getMinFreeHeap()
+    uint32_t minFreeBytes;        // lowest free 8-bit heap observed since boot
     uint32_t largestFreeBlock;    // heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)
     uint8_t fragPercent;          // 0..100 estimated fragmentation
 };

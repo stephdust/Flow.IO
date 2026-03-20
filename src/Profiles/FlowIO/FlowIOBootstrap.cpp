@@ -187,7 +187,7 @@ bool buildSystemSnapshot(MQTTModule* mqtt, char* out, size_t len)
 
     const int wrote = snprintf(
         out, len,
-        "{\"upt_ms\":%llu,\"upt_s\":%llu,\"heap\":{\"free\":%lu,\"min\":%lu,\"largest\":%lu,\"frag\":%u},"
+        "{\"upt_ms\":%llu,\"upt_s\":%llu,\"heap\":{\"free\":%lu,\"min_free\":%lu,\"largest\":%lu,\"frag\":%u},"
         "\"mqtt_rx\":{\"rx_drop\":%lu,\"oversize_drop\":%lu,\"parse_fail\":%lu,\"handler_fail\":%lu},\"ts\":%lu}",
         (unsigned long long)snap.uptimeMs64,
         (unsigned long long)(snap.uptimeMs64 / 1000ULL),

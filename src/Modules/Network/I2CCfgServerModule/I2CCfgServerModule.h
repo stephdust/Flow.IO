@@ -31,6 +31,8 @@ public:
 
     void init(ConfigStore& cfg, ServiceRegistry& services) override;
     void onConfigLoaded(ConfigStore&, ServiceRegistry&) override;
+    uint8_t taskCount() const override { return started_ ? 1 : 0; }
+    const ModuleTaskSpec* taskSpecs() const override;
 
 private:
     struct ConfigData {
@@ -75,7 +77,6 @@ private:
     ConfigStore* cfgStore_ = nullptr;
     I2cLink link_{};
     bool started_ = false;
-    TaskHandle_t actionTask_ = nullptr;
 
     enum class PendingSystemAction : uint8_t {
         None = 0,
@@ -134,7 +135,6 @@ private:
     bool buildRuntimeStatusI2cJson_(bool& truncatedOut);
     bool buildRuntimeStatusPoolJson_(bool& truncatedOut);
     bool buildRuntimeStatusAlarmJson_(bool& truncatedOut);
-    void ensureActionTask_();
     void queueSystemAction_(PendingSystemAction action);
     PendingSystemAction takePendingSystemAction_();
     void actionLoop_();

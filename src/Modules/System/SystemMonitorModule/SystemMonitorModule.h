@@ -23,6 +23,9 @@ public:
     const char* taskName() const override { return "sysmon"; }
     /** @brief Pin monitoring module on core 0. */
     BaseType_t taskCore() const override { return 0; }
+    uint16_t taskStackSize() const override { return 3584; }
+    uint8_t taskCount() const override { return 1; }
+    const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
 
     // Only logger is mandatory
     /** @brief Depends on log hub. */
@@ -57,8 +60,11 @@ private:
     bool haEntitiesRegistered_ = false;
 
     uint32_t lastJsonDumpMs = 0;
-    uint32_t lastTraceLogMs = 0;
+    uint32_t traceCycleStartMs_ = 0;
     bool bootInfoLogged_ = false;
+    bool stackLoggedThisCycle_ = false;
+    bool heapLoggedThisCycle_ = false;
+    bool buffersLoggedThisCycle_ = false;
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
 
     void logBootInfo();

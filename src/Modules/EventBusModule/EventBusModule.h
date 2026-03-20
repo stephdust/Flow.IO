@@ -18,6 +18,8 @@ public:
     const char* taskName() const override { return "EventBus"; }
     /** @brief Pin control-path module on core 1. */
     BaseType_t taskCore() const override { return 1; }
+    uint8_t taskCount() const override { return 1; }
+    const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
 
     /** @brief EventBus depends on log hub. */
     uint8_t dependencyCount() const override { return 1; }
