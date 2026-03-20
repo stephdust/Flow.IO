@@ -6,6 +6,10 @@
     const webAssetVersion = (typeof window.__FLOW_WEB_ASSET_VERSION__ === 'string')
       ? window.__FLOW_WEB_ASSET_VERSION__
       : '';
+    const supervisorFirmwareVersion = (typeof window.__FLOW_FIRMWARE_VERSION__ === 'string' &&
+      window.__FLOW_FIRMWARE_VERSION__.trim())
+      ? window.__FLOW_FIRMWARE_VERSION__.trim()
+      : '-';
 
     function versionedWebAssetUrl(path) {
       if (!webAssetVersion) return path;
@@ -476,14 +480,22 @@
       await chargerSupervisorCfgModules(true);
     }
 
-    function boolFlowStatus(v) {
-      return v ? 'oui' : 'non';
-    }
-
     function fmtFlowStatusVal(v) {
       if (v === null || typeof v === 'undefined') return '-';
-      if (typeof v === 'boolean') return boolFlowStatus(v);
       return String(v);
+    }
+
+    function buildFlowStatusBoolIcon(v) {
+      const ok = !!v;
+      const span = document.createElement('span');
+      span.className = ok ? 'status-bool is-true' : 'status-bool is-false';
+      span.setAttribute('role', 'img');
+      span.setAttribute('aria-label', ok ? 'OK' : 'NOK');
+      span.title = ok ? 'OK' : 'NOK';
+      span.innerHTML = ok
+        ? '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M5 8.2 7 10.2 11 6.2"></path></svg>'
+        : '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M5.5 5.5 10.5 10.5"></path><path d="M10.5 5.5 5.5 10.5"></path></svg>';
+      return span;
     }
 
     function fmtFlowUptime(ms) {
@@ -600,7 +612,11 @@
         const key = document.createElement('span');
         key.textContent = row[0];
         const value = document.createElement('b');
-        value.textContent = fmtFlowStatusVal(row[1]);
+        if (typeof row[1] === 'boolean') {
+          value.appendChild(buildFlowStatusBoolIcon(row[1]));
+        } else {
+          value.textContent = fmtFlowStatusVal(row[1]);
+        }
         line.appendChild(key);
         line.appendChild(value);
         kv.appendChild(line);
@@ -680,7 +696,8 @@
         ['IP', wifiIp],
         ['RSSI (dBm)', wifiHasRssi ? wifiRssi : '-']
       ]);
-      appendFlowStatusCard('I2C Supervisor', [
+      appendFlowStatusCard('Supervisor', [
+        ['Firmware', supervisorFirmwareVersion],
         ['Lien actif', i2cLinkOk],
         ['Supervisor vu', i2cSeen],
         ['Req total', i2cReqCount],

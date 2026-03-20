@@ -291,6 +291,42 @@
       color: var(--panel-frame-title);
       font-weight: 700;
     }
+    .status-bool {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      vertical-align: middle;
+    }
+    .status-bool svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+    }
+    .status-bool circle,
+    .status-bool path {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .status-bool.is-true {
+      color: #2f9e68;
+    }
+    .status-bool.is-false {
+      color: #d14c66;
+    }
+    .status-bool.is-true circle,
+    .status-bool.is-false circle {
+      stroke: currentColor;
+      stroke-width: 1.4;
+      opacity: 0.9;
+    }
+    .status-bool.is-true path,
+    .status-bool.is-false path {
+      stroke: currentColor;
+      stroke-width: 1.8;
+    }
     .status-raw {
       margin-top: 10px;
       border: 1px solid var(--panel-frame-border);

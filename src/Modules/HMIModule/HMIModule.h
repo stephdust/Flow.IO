@@ -30,6 +30,7 @@ public:
     }
 
     void init(ConfigStore& cfg, ServiceRegistry& services) override;
+    void onConfigLoaded(ConfigStore& cfg, ServiceRegistry& services) override;
     void loop() override;
 
 private:

@@ -198,14 +198,17 @@ void HMIModule::init(ConfigStore&, ServiceRegistry& services)
     lastLedApplyTryMs_ = 0;
     lastLedPageToggleMs_ = millis();
 
+    LOGI("HMI service registered with driver=%s led_panel=%s",
+         driver_ ? driver_->driverId() : "none",
+         statusLedsSvc_ ? "on" : "off");
+}
+
+void HMIModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
+{
     refreshPoolLogicFlags_();
     refreshRuntimeFlags_();
     refreshAlarmFlags_();
     applyLedMask_(true);
-
-    LOGI("HMI service registered with driver=%s led_panel=%s",
-         driver_ ? driver_->driverId() : "none",
-         statusLedsSvc_ ? "on" : "off");
 }
 
 void HMIModule::onEventStatic_(const Event& e, void* user)
