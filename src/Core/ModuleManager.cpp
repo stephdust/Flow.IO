@@ -31,11 +31,36 @@ static void dbgDumpModules(Module* modules[], uint8_t count) {
     delay(50);
 }
 
-void ModuleManager::add(Module* m) { modules[count++] = m; }
+bool ModuleManager::add(Module* m) {
+    if (!m) {
+        Log::error(LOG_MODULE_ID, "add failed: null module");
+        return false;
+    }
+
+    const char* moduleId = m->moduleId();
+    if (!moduleId || moduleId[0] == '\0') {
+        Log::error(LOG_MODULE_ID, "add failed: invalid module id");
+        return false;
+    }
+
+    if (count >= MAX_MODULES) {
+        Log::error(LOG_MODULE_ID, "add failed: module limit reached (%u)", (unsigned)MAX_MODULES);
+        return false;
+    }
+
+    if (findById(moduleId)) {
+        Log::error(LOG_MODULE_ID, "add failed: duplicate module id=%s", moduleId);
+        return false;
+    }
+
+    modules[count++] = m;
+    return true;
+}
 
 Module* ModuleManager::findById(const char* id) {
+    if (!id || id[0] == '\0') return nullptr;
     for (uint8_t i = 0; i < count; ++i)
-        if (strcmp(modules[i]->moduleId(), id) == 0) return modules[i];
+        if (modules[i] && modules[i]->moduleId() && strcmp(modules[i]->moduleId(), id) == 0) return modules[i];
     return nullptr;
 }
 

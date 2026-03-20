@@ -14,7 +14,7 @@ constexpr size_t MAX_MODULES = 25;
 class ModuleManager {
 public:
     /** @brief Add a module to the manager. */
-    void add(Module* m);
+    bool add(Module* m);
     /** @brief Initialize all modules in dependency order. */
     bool initAll(ConfigStore& cfg, ServiceRegistry& services);
     /** @brief Wire core services into the registry. */
