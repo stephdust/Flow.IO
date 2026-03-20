@@ -7,7 +7,10 @@
 #include "Core/ErrorCodes.h"
 #include "Core/FirmwareVersion.h"
 #include "Core/SystemStats.h"
+#include "Domain/Pool/PoolBindings.h"
+#include "Modules/IOModule/IORuntime.h"
 #include "Modules/Network/MQTTModule/MQTTRuntime.h"
+#include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
 #include "Modules/Network/WifiModule/WifiRuntime.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::I2cCfgServerModule)
 #include "Core/ModuleLog.h"
@@ -249,6 +252,18 @@ bool appendEscapedJsonString_(char* out, size_t outLen, size_t& pos, const char*
         }
     }
     return appendText_(out, outLen, pos, "\"");
+}
+
+bool appendJsonFloatOrNull_(char* out, size_t outLen, size_t& pos, bool valid, float value, uint8_t decimals)
+{
+    if (!valid) return appendText_(out, outLen, pos, "null");
+    return appendFormat_(out, outLen, pos, "%.*f", (int)decimals, (double)value);
+}
+
+bool appendJsonBoolOrNull_(char* out, size_t outLen, size_t& pos, bool valid, bool value)
+{
+    if (!valid) return appendText_(out, outLen, pos, "null");
+    return appendText_(out, outLen, pos, value ? "true" : "false");
 }
 
 }  // namespace
@@ -616,17 +631,64 @@ bool I2CCfgServerModule::buildRuntimeStatusPoolJson_(bool& truncatedOut)
     bool poolHasMode = false;
     bool poolAutoMode = false;
     bool poolWinterMode = false;
+    float waterTemp = 0.0f;
+    float airTemp = 0.0f;
+    float phValue = 0.0f;
+    float orpValue = 0.0f;
+    bool filtrationOn = false;
+    bool chlorinePumpOn = false;
+    bool phPumpOn = false;
+    bool robotOn = false;
     (void)collectPoolModeFlags_(poolHasMode, poolAutoMode, poolWinterMode);
+
+    const bool haveWaterTemp =
+        dataStore_ && ioEndpointFloat(*dataStore_, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterTemp].runtimeIndex, waterTemp);
+    const bool haveAirTemp =
+        dataStore_ && ioEndpointFloat(*dataStore_, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotAirTemp].runtimeIndex, airTemp);
+    const bool havePh =
+        dataStore_ && ioEndpointFloat(*dataStore_, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPh].runtimeIndex, phValue);
+    const bool haveOrp =
+        dataStore_ && ioEndpointFloat(*dataStore_, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotOrp].runtimeIndex, orpValue);
+
+    PoolDeviceRuntimeStateEntry deviceState{};
+    const bool haveFiltration =
+        dataStore_ && poolDeviceRuntimeState(*dataStore_, PoolBinding::kDeviceSlotFiltrationPump, deviceState);
+    if (haveFiltration) filtrationOn = deviceState.actualOn;
+    const bool haveChlorinePump =
+        dataStore_ && poolDeviceRuntimeState(*dataStore_, PoolBinding::kDeviceSlotChlorinePump, deviceState);
+    if (haveChlorinePump) chlorinePumpOn = deviceState.actualOn;
+    const bool havePhPump =
+        dataStore_ && poolDeviceRuntimeState(*dataStore_, PoolBinding::kDeviceSlotPhPump, deviceState);
+    if (havePhPump) phPumpOn = deviceState.actualOn;
+    const bool haveRobot =
+        dataStore_ && poolDeviceRuntimeState(*dataStore_, PoolBinding::kDeviceSlotRobot, deviceState);
+    if (haveRobot) robotOn = deviceState.actualOn;
 
     size_t pos = 0;
     statusJson_[0] = '\0';
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       "{\"ok\":true,\"pool\":{\"has\":%s,\"auto\":%s,\"wint\":%s}}",
+                       "{\"ok\":true,\"pool\":{\"has\":%s,\"auto\":%s,\"wint\":%s,\"wat\":",
                        poolHasMode ? "true" : "false",
                        poolAutoMode ? "true" : "false",
                        poolWinterMode ? "true" : "false")) return false;
+    if (!appendJsonFloatOrNull_(statusJson_, sizeof(statusJson_), pos, haveWaterTemp, waterTemp, 1)) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, ",\"air\":")) return false;
+    if (!appendJsonFloatOrNull_(statusJson_, sizeof(statusJson_), pos, haveAirTemp, airTemp, 1)) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, ",\"ph\":")) return false;
+    if (!appendJsonFloatOrNull_(statusJson_, sizeof(statusJson_), pos, havePh, phValue, 2)) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, ",\"orp\":")) return false;
+    if (!appendJsonFloatOrNull_(statusJson_, sizeof(statusJson_), pos, haveOrp, orpValue, 0)) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, ",\"fil\":")) return false;
+    if (!appendJsonBoolOrNull_(statusJson_, sizeof(statusJson_), pos, haveFiltration, filtrationOn)) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, ",\"php\":")) return false;
+    if (!appendJsonBoolOrNull_(statusJson_, sizeof(statusJson_), pos, havePhPump, phPumpOn)) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, ",\"clp\":")) return false;
+    if (!appendJsonBoolOrNull_(statusJson_, sizeof(statusJson_), pos, haveChlorinePump, chlorinePumpOn)) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, ",\"rbt\":")) return false;
+    if (!appendJsonBoolOrNull_(statusJson_, sizeof(statusJson_), pos, haveRobot, robotOn)) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, "}}")) return false;
     return true;
 }
 

@@ -764,9 +764,9 @@ void WebInterfaceModule::startServer_()
             return;
         }
 
-        char domainBuf[448] = {0};
-        StaticJsonDocument<512> domainDoc;
-        StaticJsonDocument<640> compactDoc;
+        char domainBuf[640] = {0};
+        StaticJsonDocument<768> domainDoc;
+        StaticJsonDocument<1024> compactDoc;
         compactDoc["ok"] = true;
 
         bool anyDomainOk = false;
@@ -821,10 +821,30 @@ void WebInterfaceModule::startServer_()
                 JsonObject mqttOut = compactDoc.createNestedObject("mqtt");
                 JsonObjectConst mqttIn = root["mqtt"];
                 mqttOut["rdy"] = mqttIn["rdy"] | false;
+                mqttOut["srv"] = String(mqttIn["srv"] | "");
                 mqttOut["rxdrp"] = mqttIn["rxdrp"] | 0U;
                 mqttOut["prsf"] = mqttIn["prsf"] | 0U;
                 mqttOut["hndf"] = mqttIn["hndf"] | 0U;
                 mqttOut["ovr"] = mqttIn["ovr"] | 0U;
+            }
+        }
+
+        {
+            JsonObjectConst root = loadDomain(FlowStatusDomain::Pool);
+            if (!root.isNull()) {
+                JsonObject poolOut = compactDoc.createNestedObject("pool");
+                JsonObjectConst poolIn = root["pool"];
+                poolOut["has"] = poolIn["has"] | false;
+                poolOut["auto"] = poolIn["auto"] | false;
+                poolOut["wint"] = poolIn["wint"] | false;
+                poolOut["wat"] = poolIn["wat"];
+                poolOut["air"] = poolIn["air"];
+                poolOut["ph"] = poolIn["ph"];
+                poolOut["orp"] = poolIn["orp"];
+                poolOut["fil"] = poolIn["fil"];
+                poolOut["php"] = poolIn["php"];
+                poolOut["clp"] = poolIn["clp"];
+                poolOut["rbt"] = poolIn["rbt"];
             }
         }
 
@@ -847,7 +867,7 @@ void WebInterfaceModule::startServer_()
             return;
         }
 
-        char compactOut[768] = {0};
+        char compactOut[1024] = {0};
         const size_t compactLen = serializeJson(compactDoc, compactOut, sizeof(compactOut));
         if (compactLen == 0 || compactLen >= sizeof(compactOut)) {
             request->send(500, "application/json",
@@ -890,7 +910,7 @@ void WebInterfaceModule::startServer_()
             return;
         }
 
-        char domainBuf[448] = {0};
+        char domainBuf[640] = {0};
         if (!flowCfgSvc_->runtimeStatusDomainJson(flowCfgSvc_->ctx, domain, domainBuf, sizeof(domainBuf))) {
             if (domainBuf[0] != '\0') {
                 request->send(500, "application/json", domainBuf);

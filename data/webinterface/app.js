@@ -201,11 +201,12 @@
     const fieldApplyCheckIcon =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.2 16.6 4.9 12.3l1.4-1.4 2.9 2.9 8.5-8.5 1.4 1.4z"/></svg>';
     const flowStatusDomainTtlMs = 20000;
-    const flowStatusDomainKeys = ['system', 'wifi', 'mqtt', 'i2c'];
+    const flowStatusDomainKeys = ['system', 'wifi', 'mqtt', 'pool', 'i2c'];
     const flowStatusDomainCache = {
       system: { data: null, fetchedAt: 0 },
       wifi: { data: null, fetchedAt: 0 },
       mqtt: { data: null, fetchedAt: 0 },
+      pool: { data: null, fetchedAt: 0 },
       i2c: { data: null, fetchedAt: 0 }
     };
 
@@ -573,6 +574,15 @@
       return (n / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
+    function fmtFlowFixed(value, decimals, unit) {
+      if (value === null || typeof value === 'undefined') return '-';
+      if (typeof value === 'string' && value.trim().length === 0) return '-';
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '-';
+      const rendered = decimals > 0 ? n.toFixed(decimals) : String(Math.round(n));
+      return unit ? (rendered + ' ' + unit) : rendered;
+    }
+
     function clampFlowValue(v, min, max) {
       if (v < min) return min;
       if (v > max) return max;
@@ -634,7 +644,9 @@
         wifi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.28 8.84a15.3 15.3 0 0 1 19.44 0l-1.42 1.42a13.3 13.3 0 0 0-16.6 0Zm3.54 3.54a10.3 10.3 0 0 1 12.36 0l-1.42 1.42a8.3 8.3 0 0 0-9.52 0Zm3.54 3.54a5.3 5.3 0 0 1 5.28 0L12 18.56Zm2.64 4.08a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>',
         supervisor: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v2H7Zm0 4h10v2H7Zm0 4h6v2H7Z"/><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8l-5 0V5a2 2 0 0 1 2-2Zm0 2v14h14V5Z"/></svg>',
         system: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v2h2.5A1.5 1.5 0 0 1 19 6.5V9h2v6h-2v2.5A1.5 1.5 0 0 1 17.5 19H15v2H9v-2H6.5A1.5 1.5 0 0 1 5 17.5V15H3V9h2V6.5A1.5 1.5 0 0 1 6.5 5H9Zm-2 4v10h10V7Zm2 2h6v6H9Z"/></svg>',
-        mqtt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15a7 7 0 0 1 14 0h-2a5 5 0 0 0-10 0Zm3 0a4 4 0 0 1 8 0h-2a2 2 0 0 0-4 0Zm4-1.5A1.5 1.5 0 1 1 10.5 15 1.5 1.5 0 0 1 12 13.5Z"/><path d="M4 19h16v2H4Z"/></svg>'
+        mqtt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15a7 7 0 0 1 14 0h-2a5 5 0 0 0-10 0Zm3 0a4 4 0 0 1 8 0h-2a2 2 0 0 0-4 0Zm4-1.5A1.5 1.5 0 1 1 10.5 15 1.5 1.5 0 0 1 12 13.5Z"/><path d="M4 19h16v2H4Z"/></svg>',
+        pool: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v3H4Zm4-6a4 4 0 1 1 8 0Z"/></svg>',
+        pump: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h8a3 3 0 0 1 3 3v1h2a2 2 0 0 1 2 2v3h-2v-3h-2v2a3 3 0 0 1-3 3H5Zm2 2v7h6a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1Z"/><path d="M3 10h2v4H3z"/></svg>'
       };
       const span = document.createElement('span');
       span.className = ok ? 'status-card-icon is-true' : 'status-card-icon is-false';
@@ -736,6 +748,12 @@
       if (mqtt && mqtt.ok === true && mqtt.mqtt && typeof mqtt.mqtt === 'object') {
         anyDomainOk = true;
         merged.mqtt = mqtt.mqtt;
+      }
+
+      const pool = domainData.pool;
+      if (pool && pool.ok === true && pool.pool && typeof pool.pool === 'object') {
+        anyDomainOk = true;
+        merged.pool = pool.pool;
       }
 
       const i2c = domainData.i2c;
@@ -871,7 +889,7 @@
     function renderFlowStatusSkeleton() {
       flowStatusChip.textContent = 'chargement...';
       flowStatusGrid.innerHTML = '';
-      for (let i = 0; i < 4; ++i) {
+      for (let i = 0; i < 6; ++i) {
         appendFlowStatusSkeletonCard();
       }
       flowStatusRaw.hidden = true;
@@ -882,6 +900,7 @@
     function renderFlowStatus(data) {
       const wifi = (data && typeof data.wifi === 'object') ? data.wifi : {};
       const mqtt = (data && typeof data.mqtt === 'object') ? data.mqtt : {};
+      const pool = (data && typeof data.pool === 'object') ? data.pool : {};
       const heap = (data && data.heap && typeof data.heap === 'object') ? data.heap : {};
       const i2c = (data && data.i2c && typeof data.i2c === 'object') ? data.i2c : {};
       const firmware = fmtFlowStatusVal(data.fw);
@@ -904,6 +923,24 @@
         (Number(mqttParseFail) || 0) +
         (Number(mqttHandlerFail) || 0) +
         (Number(mqttOversizeDrop) || 0);
+      const waterTemp = pool.wat;
+      const airTemp = pool.air;
+      const phValue = pool.ph;
+      const orpValue = pool.orp;
+      const filtrationOn = (typeof pool.fil === 'boolean') ? pool.fil : null;
+      const phPumpOn = (typeof pool.php === 'boolean') ? pool.php : null;
+      const chlorinePumpOn = (typeof pool.clp === 'boolean') ? pool.clp : null;
+      const robotOn = (typeof pool.rbt === 'boolean') ? pool.rbt : null;
+      const poolMetricsReady =
+        Number.isFinite(Number(waterTemp)) ||
+        Number.isFinite(Number(airTemp)) ||
+        Number.isFinite(Number(phValue)) ||
+        Number.isFinite(Number(orpValue));
+      const poolDevicesReady =
+        typeof filtrationOn === 'boolean' ||
+        typeof phPumpOn === 'boolean' ||
+        typeof chlorinePumpOn === 'boolean' ||
+        typeof robotOn === 'boolean';
       const heapFree = ('free' in heap) ? heap.free : null;
       const heapMin = ('min_free' in heap) ? heap.min_free : null;
       const systemReady = firmware !== '-' || uptimeMs > 0 || heapFree !== null;
@@ -935,6 +972,30 @@
             { label: 'Contenu', value: mqttParseFail },
             { label: 'Traitement', value: mqttHandlerFail }
           ])
+        ]
+      });
+      appendFlowStatusCard({
+        title: 'Mesures Bassin',
+        icon: 'pool',
+        ok: poolMetricsReady,
+        iconLabel: poolMetricsReady ? 'Mesures bassin disponibles' : 'Mesures bassin indisponibles',
+        rows: [
+          ['Eau', fmtFlowFixed(waterTemp, 1, 'C')],
+          ['Air', fmtFlowFixed(airTemp, 1, 'C')],
+          ['ORP', fmtFlowFixed(orpValue, 0, 'mV')],
+          ['pH', fmtFlowFixed(phValue, 2, '')]
+        ]
+      });
+      appendFlowStatusCard({
+        title: 'Pompes',
+        icon: 'pump',
+        ok: poolDevicesReady,
+        iconLabel: poolDevicesReady ? 'Etat des pompes disponible' : 'Etat des pompes indisponible',
+        rows: [
+          ['Filtration', (typeof filtrationOn === 'boolean') ? buildFlowStatusBoolIcon(filtrationOn) : '-'],
+          ['Chlore', (typeof chlorinePumpOn === 'boolean') ? buildFlowStatusBoolIcon(chlorinePumpOn) : '-'],
+          ['pH', (typeof phPumpOn === 'boolean') ? buildFlowStatusBoolIcon(phPumpOn) : '-'],
+          ['Robot', (typeof robotOn === 'boolean') ? buildFlowStatusBoolIcon(robotOn) : '-']
         ]
       });
       appendFlowStatusCard({

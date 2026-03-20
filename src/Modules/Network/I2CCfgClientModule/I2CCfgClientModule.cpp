@@ -15,7 +15,7 @@ namespace {
 constexpr uint8_t kInterlinkBus = 1;  // Interlink is fixed on I2C controller 1 (Wire1 on ESP32).
 constexpr uint8_t kI2cClientCfgProducerId = 51;
 constexpr uint8_t kI2cClientCfgBranch = 2;
-constexpr size_t kRuntimeStatusDomainBufSize = 448;
+constexpr size_t kRuntimeStatusDomainBufSize = 640;
 constexpr uint32_t kRemoteRetryCooldownMs = 3000U;
 static constexpr MqttConfigRouteProducer::Route kI2cClientCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::I2cCfg, kI2cClientCfgBranch}, "i2c/cfg/client", "i2c/cfg/client", (uint8_t)MqttPublishPriority::Normal, nullptr},
