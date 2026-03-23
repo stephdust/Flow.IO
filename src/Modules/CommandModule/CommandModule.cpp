@@ -7,19 +7,17 @@
 #include "Core/ModuleLog.h"
 
 
-bool CommandModule::svcRegister(void* ctx, const char* cmd, CommandHandler fn, void* userCtx) {
-    return ((CommandRegistry*)ctx)->registerHandler(cmd, fn, userCtx);
+bool CommandModule::registerHandler_(const char* cmd, CommandHandler fn, void* userCtx) {
+    return registry.registerHandler(cmd, fn, userCtx);
 }
 
-bool CommandModule::svcExecute(void* ctx, const char* cmd, const char* json, const char* args,
-                               char* reply, size_t replyLen) {
-    return ((CommandRegistry*)ctx)->execute(cmd, json, args, reply, replyLen);
+bool CommandModule::execute_(const char* cmd, const char* json, const char* args,
+                             char* reply, size_t replyLen) {
+    return registry.execute(cmd, json, args, reply, replyLen);
 }
 
 void CommandModule::init(ConfigStore&, ServiceRegistry& services) {
-    static CommandService svc{ svcRegister, svcExecute, nullptr };
-    svc.ctx = &registry;
-    if (!services.add(ServiceId::Command, &svc)) {
+    if (!services.add(ServiceId::Command, &svc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::Command));
     }
     

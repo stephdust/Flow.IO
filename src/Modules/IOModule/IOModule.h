@@ -7,6 +7,7 @@
 #include "Core/Module.h"
 #include "Core/NvsKeys.h"
 #include "Core/RuntimeSnapshotProvider.h"
+#include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
 #include "Core/SystemLimits.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
@@ -85,22 +86,6 @@ private:
     static bool tickSlowDs_(void* ctx, uint32_t nowMs);
     static bool tickDigitalInputs_(void* ctx, uint32_t nowMs);
 
-    static uint8_t svcCount_(void* ctx);
-    static IoStatus svcIdAt_(void* ctx, uint8_t index, IoId* outId);
-    static IoStatus svcMeta_(void* ctx, IoId id, IoEndpointMeta* outMeta);
-    static IoStatus svcReadDigital_(void* ctx, IoId id, uint8_t* outOn, uint32_t* outTsMs, IoSeq* outSeq);
-    static IoStatus svcWriteDigital_(void* ctx, IoId id, uint8_t on, uint32_t tsMs);
-    static IoStatus svcReadAnalog_(void* ctx, IoId id, float* outValue, uint32_t* outTsMs, IoSeq* outSeq);
-    static IoStatus svcTick_(void* ctx, uint32_t nowMs);
-    static IoStatus svcLastCycle_(void* ctx, IoCycleInfo* outCycle);
-
-    static bool svcSetMask_(void* ctx, uint8_t mask);
-    static bool svcTurnOn_(void* ctx, uint8_t bit);
-    static bool svcTurnOff_(void* ctx, uint8_t bit);
-    static bool svcGetMask_(void* ctx, uint8_t* mask);
-    static bool svcStatusLedsSetMask_(void* ctx, uint8_t mask, uint32_t tsMs);
-    static bool svcStatusLedsGetMask_(void* ctx, uint8_t* mask);
-
     uint8_t ioCount_() const;
     IoStatus ioIdAt_(uint8_t index, IoId* outId) const;
     IoStatus ioMeta_(IoId id, IoEndpointMeta* outMeta) const;
@@ -114,6 +99,7 @@ private:
     bool turnLedOn_(uint8_t bit, uint32_t tsMs);
     bool turnLedOff_(uint8_t bit, uint32_t tsMs);
     bool getLedMask_(uint8_t& mask) const;
+    bool getLedMaskSvc_(uint8_t* mask) const;
     uint8_t pcfPhysicalFromLogical_(uint8_t logicalMask) const;
     uint8_t pcfLogicalFromPhysical_(uint8_t physicalMask) const;
 
@@ -213,19 +199,19 @@ private:
     IOMaskProvider ledMaskProvider_{};
     Pcf8574MaskEndpoint* ledMaskEp_ = nullptr;
     IOServiceV2 ioSvc_{
-        svcCount_,
-        svcIdAt_,
-        svcMeta_,
-        svcReadDigital_,
-        svcWriteDigital_,
-        svcReadAnalog_,
-        svcTick_,
-        svcLastCycle_,
+        ServiceBinding::bind<&IOModule::ioCount_>,
+        ServiceBinding::bind<&IOModule::ioIdAt_>,
+        ServiceBinding::bind<&IOModule::ioMeta_>,
+        ServiceBinding::bind<&IOModule::ioReadDigital_>,
+        ServiceBinding::bind<&IOModule::ioWriteDigital_>,
+        ServiceBinding::bind<&IOModule::ioReadAnalog_>,
+        ServiceBinding::bind<&IOModule::ioTick_>,
+        ServiceBinding::bind<&IOModule::ioLastCycle_>,
         this
     };
     StatusLedsService statusLedsSvc_{
-        svcStatusLedsSetMask_,
-        svcStatusLedsGetMask_,
+        ServiceBinding::bind<&IOModule::setLedMask_>,
+        ServiceBinding::bind<&IOModule::getLedMaskSvc_>,
         this
     };
     bool pcfLastEnabled_ = false;

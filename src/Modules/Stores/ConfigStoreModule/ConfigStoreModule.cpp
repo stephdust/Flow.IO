@@ -7,24 +7,25 @@
 #include "Core/ModuleLog.h"
 
 
-bool ConfigStoreModule::svcApplyJson(void* ctx, const char* json) {
-    return ((ConfigStore*)ctx)->applyJson(json);
+bool ConfigStoreModule::applyJson_(const char* json) {
+    return registry ? registry->applyJson(json) : false;
 }
 
-void ConfigStoreModule::svcToJson(void* ctx, char* out, size_t outLen) {
-    ((ConfigStore*)ctx)->toJson(out, outLen);
+void ConfigStoreModule::toJson_(char* out, size_t outLen) {
+    if (!registry) return;
+    registry->toJson(out, outLen);
 }
 
-bool ConfigStoreModule::svcToJsonModule(void* ctx, const char* module, char* out, size_t outLen, bool* truncated) {
-    return ((ConfigStore*)ctx)->toJsonModule(module, out, outLen, truncated);
+bool ConfigStoreModule::toJsonModule_(const char* module, char* out, size_t outLen, bool* truncated) {
+    return registry ? registry->toJsonModule(module, out, outLen, truncated) : false;
 }
 
-uint8_t ConfigStoreModule::svcListModules(void* ctx, const char** out, uint8_t max) {
-    return ((ConfigStore*)ctx)->listModules(out, max);
+uint8_t ConfigStoreModule::listModules_(const char** out, uint8_t max) {
+    return registry ? registry->listModules(out, max) : 0;
 }
 
-bool ConfigStoreModule::svcErase(void* ctx) {
-    return ((ConfigStore*)ctx)->erasePersistent();
+bool ConfigStoreModule::erase_() {
+    return registry ? registry->erasePersistent() : false;
 }
 
 void ConfigStoreModule::init(ConfigStore& cfg, ServiceRegistry& services) {
@@ -33,10 +34,7 @@ void ConfigStoreModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     /// récupérer service loghub (log async)
     logHub = services.get<LogHubService>(ServiceId::LogHub);
 
-    static ConfigStoreService svc{ svcApplyJson, svcToJson, svcToJsonModule, svcListModules, svcErase, nullptr };
-    svc.ctx = registry;
-
-    if (!services.add(ServiceId::ConfigStore, &svc)) {
+    if (!services.add(ServiceId::ConfigStore, &svc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::ConfigStore));
     }
     LOGI("ConfigStoreService registered");

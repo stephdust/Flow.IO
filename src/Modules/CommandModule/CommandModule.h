@@ -5,6 +5,7 @@
  */
 #include "Core/ModulePassive.h"
 #include "Core/CommandRegistry.h"
+#include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
 
 /**
@@ -26,7 +27,12 @@ private:
     CommandRegistry registry;
     const LogHubService* logHub = nullptr;
 
-    static bool svcRegister(void* ctx, const char* cmd, CommandHandler fn, void* userCtx);
-    static bool svcExecute(void* ctx, const char* cmd, const char* json, const char* args,
-                           char* reply, size_t replyLen);
+    bool registerHandler_(const char* cmd, CommandHandler fn, void* userCtx);
+    bool execute_(const char* cmd, const char* json, const char* args, char* reply, size_t replyLen);
+
+    CommandService svc_{
+        ServiceBinding::bind<&CommandModule::registerHandler_>,
+        ServiceBinding::bind<&CommandModule::execute_>,
+        this
+    };
 };

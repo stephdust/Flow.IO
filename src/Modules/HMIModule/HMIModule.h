@@ -5,6 +5,7 @@
  */
 
 #include "Core/Module.h"
+#include "Core/ServiceBinding.h"
 #include "Core/EventBus/EventBus.h"
 #include "Core/Services/Services.h"
 #include "Modules/HMIModule/ConfigMenuModel.h"
@@ -70,19 +71,27 @@ private:
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
     void handleDriverEvent_(const HmiEvent& e);
+    bool requestRefresh_();
+    bool openConfigHome_();
+    bool openConfigModule_(const char* module);
+    bool setLedPage_(uint8_t page);
+    uint8_t getLedPage_() const;
     bool refreshCurrentModule_();
     bool render_();
     bool buildMenuJson_(char* out, size_t outLen) const;
-
-    static bool svcRequestRefresh_(void* ctx);
-    static bool svcOpenConfigHome_(void* ctx);
-    static bool svcOpenConfigModule_(void* ctx, const char* module);
-    static bool svcBuildConfigMenuJson_(void* ctx, char* out, size_t outLen);
-    static bool svcSetLedPage_(void* ctx, uint8_t page);
-    static uint8_t svcGetLedPage_(void* ctx);
     void refreshPoolLogicFlags_();
     void refreshRuntimeFlags_();
     void refreshAlarmFlags_();
     void updatePumpRuntimeAlarmFromSlot_(uint8_t slot);
     void applyLedMask_(bool force = false);
+
+    HmiService hmiSvc_{
+        ServiceBinding::bind<&HMIModule::requestRefresh_>,
+        ServiceBinding::bind<&HMIModule::openConfigHome_>,
+        ServiceBinding::bind<&HMIModule::openConfigModule_>,
+        ServiceBinding::bind<&HMIModule::buildMenuJson_>,
+        ServiceBinding::bind<&HMIModule::setLedPage_>,
+        ServiceBinding::bind_or<&HMIModule::getLedPage_, (uint8_t)1U>,
+        this
+    };
 };

@@ -94,35 +94,18 @@ static constexpr MqttConfigRouteProducer::Route kMqttCfgRoutes[] = {
 };
 } // namespace
 
-bool MQTTModule::svcEnqueue_(void* ctx, uint8_t producerId, uint16_t messageId, uint8_t prio, uint8_t flags)
+bool MQTTModule::enqueueSvc_(uint8_t producerId, uint16_t messageId, uint8_t prio, uint8_t flags)
 {
-    MQTTModule* self = static_cast<MQTTModule*>(ctx);
-    if (!self) return false;
-
     MqttPublishPriority p = MqttPublishPriority::Normal;
     if (prio == (uint8_t)MqttPublishPriority::Low) p = MqttPublishPriority::Low;
     else if (prio == (uint8_t)MqttPublishPriority::High) p = MqttPublishPriority::High;
 
-    return self->enqueue(producerId, messageId, p, flags);
+    return enqueue(producerId, messageId, p, flags);
 }
 
-bool MQTTModule::svcRegisterProducer_(void* ctx, const MqttPublishProducer* producer)
+void MQTTModule::formatTopicSvc_(const char* suffix, char* out, size_t outLen) const
 {
-    MQTTModule* self = static_cast<MQTTModule*>(ctx);
-    return self ? self->registerProducer(producer) : false;
-}
-
-void MQTTModule::svcFormatTopic_(void* ctx, const char* suffix, char* out, size_t outLen)
-{
-    MQTTModule* self = static_cast<MQTTModule*>(ctx);
-    if (!self) return;
-    self->formatTopic(out, outLen, suffix);
-}
-
-bool MQTTModule::svcIsConnected_(void* ctx)
-{
-    MQTTModule* self = static_cast<MQTTModule*>(ctx);
-    return self ? self->isConnected() : false;
+    formatTopic(out, outLen, suffix);
 }
 
 void MQTTModule::setState_(MQTTState s)
@@ -261,11 +244,6 @@ void MQTTModule::init(ConfigStore& cfg, ServiceRegistry& services)
     oversizeDropCount_ = 0;
     syncRxMetrics_();
 
-    mqttSvc_.enqueue = MQTTModule::svcEnqueue_;
-    mqttSvc_.registerProducer = MQTTModule::svcRegisterProducer_;
-    mqttSvc_.formatTopic = MQTTModule::svcFormatTopic_;
-    mqttSvc_.isConnected = MQTTModule::svcIsConnected_;
-    mqttSvc_.ctx = this;
     if (!services.add(ServiceId::Mqtt, &mqttSvc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::Mqtt));
     }

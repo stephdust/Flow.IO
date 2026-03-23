@@ -11,6 +11,7 @@
 #include "Core/NvsKeys.h"
 #include "Core/ConfigTypes.h"
 #include "Core/ErrorCodes.h"
+#include "Core/ServiceBinding.h"
 #include "Core/SystemLimits.h"
 #include "Core/WokwiDefaultOverrides.h"
 #include "Core/RuntimeSnapshotProvider.h"
@@ -215,8 +216,6 @@ private:
     StaticQueue_t rxQueueStruct_{};
     uint8_t* rxQueueStorage_ = nullptr;
 
-    MqttService mqttSvc_{};
-
     const MqttPublishProducer* producers_[MaxProducers]{};
     uint8_t producerCount_ = 0;
     portMUX_TYPE producerMux_ = portMUX_INITIALIZER_UNLOCKED;
@@ -263,10 +262,8 @@ private:
     MqttPublishProducer alarmProducerDesc_{};
 
     // Lifecycle and public service surface
-    static bool svcEnqueue_(void* ctx, uint8_t producerId, uint16_t messageId, uint8_t prio, uint8_t flags);
-    static bool svcRegisterProducer_(void* ctx, const MqttPublishProducer* producer);
-    static void svcFormatTopic_(void* ctx, const char* suffix, char* out, size_t outLen);
-    static bool svcIsConnected_(void* ctx);
+    bool enqueueSvc_(uint8_t producerId, uint16_t messageId, uint8_t prio, uint8_t flags);
+    void formatTopicSvc_(const char* suffix, char* out, size_t outLen) const;
     void setState_(MQTTState s);
     void refreshTopicDeviceId_();
     void buildTopics_();
@@ -343,4 +340,12 @@ private:
     void onAckDropped_(uint16_t messageId);
     MqttBuildResult buildStatus_(uint16_t messageId, MqttBuildContext& buildCtx);
     MqttBuildResult buildAlarm_(uint16_t messageId, MqttBuildContext& buildCtx);
+
+    MqttService mqttSvc_{
+        ServiceBinding::bind<&MQTTModule::enqueueSvc_>,
+        ServiceBinding::bind<&MQTTModule::registerProducer>,
+        ServiceBinding::bind<&MQTTModule::formatTopicSvc_>,
+        ServiceBinding::bind<&MQTTModule::isConnected>,
+        this
+    };
 };

@@ -149,6 +149,22 @@
       closeMobileDrawer();
     }
 
+    function resolveInitialPageId() {
+      try {
+        const params = new URLSearchParams(window.location.search || '');
+        const requestedPage = String(params.get('page') || '').trim();
+        if (requestedPage && pages.some((el) => el.id === requestedPage)) {
+          return requestedPage;
+        }
+      } catch (err) {
+      }
+      const activePage = document.querySelector('.page.active');
+      if (activePage && activePage.id) {
+        return activePage.id;
+      }
+      return 'page-status';
+    }
+
     menuItems.forEach((item) => item.addEventListener('click', () => showPage(item.dataset.page)));
 
     menuToggles.forEach((btn) => btn.addEventListener('click', () => {
@@ -2745,11 +2761,6 @@
 
     setUpgradeProgress(0);
     {
-      const activePage = document.querySelector('.page.active');
-      if (activePage && activePage.id) {
-        showPage(activePage.id);
-      } else {
-        showPage('page-status');
-      }
+      showPage(resolveInitialPageId());
     }
     loadWebMeta().catch(() => {});

@@ -10,6 +10,7 @@
 #include "Core/Module.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/RuntimeSnapshotProvider.h"
+#include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
 #include "Core/CommandRegistry.h"
 #include "Core/ConfigTypes.h"
@@ -119,11 +120,6 @@ private:
     void onEvent_(const Event& e);
 
     // Control
-    static uint8_t svcCount_(void* ctx);
-    static PoolDeviceSvcStatus svcMeta_(void* ctx, uint8_t slot, PoolDeviceSvcMeta* outMeta);
-    static PoolDeviceSvcStatus svcReadActualOn_(void* ctx, uint8_t slot, uint8_t* outOn, uint32_t* outTsMs);
-    static PoolDeviceSvcStatus svcWriteDesired_(void* ctx, uint8_t slot, uint8_t on);
-    static PoolDeviceSvcStatus svcRefillTank_(void* ctx, uint8_t slot, float remainingMl);
     uint8_t activeCount_() const;
     PoolDeviceSvcStatus svcMetaImpl_(uint8_t slot, PoolDeviceSvcMeta* outMeta) const;
     PoolDeviceSvcStatus svcReadActualOnImpl_(uint8_t slot, uint8_t* outOn, uint32_t* outTsMs) const;
@@ -189,11 +185,11 @@ private:
     const MqttService* mqttSvc_ = nullptr;
     const HAService* haSvc_ = nullptr;
     PoolDeviceService poolSvc_{
-        svcCount_,
-        svcMeta_,
-        svcReadActualOn_,
-        svcWriteDesired_,
-        svcRefillTank_,
+        ServiceBinding::bind<&PoolDeviceModule::activeCount_>,
+        ServiceBinding::bind<&PoolDeviceModule::svcMetaImpl_>,
+        ServiceBinding::bind<&PoolDeviceModule::svcReadActualOnImpl_>,
+        ServiceBinding::bind<&PoolDeviceModule::svcWriteDesiredImpl_>,
+        ServiceBinding::bind<&PoolDeviceModule::svcRefillTankImpl_>,
         this
     };
     EventBus* eventBus_ = nullptr;

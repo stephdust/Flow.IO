@@ -233,13 +233,7 @@ void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         eventBus_->subscribe(EventId::DataChanged, &WebInterfaceModule::onEventStatic_, this);
     }
 
-    static WebInterfaceService webInterfaceSvc{
-        &WebInterfaceModule::svcSetPaused_,
-        &WebInterfaceModule::svcIsPaused_,
-        nullptr
-    };
-    webInterfaceSvc.ctx = this;
-    if (!services.add(ServiceId::WebInterface, &webInterfaceSvc)) {
+    if (!services.add(ServiceId::WebInterface, &webInterfaceSvc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::WebInterface));
     }
 
@@ -321,8 +315,23 @@ void WebInterfaceModule::startServer_()
         sendProgmemLiteral_(request, "image/svg+xml", kMenuIconSettingsSvg);
     });
 
-    server_.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/webinterface");
+    auto webInterfaceLandingUrl = [this]() -> String {
+        NetworkAccessMode mode = NetworkAccessMode::None;
+        if (!netAccessSvc_ && services_) {
+            netAccessSvc_ = services_->get<NetworkAccessService>(ServiceId::NetworkAccess);
+        }
+        if (netAccessSvc_ && netAccessSvc_->mode) {
+            mode = netAccessSvc_->mode(netAccessSvc_->ctx);
+        } else if (wifiSvc_ && wifiSvc_->isConnected && wifiSvc_->isConnected(wifiSvc_->ctx)) {
+            mode = NetworkAccessMode::Station;
+        }
+        return (mode == NetworkAccessMode::AccessPoint)
+            ? String("/webinterface?page=page-system")
+            : String("/webinterface");
+    };
+
+    server_.on("/", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
+        request->redirect(webInterfaceLandingUrl());
     });
 
     server_.on("/webinterface/app.css", HTTP_GET, [this](AsyncWebServerRequest* request) {
@@ -397,6 +406,21 @@ void WebInterfaceModule::startServer_()
     });
     server_.on("/webinterface", HTTP_GET, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/webinterface");
+        if (!request->hasParam("page")) {
+            NetworkAccessMode mode = NetworkAccessMode::None;
+            if (!netAccessSvc_ && services_) {
+                netAccessSvc_ = services_->get<NetworkAccessService>(ServiceId::NetworkAccess);
+            }
+            if (netAccessSvc_ && netAccessSvc_->mode) {
+                mode = netAccessSvc_->mode(netAccessSvc_->ctx);
+            } else if (wifiSvc_ && wifiSvc_->isConnected && wifiSvc_->isConnected(wifiSvc_->ctx)) {
+                mode = NetworkAccessMode::Station;
+            }
+            if (mode == NetworkAccessMode::AccessPoint) {
+                request->redirect("/webinterface?page=page-system");
+                return;
+            }
+        }
         if (spiffsReady_ && SPIFFS.exists("/webinterface/index.html")) {
             AsyncWebServerResponse* response =
                 request->beginResponse(SPIFFS, "/webinterface/index.html", "text/html");
@@ -408,11 +432,11 @@ void WebInterfaceModule::startServer_()
         addNoCacheHeaders_(response);
         request->send(response);
     });
-    server_.on("/webinterface/", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/webinterface");
+    server_.on("/webinterface/", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
+        request->redirect(webInterfaceLandingUrl());
     });
-    server_.on("/webserial", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/webinterface");
+    server_.on("/webserial", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
+        request->redirect(webInterfaceLandingUrl());
     });
 
     server_.on("/webinterface/health", HTTP_GET, [](AsyncWebServerRequest* request) {
@@ -453,20 +477,20 @@ void WebInterfaceModule::startServer_()
         }
         request->send(200, "application/json", out);
     });
-    server_.on("/generate_204", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/webinterface");
+    server_.on("/generate_204", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
+        request->redirect(webInterfaceLandingUrl());
     });
-    server_.on("/gen_204", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/webinterface");
+    server_.on("/gen_204", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
+        request->redirect(webInterfaceLandingUrl());
     });
-    server_.on("/hotspot-detect.html", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/webinterface");
+    server_.on("/hotspot-detect.html", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
+        request->redirect(webInterfaceLandingUrl());
     });
-    server_.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/webinterface");
+    server_.on("/connecttest.txt", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
+        request->redirect(webInterfaceLandingUrl());
     });
-    server_.on("/ncsi.txt", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/webinterface");
+    server_.on("/ncsi.txt", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
+        request->redirect(webInterfaceLandingUrl());
     });
 
     auto fwStatusHandler = [this](AsyncWebServerRequest* request) {
@@ -1320,8 +1344,8 @@ void WebInterfaceModule::startServer_()
         handleUpdateRequest_(request, FirmwareUpdateTarget::CfgDocs);
     });
 
-    server_.onNotFound([](AsyncWebServerRequest* request) {
-        request->redirect("/webinterface");
+    server_.onNotFound([webInterfaceLandingUrl](AsyncWebServerRequest* request) {
+        request->redirect(webInterfaceLandingUrl());
     });
 
     ws_.onEvent([this](AsyncWebSocket* server,

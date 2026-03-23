@@ -135,46 +135,39 @@ uint16_t HAModule::hash2Digits(const char* in)
     return (uint16_t)(h % 100u);
 }
 
-bool HAModule::svcAddSensor(void* ctx, const HASensorEntry* entry)
+bool HAModule::addSensorSvc_(const HASensorEntry* entry)
 {
-    HAModule* self = static_cast<HAModule*>(ctx);
-    if (!self || !entry) return false;
-    return self->addSensorEntry(*entry);
+    if (!entry) return false;
+    return addSensorEntry(*entry);
 }
 
-bool HAModule::svcAddBinarySensor(void* ctx, const HABinarySensorEntry* entry)
+bool HAModule::addBinarySensorSvc_(const HABinarySensorEntry* entry)
 {
-    HAModule* self = static_cast<HAModule*>(ctx);
-    if (!self || !entry) return false;
-    return self->addBinarySensorEntry(*entry);
+    if (!entry) return false;
+    return addBinarySensorEntry(*entry);
 }
 
-bool HAModule::svcAddSwitch(void* ctx, const HASwitchEntry* entry)
+bool HAModule::addSwitchSvc_(const HASwitchEntry* entry)
 {
-    HAModule* self = static_cast<HAModule*>(ctx);
-    if (!self || !entry) return false;
-    return self->addSwitchEntry(*entry);
+    if (!entry) return false;
+    return addSwitchEntry(*entry);
 }
 
-bool HAModule::svcAddNumber(void* ctx, const HANumberEntry* entry)
+bool HAModule::addNumberSvc_(const HANumberEntry* entry)
 {
-    HAModule* self = static_cast<HAModule*>(ctx);
-    if (!self || !entry) return false;
-    return self->addNumberEntry(*entry);
+    if (!entry) return false;
+    return addNumberEntry(*entry);
 }
 
-bool HAModule::svcAddButton(void* ctx, const HAButtonEntry* entry)
+bool HAModule::addButtonSvc_(const HAButtonEntry* entry)
 {
-    HAModule* self = static_cast<HAModule*>(ctx);
-    if (!self || !entry) return false;
-    return self->addButtonEntry(*entry);
+    if (!entry) return false;
+    return addButtonEntry(*entry);
 }
 
-bool HAModule::svcRequestRefresh(void* ctx)
+bool HAModule::requestRefreshSvc_()
 {
-    HAModule* self = static_cast<HAModule*>(ctx);
-    if (!self) return false;
-    self->requestAutoconfigRefresh();
+    requestAutoconfigRefresh();
     return true;
 }
 
@@ -939,13 +932,6 @@ void HAModule::init(ConfigStore& cfg, ServiceRegistry& services)
     dsSvc_ = services.get<DataStoreService>(ServiceId::DataStore);
     mqttSvc_ = services.get<MqttService>(ServiceId::Mqtt);
 
-    haSvc_.addSensor = HAModule::svcAddSensor;
-    haSvc_.addBinarySensor = HAModule::svcAddBinarySensor;
-    haSvc_.addSwitch = HAModule::svcAddSwitch;
-    haSvc_.addNumber = HAModule::svcAddNumber;
-    haSvc_.addButton = HAModule::svcAddButton;
-    haSvc_.requestRefresh = HAModule::svcRequestRefresh;
-    haSvc_.ctx = this;
     if (!services.add(ServiceId::Ha, &haSvc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::Ha));
     }

@@ -24,15 +24,7 @@ void WifiProvisioningModule::init(ConfigStore& cfg, ServiceRegistry& services)
     lastCfgPollMs_ = 0;
     buildApCredentials_();
 
-    static NetworkAccessService netSvc{
-        &WifiProvisioningModule::svcIsWebReachable_,
-        &WifiProvisioningModule::svcMode_,
-        &WifiProvisioningModule::svcGetIP_,
-        &WifiProvisioningModule::svcNotifyWifiConfigChanged_,
-        nullptr
-    };
-    netSvc.ctx = this;
-    if (!services.add(ServiceId::NetworkAccess, &netSvc)) {
+    if (!services.add(ServiceId::NetworkAccess, &netAccessSvc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::NetworkAccess));
     }
 
@@ -99,47 +91,39 @@ void WifiProvisioningModule::ensurePortalStarted_()
     }
 }
 
-bool WifiProvisioningModule::svcIsWebReachable_(void* ctx)
+bool WifiProvisioningModule::isWebReachable_() const
 {
-    WifiProvisioningModule* self = static_cast<WifiProvisioningModule*>(ctx);
-    if (!self) return false;
-    return self->isStaConnected_() || self->apActive_;
+    return isStaConnected_() || apActive_;
 }
 
-NetworkAccessMode WifiProvisioningModule::svcMode_(void* ctx)
+NetworkAccessMode WifiProvisioningModule::mode_() const
 {
-    WifiProvisioningModule* self = static_cast<WifiProvisioningModule*>(ctx);
-    if (!self) return NetworkAccessMode::None;
-    if (self->isStaConnected_()) return NetworkAccessMode::Station;
-    if (self->apActive_) return NetworkAccessMode::AccessPoint;
+    if (isStaConnected_()) return NetworkAccessMode::Station;
+    if (apActive_) return NetworkAccessMode::AccessPoint;
     return NetworkAccessMode::None;
 }
 
-bool WifiProvisioningModule::svcGetIP_(void* ctx, char* out, size_t len)
+bool WifiProvisioningModule::getIP_(char* out, size_t len) const
 {
-    WifiProvisioningModule* self = static_cast<WifiProvisioningModule*>(ctx);
-    if (!self || !out || len == 0) return false;
-    if (self->isStaConnected_()) {
-        return self->getStaIp_(out, len);
+    if (!out || len == 0) return false;
+    if (isStaConnected_()) {
+        return getStaIp_(out, len);
     }
-    if (self->apActive_) {
-        return self->getApIp_(out, len);
+    if (apActive_) {
+        return getApIp_(out, len);
     }
     out[0] = '\0';
     return false;
 }
 
-bool WifiProvisioningModule::svcNotifyWifiConfigChanged_(void* ctx)
+bool WifiProvisioningModule::notifyWifiConfigChanged_()
 {
-    WifiProvisioningModule* self = static_cast<WifiProvisioningModule*>(ctx);
-    if (!self) return false;
-
-    self->configDirty_ = true;
-    if (self->wifiSvc_ && self->wifiSvc_->setStaRetryEnabled) {
-        (void)self->wifiSvc_->setStaRetryEnabled(self->wifiSvc_->ctx, true);
+    configDirty_ = true;
+    if (wifiSvc_ && wifiSvc_->setStaRetryEnabled) {
+        (void)wifiSvc_->setStaRetryEnabled(wifiSvc_->ctx, true);
     }
-    if (self->wifiSvc_ && self->wifiSvc_->requestReconnect) {
-        self->wifiSvc_->requestReconnect(self->wifiSvc_->ctx);
+    if (wifiSvc_ && wifiSvc_->requestReconnect) {
+        wifiSvc_->requestReconnect(wifiSvc_->ctx);
     }
     return true;
 }

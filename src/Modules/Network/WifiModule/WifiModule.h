@@ -4,6 +4,7 @@
  * @brief WiFi connectivity module.
  */
 #include "Core/Module.h"
+#include "Core/ServiceBinding.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/NvsKeys.h"
 #include "Core/Services/Services.h"
@@ -147,13 +148,12 @@ private:
     };
 
     // service
-    static WifiState svcState(void* ctx);
-    static bool svcIsConnected(void* ctx);
-    static bool svcGetIP(void* ctx, char* out, size_t len);
-    static bool svcRequestReconnect(void* ctx);
-    static bool svcRequestScan(void* ctx, bool force);
-    static bool svcScanStatusJson(void* ctx, char* out, size_t outLen);
-    static bool svcSetStaRetryEnabled(void* ctx, bool enabled);
+    WifiState stateSvc_() const;
+    bool isConnected_() const;
+    bool getIP_(char* out, size_t len) const;
+    bool requestReconnect_();
+    bool scanStatusJson_(char* out, size_t outLen);
+    bool setStaRetryEnabled_(bool enabled);
     static bool cmdDumpCfg_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
 
     void setState(WifiState s);
@@ -170,4 +170,15 @@ private:
     bool requestScan_(bool force);
     void processScan_();
     bool buildScanStatusJson_(char* out, size_t outLen);
+
+    WifiService wifiSvc_{
+        ServiceBinding::bind<&WifiModule::stateSvc_>,
+        ServiceBinding::bind<&WifiModule::isConnected_>,
+        ServiceBinding::bind<&WifiModule::getIP_>,
+        this,
+        ServiceBinding::bind<&WifiModule::requestReconnect_>,
+        ServiceBinding::bind<&WifiModule::requestScan_>,
+        ServiceBinding::bind<&WifiModule::scanStatusJson_>,
+        ServiceBinding::bind<&WifiModule::setStaRetryEnabled_>
+    };
 };

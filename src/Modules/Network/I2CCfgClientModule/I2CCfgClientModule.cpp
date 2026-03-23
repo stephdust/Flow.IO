@@ -1021,44 +1021,7 @@ bool I2CCfgClientModule::cmdFlowFactoryReset_(void* userCtx, const CommandReques
     return self->executeSystemActionJson_(2, reply, replyLen);
 }
 
-bool I2CCfgClientModule::svcIsReady_(void* ctx)
+bool I2CCfgClientModule::isReadySvc_()
 {
-    I2CCfgClientModule* self = static_cast<I2CCfgClientModule*>(ctx);
-    return self && self->ensureReady_();
-}
-
-bool I2CCfgClientModule::svcListModulesJson_(void* ctx, char* out, size_t outLen)
-{
-    I2CCfgClientModule* self = static_cast<I2CCfgClientModule*>(ctx);
-    return self ? self->listModulesJson_(out, outLen) : false;
-}
-
-bool I2CCfgClientModule::svcListChildrenJson_(void* ctx, const char* prefix, char* out, size_t outLen)
-{
-    I2CCfgClientModule* self = static_cast<I2CCfgClientModule*>(ctx);
-    return self ? self->listChildrenJson_(prefix, out, outLen) : false;
-}
-
-bool I2CCfgClientModule::svcGetModuleJson_(void* ctx, const char* module, char* out, size_t outLen, bool* truncated)
-{
-    I2CCfgClientModule* self = static_cast<I2CCfgClientModule*>(ctx);
-    return self ? self->getModuleJson_(module, out, outLen, truncated) : false;
-}
-
-bool I2CCfgClientModule::svcRuntimeStatusDomainJson_(void* ctx, FlowStatusDomain domain, char* out, size_t outLen)
-{
-    I2CCfgClientModule* self = static_cast<I2CCfgClientModule*>(ctx);
-    return self ? self->runtimeStatusDomainJson_(domain, out, outLen) : false;
-}
-
-bool I2CCfgClientModule::svcRuntimeStatusJson_(void* ctx, char* out, size_t outLen)
-{
-    I2CCfgClientModule* self = static_cast<I2CCfgClientModule*>(ctx);
-    return self ? self->runtimeStatusJson_(out, outLen) : false;
-}
-
-bool I2CCfgClientModule::svcApplyPatchJson_(void* ctx, const char* patch, char* out, size_t outLen)
-{
-    I2CCfgClientModule* self = static_cast<I2CCfgClientModule*>(ctx);
-    return self ? self->applyPatchJson_(patch, out, outLen) : false;
+    return ensureReady_();
 }

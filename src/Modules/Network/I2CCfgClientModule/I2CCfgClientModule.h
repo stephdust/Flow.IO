@@ -10,6 +10,7 @@
 
 #include "Core/ModulePassive.h"
 #include "Core/I2cLink.h"
+#include "Core/ServiceBinding.h"
 #include "Core/I2cCfgProtocol.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/ConfigTypes.h"
@@ -77,17 +78,18 @@ private:
     MqttConfigRouteProducer cfgMqttPub_{};
 
     FlowCfgRemoteService svc_{
-        svcIsReady_,
-        svcListModulesJson_,
-        svcListChildrenJson_,
-        svcGetModuleJson_,
-        svcRuntimeStatusDomainJson_,
-        svcRuntimeStatusJson_,
-        svcApplyPatchJson_,
+        ServiceBinding::bind<&I2CCfgClientModule::isReadySvc_>,
+        ServiceBinding::bind<&I2CCfgClientModule::listModulesJson_>,
+        ServiceBinding::bind<&I2CCfgClientModule::listChildrenJson_>,
+        ServiceBinding::bind<&I2CCfgClientModule::getModuleJson_>,
+        ServiceBinding::bind<&I2CCfgClientModule::runtimeStatusDomainJson_>,
+        ServiceBinding::bind<&I2CCfgClientModule::runtimeStatusJson_>,
+        ServiceBinding::bind<&I2CCfgClientModule::applyPatchJson_>,
         this
     };
 
     void startLink_();
+    bool isReadySvc_();
     bool ensureReady_();
     bool isReady_() const;
     bool listModulesJson_(char* out, size_t outLen);
@@ -110,13 +112,6 @@ private:
                    size_t respPayloadMax,
                    size_t& respLenOut);
 
-    static bool svcIsReady_(void* ctx);
-    static bool svcListModulesJson_(void* ctx, char* out, size_t outLen);
-    static bool svcListChildrenJson_(void* ctx, const char* prefix, char* out, size_t outLen);
-    static bool svcGetModuleJson_(void* ctx, const char* module, char* out, size_t outLen, bool* truncated);
-    static bool svcRuntimeStatusDomainJson_(void* ctx, FlowStatusDomain domain, char* out, size_t outLen);
-    static bool svcRuntimeStatusJson_(void* ctx, char* out, size_t outLen);
-    static bool svcApplyPatchJson_(void* ctx, const char* patch, char* out, size_t outLen);
     static bool cmdFlowReboot_(void* userCtx, const CommandRequest&, char* reply, size_t replyLen);
     static bool cmdFlowFactoryReset_(void* userCtx, const CommandRequest&, char* reply, size_t replyLen);
 };

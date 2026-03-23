@@ -3166,7 +3166,7 @@
       "name": "tz",
       "type": "CharArray",
       "label": "Fuseau horaire",
-      "help": "Règle de fuseau horaire (format TZ) utilisée localement.",
+      "help": "Règle de fuseau horaire utilisée localement.",
       "var": "tzVar",
       "source": "cfgdoc"
     },

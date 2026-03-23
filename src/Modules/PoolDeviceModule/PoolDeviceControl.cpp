@@ -34,40 +34,6 @@ bool isFiniteNonNegative_(float value)
 }
 } // namespace
 
-uint8_t PoolDeviceModule::svcCount_(void* ctx)
-{
-    PoolDeviceModule* self = static_cast<PoolDeviceModule*>(ctx);
-    return self ? self->activeCount_() : 0;
-}
-
-PoolDeviceSvcStatus PoolDeviceModule::svcMeta_(void* ctx, uint8_t slot, PoolDeviceSvcMeta* outMeta)
-{
-    PoolDeviceModule* self = static_cast<PoolDeviceModule*>(ctx);
-    if (!self) return POOLDEV_SVC_ERR_INVALID_ARG;
-    return self->svcMetaImpl_(slot, outMeta);
-}
-
-PoolDeviceSvcStatus PoolDeviceModule::svcReadActualOn_(void* ctx, uint8_t slot, uint8_t* outOn, uint32_t* outTsMs)
-{
-    PoolDeviceModule* self = static_cast<PoolDeviceModule*>(ctx);
-    if (!self) return POOLDEV_SVC_ERR_INVALID_ARG;
-    return self->svcReadActualOnImpl_(slot, outOn, outTsMs);
-}
-
-PoolDeviceSvcStatus PoolDeviceModule::svcWriteDesired_(void* ctx, uint8_t slot, uint8_t on)
-{
-    PoolDeviceModule* self = static_cast<PoolDeviceModule*>(ctx);
-    if (!self) return POOLDEV_SVC_ERR_INVALID_ARG;
-    return self->svcWriteDesiredImpl_(slot, on);
-}
-
-PoolDeviceSvcStatus PoolDeviceModule::svcRefillTank_(void* ctx, uint8_t slot, float remainingMl)
-{
-    PoolDeviceModule* self = static_cast<PoolDeviceModule*>(ctx);
-    if (!self) return POOLDEV_SVC_ERR_INVALID_ARG;
-    return self->svcRefillTankImpl_(slot, remainingMl);
-}
-
 uint8_t PoolDeviceModule::activeCount_() const
 {
     uint8_t count = 0;

@@ -216,80 +216,38 @@ void TimeModule::setState(TimeSyncState s) {
     }
 }
 
-TimeSyncState TimeModule::svcState(void* ctx) {
-    return static_cast<TimeModule*>(ctx)->state;
+TimeSyncState TimeModule::stateSvc_() const {
+    return state;
 }
 
-bool TimeModule::svcIsSynced(void* ctx) {
-    auto self = static_cast<TimeModule*>(ctx);
-    return self->state == TimeSyncState::Synced;
+bool TimeModule::isSynced_() const {
+    return state == TimeSyncState::Synced;
 }
 
-uint64_t TimeModule::svcEpoch(void* ctx) {
-    TimeModule* self = static_cast<TimeModule*>(ctx);
-    if (!self) {
-        time_t now;
-        time(&now);
-        return (uint64_t)now;
-    }
-    return (uint64_t)self->nowEpoch_();
+uint64_t TimeModule::epoch_() const {
+    return (uint64_t)nowEpoch_();
 }
 
-bool TimeModule::svcFormatLocalTime(void* ctx, char* out, size_t len) {
-    TimeModule* self = static_cast<TimeModule*>(ctx);
+bool TimeModule::formatLocalTime_(char* out, size_t len) const {
     struct tm t;
-    if (self) {
-        time_t now = self->nowEpoch_();
-        if (!localtime_r(&now, &t)) return false;
-    } else {
-        if (!getLocalTime(&t, 50)) return false;
-    }
+    const time_t now = nowEpoch_();
+    if (!localtime_r(&now, &t)) return false;
     snprintf(out, len, "%04d-%02d-%02d %02d:%02d:%02d",
              t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
              t.tm_hour, t.tm_min, t.tm_sec);
     return true;
 }
 
-bool TimeModule::svcSchedSetSlot(void* ctx, const TimeSchedulerSlot* slotDef)
+bool TimeModule::setSlotSvc_(const TimeSchedulerSlot* slotDef)
 {
-    if (!ctx || !slotDef) return false;
-    return static_cast<TimeModule*>(ctx)->setSlot_(*slotDef);
+    if (!slotDef) return false;
+    return setSlot_(*slotDef);
 }
 
-bool TimeModule::svcSchedGetSlot(void* ctx, uint8_t slot, TimeSchedulerSlot* outDef)
+bool TimeModule::getSlotSvc_(uint8_t slot, TimeSchedulerSlot* outDef) const
 {
-    if (!ctx || !outDef) return false;
-    return static_cast<TimeModule*>(ctx)->getSlot_(slot, *outDef);
-}
-
-bool TimeModule::svcSchedClearSlot(void* ctx, uint8_t slot)
-{
-    if (!ctx) return false;
-    return static_cast<TimeModule*>(ctx)->clearSlot_(slot);
-}
-
-bool TimeModule::svcSchedClearAll(void* ctx)
-{
-    if (!ctx) return false;
-    return static_cast<TimeModule*>(ctx)->clearAllSlots_();
-}
-
-uint8_t TimeModule::svcSchedUsedCount(void* ctx)
-{
-    if (!ctx) return 0;
-    return static_cast<TimeModule*>(ctx)->usedCount_();
-}
-
-uint16_t TimeModule::svcSchedActiveMask(void* ctx)
-{
-    if (!ctx) return 0;
-    return static_cast<TimeModule*>(ctx)->activeMask_();
-}
-
-bool TimeModule::svcSchedIsActive(void* ctx, uint8_t slot)
-{
-    if (!ctx) return false;
-    return static_cast<TimeModule*>(ctx)->isActive_(slot);
+    if (!outDef) return false;
+    return getSlot_(slot, *outDef);
 }
 
 bool TimeModule::isSystemSlot_(uint8_t slot) const
@@ -400,30 +358,11 @@ void TimeModule::init(ConfigStore& cfg, ServiceRegistry& services) {
         cmdSvc->registerHandler(cmdSvc->ctx, "time.scheduler.clear_all", cmdSchedClearAll, this);
     }
 
-    static TimeService timeSvc{
-        svcState,
-        svcIsSynced,
-        svcEpoch,
-        svcFormatLocalTime,
-        nullptr
-    };
-    timeSvc.ctx = this;
-    if (!services.add(ServiceId::Time, &timeSvc)) {
+    if (!services.add(ServiceId::Time, &timeSvc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::Time));
     }
 
-    static TimeSchedulerService schedSvc{
-        svcSchedSetSlot,
-        svcSchedGetSlot,
-        svcSchedClearSlot,
-        svcSchedClearAll,
-        svcSchedUsedCount,
-        svcSchedActiveMask,
-        svcSchedIsActive,
-        nullptr
-    };
-    schedSvc.ctx = this;
-    if (!services.add(ServiceId::TimeScheduler, &schedSvc)) {
+    if (!services.add(ServiceId::TimeScheduler, &schedSvc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::TimeScheduler));
     }
 
@@ -507,7 +446,7 @@ void TimeModule::loop() {
         struct tm timeinfo;
         if (getLocalTime(&timeinfo, 4000)) {
             char buf[32];
-            svcFormatLocalTime(nullptr, buf, sizeof(buf));
+            formatLocalTime_(buf, sizeof(buf));
             LOGI("Synced ok: %s", buf);
 
             _retryCount = 0;
@@ -619,7 +558,7 @@ bool TimeModule::cmdSchedClearAll(void* userCtx, const CommandRequest& req, char
 bool TimeModule::handleCmdSchedInfo_(const CommandRequest&, char* reply, size_t replyLen)
 {
     char now[32] = {0};
-    if (!svcFormatLocalTime(this, now, sizeof(now))) {
+    if (!formatLocalTime_(now, sizeof(now))) {
         strncpy(now, "n/a", sizeof(now) - 1);
         now[sizeof(now) - 1] = '\0';
     }

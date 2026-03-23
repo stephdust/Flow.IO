@@ -789,61 +789,6 @@ void IOModule::refreshAnalogConfigState_()
     }
 }
 
-uint8_t IOModule::svcCount_(void* ctx)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    return self ? self->ioCount_() : 0;
-}
-
-IoStatus IOModule::svcIdAt_(void* ctx, uint8_t index, IoId* outId)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self) return IO_ERR_INVALID_ARG;
-    return self->ioIdAt_(index, outId);
-}
-
-IoStatus IOModule::svcMeta_(void* ctx, IoId id, IoEndpointMeta* outMeta)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self) return IO_ERR_INVALID_ARG;
-    return self->ioMeta_(id, outMeta);
-}
-
-IoStatus IOModule::svcReadDigital_(void* ctx, IoId id, uint8_t* outOn, uint32_t* outTsMs, IoSeq* outSeq)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self) return IO_ERR_INVALID_ARG;
-    return self->ioReadDigital_(id, outOn, outTsMs, outSeq);
-}
-
-IoStatus IOModule::svcWriteDigital_(void* ctx, IoId id, uint8_t on, uint32_t tsMs)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self) return IO_ERR_INVALID_ARG;
-    return self->ioWriteDigital_(id, on, tsMs);
-}
-
-IoStatus IOModule::svcReadAnalog_(void* ctx, IoId id, float* outValue, uint32_t* outTsMs, IoSeq* outSeq)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self) return IO_ERR_INVALID_ARG;
-    return self->ioReadAnalog_(id, outValue, outTsMs, outSeq);
-}
-
-IoStatus IOModule::svcTick_(void* ctx, uint32_t nowMs)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self) return IO_ERR_INVALID_ARG;
-    return self->ioTick_(nowMs);
-}
-
-IoStatus IOModule::svcLastCycle_(void* ctx, IoCycleInfo* outCycle)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self) return IO_ERR_INVALID_ARG;
-    return self->ioLastCycle_(outCycle);
-}
-
 uint8_t IOModule::ioCount_() const
 {
     uint8_t count = 0;
@@ -1059,43 +1004,10 @@ IoStatus IOModule::ioLastCycle_(IoCycleInfo* outCycle) const
     return IO_OK;
 }
 
-bool IOModule::svcSetMask_(void* ctx, uint8_t mask)
+bool IOModule::getLedMaskSvc_(uint8_t* mask) const
 {
-    IOModule* self = static_cast<IOModule*>(ctx);
-    return self ? self->setLedMask_(mask, millis()) : false;
-}
-
-bool IOModule::svcTurnOn_(void* ctx, uint8_t bit)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    return self ? self->turnLedOn_(bit, millis()) : false;
-}
-
-bool IOModule::svcTurnOff_(void* ctx, uint8_t bit)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    return self ? self->turnLedOff_(bit, millis()) : false;
-}
-
-bool IOModule::svcGetMask_(void* ctx, uint8_t* mask)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self || !mask) return false;
-    return self->getLedMask_(*mask);
-}
-
-bool IOModule::svcStatusLedsSetMask_(void* ctx, uint8_t mask, uint32_t tsMs)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self) return false;
-    return self->setLedMask_(mask, tsMs == 0U ? millis() : tsMs);
-}
-
-bool IOModule::svcStatusLedsGetMask_(void* ctx, uint8_t* mask)
-{
-    IOModule* self = static_cast<IOModule*>(ctx);
-    if (!self || !mask) return false;
-    return self->getLedMask_(*mask);
+    if (!mask) return false;
+    return getLedMask_(*mask);
 }
 
 bool IOModule::setLedMask_(uint8_t mask, uint32_t tsMs)

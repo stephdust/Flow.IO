@@ -40,18 +40,15 @@ const char* profileMdnsHost_()
 }
 }
 
-WifiState WifiModule::svcState(void* ctx) {
-    WifiModule* self = (WifiModule*)ctx;
-    return self->state;
+WifiState WifiModule::stateSvc_() const {
+    return state;
 }
 
-bool WifiModule::svcIsConnected(void* ctx) {
-    (void)ctx;
+bool WifiModule::isConnected_() const {
     return WiFi.isConnected();
 }
 
-bool WifiModule::svcGetIP(void* ctx, char* out, size_t len) {
-    (void)ctx;
+bool WifiModule::getIP_(char* out, size_t len) const {
     if (!out || len == 0) return false;
 
     if (!WiFi.isConnected()) {
@@ -64,54 +61,39 @@ bool WifiModule::svcGetIP(void* ctx, char* out, size_t len) {
     return true;
 }
 
-bool WifiModule::svcRequestReconnect(void* ctx)
+bool WifiModule::requestReconnect_()
 {
-    WifiModule* self = static_cast<WifiModule*>(ctx);
-    if (!self) return false;
-
-    self->stopMdns_();
-    self->gotIpSent = false;
-    if (self->dataStore) {
-        setWifiReady(*self->dataStore, false);
+    stopMdns_();
+    gotIpSent = false;
+    if (dataStore) {
+        setWifiReady(*dataStore, false);
     }
 
     WiFi.disconnect(false, false);
-    self->setState(WifiState::Idle);
+    setState(WifiState::Idle);
     return true;
 }
 
-bool WifiModule::svcRequestScan(void* ctx, bool force)
+bool WifiModule::scanStatusJson_(char* out, size_t outLen)
 {
-    WifiModule* self = static_cast<WifiModule*>(ctx);
-    if (!self) return false;
-    return self->requestScan_(force);
+    return buildScanStatusJson_(out, outLen);
 }
 
-bool WifiModule::svcScanStatusJson(void* ctx, char* out, size_t outLen)
+bool WifiModule::setStaRetryEnabled_(bool enabled)
 {
-    WifiModule* self = static_cast<WifiModule*>(ctx);
-    if (!self) return false;
-    return self->buildScanStatusJson_(out, outLen);
-}
-
-bool WifiModule::svcSetStaRetryEnabled(void* ctx, bool enabled)
-{
-    WifiModule* self = static_cast<WifiModule*>(ctx);
-    if (!self) return false;
-
-    if (self->staRetryEnabled_ == enabled) return true;
-    self->staRetryEnabled_ = enabled;
+    if (staRetryEnabled_ == enabled) return true;
+    staRetryEnabled_ = enabled;
 
     LOGD("STA retries %s", enabled ? "enabled" : "disabled");
 
     if (!enabled) {
-        self->reconnectKickSent_ = true;
+        reconnectKickSent_ = true;
         if (!WiFi.isConnected()) {
             WiFi.disconnect(false, false);
-            self->setState(WifiState::Idle);
+            setState(WifiState::Idle);
         }
-    } else if (self->state != WifiState::Connected && self->state != WifiState::Disabled) {
-        self->setState(WifiState::Idle);
+    } else if (state != WifiState::Connected && state != WifiState::Disabled) {
+        setState(WifiState::Idle);
     }
 
     return true;
@@ -631,17 +613,7 @@ void WifiModule::init(ConfigStore& cfg,
     cfg.registerVar(mdnsVar, kCfgModuleId, kCfgBranchId);
 
     /// Register WifiService
-    static WifiService svc {
-        WifiModule::svcState,
-        WifiModule::svcIsConnected,
-        WifiModule::svcGetIP,
-        this,
-        WifiModule::svcRequestReconnect,
-        WifiModule::svcRequestScan,
-        WifiModule::svcScanStatusJson,
-        WifiModule::svcSetStaRetryEnabled
-    };
-    if (!services.add(ServiceId::Wifi, &svc)) {
+    if (!services.add(ServiceId::Wifi, &wifiSvc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::Wifi));
     }
 

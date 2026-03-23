@@ -17,9 +17,27 @@ void MyModule::init(ConfigStore& cfg, ServiceRegistry& services) {
 Exemple d'exposition d'un service:
 
 ```cpp
-static MyService svc{ /* fn pointers */, this };
-services.add("myservice", &svc);
+class MyModule : public Module {
+private:
+    bool doThing_(int value);
+
+    MyService svc_{
+        ServiceBinding::bind<&MyModule::doThing_>,
+        this
+    };
+};
+
+void MyModule::init(ConfigStore& cfg, ServiceRegistry& services) {
+    services.add("myservice", &svc_);
+}
 ```
+
+Pattern recommandé:
+
+- déclarer le service comme membre `svc_` du module
+- binder directement des méthodes d'instance via `ServiceBinding::bind<&MyModule::method_>`
+- utiliser `ServiceBinding::bind_or<&MyModule::method_, fallback>` seulement si la valeur par défaut doit être explicite
+- si la signature du contrat ne correspond pas exactement à la méthode métier, ajouter une petite méthode d'adaptation `xxxSvc_()` au lieu d'un wrapper statique `void* ctx`
 
 ## Service IDs utilisés dans le firmware
 

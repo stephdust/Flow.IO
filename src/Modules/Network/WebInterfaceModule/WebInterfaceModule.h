@@ -8,6 +8,7 @@
  */
 
 #include "Core/Module.h"
+#include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
 #include "Core/Services/ILogger.h"
 #include <HardwareSerial.h>
@@ -85,8 +86,8 @@ private:
     static void onLocalLogSinkWrite_(void* ctx, const LogEntry& e);
 
     // Lifecycle and service surface
-    static bool svcSetPaused_(void* ctx, bool paused);
-    static bool svcIsPaused_(void* ctx);
+    bool setPaused_(bool paused);
+    bool isPaused_() const;
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
 
@@ -129,4 +130,10 @@ private:
     uint32_t wsFlowPartialCount_ = 0;
     uint32_t wsFlowDiscardCount_ = 0;
     uint32_t wsFlowLastPressureLogMs_ = 0;
+
+    WebInterfaceService webInterfaceSvc_{
+        ServiceBinding::bind<&WebInterfaceModule::setPaused_>,
+        ServiceBinding::bind<&WebInterfaceModule::isPaused_>,
+        this
+    };
 };

@@ -24,9 +24,9 @@ public:
 
 private:
     LogHub hub;
-    LogHubService hubSvc{};
+    LogHubService hubSvc_{};
 
     LogSinkRegistry sinks;
-    LogSinkRegistryService sinksSvc{};
+    LogSinkRegistryService sinksSvc_{};
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
 };

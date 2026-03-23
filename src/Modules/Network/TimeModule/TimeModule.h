@@ -4,6 +4,7 @@
  * @brief Time synchronization and scheduling module.
  */
 #include "Core/Module.h"
+#include "Core/ServiceBinding.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/NvsKeys.h"
 #include "Core/Services/Services.h"
@@ -109,7 +110,7 @@ private:
         NVS_KEY(NvsKeys::Time::Server2),"server2","time",ConfigType::CharArray,
         (char*)cfgData.server2,ConfigPersistence::Persistent,sizeof(cfgData.server2)
     };
-    // CFGDOC: {"label":"Fuseau horaire","help":"Règle de fuseau horaire (format TZ) utilisée localement."}
+    // CFGDOC: {"label":"Fuseau horaire","help":"Règle de fuseau horaire utilisée localement."}
     ConfigVariable<char,0> tzVar {
         NVS_KEY(NvsKeys::Time::Tz),"tz","time",ConfigType::CharArray,
         (char*)cfgData.tz,ConfigPersistence::Persistent,sizeof(cfgData.tz)
@@ -132,18 +133,13 @@ private:
 
     void setState(TimeSyncState s);
 
-    static TimeSyncState svcState(void* ctx);
-    static bool svcIsSynced(void* ctx);
-    static uint64_t svcEpoch(void* ctx);
-    static bool svcFormatLocalTime(void* ctx, char* out, size_t len);
+    TimeSyncState stateSvc_() const;
+    bool isSynced_() const;
+    uint64_t epoch_() const;
+    bool formatLocalTime_(char* out, size_t len) const;
 
-    static bool svcSchedSetSlot(void* ctx, const TimeSchedulerSlot* slotDef);
-    static bool svcSchedGetSlot(void* ctx, uint8_t slot, TimeSchedulerSlot* outDef);
-    static bool svcSchedClearSlot(void* ctx, uint8_t slot);
-    static bool svcSchedClearAll(void* ctx);
-    static uint8_t svcSchedUsedCount(void* ctx);
-    static uint16_t svcSchedActiveMask(void* ctx);
-    static bool svcSchedIsActive(void* ctx, uint8_t slot);
+    bool setSlotSvc_(const TimeSchedulerSlot* slotDef);
+    bool getSlotSvc_(uint8_t slot, TimeSchedulerSlot* outDef) const;
 
     bool setSlot_(const TimeSchedulerSlot& slotDef);
     bool getSlot_(uint8_t slot, TimeSchedulerSlot& outDef) const;
@@ -187,4 +183,22 @@ private:
     uint16_t activeMaskValue_ = 0;
     uint32_t simBootMs_ = 0;
     uint64_t lastSchedulerEvalEpochSec_ = 0;
+
+    TimeService timeSvc_{
+        ServiceBinding::bind<&TimeModule::stateSvc_>,
+        ServiceBinding::bind<&TimeModule::isSynced_>,
+        ServiceBinding::bind<&TimeModule::epoch_>,
+        ServiceBinding::bind<&TimeModule::formatLocalTime_>,
+        this
+    };
+    TimeSchedulerService schedSvc_{
+        ServiceBinding::bind<&TimeModule::setSlotSvc_>,
+        ServiceBinding::bind<&TimeModule::getSlotSvc_>,
+        ServiceBinding::bind<&TimeModule::clearSlot_>,
+        ServiceBinding::bind<&TimeModule::clearAllSlots_>,
+        ServiceBinding::bind<&TimeModule::usedCount_>,
+        ServiceBinding::bind<&TimeModule::activeMask_>,
+        ServiceBinding::bind<&TimeModule::isActive_>,
+        this
+    };
 };

@@ -314,45 +314,6 @@ bool FirmwareUpdateModule::parseUrlArg_(const CommandRequest& req, char* out, si
     return false;
 }
 
-bool FirmwareUpdateModule::svcStart_(void* ctx,
-                                     FirmwareUpdateTarget target,
-                                     const char* url,
-                                     char* errOut,
-                                     size_t errOutLen)
-{
-    FirmwareUpdateModule* self = static_cast<FirmwareUpdateModule*>(ctx);
-    if (!self) return false;
-    return self->startUpdate_(target, url, errOut, errOutLen);
-}
-
-bool FirmwareUpdateModule::svcStatusJson_(void* ctx, char* out, size_t outLen)
-{
-    FirmwareUpdateModule* self = static_cast<FirmwareUpdateModule*>(ctx);
-    if (!self) return false;
-    return self->statusJson_(out, outLen);
-}
-
-bool FirmwareUpdateModule::svcConfigJson_(void* ctx, char* out, size_t outLen)
-{
-    FirmwareUpdateModule* self = static_cast<FirmwareUpdateModule*>(ctx);
-    if (!self) return false;
-    return self->configJson_(out, outLen);
-}
-
-bool FirmwareUpdateModule::svcSetConfig_(void* ctx,
-                                         const char* updateHost,
-                                         const char* flowioPath,
-                                         const char* supervisorPath,
-                                         const char* nextionPath,
-                                         const char* cfgdocsPath,
-                                         char* errOut,
-                                         size_t errOutLen)
-{
-    FirmwareUpdateModule* self = static_cast<FirmwareUpdateModule*>(ctx);
-    if (!self) return false;
-    return self->setConfig_(updateHost, flowioPath, supervisorPath, nextionPath, cfgdocsPath, errOut, errOutLen);
-}
-
 bool FirmwareUpdateModule::statusJson_(char* out, size_t outLen)
 {
     if (!out || outLen == 0) return false;
@@ -1036,15 +997,7 @@ void FirmwareUpdateModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(nextionPathVar_);
     cfg.registerVar(cfgdocsPathVar_);
 
-    static FirmwareUpdateService svc{
-        &FirmwareUpdateModule::svcStart_,
-        &FirmwareUpdateModule::svcStatusJson_,
-        &FirmwareUpdateModule::svcConfigJson_,
-        &FirmwareUpdateModule::svcSetConfig_,
-        nullptr
-    };
-    svc.ctx = this;
-    if (!services.add(ServiceId::FirmwareUpdate, &svc)) {
+    if (!services.add(ServiceId::FirmwareUpdate, &firmwareUpdateSvc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::FirmwareUpdate));
     }
 

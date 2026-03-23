@@ -5,6 +5,7 @@
  */
 
 #include "Core/Module.h"
+#include "Core/ServiceBinding.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/NvsKeys.h"
 #include "Core/SystemLimits.h"
@@ -52,23 +53,12 @@ private:
         bool notifyPending = false;
     };
 
-    static bool svcRegisterAlarm_(void* ctx, const AlarmRegistration* def, AlarmCondFn condFn, void* condCtx);
-    static bool svcAck_(void* ctx, AlarmId id);
-    static uint8_t svcAckAll_(void* ctx);
-    static bool svcIsActive_(void* ctx, AlarmId id);
-    static bool svcIsAcked_(void* ctx, AlarmId id);
-    static uint8_t svcActiveCount_(void* ctx);
-    static AlarmSeverity svcHighestSeverity_(void* ctx);
-    static bool svcBuildSnapshot_(void* ctx, char* out, size_t len);
-    static uint8_t svcListIds_(void* ctx, AlarmId* out, uint8_t max);
-    static bool svcBuildAlarmState_(void* ctx, AlarmId id, char* out, size_t len);
-    static bool svcBuildPacked_(void* ctx, char* out, size_t len, uint8_t slotCount);
-
     static bool cmdList_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdAck_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdAckSlot_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdAckAll_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
 
+    bool registerAlarmSvc_(const AlarmRegistration* def, AlarmCondFn condFn, void* condCtx);
     bool registerAlarm_(const AlarmRegistration& def, AlarmCondFn condFn, void* condCtx);
     bool ack_(AlarmId id);
     uint8_t ackAll_();
@@ -95,17 +85,17 @@ private:
     void registerHaEntities_(ServiceRegistry& services);
 
     AlarmService alarmSvc_{
-        svcRegisterAlarm_,
-        svcAck_,
-        svcAckAll_,
-        svcIsActive_,
-        svcIsAcked_,
-        svcActiveCount_,
-        svcHighestSeverity_,
-        svcBuildSnapshot_,
-        svcListIds_,
-        svcBuildAlarmState_,
-        svcBuildPacked_,
+        ServiceBinding::bind<&AlarmModule::registerAlarmSvc_>,
+        ServiceBinding::bind<&AlarmModule::ack_>,
+        ServiceBinding::bind<&AlarmModule::ackAll_>,
+        ServiceBinding::bind<&AlarmModule::isActive_>,
+        ServiceBinding::bind<&AlarmModule::isAcked_>,
+        ServiceBinding::bind<&AlarmModule::activeCount_>,
+        ServiceBinding::bind_or<&AlarmModule::highestSeverity_, AlarmSeverity::Info>,
+        ServiceBinding::bind<&AlarmModule::buildSnapshot_>,
+        ServiceBinding::bind<&AlarmModule::listIds_>,
+        ServiceBinding::bind<&AlarmModule::buildAlarmState_>,
+        ServiceBinding::bind<&AlarmModule::buildPacked_>,
         this
     };
 

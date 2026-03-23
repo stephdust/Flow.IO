@@ -433,71 +433,10 @@ bool AlarmModule::buildPacked_(char* out, size_t len, uint8_t slotCount) const
     return (wrote > 0) && ((size_t)wrote < len);
 }
 
-bool AlarmModule::svcRegisterAlarm_(void* ctx, const AlarmRegistration* def, AlarmCondFn condFn, void* condCtx)
+bool AlarmModule::registerAlarmSvc_(const AlarmRegistration* def, AlarmCondFn condFn, void* condCtx)
 {
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    if (!self || !def) return false;
-    return self->registerAlarm_(*def, condFn, condCtx);
-}
-
-bool AlarmModule::svcAck_(void* ctx, AlarmId id)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->ack_(id) : false;
-}
-
-uint8_t AlarmModule::svcAckAll_(void* ctx)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->ackAll_() : 0;
-}
-
-bool AlarmModule::svcIsActive_(void* ctx, AlarmId id)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->isActive_(id) : false;
-}
-
-bool AlarmModule::svcIsAcked_(void* ctx, AlarmId id)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->isAcked_(id) : false;
-}
-
-uint8_t AlarmModule::svcActiveCount_(void* ctx)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->activeCount_() : 0;
-}
-
-AlarmSeverity AlarmModule::svcHighestSeverity_(void* ctx)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->highestSeverity_() : AlarmSeverity::Info;
-}
-
-bool AlarmModule::svcBuildSnapshot_(void* ctx, char* out, size_t len)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->buildSnapshot_(out, len) : false;
-}
-
-uint8_t AlarmModule::svcListIds_(void* ctx, AlarmId* out, uint8_t max)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->listIds_(out, max) : 0;
-}
-
-bool AlarmModule::svcBuildAlarmState_(void* ctx, AlarmId id, char* out, size_t len)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->buildAlarmState_(id, out, len) : false;
-}
-
-bool AlarmModule::svcBuildPacked_(void* ctx, char* out, size_t len, uint8_t slotCount)
-{
-    AlarmModule* self = static_cast<AlarmModule*>(ctx);
-    return self ? self->buildPacked_(out, len, slotCount) : false;
+    if (!def) return false;
+    return registerAlarm_(*def, condFn, condCtx);
 }
 
 bool AlarmModule::cmdList_(void* userCtx, const CommandRequest&, char* reply, size_t replyLen)

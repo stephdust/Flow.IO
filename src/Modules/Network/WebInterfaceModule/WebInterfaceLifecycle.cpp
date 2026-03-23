@@ -9,22 +9,18 @@
 #include "Core/EventBus/EventPayloads.h"
 #include "Modules/Network/WifiModule/WifiRuntime.h"
 
-bool WebInterfaceModule::svcSetPaused_(void* ctx, bool paused)
+bool WebInterfaceModule::setPaused_(bool paused)
 {
-    WebInterfaceModule* self = static_cast<WebInterfaceModule*>(ctx);
-    if (!self) return false;
-    self->uartPaused_ = paused;
+    uartPaused_ = paused;
     if (paused) {
-        self->lineLen_ = 0;
+        lineLen_ = 0;
     }
     return true;
 }
 
-bool WebInterfaceModule::svcIsPaused_(void* ctx)
+bool WebInterfaceModule::isPaused_() const
 {
-    WebInterfaceModule* self = static_cast<WebInterfaceModule*>(ctx);
-    if (!self) return false;
-    return self->uartPaused_;
+    return uartPaused_;
 }
 
 void WebInterfaceModule::onEventStatic_(const Event& e, void* user)
@@ -51,7 +47,9 @@ void WebInterfaceModule::loop()
     }
 
     if (!started_) {
-        if (!isWebReachable_()) {
+        char ip[16] = {0};
+        NetworkAccessMode mode = NetworkAccessMode::None;
+        if (!getNetworkIp_(ip, sizeof(ip), &mode) || ip[0] == '\0' || mode == NetworkAccessMode::None) {
             vTaskDelay(pdMS_TO_TICKS(100));
             return;
         }

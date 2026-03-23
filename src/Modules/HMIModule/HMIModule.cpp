@@ -72,67 +72,48 @@ static const ConfigMenuHint kHints[] = {
 
 } // namespace
 
-bool HMIModule::svcRequestRefresh_(void* ctx)
+bool HMIModule::requestRefresh_()
 {
-    HMIModule* self = static_cast<HMIModule*>(ctx);
-    if (!self) return false;
-    self->viewDirty_ = true;
+    viewDirty_ = true;
     return true;
 }
 
-bool HMIModule::svcOpenConfigHome_(void* ctx)
+bool HMIModule::openConfigHome_()
 {
 #if FLOW_HMI_CONFIG_MENU_ENABLED
-    HMIModule* self = static_cast<HMIModule*>(ctx);
-    if (!self) return false;
-    const bool ok = self->menu_.home();
-    if (ok) self->viewDirty_ = true;
+    const bool ok = menu_.home();
+    if (ok) viewDirty_ = true;
     return ok;
 #else
-    (void)ctx;
     return false;
 #endif
 }
 
-bool HMIModule::svcOpenConfigModule_(void* ctx, const char* module)
+bool HMIModule::openConfigModule_(const char* module)
 {
 #if FLOW_HMI_CONFIG_MENU_ENABLED
-    HMIModule* self = static_cast<HMIModule*>(ctx);
-    if (!self) return false;
-    const bool ok = self->menu_.openModule(module);
-    if (ok) self->viewDirty_ = true;
+    const bool ok = menu_.openModule(module);
+    if (ok) viewDirty_ = true;
     return ok;
 #else
-    (void)ctx;
     (void)module;
     return false;
 #endif
 }
 
-bool HMIModule::svcBuildConfigMenuJson_(void* ctx, char* out, size_t outLen)
+bool HMIModule::setLedPage_(uint8_t page)
 {
-    const HMIModule* self = static_cast<const HMIModule*>(ctx);
-    if (!self) return false;
-    return self->buildMenuJson_(out, outLen);
-}
-
-bool HMIModule::svcSetLedPage_(void* ctx, uint8_t page)
-{
-    HMIModule* self = static_cast<HMIModule*>(ctx);
-    if (!self) return false;
     const uint8_t newPage = normalizeLedPage_(page);
-    if (self->ledPage_ != newPage) {
-        self->ledPage_ = newPage;
-        self->applyLedMask_(true);
+    if (ledPage_ != newPage) {
+        ledPage_ = newPage;
+        applyLedMask_(true);
     }
     return true;
 }
 
-uint8_t HMIModule::svcGetLedPage_(void* ctx)
+uint8_t HMIModule::getLedPage_() const
 {
-    const HMIModule* self = static_cast<const HMIModule*>(ctx);
-    if (!self) return 1U;
-    return self->ledPage_;
+    return ledPage_;
 }
 
 void HMIModule::init(ConfigStore&, ServiceRegistry& services)
@@ -171,17 +152,7 @@ void HMIModule::init(ConfigStore&, ServiceRegistry& services)
         eventBus_->subscribe(EventId::AlarmCleared, &HMIModule::onEventStatic_, this);
     }
 
-    static HmiService svc{
-        svcRequestRefresh_,
-        svcOpenConfigHome_,
-        svcOpenConfigModule_,
-        svcBuildConfigMenuJson_,
-        svcSetLedPage_,
-        svcGetLedPage_,
-        nullptr
-    };
-    svc.ctx = this;
-    if (!services.add(ServiceId::Hmi, &svc)) {
+    if (!services.add(ServiceId::Hmi, &hmiSvc_)) {
         LOGE("service registration failed: %s", toString(ServiceId::Hmi));
     }
 

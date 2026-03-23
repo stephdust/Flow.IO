@@ -8,6 +8,7 @@
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/NvsKeys.h"
 #include "Core/EventBus/EventBus.h"
+#include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
 #include "Core/Runtime.h"
 #include <stdint.h>
@@ -87,7 +88,6 @@ private:
 
     uint32_t pendingBits_[(MAX_HA_ENTITIES + 31U) / 32U] = {0};
 
-    HAService haSvc_{};
     MqttPublishProducer producer_{};
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
 
@@ -120,13 +120,12 @@ private:
     static void onEventStatic(const Event& e, void* user);
     void onEvent(const Event& e);
 
-    static bool svcAddSensor(void* ctx, const HASensorEntry* entry);
-    static bool svcAddBinarySensor(void* ctx, const HABinarySensorEntry* entry);
-    static bool svcAddSwitch(void* ctx, const HASwitchEntry* entry);
-    static bool svcAddNumber(void* ctx, const HANumberEntry* entry);
-    static bool svcAddButton(void* ctx, const HAButtonEntry* entry);
-    static bool svcRequestRefresh(void* ctx);
-
+    bool addSensorSvc_(const HASensorEntry* entry);
+    bool addBinarySensorSvc_(const HABinarySensorEntry* entry);
+    bool addSwitchSvc_(const HASwitchEntry* entry);
+    bool addNumberSvc_(const HANumberEntry* entry);
+    bool addButtonSvc_(const HAButtonEntry* entry);
+    bool requestRefreshSvc_();
     bool addSensorEntry(const HASensorEntry& entry);
     bool addBinarySensorEntry(const HABinarySensorEntry& entry);
     bool addSwitchEntry(const HASwitchEntry& entry);
@@ -198,4 +197,14 @@ private:
     static void makeHexNodeId(char* out, size_t len);
     static void sanitizeId(const char* in, char* out, size_t outLen);
     static uint16_t hash2Digits(const char* in);
+
+    HAService haSvc_{
+        ServiceBinding::bind<&HAModule::addSensorSvc_>,
+        ServiceBinding::bind<&HAModule::addBinarySensorSvc_>,
+        ServiceBinding::bind<&HAModule::addSwitchSvc_>,
+        ServiceBinding::bind<&HAModule::addNumberSvc_>,
+        ServiceBinding::bind<&HAModule::addButtonSvc_>,
+        ServiceBinding::bind<&HAModule::requestRefreshSvc_>,
+        this
+    };
 };

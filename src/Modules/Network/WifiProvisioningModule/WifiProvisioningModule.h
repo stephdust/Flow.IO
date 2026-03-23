@@ -5,6 +5,7 @@
  */
 
 #include "Core/Module.h"
+#include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
 
 #include <DNSServer.h>
@@ -65,10 +66,10 @@ private:
     char apSsid_[40] = {0};
     char apPass_[32] = {0};
 
-    static bool svcIsWebReachable_(void* ctx);
-    static NetworkAccessMode svcMode_(void* ctx);
-    static bool svcGetIP_(void* ctx, char* out, size_t len);
-    static bool svcNotifyWifiConfigChanged_(void* ctx);
+    bool isWebReachable_() const;
+    NetworkAccessMode mode_() const;
+    bool getIP_(char* out, size_t len) const;
+    bool notifyWifiConfigChanged_();
 
     void buildApCredentials_();
     void handleStaProbePolicy_(uint32_t nowMs);
@@ -85,4 +86,12 @@ private:
     bool isStaConnected_() const;
     bool getStaIp_(char* out, size_t len) const;
     bool getApIp_(char* out, size_t len) const;
+
+    NetworkAccessService netAccessSvc_{
+        ServiceBinding::bind<&WifiProvisioningModule::isWebReachable_>,
+        ServiceBinding::bind<&WifiProvisioningModule::mode_>,
+        ServiceBinding::bind<&WifiProvisioningModule::getIP_>,
+        ServiceBinding::bind<&WifiProvisioningModule::notifyWifiConfigChanged_>,
+        this
+    };
 };

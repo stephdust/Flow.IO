@@ -5,6 +5,7 @@
  */
 
 #include "Core/Module.h"
+#include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
 #include "Core/ConfigTypes.h"
 #include "Core/CommandRegistry.h"
@@ -116,22 +117,6 @@ private:
     uint32_t activeTotalBytes_ = 0;
     uint32_t activeSentBytes_ = 0;
 
-    static bool svcStart_(void* ctx,
-                          FirmwareUpdateTarget target,
-                          const char* url,
-                          char* errOut,
-                          size_t errOutLen);
-    static bool svcStatusJson_(void* ctx, char* out, size_t outLen);
-    static bool svcConfigJson_(void* ctx, char* out, size_t outLen);
-    static bool svcSetConfig_(void* ctx,
-                              const char* updateHost,
-                              const char* flowioPath,
-                              const char* supervisorPath,
-                              const char* nextionPath,
-                              const char* cfgdocsPath,
-                              char* errOut,
-                              size_t errOutLen);
-
     static bool cmdStatus_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdFlowIo_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdSupervisor_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
@@ -166,4 +151,12 @@ private:
     void attachWebInterfaceSvcIfNeeded_();
     static const char* stateStr_(UpdateState s);
     static const char* targetStr_(FirmwareUpdateTarget t);
+
+    FirmwareUpdateService firmwareUpdateSvc_{
+        ServiceBinding::bind<&FirmwareUpdateModule::startUpdate_>,
+        ServiceBinding::bind<&FirmwareUpdateModule::statusJson_>,
+        ServiceBinding::bind<&FirmwareUpdateModule::configJson_>,
+        ServiceBinding::bind<&FirmwareUpdateModule::setConfig_>,
+        this
+    };
 };
