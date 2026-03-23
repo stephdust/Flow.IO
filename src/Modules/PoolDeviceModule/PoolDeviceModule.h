@@ -2,6 +2,9 @@
 /**
  * @file PoolDeviceModule.h
  * @brief Pool actuator domain layer above IOModule.
+ *
+ * Public facade only. The implementation is split across Lifecycle / Control /
+ * Runtime / Commands translation units.
  */
 
 #include "Core/Module.h"
@@ -111,31 +114,22 @@ private:
         uint32_t month = 0;
     };
 
-    static bool cmdPoolWrite_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
-    static bool cmdPoolRefill_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
-    bool handlePoolWrite_(const CommandRequest& req, char* reply, size_t replyLen);
-    bool handlePoolRefill_(const CommandRequest& req, char* reply, size_t replyLen);
+    // Lifecycle
+    static void onEventStatic_(const Event& e, void* user);
+    void onEvent_(const Event& e);
 
+    // Control
     static uint8_t svcCount_(void* ctx);
     static PoolDeviceSvcStatus svcMeta_(void* ctx, uint8_t slot, PoolDeviceSvcMeta* outMeta);
     static PoolDeviceSvcStatus svcReadActualOn_(void* ctx, uint8_t slot, uint8_t* outOn, uint32_t* outTsMs);
     static PoolDeviceSvcStatus svcWriteDesired_(void* ctx, uint8_t slot, uint8_t on);
     static PoolDeviceSvcStatus svcRefillTank_(void* ctx, uint8_t slot, float remainingMl);
-
     uint8_t activeCount_() const;
     PoolDeviceSvcStatus svcMetaImpl_(uint8_t slot, PoolDeviceSvcMeta* outMeta) const;
     PoolDeviceSvcStatus svcReadActualOnImpl_(uint8_t slot, uint8_t* outOn, uint32_t* outTsMs) const;
     PoolDeviceSvcStatus svcWriteDesiredImpl_(uint8_t slot, uint8_t on);
     PoolDeviceSvcStatus svcRefillTankImpl_(uint8_t slot, float remainingMl);
-
-    bool configureRuntime_();
     void tickDevices_(uint32_t nowMs);
-    static void onEventStatic_(const Event& e, void* user);
-    static MqttBuildResult buildCfgBasePdmStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx);
-    static MqttBuildResult buildCfgBasePdmrtStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx);
-    void onEvent_(const Event& e);
-    MqttBuildResult buildCfgBasePdm_(MqttBuildContext& buildCtx);
-    MqttBuildResult buildCfgBasePdmrt_(MqttBuildContext& buildCtx);
     void resetDailyCounters_();
     void resetWeeklyCounters_();
     void resetMonthlyCounters_();
@@ -145,33 +139,31 @@ private:
     bool reconcilePeriodCountersFromClock_();
     bool loadPersistedMetrics_(uint8_t slotIdx, PoolDeviceSlot& slot);
     bool persistMetrics_(uint8_t slotIdx, PoolDeviceSlot& slot, uint32_t nowMs);
-    bool snapshotRouteFromIndex_(uint8_t snapshotIdx, uint8_t& slotIdxOut, bool& metricsOut) const;
-    bool buildStateSnapshot_(uint8_t slotIdx, char* out, size_t len, uint32_t& maxTsOut) const;
-    bool buildMetricsSnapshot_(uint8_t slotIdx, char* out, size_t len, uint32_t& maxTsOut) const;
     bool dependenciesSatisfied_(uint8_t slotIdx) const;
     static bool maxUptimeReached_(const PoolDeviceSlot& slot);
     bool readIoState_(const PoolDeviceSlot& slot, bool& onOut) const;
     bool writeIo_(IoId ioId, bool on);
     static uint32_t toSeconds_(uint64_t ms);
+
+    // Runtime
+    bool configureRuntime_();
+    static MqttBuildResult buildCfgBasePdmStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx);
+    static MqttBuildResult buildCfgBasePdmrtStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx);
+    MqttBuildResult buildCfgBasePdm_(MqttBuildContext& buildCtx);
+    MqttBuildResult buildCfgBasePdmrt_(MqttBuildContext& buildCtx);
+    bool snapshotRouteFromIndex_(uint8_t snapshotIdx, uint8_t& slotIdxOut, bool& metricsOut) const;
+    bool buildStateSnapshot_(uint8_t slotIdx, char* out, size_t len, uint32_t& maxTsOut) const;
+    bool buildMetricsSnapshot_(uint8_t slotIdx, char* out, size_t len, uint32_t& maxTsOut) const;
     static const char* typeStr_(uint8_t type);
     static const char* blockReasonStr_(uint8_t reason);
 
-    const LogHubService* logHub_ = nullptr;
-    const IOServiceV2* ioSvc_ = nullptr;
-    const CommandService* cmdSvc_ = nullptr;
-    const MqttService* mqttSvc_ = nullptr;
-    const HAService* haSvc_ = nullptr;
-    PoolDeviceService poolSvc_{
-        svcCount_,
-        svcMeta_,
-        svcReadActualOn_,
-        svcWriteDesired_,
-        svcRefillTank_,
-        this
-    };
-    EventBus* eventBus_ = nullptr;
-    DataStore* dataStore_ = nullptr;
-    ConfigStore* cfgStore_ = nullptr;
+    // Commands
+    static bool cmdPoolWrite_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    static bool cmdPoolRefill_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    bool handlePoolWrite_(const CommandRequest& req, char* reply, size_t replyLen);
+    bool handlePoolRefill_(const CommandRequest& req, char* reply, size_t replyLen);
+
+    // State and configuration storage
     bool runtimeReady_ = false;
     portMUX_TYPE resetMux_ = portMUX_INITIALIZER_UNLOCKED;
     uint8_t resetPendingMask_ = 0;
@@ -188,9 +180,29 @@ private:
     char nvsMaxUptimeKey_[POOL_DEVICE_MAX][16]{};
     char nvsRuntimeKey_[POOL_DEVICE_MAX][16]{};
     char runtimePersistBuf_[POOL_DEVICE_MAX][192]{};
+    PoolDeviceSlot slots_[POOL_DEVICE_MAX]{};
+
+    // Services and shared runtime integrations
+    const LogHubService* logHub_ = nullptr;
+    const IOServiceV2* ioSvc_ = nullptr;
+    const CommandService* cmdSvc_ = nullptr;
+    const MqttService* mqttSvc_ = nullptr;
+    const HAService* haSvc_ = nullptr;
+    PoolDeviceService poolSvc_{
+        svcCount_,
+        svcMeta_,
+        svcReadActualOn_,
+        svcWriteDesired_,
+        svcRefillTank_,
+        this
+    };
+    EventBus* eventBus_ = nullptr;
+    DataStore* dataStore_ = nullptr;
+    ConfigStore* cfgStore_ = nullptr;
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
     MqttConfigRouteProducer::Route* cfgRoutes_ = nullptr;
     uint8_t cfgRouteCount_ = 0;
+
     // CFGDOC: {"label":"Activation appareil","help":"Active ou désactive l'appareil du pool concerne."}
     ConfigVariable<bool,0> cfgEnabledVar_[POOL_DEVICE_MAX]{};
     // CFGDOC: {"label":"Type appareil","help":"Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard)."}
@@ -207,6 +219,4 @@ private:
     ConfigVariable<int32_t,0> cfgMaxUptimeVar_[POOL_DEVICE_MAX]{};
     // CFGDOC: {"label":"Blob métriques","help":"État/métriques persistees de l'appareil pour reprise."}
     ConfigVariable<char,0> cfgRuntimeVar_[POOL_DEVICE_MAX]{};
-
-    PoolDeviceSlot slots_[POOL_DEVICE_MAX]{};
 };

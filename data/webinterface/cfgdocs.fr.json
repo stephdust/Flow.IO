@@ -1,10 +1,10 @@
 {
   "_meta": {
     "generated": true,
-    "total": 282,
+    "total": 346,
     "decl_total": 232,
-    "decl_with_cfgdoc": 99,
-    "missing_cfgdoc_count": 133,
+    "decl_with_cfgdoc": 119,
+    "missing_cfgdoc_count": 113,
     "manual_overrides_total": 18,
     "manual_overrides_applied": 0
   },
@@ -840,181 +840,181 @@
       "module": "io/input/i0",
       "name": "i0_active_high",
       "type": "Bool",
-      "label": "I0 active high",
-      "help": "Parametre 'i0_active_high' pour la branche 'io/input/i0' (type Bool).",
+      "label": "Actif à 1 I0",
+      "help": "Si activé, l'entrée I0 est considérée active à l'état haut.",
       "var": "i0ActiveHighVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i0/i0_name": {
       "module": "io/input/i0",
       "name": "i0_name",
       "type": "CharArray",
-      "label": "I0 name",
-      "help": "Parametre 'i0_name' pour la branche 'io/input/i0' (type CharArray).",
+      "label": "Nom entrée I0",
+      "help": "Nom lisible de l'entrée digitale I0.",
       "var": "i0NameVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i0/i0_pin": {
       "module": "io/input/i0",
       "name": "i0_pin",
       "type": "UInt8",
-      "label": "I0 pin",
-      "help": "Parametre 'i0_pin' pour la branche 'io/input/i0' (type UInt8).",
+      "label": "GPIO entrée I0",
+      "help": "GPIO utilisée par l'entrée digitale I0.",
       "var": "i0PinVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i0/i0_pull_mode": {
       "module": "io/input/i0",
       "name": "i0_pull_mode",
       "type": "UInt8",
-      "label": "I0 pull mode",
-      "help": "Parametre 'i0_pull_mode' pour la branche 'io/input/i0' (type UInt8).",
+      "label": "Pull entrée I0",
+      "help": "Mode de résistance interne appliqué à l'entrée I0.",
       "var": "i0PullModeVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i1/i1_active_high": {
       "module": "io/input/i1",
       "name": "i1_active_high",
       "type": "Bool",
-      "label": "I1 active high",
-      "help": "Parametre 'i1_active_high' pour la branche 'io/input/i1' (type Bool).",
+      "label": "Actif à 1 I1",
+      "help": "Si activé, l'entrée I1 est considérée active à l'état haut.",
       "var": "i1ActiveHighVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i1/i1_name": {
       "module": "io/input/i1",
       "name": "i1_name",
       "type": "CharArray",
-      "label": "I1 name",
-      "help": "Parametre 'i1_name' pour la branche 'io/input/i1' (type CharArray).",
+      "label": "Nom entrée I1",
+      "help": "Nom lisible de l'entrée digitale I1.",
       "var": "i1NameVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i1/i1_pin": {
       "module": "io/input/i1",
       "name": "i1_pin",
       "type": "UInt8",
-      "label": "I1 pin",
-      "help": "Parametre 'i1_pin' pour la branche 'io/input/i1' (type UInt8).",
+      "label": "GPIO entrée I1",
+      "help": "GPIO utilisée par l'entrée digitale I1.",
       "var": "i1PinVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i1/i1_pull_mode": {
       "module": "io/input/i1",
       "name": "i1_pull_mode",
       "type": "UInt8",
-      "label": "I1 pull mode",
-      "help": "Parametre 'i1_pull_mode' pour la branche 'io/input/i1' (type UInt8).",
+      "label": "Pull entrée I1",
+      "help": "Mode de résistance interne appliqué à l'entrée I1.",
       "var": "i1PullModeVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i2/i2_active_high": {
       "module": "io/input/i2",
       "name": "i2_active_high",
       "type": "Bool",
-      "label": "I2 active high",
-      "help": "Parametre 'i2_active_high' pour la branche 'io/input/i2' (type Bool).",
+      "label": "Actif à 1 I2",
+      "help": "Si activé, l'entrée I2 est considérée active à l'état haut.",
       "var": "i2ActiveHighVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i2/i2_name": {
       "module": "io/input/i2",
       "name": "i2_name",
       "type": "CharArray",
-      "label": "I2 name",
-      "help": "Parametre 'i2_name' pour la branche 'io/input/i2' (type CharArray).",
+      "label": "Nom entrée I2",
+      "help": "Nom lisible de l'entrée digitale I2.",
       "var": "i2NameVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i2/i2_pin": {
       "module": "io/input/i2",
       "name": "i2_pin",
       "type": "UInt8",
-      "label": "I2 pin",
-      "help": "Parametre 'i2_pin' pour la branche 'io/input/i2' (type UInt8).",
+      "label": "GPIO entrée I2",
+      "help": "GPIO utilisée par l'entrée digitale I2.",
       "var": "i2PinVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i2/i2_pull_mode": {
       "module": "io/input/i2",
       "name": "i2_pull_mode",
       "type": "UInt8",
-      "label": "I2 pull mode",
-      "help": "Parametre 'i2_pull_mode' pour la branche 'io/input/i2' (type UInt8).",
+      "label": "Pull entrée I2",
+      "help": "Mode de résistance interne appliqué à l'entrée I2.",
       "var": "i2PullModeVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i3/i3_active_high": {
       "module": "io/input/i3",
       "name": "i3_active_high",
       "type": "Bool",
-      "label": "I3 active high",
-      "help": "Parametre 'i3_active_high' pour la branche 'io/input/i3' (type Bool).",
+      "label": "Actif à 1 I3",
+      "help": "Si activé, l'entrée I3 est considérée active à l'état haut.",
       "var": "i3ActiveHighVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i3/i3_name": {
       "module": "io/input/i3",
       "name": "i3_name",
       "type": "CharArray",
-      "label": "I3 name",
-      "help": "Parametre 'i3_name' pour la branche 'io/input/i3' (type CharArray).",
+      "label": "Nom entrée I3",
+      "help": "Nom lisible de l'entrée digitale I3.",
       "var": "i3NameVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i3/i3_pin": {
       "module": "io/input/i3",
       "name": "i3_pin",
       "type": "UInt8",
-      "label": "I3 pin",
-      "help": "Parametre 'i3_pin' pour la branche 'io/input/i3' (type UInt8).",
+      "label": "GPIO entrée I3",
+      "help": "GPIO utilisée par l'entrée digitale I3.",
       "var": "i3PinVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i3/i3_pull_mode": {
       "module": "io/input/i3",
       "name": "i3_pull_mode",
       "type": "UInt8",
-      "label": "I3 pull mode",
-      "help": "Parametre 'i3_pull_mode' pour la branche 'io/input/i3' (type UInt8).",
+      "label": "Pull entrée I3",
+      "help": "Mode de résistance interne appliqué à l'entrée I3.",
       "var": "i3PullModeVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i4/i4_active_high": {
       "module": "io/input/i4",
       "name": "i4_active_high",
       "type": "Bool",
-      "label": "I4 active high",
-      "help": "Parametre 'i4_active_high' pour la branche 'io/input/i4' (type Bool).",
+      "label": "Actif à 1 I4",
+      "help": "Si activé, l'entrée I4 est considérée active à l'état haut.",
       "var": "i4ActiveHighVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i4/i4_name": {
       "module": "io/input/i4",
       "name": "i4_name",
       "type": "CharArray",
-      "label": "I4 name",
-      "help": "Parametre 'i4_name' pour la branche 'io/input/i4' (type CharArray).",
+      "label": "Nom entrée I4",
+      "help": "Nom lisible de l'entrée digitale I4.",
       "var": "i4NameVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i4/i4_pin": {
       "module": "io/input/i4",
       "name": "i4_pin",
       "type": "UInt8",
-      "label": "I4 pin",
-      "help": "Parametre 'i4_pin' pour la branche 'io/input/i4' (type UInt8).",
+      "label": "GPIO entrée I4",
+      "help": "GPIO utilisée par l'entrée digitale I4.",
       "var": "i4PinVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/input/i4/i4_pull_mode": {
       "module": "io/input/i4",
       "name": "i4_pull_mode",
       "type": "UInt8",
-      "label": "I4 pull mode",
-      "help": "Parametre 'i4_pull_mode' pour la branche 'io/input/i4' (type UInt8).",
+      "label": "Pull entrée I4",
+      "help": "Mode de résistance interne appliqué à l'entrée I4.",
       "var": "i4PullModeVar_",
-      "source": "auto"
+      "source": "cfgdoc"
     },
     "io/output/d0/d0_active_high": {
       "module": "io/output/d0",
@@ -1554,6 +1554,614 @@
       "help": "Nom d'utilisateur pour l'authentification MQTT.",
       "var": "userVar_",
       "source": "cfgdoc"
+    },
+    "pdm/pd0/depends_on_mask": {
+      "module": "pdm/pd0",
+      "name": "depends_on_mask",
+      "type": "uint8_t",
+      "label": "Masque dépendances",
+      "help": "Masque de dépendances inter-appareils.",
+      "var": "cfgDependsVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd0/enabled": {
+      "module": "pdm/pd0",
+      "name": "enabled",
+      "type": "bool",
+      "label": "Activation appareil",
+      "help": "Active ou désactive l'appareil du pool concerne.",
+      "var": "cfgEnabledVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd0/flow_l_h": {
+      "module": "pdm/pd0",
+      "name": "flow_l_h",
+      "type": "float",
+      "label": "Débit (L/h)",
+      "help": "Débit nominal en litres par heure pour le calcul d'injection.",
+      "var": "cfgFlowVar_",
+      "source": "cfgdoc-series",
+      "unit": "L/h"
+    },
+    "pdm/pd0/max_uptime_day_s": {
+      "module": "pdm/pd0",
+      "name": "max_uptime_day_s",
+      "type": "int32_t",
+      "label": "Uptime max journalier (s)",
+      "help": "Temps maximal autorisé par jour pour l'appareil.",
+      "var": "cfgMaxUptimeVar_",
+      "source": "cfgdoc-series",
+      "unit": "s"
+    },
+    "pdm/pd0/tank_cap_ml": {
+      "module": "pdm/pd0",
+      "name": "tank_cap_ml",
+      "type": "float",
+      "label": "Capacité cuve (mL)",
+      "help": "Capacité maximale de la cuve associée à l'appareil.",
+      "var": "cfgTankCapVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd0/tank_init_ml": {
+      "module": "pdm/pd0",
+      "name": "tank_init_ml",
+      "type": "float",
+      "label": "Niveau initial cuve (mL)",
+      "help": "Volume initial de cuve après configuration/reset.",
+      "var": "cfgTankInitVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd0/type": {
+      "module": "pdm/pd0",
+      "name": "type",
+      "type": "uint8_t",
+      "label": "Type appareil",
+      "help": "Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard).",
+      "var": "cfgTypeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd1/depends_on_mask": {
+      "module": "pdm/pd1",
+      "name": "depends_on_mask",
+      "type": "uint8_t",
+      "label": "Masque dépendances",
+      "help": "Masque de dépendances inter-appareils.",
+      "var": "cfgDependsVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd1/enabled": {
+      "module": "pdm/pd1",
+      "name": "enabled",
+      "type": "bool",
+      "label": "Activation appareil",
+      "help": "Active ou désactive l'appareil du pool concerne.",
+      "var": "cfgEnabledVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd1/flow_l_h": {
+      "module": "pdm/pd1",
+      "name": "flow_l_h",
+      "type": "float",
+      "label": "Débit (L/h)",
+      "help": "Débit nominal en litres par heure pour le calcul d'injection.",
+      "var": "cfgFlowVar_",
+      "source": "cfgdoc-series",
+      "unit": "L/h"
+    },
+    "pdm/pd1/max_uptime_day_s": {
+      "module": "pdm/pd1",
+      "name": "max_uptime_day_s",
+      "type": "int32_t",
+      "label": "Uptime max journalier (s)",
+      "help": "Temps maximal autorisé par jour pour l'appareil.",
+      "var": "cfgMaxUptimeVar_",
+      "source": "cfgdoc-series",
+      "unit": "s"
+    },
+    "pdm/pd1/tank_cap_ml": {
+      "module": "pdm/pd1",
+      "name": "tank_cap_ml",
+      "type": "float",
+      "label": "Capacité cuve (mL)",
+      "help": "Capacité maximale de la cuve associée à l'appareil.",
+      "var": "cfgTankCapVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd1/tank_init_ml": {
+      "module": "pdm/pd1",
+      "name": "tank_init_ml",
+      "type": "float",
+      "label": "Niveau initial cuve (mL)",
+      "help": "Volume initial de cuve après configuration/reset.",
+      "var": "cfgTankInitVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd1/type": {
+      "module": "pdm/pd1",
+      "name": "type",
+      "type": "uint8_t",
+      "label": "Type appareil",
+      "help": "Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard).",
+      "var": "cfgTypeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd2/depends_on_mask": {
+      "module": "pdm/pd2",
+      "name": "depends_on_mask",
+      "type": "uint8_t",
+      "label": "Masque dépendances",
+      "help": "Masque de dépendances inter-appareils.",
+      "var": "cfgDependsVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd2/enabled": {
+      "module": "pdm/pd2",
+      "name": "enabled",
+      "type": "bool",
+      "label": "Activation appareil",
+      "help": "Active ou désactive l'appareil du pool concerne.",
+      "var": "cfgEnabledVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd2/flow_l_h": {
+      "module": "pdm/pd2",
+      "name": "flow_l_h",
+      "type": "float",
+      "label": "Débit (L/h)",
+      "help": "Débit nominal en litres par heure pour le calcul d'injection.",
+      "var": "cfgFlowVar_",
+      "source": "cfgdoc-series",
+      "unit": "L/h"
+    },
+    "pdm/pd2/max_uptime_day_s": {
+      "module": "pdm/pd2",
+      "name": "max_uptime_day_s",
+      "type": "int32_t",
+      "label": "Uptime max journalier (s)",
+      "help": "Temps maximal autorisé par jour pour l'appareil.",
+      "var": "cfgMaxUptimeVar_",
+      "source": "cfgdoc-series",
+      "unit": "s"
+    },
+    "pdm/pd2/tank_cap_ml": {
+      "module": "pdm/pd2",
+      "name": "tank_cap_ml",
+      "type": "float",
+      "label": "Capacité cuve (mL)",
+      "help": "Capacité maximale de la cuve associée à l'appareil.",
+      "var": "cfgTankCapVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd2/tank_init_ml": {
+      "module": "pdm/pd2",
+      "name": "tank_init_ml",
+      "type": "float",
+      "label": "Niveau initial cuve (mL)",
+      "help": "Volume initial de cuve après configuration/reset.",
+      "var": "cfgTankInitVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd2/type": {
+      "module": "pdm/pd2",
+      "name": "type",
+      "type": "uint8_t",
+      "label": "Type appareil",
+      "help": "Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard).",
+      "var": "cfgTypeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd3/depends_on_mask": {
+      "module": "pdm/pd3",
+      "name": "depends_on_mask",
+      "type": "uint8_t",
+      "label": "Masque dépendances",
+      "help": "Masque de dépendances inter-appareils.",
+      "var": "cfgDependsVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd3/enabled": {
+      "module": "pdm/pd3",
+      "name": "enabled",
+      "type": "bool",
+      "label": "Activation appareil",
+      "help": "Active ou désactive l'appareil du pool concerne.",
+      "var": "cfgEnabledVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd3/flow_l_h": {
+      "module": "pdm/pd3",
+      "name": "flow_l_h",
+      "type": "float",
+      "label": "Débit (L/h)",
+      "help": "Débit nominal en litres par heure pour le calcul d'injection.",
+      "var": "cfgFlowVar_",
+      "source": "cfgdoc-series",
+      "unit": "L/h"
+    },
+    "pdm/pd3/max_uptime_day_s": {
+      "module": "pdm/pd3",
+      "name": "max_uptime_day_s",
+      "type": "int32_t",
+      "label": "Uptime max journalier (s)",
+      "help": "Temps maximal autorisé par jour pour l'appareil.",
+      "var": "cfgMaxUptimeVar_",
+      "source": "cfgdoc-series",
+      "unit": "s"
+    },
+    "pdm/pd3/tank_cap_ml": {
+      "module": "pdm/pd3",
+      "name": "tank_cap_ml",
+      "type": "float",
+      "label": "Capacité cuve (mL)",
+      "help": "Capacité maximale de la cuve associée à l'appareil.",
+      "var": "cfgTankCapVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd3/tank_init_ml": {
+      "module": "pdm/pd3",
+      "name": "tank_init_ml",
+      "type": "float",
+      "label": "Niveau initial cuve (mL)",
+      "help": "Volume initial de cuve après configuration/reset.",
+      "var": "cfgTankInitVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd3/type": {
+      "module": "pdm/pd3",
+      "name": "type",
+      "type": "uint8_t",
+      "label": "Type appareil",
+      "help": "Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard).",
+      "var": "cfgTypeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd4/depends_on_mask": {
+      "module": "pdm/pd4",
+      "name": "depends_on_mask",
+      "type": "uint8_t",
+      "label": "Masque dépendances",
+      "help": "Masque de dépendances inter-appareils.",
+      "var": "cfgDependsVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd4/enabled": {
+      "module": "pdm/pd4",
+      "name": "enabled",
+      "type": "bool",
+      "label": "Activation appareil",
+      "help": "Active ou désactive l'appareil du pool concerne.",
+      "var": "cfgEnabledVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd4/flow_l_h": {
+      "module": "pdm/pd4",
+      "name": "flow_l_h",
+      "type": "float",
+      "label": "Débit (L/h)",
+      "help": "Débit nominal en litres par heure pour le calcul d'injection.",
+      "var": "cfgFlowVar_",
+      "source": "cfgdoc-series",
+      "unit": "L/h"
+    },
+    "pdm/pd4/max_uptime_day_s": {
+      "module": "pdm/pd4",
+      "name": "max_uptime_day_s",
+      "type": "int32_t",
+      "label": "Uptime max journalier (s)",
+      "help": "Temps maximal autorisé par jour pour l'appareil.",
+      "var": "cfgMaxUptimeVar_",
+      "source": "cfgdoc-series",
+      "unit": "s"
+    },
+    "pdm/pd4/tank_cap_ml": {
+      "module": "pdm/pd4",
+      "name": "tank_cap_ml",
+      "type": "float",
+      "label": "Capacité cuve (mL)",
+      "help": "Capacité maximale de la cuve associée à l'appareil.",
+      "var": "cfgTankCapVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd4/tank_init_ml": {
+      "module": "pdm/pd4",
+      "name": "tank_init_ml",
+      "type": "float",
+      "label": "Niveau initial cuve (mL)",
+      "help": "Volume initial de cuve après configuration/reset.",
+      "var": "cfgTankInitVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd4/type": {
+      "module": "pdm/pd4",
+      "name": "type",
+      "type": "uint8_t",
+      "label": "Type appareil",
+      "help": "Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard).",
+      "var": "cfgTypeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd5/depends_on_mask": {
+      "module": "pdm/pd5",
+      "name": "depends_on_mask",
+      "type": "uint8_t",
+      "label": "Masque dépendances",
+      "help": "Masque de dépendances inter-appareils.",
+      "var": "cfgDependsVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd5/enabled": {
+      "module": "pdm/pd5",
+      "name": "enabled",
+      "type": "bool",
+      "label": "Activation appareil",
+      "help": "Active ou désactive l'appareil du pool concerne.",
+      "var": "cfgEnabledVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd5/flow_l_h": {
+      "module": "pdm/pd5",
+      "name": "flow_l_h",
+      "type": "float",
+      "label": "Débit (L/h)",
+      "help": "Débit nominal en litres par heure pour le calcul d'injection.",
+      "var": "cfgFlowVar_",
+      "source": "cfgdoc-series",
+      "unit": "L/h"
+    },
+    "pdm/pd5/max_uptime_day_s": {
+      "module": "pdm/pd5",
+      "name": "max_uptime_day_s",
+      "type": "int32_t",
+      "label": "Uptime max journalier (s)",
+      "help": "Temps maximal autorisé par jour pour l'appareil.",
+      "var": "cfgMaxUptimeVar_",
+      "source": "cfgdoc-series",
+      "unit": "s"
+    },
+    "pdm/pd5/tank_cap_ml": {
+      "module": "pdm/pd5",
+      "name": "tank_cap_ml",
+      "type": "float",
+      "label": "Capacité cuve (mL)",
+      "help": "Capacité maximale de la cuve associée à l'appareil.",
+      "var": "cfgTankCapVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd5/tank_init_ml": {
+      "module": "pdm/pd5",
+      "name": "tank_init_ml",
+      "type": "float",
+      "label": "Niveau initial cuve (mL)",
+      "help": "Volume initial de cuve après configuration/reset.",
+      "var": "cfgTankInitVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd5/type": {
+      "module": "pdm/pd5",
+      "name": "type",
+      "type": "uint8_t",
+      "label": "Type appareil",
+      "help": "Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard).",
+      "var": "cfgTypeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd6/depends_on_mask": {
+      "module": "pdm/pd6",
+      "name": "depends_on_mask",
+      "type": "uint8_t",
+      "label": "Masque dépendances",
+      "help": "Masque de dépendances inter-appareils.",
+      "var": "cfgDependsVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd6/enabled": {
+      "module": "pdm/pd6",
+      "name": "enabled",
+      "type": "bool",
+      "label": "Activation appareil",
+      "help": "Active ou désactive l'appareil du pool concerne.",
+      "var": "cfgEnabledVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd6/flow_l_h": {
+      "module": "pdm/pd6",
+      "name": "flow_l_h",
+      "type": "float",
+      "label": "Débit (L/h)",
+      "help": "Débit nominal en litres par heure pour le calcul d'injection.",
+      "var": "cfgFlowVar_",
+      "source": "cfgdoc-series",
+      "unit": "L/h"
+    },
+    "pdm/pd6/max_uptime_day_s": {
+      "module": "pdm/pd6",
+      "name": "max_uptime_day_s",
+      "type": "int32_t",
+      "label": "Uptime max journalier (s)",
+      "help": "Temps maximal autorisé par jour pour l'appareil.",
+      "var": "cfgMaxUptimeVar_",
+      "source": "cfgdoc-series",
+      "unit": "s"
+    },
+    "pdm/pd6/tank_cap_ml": {
+      "module": "pdm/pd6",
+      "name": "tank_cap_ml",
+      "type": "float",
+      "label": "Capacité cuve (mL)",
+      "help": "Capacité maximale de la cuve associée à l'appareil.",
+      "var": "cfgTankCapVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd6/tank_init_ml": {
+      "module": "pdm/pd6",
+      "name": "tank_init_ml",
+      "type": "float",
+      "label": "Niveau initial cuve (mL)",
+      "help": "Volume initial de cuve après configuration/reset.",
+      "var": "cfgTankInitVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd6/type": {
+      "module": "pdm/pd6",
+      "name": "type",
+      "type": "uint8_t",
+      "label": "Type appareil",
+      "help": "Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard).",
+      "var": "cfgTypeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd7/depends_on_mask": {
+      "module": "pdm/pd7",
+      "name": "depends_on_mask",
+      "type": "uint8_t",
+      "label": "Masque dépendances",
+      "help": "Masque de dépendances inter-appareils.",
+      "var": "cfgDependsVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd7/enabled": {
+      "module": "pdm/pd7",
+      "name": "enabled",
+      "type": "bool",
+      "label": "Activation appareil",
+      "help": "Active ou désactive l'appareil du pool concerne.",
+      "var": "cfgEnabledVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdm/pd7/flow_l_h": {
+      "module": "pdm/pd7",
+      "name": "flow_l_h",
+      "type": "float",
+      "label": "Débit (L/h)",
+      "help": "Débit nominal en litres par heure pour le calcul d'injection.",
+      "var": "cfgFlowVar_",
+      "source": "cfgdoc-series",
+      "unit": "L/h"
+    },
+    "pdm/pd7/max_uptime_day_s": {
+      "module": "pdm/pd7",
+      "name": "max_uptime_day_s",
+      "type": "int32_t",
+      "label": "Uptime max journalier (s)",
+      "help": "Temps maximal autorisé par jour pour l'appareil.",
+      "var": "cfgMaxUptimeVar_",
+      "source": "cfgdoc-series",
+      "unit": "s"
+    },
+    "pdm/pd7/tank_cap_ml": {
+      "module": "pdm/pd7",
+      "name": "tank_cap_ml",
+      "type": "float",
+      "label": "Capacité cuve (mL)",
+      "help": "Capacité maximale de la cuve associée à l'appareil.",
+      "var": "cfgTankCapVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd7/tank_init_ml": {
+      "module": "pdm/pd7",
+      "name": "tank_init_ml",
+      "type": "float",
+      "label": "Niveau initial cuve (mL)",
+      "help": "Volume initial de cuve après configuration/reset.",
+      "var": "cfgTankInitVar_",
+      "source": "cfgdoc-series",
+      "unit": "mL"
+    },
+    "pdm/pd7/type": {
+      "module": "pdm/pd7",
+      "name": "type",
+      "type": "uint8_t",
+      "label": "Type appareil",
+      "help": "Type logique de l'appareil (0=filtration, 1=peristaltique, 2=relais standard).",
+      "var": "cfgTypeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdmrt/pd0/metrics_blob": {
+      "module": "pdmrt/pd0",
+      "name": "metrics_blob",
+      "type": "char",
+      "label": "Blob métriques",
+      "help": "État/métriques persistees de l'appareil pour reprise.",
+      "var": "cfgRuntimeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdmrt/pd1/metrics_blob": {
+      "module": "pdmrt/pd1",
+      "name": "metrics_blob",
+      "type": "char",
+      "label": "Blob métriques",
+      "help": "État/métriques persistees de l'appareil pour reprise.",
+      "var": "cfgRuntimeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdmrt/pd2/metrics_blob": {
+      "module": "pdmrt/pd2",
+      "name": "metrics_blob",
+      "type": "char",
+      "label": "Blob métriques",
+      "help": "État/métriques persistees de l'appareil pour reprise.",
+      "var": "cfgRuntimeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdmrt/pd3/metrics_blob": {
+      "module": "pdmrt/pd3",
+      "name": "metrics_blob",
+      "type": "char",
+      "label": "Blob métriques",
+      "help": "État/métriques persistees de l'appareil pour reprise.",
+      "var": "cfgRuntimeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdmrt/pd4/metrics_blob": {
+      "module": "pdmrt/pd4",
+      "name": "metrics_blob",
+      "type": "char",
+      "label": "Blob métriques",
+      "help": "État/métriques persistees de l'appareil pour reprise.",
+      "var": "cfgRuntimeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdmrt/pd5/metrics_blob": {
+      "module": "pdmrt/pd5",
+      "name": "metrics_blob",
+      "type": "char",
+      "label": "Blob métriques",
+      "help": "État/métriques persistees de l'appareil pour reprise.",
+      "var": "cfgRuntimeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdmrt/pd6/metrics_blob": {
+      "module": "pdmrt/pd6",
+      "name": "metrics_blob",
+      "type": "char",
+      "label": "Blob métriques",
+      "help": "État/métriques persistees de l'appareil pour reprise.",
+      "var": "cfgRuntimeVar_",
+      "source": "cfgdoc-series"
+    },
+    "pdmrt/pd7/metrics_blob": {
+      "module": "pdmrt/pd7",
+      "name": "metrics_blob",
+      "type": "char",
+      "label": "Blob métriques",
+      "help": "État/métriques persistees de l'appareil pour reprise.",
+      "var": "cfgRuntimeVar_",
+      "source": "cfgdoc-series"
     },
     "poollogic/air_temp_io_id": {
       "module": "poollogic",

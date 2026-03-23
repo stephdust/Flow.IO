@@ -330,29 +330,49 @@ private:
     ConfigVariable<float,0> a5MinVar_{NVS_KEY(NvsKeys::Io::IO_A5N),"a5_min","io/input/a5",ConfigType::Float,&analogCfg_[5].minValid,ConfigPersistence::Persistent,0};
     ConfigVariable<float,0> a5MaxVar_{NVS_KEY(NvsKeys::Io::IO_A5X),"a5_max","io/input/a5",ConfigType::Float,&analogCfg_[5].maxValid,ConfigPersistence::Persistent,0};
 
+    // CFGDOC: {"label":"Nom entrée I0","help":"Nom lisible de l'entrée digitale I0."}
     ConfigVariable<char,0> i0NameVar_{NVS_KEY(NvsKeys::Io::IO_I0NM),"i0_name","io/input/i0",ConfigType::CharArray,(char*)digitalInCfg_[0].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[0].name)};
+    // CFGDOC: {"label":"GPIO entrée I0","help":"GPIO utilisée par l'entrée digitale I0."}
     ConfigVariable<uint8_t,0> i0PinVar_{NVS_KEY(NvsKeys::Io::IO_I0PN),"i0_pin","io/input/i0",ConfigType::UInt8,&digitalInCfg_[0].pin,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Actif à 1 I0","help":"Si activé, l'entrée I0 est considérée active à l'état haut."}
     ConfigVariable<bool,0> i0ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I0AH),"i0_active_high","io/input/i0",ConfigType::Bool,&digitalInCfg_[0].activeHigh,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Pull entrée I0","help":"Mode de résistance interne appliqué à l'entrée I0."}
     ConfigVariable<uint8_t,0> i0PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I0PU),"i0_pull_mode","io/input/i0",ConfigType::UInt8,&digitalInCfg_[0].pullMode,ConfigPersistence::Persistent,0};
 
+    // CFGDOC: {"label":"Nom entrée I1","help":"Nom lisible de l'entrée digitale I1."}
     ConfigVariable<char,0> i1NameVar_{NVS_KEY(NvsKeys::Io::IO_I1NM),"i1_name","io/input/i1",ConfigType::CharArray,(char*)digitalInCfg_[1].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[1].name)};
+    // CFGDOC: {"label":"GPIO entrée I1","help":"GPIO utilisée par l'entrée digitale I1."}
     ConfigVariable<uint8_t,0> i1PinVar_{NVS_KEY(NvsKeys::Io::IO_I1PN),"i1_pin","io/input/i1",ConfigType::UInt8,&digitalInCfg_[1].pin,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Actif à 1 I1","help":"Si activé, l'entrée I1 est considérée active à l'état haut."}
     ConfigVariable<bool,0> i1ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I1AH),"i1_active_high","io/input/i1",ConfigType::Bool,&digitalInCfg_[1].activeHigh,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Pull entrée I1","help":"Mode de résistance interne appliqué à l'entrée I1."}
     ConfigVariable<uint8_t,0> i1PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I1PU),"i1_pull_mode","io/input/i1",ConfigType::UInt8,&digitalInCfg_[1].pullMode,ConfigPersistence::Persistent,0};
 
+    // CFGDOC: {"label":"Nom entrée I2","help":"Nom lisible de l'entrée digitale I2."}
     ConfigVariable<char,0> i2NameVar_{NVS_KEY(NvsKeys::Io::IO_I2NM),"i2_name","io/input/i2",ConfigType::CharArray,(char*)digitalInCfg_[2].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[2].name)};
+    // CFGDOC: {"label":"GPIO entrée I2","help":"GPIO utilisée par l'entrée digitale I2."}
     ConfigVariable<uint8_t,0> i2PinVar_{NVS_KEY(NvsKeys::Io::IO_I2PN),"i2_pin","io/input/i2",ConfigType::UInt8,&digitalInCfg_[2].pin,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Actif à 1 I2","help":"Si activé, l'entrée I2 est considérée active à l'état haut."}
     ConfigVariable<bool,0> i2ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I2AH),"i2_active_high","io/input/i2",ConfigType::Bool,&digitalInCfg_[2].activeHigh,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Pull entrée I2","help":"Mode de résistance interne appliqué à l'entrée I2."}
     ConfigVariable<uint8_t,0> i2PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I2PU),"i2_pull_mode","io/input/i2",ConfigType::UInt8,&digitalInCfg_[2].pullMode,ConfigPersistence::Persistent,0};
 
+    // CFGDOC: {"label":"Nom entrée I3","help":"Nom lisible de l'entrée digitale I3."}
     ConfigVariable<char,0> i3NameVar_{NVS_KEY(NvsKeys::Io::IO_I3NM),"i3_name","io/input/i3",ConfigType::CharArray,(char*)digitalInCfg_[3].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[3].name)};
+    // CFGDOC: {"label":"GPIO entrée I3","help":"GPIO utilisée par l'entrée digitale I3."}
     ConfigVariable<uint8_t,0> i3PinVar_{NVS_KEY(NvsKeys::Io::IO_I3PN),"i3_pin","io/input/i3",ConfigType::UInt8,&digitalInCfg_[3].pin,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Actif à 1 I3","help":"Si activé, l'entrée I3 est considérée active à l'état haut."}
     ConfigVariable<bool,0> i3ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I3AH),"i3_active_high","io/input/i3",ConfigType::Bool,&digitalInCfg_[3].activeHigh,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Pull entrée I3","help":"Mode de résistance interne appliqué à l'entrée I3."}
     ConfigVariable<uint8_t,0> i3PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I3PU),"i3_pull_mode","io/input/i3",ConfigType::UInt8,&digitalInCfg_[3].pullMode,ConfigPersistence::Persistent,0};
 
+    // CFGDOC: {"label":"Nom entrée I4","help":"Nom lisible de l'entrée digitale I4."}
     ConfigVariable<char,0> i4NameVar_{NVS_KEY(NvsKeys::Io::IO_I4NM),"i4_name","io/input/i4",ConfigType::CharArray,(char*)digitalInCfg_[4].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[4].name)};
+    // CFGDOC: {"label":"GPIO entrée I4","help":"GPIO utilisée par l'entrée digitale I4."}
     ConfigVariable<uint8_t,0> i4PinVar_{NVS_KEY(NvsKeys::Io::IO_I4PN),"i4_pin","io/input/i4",ConfigType::UInt8,&digitalInCfg_[4].pin,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Actif à 1 I4","help":"Si activé, l'entrée I4 est considérée active à l'état haut."}
     ConfigVariable<bool,0> i4ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I4AH),"i4_active_high","io/input/i4",ConfigType::Bool,&digitalInCfg_[4].activeHigh,ConfigPersistence::Persistent,0};
+    // CFGDOC: {"label":"Pull entrée I4","help":"Mode de résistance interne appliqué à l'entrée I4."}
     ConfigVariable<uint8_t,0> i4PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I4PU),"i4_pull_mode","io/input/i4",ConfigType::UInt8,&digitalInCfg_[4].pullMode,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d0NameVar_{NVS_KEY(NvsKeys::Io::IO_D0NM),"d0_name","io/output/d0",ConfigType::CharArray,(char*)digitalCfg_[0].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[0].name)};

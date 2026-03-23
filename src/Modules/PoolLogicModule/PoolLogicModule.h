@@ -2,6 +2,9 @@
 /**
  * @file PoolLogicModule.h
  * @brief Pool business orchestration based on scheduler windows and sensor conditions.
+ *
+ * Public facade only. The implementation is split across Lifecycle / Scheduler /
+ * Control / Runtime / Commands translation units.
  */
 
 #include "Core/Module.h"
@@ -95,6 +98,7 @@ private:
     static constexpr uint8_t IO_ID_CHLORINE_LEVEL_DEFAULT =
         (uint8_t)PoolBinding::kSensorBindings[PoolBinding::kSensorSlotChlorineLevel].ioId;
 
+    // State and configuration storage
     bool enabled_ = true;
     volatile bool startupReady_ = true;
 
@@ -181,18 +185,6 @@ private:
     bool orpPidEnabled_ = false;
 
     portMUX_TYPE pendingMux_ = portMUX_INITIALIZER_UNLOCKED;
-
-    ConfigStore* cfgStore_ = nullptr;
-    EventBus* eventBus_ = nullptr;
-    const TimeSchedulerService* schedSvc_ = nullptr;
-    const IOServiceV2* ioSvc_ = nullptr;
-    const PoolDeviceService* poolSvc_ = nullptr;
-    const HAService* haSvc_ = nullptr;
-    const CommandService* cmdSvc_ = nullptr;
-    const MqttService* mqttSvc_ = nullptr;
-    const AlarmService* alarmSvc_ = nullptr;
-    const LogHubService* logHub_ = nullptr;
-    MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
 
     // CFGDOC: {"label":"PoolLogic actif","help":"Active ou désactive les automatismes PoolLogic."}
     ConfigVariable<bool,0> enabledVar_{NVS_KEY(NvsKeys::PoolLogic::Enabled), "enabled", "poollogic", ConfigType::Bool,
@@ -354,29 +346,40 @@ private:
     ConfigVariable<uint8_t,0> orpPumpDeviceVar_{NVS_KEY(NvsKeys::PoolLogic::OrpPumpSlot), "orp_pump_slot", "poollogic", ConfigType::UInt8,
                                                 &orpPumpDeviceSlot_, ConfigPersistence::Persistent, 0};
 
+    // Services and adapters
+    ConfigStore* cfgStore_ = nullptr;
+    EventBus* eventBus_ = nullptr;
+    const TimeSchedulerService* schedSvc_ = nullptr;
+    const IOServiceV2* ioSvc_ = nullptr;
+    const PoolDeviceService* poolSvc_ = nullptr;
+    const HAService* haSvc_ = nullptr;
+    const CommandService* cmdSvc_ = nullptr;
+    const MqttService* mqttSvc_ = nullptr;
+    const AlarmService* alarmSvc_ = nullptr;
+    const LogHubService* logHub_ = nullptr;
+    MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
+
+    // Lifecycle
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
-    static bool cmdFiltrationWriteStatic_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
-    static bool cmdFiltrationRecalcStatic_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
-    static bool cmdAutoModeSetStatic_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
-    static AlarmCondState condPsiLowStatic_(void* ctx, uint32_t nowMs);
-    static AlarmCondState condPsiHighStatic_(void* ctx, uint32_t nowMs);
-    static AlarmCondState condPhTankLowStatic_(void* ctx, uint32_t nowMs);
-    static AlarmCondState condChlorineTankLowStatic_(void* ctx, uint32_t nowMs);
-    bool cmdFiltrationWrite_(const CommandRequest& req, char* reply, size_t replyLen);
-    bool cmdFiltrationRecalc_(const CommandRequest& req, char* reply, size_t replyLen);
-    bool cmdAutoModeSet_(const CommandRequest& req, char* reply, size_t replyLen);
-    MqttBuildResult buildCfgBase_(MqttBuildContext& buildCtx);
+    void normalizeDeviceSlots_();
+    void logDeviceSlotConfig_() const;
+    void logDeviceSlotBinding_(const char* role, uint8_t slot, int8_t expectedType) const;
 
+    // Scheduler
     void ensureDailySlot_();
     bool computeFiltrationWindow_(float waterTemp, uint8_t& startHourOut, uint8_t& stopHourOut, uint8_t& durationOut);
     bool recalcAndApplyFiltrationWindow_(uint8_t* startHourOut = nullptr,
                                          uint8_t* stopHourOut = nullptr,
                                          uint8_t* durationOut = nullptr);
 
+    // Control
+    static AlarmCondState condPsiLowStatic_(void* ctx, uint32_t nowMs);
+    static AlarmCondState condPsiHighStatic_(void* ctx, uint32_t nowMs);
+    static AlarmCondState condPhTankLowStatic_(void* ctx, uint32_t nowMs);
+    static AlarmCondState condChlorineTankLowStatic_(void* ctx, uint32_t nowMs);
     bool readDeviceActualOn_(uint8_t deviceSlot, bool& onOut) const;
     bool writeDeviceDesired_(uint8_t deviceSlot, bool on);
-
     void syncDeviceState_(uint8_t deviceSlot, DeviceFsm& fsm, uint32_t nowMs, bool& turnedOnOut, bool& turnedOffOut);
     uint32_t stateUptimeSec_(const DeviceFsm& fsm, uint32_t nowMs) const;
     bool loadAnalogSensor_(uint8_t ioId, float& out) const;
@@ -393,10 +396,17 @@ private:
                           uint32_t nowMs,
                           bool& demandOnOut,
                           uint32_t& outputOnMsOut);
-
     void applyDeviceControl_(uint8_t deviceSlot, const char* label, DeviceFsm& fsm, bool desired, uint32_t nowMs);
-    void normalizeDeviceSlots_();
-    void logDeviceSlotConfig_() const;
-    void logDeviceSlotBinding_(const char* role, uint8_t slot, int8_t expectedType) const;
     void runControlLoop_(uint32_t nowMs);
+
+    // Runtime
+    MqttBuildResult buildCfgBase_(MqttBuildContext& buildCtx);
+
+    // Commands
+    static bool cmdFiltrationWriteStatic_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    static bool cmdFiltrationRecalcStatic_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    static bool cmdAutoModeSetStatic_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    bool cmdFiltrationWrite_(const CommandRequest& req, char* reply, size_t replyLen);
+    bool cmdFiltrationRecalc_(const CommandRequest& req, char* reply, size_t replyLen);
+    bool cmdAutoModeSet_(const CommandRequest& req, char* reply, size_t replyLen);
 };

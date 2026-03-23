@@ -604,6 +604,56 @@
       return sw;
     }
 
+    function buildFlowReadonlyStateTile(label, value, options) {
+      const stateKnown = typeof value === 'boolean';
+      const opts = options && typeof options === 'object' ? options : {};
+      const activeText = typeof opts.activeText === 'string' && opts.activeText.trim()
+        ? opts.activeText.trim()
+        : 'Actif';
+      const inactiveText = typeof opts.inactiveText === 'string' && opts.inactiveText.trim()
+        ? opts.inactiveText.trim()
+        : 'Inactif';
+      const unknownText = typeof opts.unknownText === 'string' && opts.unknownText.trim()
+        ? opts.unknownText.trim()
+        : 'Indisponible';
+
+      const tile = document.createElement('div');
+      tile.className = 'status-state-tile ' + (stateKnown ? (value ? 'is-true' : 'is-false') : 'is-empty');
+      tile.setAttribute('role', 'img');
+      tile.setAttribute(
+        'aria-label',
+        label + ' : ' + (stateKnown ? (value ? activeText : inactiveText) : unknownText)
+      );
+
+      const title = document.createElement('div');
+      title.className = 'status-state-title';
+      title.textContent = label;
+      tile.appendChild(title);
+
+      const state = document.createElement('div');
+      state.className = 'status-state-value';
+
+      const dot = document.createElement('span');
+      dot.className = 'status-state-dot';
+      state.appendChild(dot);
+
+      const text = document.createElement('span');
+      text.textContent = stateKnown ? (value ? activeText : inactiveText) : unknownText;
+      state.appendChild(text);
+
+      tile.appendChild(state);
+      return tile;
+    }
+
+    function buildFlowReadonlyStateGrid(items) {
+      const nodes = (items || []).filter((item) => item && typeof item.nodeType === 'number');
+      if (nodes.length === 0) return null;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'status-state-grid';
+      nodes.forEach((node) => wrapper.appendChild(node));
+      return wrapper;
+    }
+
     function fmtFlowUptime(ms) {
       if (!Number.isFinite(ms) || ms < 0) return '-';
       const sec = Math.floor(ms / 1000);
@@ -752,12 +802,235 @@
       return wrapper;
     }
 
+    function createFlowSvgElement(tagName, attrs) {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', tagName);
+      Object.keys(attrs || {}).forEach((key) => {
+        if (attrs[key] === null || typeof attrs[key] === 'undefined') return;
+        el.setAttribute(key, String(attrs[key]));
+      });
+      return el;
+    }
+
+    function flowGaugePolarToCartesian(cx, cy, radius, angleDeg) {
+      const rad = ((angleDeg - 90) * Math.PI) / 180;
+      return {
+        x: cx + (radius * Math.cos(rad)),
+        y: cy + (radius * Math.sin(rad))
+      };
+    }
+
+    function buildFlowGaugeArcPath(cx, cy, radius, startAngle, endAngle) {
+      const start = flowGaugePolarToCartesian(cx, cy, radius, startAngle);
+      const end = flowGaugePolarToCartesian(cx, cy, radius, endAngle);
+      const largeArc = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
+      const sweep = endAngle >= startAngle ? 1 : 0;
+      return 'M ' + start.x.toFixed(2) + ' ' + start.y.toFixed(2) +
+        ' A ' + radius + ' ' + radius + ' 0 ' + largeArc + ' ' + sweep + ' ' +
+        end.x.toFixed(2) + ' ' + end.y.toFixed(2);
+    }
+
+    function buildFlowGaugeTrianglePoints(cx, cy, angleDeg, tipRadius, baseRadius, halfWidth) {
+      const tip = flowGaugePolarToCartesian(cx, cy, tipRadius, angleDeg);
+      const baseCenter = flowGaugePolarToCartesian(cx, cy, baseRadius, angleDeg);
+      const rad = ((angleDeg - 90) * Math.PI) / 180;
+      const tangentX = -Math.sin(rad);
+      const tangentY = Math.cos(rad);
+      const baseLeftX = baseCenter.x + (tangentX * halfWidth);
+      const baseLeftY = baseCenter.y + (tangentY * halfWidth);
+      const baseRightX = baseCenter.x - (tangentX * halfWidth);
+      const baseRightY = baseCenter.y - (tangentY * halfWidth);
+      return [
+        tip.x.toFixed(2) + ',' + tip.y.toFixed(2),
+        baseLeftX.toFixed(2) + ',' + baseLeftY.toFixed(2),
+        baseRightX.toFixed(2) + ',' + baseRightY.toFixed(2)
+      ].join(' ');
+    }
+
+    function fmtFlowGaugeNumber(value, decimals) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '-';
+      return decimals > 0 ? n.toFixed(decimals) : String(Math.round(n));
+    }
+
+    function fmtFlowGaugeLabel(value, decimals, unit) {
+      const rendered = fmtFlowGaugeNumber(value, decimals);
+      if (rendered === '-') return rendered;
+      return unit ? (rendered + ' ' + unit) : rendered;
+    }
+
+    function createFlowFiveZoneBands(config) {
+      const min = Number(config && config.min);
+      const max = Number(config && config.max);
+      const criticalLowEnd = Number(config && config.criticalLowEnd);
+      const warningLowEnd = Number(config && config.warningLowEnd);
+      const warningHighStart = Number(config && config.warningHighStart);
+      const criticalHighStart = Number(config && config.criticalHighStart);
+
+      if (
+        !Number.isFinite(min) ||
+        !Number.isFinite(max) ||
+        !Number.isFinite(criticalLowEnd) ||
+        !Number.isFinite(warningLowEnd) ||
+        !Number.isFinite(warningHighStart) ||
+        !Number.isFinite(criticalHighStart)
+      ) {
+        return [];
+      }
+
+      if (
+        !(min < criticalLowEnd) ||
+        !(criticalLowEnd < warningLowEnd) ||
+        !(warningLowEnd < warningHighStart) ||
+        !(warningHighStart < criticalHighStart) ||
+        !(criticalHighStart < max)
+      ) {
+        return [];
+      }
+
+      return [
+        { from: min, to: criticalLowEnd, color: config.criticalLowColor || '#D14C66' },
+        { from: criticalLowEnd, to: warningLowEnd, color: config.warningLowColor || '#F0B255' },
+        { from: warningLowEnd, to: warningHighStart, color: config.okColor || '#2F9E68' },
+        { from: warningHighStart, to: criticalHighStart, color: config.warningHighColor || '#F0B255' },
+        { from: criticalHighStart, to: max, color: config.criticalHighColor || '#D14C66' }
+      ];
+    }
+
+    function resolveFlowGaugeValueColor(value, bands) {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return '#102B4C';
+      if (!Array.isArray(bands) || bands.length === 0) return '#102B4C';
+      const minBound = Number(bands[0].from);
+      const maxBound = Number(bands[bands.length - 1].to);
+      const clampedValue = (
+        Number.isFinite(minBound) &&
+        Number.isFinite(maxBound) &&
+        maxBound > minBound
+      ) ? clampFlowValue(numericValue, minBound, maxBound) : numericValue;
+      for (let i = 0; i < bands.length; ++i) {
+        const band = bands[i];
+        const from = Number(band.from);
+        const to = Number(band.to);
+        if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
+        if (clampedValue >= from && clampedValue <= to) {
+          return band.color || '#102B4C';
+        }
+      }
+      return '#102B4C';
+    }
+
+    function buildFlowArcGauge(config) {
+      const min = Number(config && config.min);
+      const max = Number(config && config.max);
+      const rawValue = Number(config && config.value);
+      const hasValue = Number.isFinite(rawValue);
+      const decimals = Math.max(0, Number(config && config.decimals) || 0);
+      const unit = typeof (config && config.unit) === 'string' ? config.unit.trim() : '';
+      const label = String((config && config.label) || 'Mesure');
+      const startAngle = -100;
+      const sweepAngle = 200;
+      const endAngle = startAngle + sweepAngle;
+      const cx = 120;
+      const cy = 84;
+      const radius = 60;
+      const gapAngle = 2.2;
+      const bands = (Array.isArray(config && config.bands) ? config.bands : [])
+        .map((band) => ({
+          from: clampFlowValue(Number(band.from), min, max),
+          to: clampFlowValue(Number(band.to), min, max),
+          color: band.color || '#AFC3D2'
+        }))
+        .filter((band) => Number.isFinite(band.from) && Number.isFinite(band.to) && band.to > band.from);
+      const activeBands = bands.length > 0 ? bands : [{ from: min, to: max, color: '#AFC3D2' }];
+      const gaugeColor = resolveFlowGaugeValueColor(rawValue, activeBands);
+      const valueToAngle = function(value) {
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return startAngle;
+        const ratio = (clampFlowValue(value, min, max) - min) / (max - min);
+        return startAngle + (ratio * sweepAngle);
+      };
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'status-arc-gauge' + (hasValue ? '' : ' is-empty');
+      wrapper.setAttribute('role', 'img');
+      wrapper.setAttribute(
+        'aria-label',
+        label + ' : ' + (hasValue ? fmtFlowGaugeLabel(rawValue, decimals, unit) : 'indisponible')
+      );
+
+      const svg = createFlowSvgElement('svg', {
+        class: 'status-arc-gauge-svg',
+        viewBox: '0 0 240 118',
+        'aria-hidden': 'true'
+      });
+
+      svg.appendChild(createFlowSvgElement('path', {
+        class: 'status-arc-gauge-track',
+        d: buildFlowGaugeArcPath(cx, cy, radius, startAngle, endAngle)
+      }));
+
+      activeBands.forEach((band, index) => {
+        const segmentStart = valueToAngle(band.from) + (index > 0 ? (gapAngle / 2) : 0);
+        const segmentEnd = valueToAngle(band.to) - (index < (activeBands.length - 1) ? (gapAngle / 2) : 0);
+        if (!(segmentEnd > segmentStart)) return;
+        svg.appendChild(createFlowSvgElement('path', {
+          class: 'status-arc-gauge-band',
+          d: buildFlowGaugeArcPath(cx, cy, radius, segmentStart, segmentEnd),
+          stroke: band.color
+        }));
+      });
+
+      const markerAngle = hasValue ? valueToAngle(rawValue) : ((startAngle + endAngle) / 2);
+      svg.appendChild(createFlowSvgElement('polygon', {
+        class: 'status-arc-gauge-marker',
+        points: buildFlowGaugeTrianglePoints(cx, cy, markerAngle, radius + 6, radius + 18, 5),
+        fill: hasValue ? gaugeColor : '#8FA1B3'
+      }));
+
+      const valueText = createFlowSvgElement('text', {
+        class: 'status-arc-gauge-value',
+        x: cx,
+        y: 74,
+        fill: hasValue ? gaugeColor : '#8FA1B3'
+      });
+      valueText.textContent = hasValue ? fmtFlowGaugeLabel(rawValue, decimals, unit) : '--';
+      svg.appendChild(valueText);
+
+      wrapper.appendChild(svg);
+
+      const title = document.createElement('div');
+      title.className = 'status-arc-gauge-title';
+      title.textContent = label;
+      wrapper.appendChild(title);
+
+      return wrapper;
+    }
+
+    function buildFlowArcGaugeGrid(items) {
+      const nodes = (items || []).filter((item) => item && typeof item.nodeType === 'number');
+      if (nodes.length === 0) return null;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'status-arc-grid';
+      nodes.forEach((node) => wrapper.appendChild(node));
+      return wrapper;
+    }
+
+    window.FlowWebComponents = Object.assign({}, window.FlowWebComponents, {
+      buildArcGauge: buildFlowArcGauge,
+      createFiveZoneBands: createFlowFiveZoneBands
+    });
+
     function buildMqttStatsStrip(items) {
       const wrapper = document.createElement('div');
       wrapper.className = 'status-mqtt-strip';
       (items || []).forEach((item) => {
+        const numericValue = Number(item ? item.value : null);
+        const hasIssue = Number.isFinite(numericValue) && numericValue > 0;
         const cell = document.createElement('div');
-        cell.className = 'status-mqtt-metric';
+        cell.className = 'status-mqtt-metric ' + (hasIssue ? 'is-alert' : 'is-ok');
+        if (item && typeof item.title === 'string' && item.title.trim()) {
+          cell.title = item.title.trim() + ' : ' + fmtFlowCount(item.value);
+          cell.setAttribute('aria-label', cell.title);
+        }
 
         const label = document.createElement('span');
         label.className = 'status-mqtt-metric-label';
@@ -910,10 +1183,13 @@
       head.appendChild(buildFlowStatusCardIcon(config.icon, !!config.ok, config.iconLabel));
       card.appendChild(head);
 
-      const kv = document.createElement('div');
-      kv.className = 'status-kv';
-      (config.rows || []).forEach((row) => appendFlowStatusRow(kv, row[0], row[1]));
-      card.appendChild(kv);
+      const rows = Array.isArray(config.rows) ? config.rows : [];
+      if (rows.length > 0) {
+        const kv = document.createElement('div');
+        kv.className = 'status-kv';
+        rows.forEach((row) => appendFlowStatusRow(kv, row[0], row[1]));
+        card.appendChild(kv);
+      }
       (config.extras || []).forEach((extra) => {
         if (!extra || typeof extra.nodeType !== 'number') return;
         card.appendChild(extra);
@@ -1014,6 +1290,86 @@
         supervisorFirmwareVersion !== '-' ||
         supervisorUptimeMs > 0 ||
         supervisorHeapFree !== null;
+      const poolGaugeNodes = [
+        buildFlowArcGauge({
+          label: 'Temperature eau',
+          value: waterTemp,
+          min: 0,
+          max: 40,
+          unit: '°C',
+          decimals: 1,
+          bands: createFlowFiveZoneBands({
+            min: 0,
+            criticalLowEnd: 8,
+            warningLowEnd: 14,
+            warningHighStart: 30,
+            criticalHighStart: 34,
+            max: 40
+          })
+        }),
+        buildFlowArcGauge({
+          label: 'Temperature air',
+          value: airTemp,
+          min: -10,
+          max: 45,
+          unit: '°C',
+          decimals: 1,
+          bands: createFlowFiveZoneBands({
+            min: -10,
+            criticalLowEnd: 0,
+            warningLowEnd: 8,
+            warningHighStart: 28,
+            criticalHighStart: 35,
+            max: 45
+          })
+        }),
+        buildFlowArcGauge({
+          label: 'pH',
+          value: phValue,
+          min: 6.4,
+          max: 8.4,
+          decimals: 2,
+          bands: createFlowFiveZoneBands({
+            min: 6.4,
+            criticalLowEnd: 6.8,
+            warningLowEnd: 7.0,
+            warningHighStart: 7.6,
+            criticalHighStart: 7.8,
+            max: 8.4
+          })
+        }),
+        buildFlowArcGauge({
+          label: 'ORP',
+          value: orpValue,
+          min: 350,
+          max: 900,
+          unit: 'mV',
+          decimals: 0,
+          bands: createFlowFiveZoneBands({
+            min: 350,
+            criticalLowEnd: 500,
+            warningLowEnd: 620,
+            warningHighStart: 760,
+            criticalHighStart: 820,
+            max: 900
+          })
+        })
+      ];
+      const poolGaugeGrid = buildFlowArcGaugeGrid(poolGaugeNodes);
+      const poolStateGrid = buildFlowReadonlyStateGrid([
+        buildFlowReadonlyStateTile('Mode auto', autoModeOn, {
+          activeText: 'Actif',
+          inactiveText: 'Manuel'
+        }),
+        buildFlowReadonlyStateTile('Filtration', filtrationOn, {
+          activeText: 'En marche',
+          inactiveText: 'Arret'
+        }),
+        buildFlowReadonlyStateTile('Hivernage', winterModeOn, {
+          activeText: 'Actif',
+          inactiveText: 'Arret'
+        })
+      ]);
 
       flowStatusGrid.innerHTML = '';
       appendFlowStatusCard({
@@ -1037,35 +1393,45 @@
         ],
         extras: [
           buildMqttStatsStrip([
-            { label: 'Anomalies', value: mqttIssueCount },
-            { label: 'Ignores', value: (Number(mqttRxDrop) || 0) + (Number(mqttOversizeDrop) || 0) },
-            { label: 'Contenu', value: mqttParseFail },
-            { label: 'Traitement', value: mqttHandlerFail }
+            {
+              label: 'Anomalies',
+              title: 'Anomalies MQTT totalisees (ignores + contenu invalide + erreurs de traitement)',
+              value: mqttIssueCount
+            },
+            {
+              label: 'Ignores',
+              title: 'Messages MQTT ignores ou rejetes (drops RX + payload trop volumineux)',
+              value: (Number(mqttRxDrop) || 0) + (Number(mqttOversizeDrop) || 0)
+            },
+            {
+              label: 'Contenu',
+              title: 'Messages MQTT recus mais invalides ou impossibles a parser',
+              value: mqttParseFail
+            },
+            {
+              label: 'Traitement',
+              title: 'Messages MQTT recus mais ayant echoue pendant le traitement applicatif',
+              value: mqttHandlerFail
+            }
           ])
         ]
       });
       appendFlowStatusCard({
         title: 'Mesures Bassin',
+        cardClass: 'status-card-pool-metrics',
         icon: 'pool',
         ok: poolMetricsReady,
         iconLabel: poolMetricsReady ? 'Mesures bassin disponibles' : 'Mesures bassin indisponibles',
-        rows: [
-          ['Eau', fmtFlowFixed(waterTemp, 1, '°C')],
-          ['Air', fmtFlowFixed(airTemp, 1, '°C')],
-          ['ORP', fmtFlowFixed(orpValue, 0, 'mV')],
-          ['pH', fmtFlowFixed(phValue, 2, '')]
-        ]
+        rows: [],
+        extras: poolGaugeGrid ? [poolGaugeGrid] : []
       });
       appendFlowStatusCard({
         title: 'Etats Bassin',
         icon: 'pump',
         ok: poolStatesReady,
         iconLabel: poolStatesReady ? 'Etats bassin disponibles' : 'Etats bassin indisponibles',
-        rows: [
-          ['Mode auto', (typeof autoModeOn === 'boolean') ? buildFlowStatusReadonlySwitch(autoModeOn) : '-'],
-          ['Filtration', (typeof filtrationOn === 'boolean') ? buildFlowStatusReadonlySwitch(filtrationOn) : '-'],
-          ['Hivernage', (typeof winterModeOn === 'boolean') ? buildFlowStatusReadonlySwitch(winterModeOn) : '-']
-        ]
+        rows: [],
+        extras: poolStateGrid ? [poolStateGrid] : []
       });
       appendFlowStatusCard({
         title: 'Superviseur',

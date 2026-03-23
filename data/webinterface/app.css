@@ -423,6 +423,67 @@
     .status-toggle-readonly input {
       cursor: default;
     }
+    .status-state-grid {
+      margin-top: 2px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+    }
+    .status-state-tile {
+      min-width: 0;
+      border: 1px solid var(--panel-frame-border);
+      border-radius: 12px;
+      background: #F7FAFC;
+      padding: 10px;
+      display: grid;
+      gap: 6px;
+    }
+    .status-state-title {
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--panel-frame-title);
+    }
+    .status-state-value {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      color: #6A7F93;
+    }
+    .status-state-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      background: #B8C7D6;
+      box-shadow: 0 0 0 4px rgba(184, 199, 214, 0.22);
+    }
+    .status-state-tile.is-true .status-state-value {
+      color: #2F9E68;
+    }
+    .status-state-tile.is-true .status-state-dot {
+      background: #2F9E68;
+      box-shadow: 0 0 0 4px rgba(47, 158, 104, 0.18);
+    }
+    .status-state-tile.is-false .status-state-value {
+      color: #D14C66;
+    }
+    .status-state-tile.is-false .status-state-dot {
+      background: #D14C66;
+      box-shadow: 0 0 0 4px rgba(209, 76, 102, 0.16);
+    }
+    .status-state-tile.is-empty .status-state-value {
+      color: #8FA1B3;
+    }
+    .status-state-tile.is-empty .status-state-dot {
+      background: #B8C7D6;
+      box-shadow: 0 0 0 4px rgba(184, 199, 214, 0.2);
+    }
     .status-gauge {
       display: inline-grid;
       gap: 5px;
@@ -454,6 +515,82 @@
       color: var(--panel-frame-text);
       white-space: nowrap;
     }
+    .status-arc-grid {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      width: 100%;
+    }
+    .status-arc-gauge {
+      border: 1px solid var(--panel-frame-border);
+      border-radius: 10px;
+      background: #F7FAFC;
+      padding: 4px 4px 5px 4px;
+      min-width: 0;
+      display: grid;
+      gap: 0;
+    }
+    .status-arc-gauge-head {
+      display: none;
+    }
+    .status-arc-gauge-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--panel-frame-title);
+      line-height: 1.15;
+      text-align: center;
+      white-space: nowrap;
+      margin-top: -12px;
+    }
+    .status-arc-gauge-reading {
+      font-size: 9px;
+      font-weight: 700;
+      white-space: nowrap;
+      text-align: right;
+      line-height: 1.1;
+    }
+    .status-arc-gauge-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+    .status-arc-gauge-track {
+      fill: none;
+      stroke: rgba(16, 43, 76, 0.12);
+      stroke-width: 10;
+      stroke-linecap: round;
+    }
+    .status-arc-gauge-band {
+      fill: none;
+      stroke-width: 10;
+      stroke-linecap: round;
+    }
+    .status-arc-gauge-marker {
+    }
+    .status-arc-gauge-value {
+      font-size: 21px;
+      font-weight: 800;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+    .status-arc-gauge-unit {
+      fill: #7B8897;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-anchor: middle;
+    }
+    .status-arc-gauge.is-empty .status-arc-gauge-marker {
+      opacity: 0.28;
+    }
+    .status-arc-gauge.is-empty .status-arc-gauge-value {
+      fill: #8FA1B3 !important;
+    }
+    .status-arc-gauge.is-empty .status-arc-gauge-reading {
+      color: #8FA1B3 !important;
+    }
     .status-mqtt-strip {
       margin-top: 12px;
       display: grid;
@@ -472,11 +609,27 @@
       gap: 3px;
       text-align: center;
     }
+    .status-mqtt-metric.is-ok {
+      background: rgba(47, 158, 104, 0.06);
+      border-color: rgba(47, 158, 104, 0.22);
+    }
+    .status-mqtt-metric.is-alert {
+      background: rgba(209, 76, 102, 0.06);
+      border-color: rgba(209, 76, 102, 0.22);
+    }
     .status-mqtt-metric-label {
       font-size: 11px;
       font-weight: 700;
       color: #6A7F93;
       text-transform: uppercase;
+    }
+    .status-mqtt-metric.is-ok .status-mqtt-metric-label,
+    .status-mqtt-metric.is-ok .status-mqtt-metric-value {
+      color: #2F9E68;
+    }
+    .status-mqtt-metric.is-alert .status-mqtt-metric-label,
+    .status-mqtt-metric.is-alert .status-mqtt-metric-value {
+      color: #D14C66;
     }
     .status-mqtt-metric-value {
       font-size: 16px;
@@ -1231,6 +1384,9 @@
     }
     .overlay { position: fixed; inset: 0; background: rgba(1,10,22,0.62); display: none; z-index: 10; }
     @media (max-width: 900px) {
+      .status-grid {
+        grid-template-columns: 1fr;
+      }
       .drawer {
         position: fixed; left: 0; top: 0; bottom: 0;
         width: min(252px, calc(100vw - 32px));
@@ -1280,6 +1436,9 @@
       }
       .status-kv b {
         text-align: left;
+      }
+      .status-arc-gauge-title {
+        margin-top: -7px;
       }
       .status-card-mqtt .status-kv div {
         align-items: stretch;

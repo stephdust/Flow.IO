@@ -1,0 +1,500 @@
+/**
+ * @file PoolLogicControl.cpp
+ * @brief Control loop, device state, and alarm conditions for PoolLogicModule.
+ */
+
+#include "PoolLogicModule.h"
+#include "Modules/IOModule/IORuntime.h"
+#include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
+
+#include <cmath>
+
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolLogicModule)
+#include "Core/ModuleLog.h"
+
+// Alarm conditions intentionally stay close to the control helpers because they
+// read the same live IO/runtime state and should evolve together.
+AlarmCondState PoolLogicModule::condPsiLowStatic_(void* ctx, uint32_t nowMs)
+{
+    PoolLogicModule* self = static_cast<PoolLogicModule*>(ctx);
+    if (!self || !self->enabled_) return AlarmCondState::False;
+    if (!self->filtrationFsm_.on) return AlarmCondState::False;
+    const uint32_t runSec = self->stateUptimeSec_(self->filtrationFsm_, nowMs);
+    if (runSec <= self->psiStartupDelaySec_) return AlarmCondState::False;
+
+    float psi = 0.0f;
+    if (!self->loadAnalogSensor_(self->psiIoId_, psi)) {
+        return AlarmCondState::Unknown;
+    }
+
+    return (psi < self->psiLowThreshold_) ? AlarmCondState::True : AlarmCondState::False;
+}
+
+AlarmCondState PoolLogicModule::condPsiHighStatic_(void* ctx, uint32_t)
+{
+    PoolLogicModule* self = static_cast<PoolLogicModule*>(ctx);
+    if (!self || !self->enabled_) return AlarmCondState::False;
+    if (!self->filtrationFsm_.on) return AlarmCondState::False;
+
+    float psi = 0.0f;
+    if (!self->loadAnalogSensor_(self->psiIoId_, psi)) {
+        return AlarmCondState::Unknown;
+    }
+
+    return (psi > self->psiHighThreshold_) ? AlarmCondState::True : AlarmCondState::False;
+}
+
+AlarmCondState PoolLogicModule::condPhTankLowStatic_(void* ctx, uint32_t)
+{
+    PoolLogicModule* self = static_cast<PoolLogicModule*>(ctx);
+    if (!self || !self->enabled_) return AlarmCondState::False;
+
+    bool low = false;
+    if (!self->loadDigitalSensor_(self->phLevelIoId_, low)) {
+        return AlarmCondState::Unknown;
+    }
+    return low ? AlarmCondState::True : AlarmCondState::False;
+}
+
+AlarmCondState PoolLogicModule::condChlorineTankLowStatic_(void* ctx, uint32_t)
+{
+    PoolLogicModule* self = static_cast<PoolLogicModule*>(ctx);
+    if (!self || !self->enabled_) return AlarmCondState::False;
+
+    bool low = false;
+    if (!self->loadDigitalSensor_(self->chlorineLevelIoId_, low)) {
+        return AlarmCondState::Unknown;
+    }
+    return low ? AlarmCondState::True : AlarmCondState::False;
+}
+
+bool PoolLogicModule::readDeviceActualOn_(uint8_t deviceSlot, bool& onOut) const
+{
+    if (!poolSvc_ || !poolSvc_->readActualOn) return false;
+    uint8_t on = 0;
+    if (poolSvc_->readActualOn(poolSvc_->ctx, deviceSlot, &on, nullptr) != POOLDEV_SVC_OK) return false;
+    onOut = (on != 0U);
+    return true;
+}
+
+bool PoolLogicModule::writeDeviceDesired_(uint8_t deviceSlot, bool on)
+{
+    if (!poolSvc_ || !poolSvc_->writeDesired) return false;
+    const PoolDeviceSvcStatus st = poolSvc_->writeDesired(poolSvc_->ctx, deviceSlot, on ? 1U : 0U);
+    if (st != POOLDEV_SVC_OK) {
+        LOGW("pooldev.writeDesired failed slot=%u desired=%u st=%u",
+             (unsigned)deviceSlot,
+             on ? 1u : 0u,
+             (unsigned)st);
+        return false;
+    }
+    return true;
+}
+
+// Device FSM synchronization is edge-oriented: it preserves the current state
+// and only emits transitions when the observed hardware state changes.
+void PoolLogicModule::syncDeviceState_(uint8_t deviceSlot, DeviceFsm& fsm, uint32_t nowMs, bool& turnedOnOut, bool& turnedOffOut)
+{
+    turnedOnOut = false;
+    turnedOffOut = false;
+
+    bool actualOn = false;
+    if (!readDeviceActualOn_(deviceSlot, actualOn)) {
+        return;
+    }
+
+    if (!fsm.known) {
+        fsm.known = true;
+        fsm.on = actualOn;
+        fsm.stateSinceMs = nowMs;
+        return;
+    }
+
+    if (fsm.on != actualOn) {
+        turnedOnOut = (!fsm.on && actualOn);
+        turnedOffOut = (fsm.on && !actualOn);
+        fsm.on = actualOn;
+        fsm.stateSinceMs = nowMs;
+    }
+}
+
+uint32_t PoolLogicModule::stateUptimeSec_(const DeviceFsm& fsm, uint32_t nowMs) const
+{
+    if (!fsm.known || !fsm.on) return 0;
+    return (uint32_t)((nowMs - fsm.stateSinceMs) / 1000UL);
+}
+
+bool PoolLogicModule::loadAnalogSensor_(uint8_t ioId, float& out) const
+{
+    if (!ioSvc_ || !ioSvc_->readAnalog) return false;
+    return ioSvc_->readAnalog(ioSvc_->ctx, (IoId)ioId, &out, nullptr, nullptr) == IO_OK;
+}
+
+bool PoolLogicModule::loadDigitalSensor_(uint8_t ioId, bool& out) const
+{
+    if (!ioSvc_ || !ioSvc_->readDigital) return false;
+    uint8_t on = 0;
+    if (ioSvc_->readDigital(ioSvc_->ctx, (IoId)ioId, &on, nullptr, nullptr) != IO_OK) return false;
+    out = (on != 0U);
+    return true;
+}
+
+void PoolLogicModule::resetTemporalPidState_(TemporalPidState& st, uint32_t nowMs)
+{
+    st.initialized = false;
+    st.sampleValid = false;
+    st.lastDemandOn = false;
+    st.windowStartMs = nowMs;
+    st.lastComputeMs = nowMs;
+    st.sampleTsMs = 0;
+    st.outputOnMs = 0;
+    st.sampleInput = 0.0f;
+    st.sampleSetpoint = 0.0f;
+    st.sampleError = 0.0f;
+    st.integral = 0.0f;
+    st.prevError = 0.0f;
+    st.lastError = 0.0f;
+    st.runtimeTsMs = nowMs;
+}
+
+bool PoolLogicModule::stepTemporalPid_(TemporalPidState& st,
+                                       float input,
+                                       float setpoint,
+                                       float kp,
+                                       float ki,
+                                       float kd,
+                                       int32_t windowMsCfg,
+                                       bool positiveWhenInputHigh,
+                                       uint32_t nowMs,
+                                       bool& demandOnOut,
+                                       uint32_t& outputOnMsOut)
+{
+    // The PID output is converted into a time-on window so peristaltic pumps
+    // can be driven with coarse duty-cycle control instead of a raw analog value.
+    const uint32_t windowMs = (windowMsCfg > 1000) ? (uint32_t)windowMsCfg : 1000U;
+    const uint32_t sampleMs = (pidSampleMs_ > 100) ? (uint32_t)pidSampleMs_ : 100U;
+    const uint32_t minOnMs = (pidMinOnMs_ > 0) ? (uint32_t)pidMinOnMs_ : 0U;
+
+    if (!st.initialized) {
+        st.initialized = true;
+        st.windowStartMs = nowMs;
+        st.lastComputeMs = nowMs;
+        st.sampleValid = false;
+        st.sampleTsMs = 0;
+        st.sampleInput = 0.0f;
+        st.sampleSetpoint = 0.0f;
+        st.sampleError = 0.0f;
+        st.integral = 0.0f;
+        st.prevError = 0.0f;
+        st.lastError = 0.0f;
+        st.outputOnMs = 0;
+        st.lastDemandOn = false;
+        st.runtimeTsMs = nowMs;
+    }
+
+    while ((uint32_t)(nowMs - st.windowStartMs) >= windowMs) {
+        st.windowStartMs += windowMs;
+    }
+
+    if ((uint32_t)(nowMs - st.lastComputeMs) >= sampleMs) {
+        const uint32_t dtMs = nowMs - st.lastComputeMs;
+        const float dtSec = (dtMs > 0U) ? ((float)dtMs / 1000.0f) : 0.0f;
+        st.lastComputeMs = nowMs;
+
+        const float error = positiveWhenInputHigh ? (input - setpoint) : (setpoint - input);
+        st.lastError = error;
+
+        float outputMs = 0.0f;
+        if (error > 0.0f && std::isfinite(error)) {
+            if (ki != 0.0f && dtSec > 0.0f) {
+                st.integral += error * dtSec;
+            } else {
+                st.integral = 0.0f;
+            }
+            const float deriv = (dtSec > 0.0f) ? ((error - st.prevError) / dtSec) : 0.0f;
+            outputMs = (kp * error) + (ki * st.integral) + (kd * deriv);
+            if (!std::isfinite(outputMs) || outputMs < 0.0f) outputMs = 0.0f;
+            if (outputMs > (float)windowMs) outputMs = (float)windowMs;
+        } else {
+            st.integral = 0.0f;
+            outputMs = 0.0f;
+        }
+        st.prevError = error;
+        st.sampleValid = true;
+        st.sampleInput = input;
+        st.sampleSetpoint = setpoint;
+        st.sampleError = error;
+        st.sampleTsMs = nowMs;
+        st.runtimeTsMs = nowMs;
+
+        uint32_t outMs = (uint32_t)(outputMs + 0.5f);
+        if (outMs < minOnMs) outMs = 0U;
+        if (outMs > windowMs) outMs = windowMs;
+        st.outputOnMs = outMs;
+    }
+
+    const uint32_t elapsedMs = nowMs - st.windowStartMs;
+    const bool demandOn = (st.outputOnMs > 0U) && (elapsedMs < st.outputOnMs);
+    if (demandOn != st.lastDemandOn) {
+        st.lastDemandOn = demandOn;
+        st.runtimeTsMs = nowMs;
+    }
+
+    demandOnOut = demandOn;
+    outputOnMsOut = st.outputOnMs;
+    return true;
+}
+
+void PoolLogicModule::applyDeviceControl_(uint8_t deviceSlot,
+                                          const char* label,
+                                          DeviceFsm& fsm,
+                                          bool desired,
+                                          uint32_t nowMs)
+{
+    const bool desiredChanged = (desired != fsm.lastDesired);
+    // When the actual state does not follow the requested state, retry at a
+    // bounded cadence instead of spamming the downstream pool-device service.
+    const bool needRetry = (fsm.known && (fsm.on != desired) && (uint32_t)(nowMs - fsm.lastCmdMs) >= 5000U);
+
+    if (desiredChanged || needRetry) {
+        if (writeDeviceDesired_(deviceSlot, desired)) {
+            LOGI("%s %s", desired ? "Start" : "Stop", label ? label : "Pool Device");
+        }
+        fsm.lastCmdMs = nowMs;
+    }
+
+    fsm.lastDesired = desired;
+}
+
+void PoolLogicModule::runControlLoop_(uint32_t nowMs)
+{
+    // The loop always starts by refreshing observed actuator states so all
+    // subsequent decisions are based on the latest physical feedback.
+    bool filtrationStarted = false;
+    bool filtrationStopped = false;
+    bool robotStopped = false;
+    bool unusedStart = false;
+    bool unusedStop = false;
+
+    syncDeviceState_(filtrationDeviceSlot_, filtrationFsm_, nowMs, filtrationStarted, filtrationStopped);
+    syncDeviceState_(robotDeviceSlot_, robotFsm_, nowMs, unusedStart, robotStopped);
+    syncDeviceState_(swgDeviceSlot_, swgFsm_, nowMs, unusedStart, unusedStop);
+    syncDeviceState_(fillingDeviceSlot_, fillingFsm_, nowMs, unusedStart, unusedStop);
+    syncDeviceState_(phPumpDeviceSlot_, phPumpFsm_, nowMs, unusedStart, unusedStop);
+    syncDeviceState_(orpPumpDeviceSlot_, orpPumpFsm_, nowMs, unusedStart, unusedStop);
+
+    if (filtrationStarted) {
+        phPidEnabled_ = false;
+        orpPidEnabled_ = false;
+        resetTemporalPidState_(phPidState_, nowMs);
+        resetTemporalPidState_(orpPidState_, nowMs);
+    }
+    if (filtrationStopped) {
+        phPidEnabled_ = false;
+        orpPidEnabled_ = false;
+        resetTemporalPidState_(phPidState_, nowMs);
+        resetTemporalPidState_(orpPidState_, nowMs);
+    }
+    if (robotStopped) {
+        cleaningDone_ = true;
+    }
+
+    float psi = 0.0f;
+    float ph = 0.0f;
+    float waterTemp = 0.0f;
+    float airTemp = 0.0f;
+    float orp = 0.0f;
+    bool levelOk = true;
+    bool phTankLow = false;
+    bool chlorineTankLow = false;
+
+    const bool havePsi = loadAnalogSensor_(psiIoId_, psi);
+    const bool havePh = loadAnalogSensor_(phIoId_, ph);
+    const bool haveWaterTemp = loadAnalogSensor_(waterTempIoId_, waterTemp);
+    const bool haveAirTemp = loadAnalogSensor_(airTempIoId_, airTemp);
+    const bool haveOrp = loadAnalogSensor_(orpIoId_, orp);
+    const bool haveLevel = loadDigitalSensor_(levelIoId_, levelOk);
+    const bool havePhTankLow = loadDigitalSensor_(phLevelIoId_, phTankLow);
+    const bool haveChlorineTankLow = loadDigitalSensor_(chlorineLevelIoId_, chlorineTankLow);
+
+    // Prefer centralized alarm state when available; otherwise fall back to a
+    // local safety latch so standalone behavior remains conservative.
+    if (alarmSvc_ && alarmSvc_->isActive) {
+        const bool psiLow = alarmSvc_->isActive(alarmSvc_->ctx, AlarmId::PoolPsiLow);
+        const bool psiHigh = alarmSvc_->isActive(alarmSvc_->ctx, AlarmId::PoolPsiHigh);
+        const bool phTankLowAlarm = alarmSvc_->isActive(alarmSvc_->ctx, AlarmId::PoolPhTankLow);
+        const bool chlorineTankLowAlarm = alarmSvc_->isActive(alarmSvc_->ctx, AlarmId::PoolChlorineTankLow);
+        psiError_ = psiLow || psiHigh;
+        phTankLowError_ = phTankLowAlarm;
+        chlorineTankLowError_ = chlorineTankLowAlarm;
+    } else {
+        phTankLowError_ = havePhTankLow && phTankLow;
+        chlorineTankLowError_ = haveChlorineTankLow && chlorineTankLow;
+        if (filtrationFsm_.on && havePsi) {
+            const uint32_t runSec = stateUptimeSec_(filtrationFsm_, nowMs);
+            const bool underPressure = (runSec > psiStartupDelaySec_) && (psi < psiLowThreshold_);
+            const bool overPressure = (psi > psiHighThreshold_);
+            if ((underPressure || overPressure) && !psiError_) {
+                psiError_ = true;
+                LOGW("PSI error latched (psi=%.3f low=%.3f high=%.3f)",
+                     (double)psi,
+                     (double)psiLowThreshold_,
+                     (double)psiHighThreshold_);
+            }
+        }
+    }
+
+    // PID regulation is armed only after filtration has been stable long enough
+    // to avoid reacting to startup transients.
+    if (filtrationFsm_.on && !winterMode_) {
+        const uint32_t runMin = stateUptimeSec_(filtrationFsm_, nowMs) / 60U;
+
+        if (phAutoMode_ && !phPidEnabled_ && runMin >= delayPidsMin_) {
+            phPidEnabled_ = true;
+            LOGI("Activate pH regulation (delay=%umin)", (unsigned)runMin);
+        }
+        if (orpAutoMode_ && !orpPidEnabled_ && runMin >= delayPidsMin_) {
+            orpPidEnabled_ = true;
+            LOGI("Activate ORP regulation (delay=%umin)", (unsigned)runMin);
+        }
+    } else {
+        phPidEnabled_ = false;
+        orpPidEnabled_ = false;
+    }
+
+    bool windowActive = false;
+    portENTER_CRITICAL(&pendingMux_);
+    windowActive = filtrationWindowActive_;
+    portEXIT_CRITICAL(&pendingMux_);
+
+    // Filtration arbitration intentionally applies safety, then manual mode,
+    // then automatic scheduling/winter logic in that order.
+    bool filtrationDesired = filtrationFsm_.on;
+    if (psiError_) {
+        // Safety first: PSI alarms must stop filtration even in manual mode.
+        filtrationDesired = false;
+    } else if (!autoMode_) {
+        // Legacy-like manual mode: when auto_mode is off, keep filtration fully manual.
+        filtrationDesired = filtrationFsm_.on;
+    } else {
+        if (filtrationFsm_.on && haveAirTemp && airTemp <= freezeHoldTempC_) {
+            // Freeze hold: once running, never stop under freeze-hold threshold.
+            filtrationDesired = true;
+        } else {
+            const bool scheduleDemand = windowActive;
+            const bool winterDemand = winterMode_ && haveAirTemp && (airTemp < winterStartTempC_);
+            filtrationDesired = (scheduleDemand || winterDemand);
+        }
+    }
+
+    // Robot and SWG remain pure derived outputs in auto mode; manual mode keeps
+    // the current state untouched unless another safety rule overrides it.
+    bool robotDesired = robotFsm_.on;
+    if (autoMode_) {
+        robotDesired = false;
+        if (filtrationFsm_.on && !cleaningDone_) {
+            const uint32_t filtrationRunMin = stateUptimeSec_(filtrationFsm_, nowMs) / 60U;
+            if (filtrationRunMin >= robotDelayMin_) robotDesired = true;
+        }
+        if (robotFsm_.on) {
+            const uint32_t robotRunMin = stateUptimeSec_(robotFsm_, nowMs) / 60U;
+            if (robotRunMin >= robotDurationMin_) robotDesired = false;
+        }
+        if (!filtrationFsm_.on) robotDesired = false;
+    }
+
+    bool swgDesired = swgFsm_.on;
+    if (autoMode_) {
+        swgDesired = false;
+        if (electrolyseMode_ && filtrationFsm_.on) {
+            if (electroRunMode_) {
+                if (swgFsm_.on) {
+                    swgDesired = haveOrp && (orp <= orpSetpoint_);
+                } else {
+                    const bool startReady =
+                        haveWaterTemp &&
+                        (waterTemp >= secureElectroTempC_) &&
+                        ((stateUptimeSec_(filtrationFsm_, nowMs) / 60U) >= delayElectroMin_);
+                    swgDesired = startReady && haveOrp && (orp <= (orpSetpoint_ * 0.9f));
+                }
+            } else {
+                if (swgFsm_.on) {
+                    swgDesired = true;
+                } else {
+                    const bool startReady =
+                        haveWaterTemp &&
+                        (waterTemp >= secureElectroTempC_) &&
+                        ((stateUptimeSec_(filtrationFsm_, nowMs) / 60U) >= delayElectroMin_);
+                    swgDesired = startReady;
+                }
+            }
+        }
+    }
+
+    // Chemical dosing is computed last because it depends on the resolved
+    // filtration state, alarm state, and sensor freshness.
+    bool phPumpDesired = false;
+    bool orpPumpDesired = false;
+    if (filtrationDesired) {
+        const bool phAllowed = phPidEnabled_ && havePh && !psiError_ && !phTankLowError_;
+        if (phAllowed) {
+            uint32_t outMs = 0;
+            (void)stepTemporalPid_(phPidState_,
+                                   ph,
+                                   phSetpoint_,
+                                   phKp_,
+                                   phKi_,
+                                   phKd_,
+                                   phWindowMs_,
+                                   !phDosePlus_,
+                                   nowMs,
+                                   phPumpDesired,
+                                   outMs);
+        } else if (phPidState_.initialized || phPidState_.outputOnMs != 0U || phPidState_.lastDemandOn) {
+            resetTemporalPidState_(phPidState_, nowMs);
+        }
+
+        // ORP peristaltic dosing is disabled when electrolyse mode is active.
+        const bool orpAllowed = orpPidEnabled_ && haveOrp && !electrolyseMode_ && !psiError_ && !chlorineTankLowError_;
+        if (orpAllowed) {
+            uint32_t outMs = 0;
+            (void)stepTemporalPid_(orpPidState_,
+                                   orp,
+                                   orpSetpoint_,
+                                   orpKp_,
+                                   orpKi_,
+                                   orpKd_,
+                                   orpWindowMs_,
+                                   false,
+                                   nowMs,
+                                   orpPumpDesired,
+                                   outMs);
+        } else if (orpPidState_.initialized || orpPidState_.outputOnMs != 0U || orpPidState_.lastDemandOn) {
+            resetTemporalPidState_(orpPidState_, nowMs);
+        }
+    } else {
+        if (phPidState_.initialized || phPidState_.outputOnMs != 0U || phPidState_.lastDemandOn) {
+            resetTemporalPidState_(phPidState_, nowMs);
+        }
+        if (orpPidState_.initialized || orpPidState_.outputOnMs != 0U || orpPidState_.lastDemandOn) {
+            resetTemporalPidState_(orpPidState_, nowMs);
+        }
+    }
+
+    bool fillingDesired = false;
+    if (haveLevel) {
+        if (!fillingFsm_.on) {
+            fillingDesired = !levelOk;
+        } else {
+            const bool minUpReached = stateUptimeSec_(fillingFsm_, nowMs) >= fillingMinOnSec_;
+            fillingDesired = !(levelOk && minUpReached);
+        }
+    }
+
+    applyDeviceControl_(filtrationDeviceSlot_, "Filtration Pump", filtrationFsm_, filtrationDesired, nowMs);
+    applyDeviceControl_(phPumpDeviceSlot_, "pH Pump", phPumpFsm_, phPumpDesired, nowMs);
+    applyDeviceControl_(orpPumpDeviceSlot_, "Chlorine Pump", orpPumpFsm_, orpPumpDesired, nowMs);
+    applyDeviceControl_(robotDeviceSlot_, "Robot Pump", robotFsm_, robotDesired, nowMs);
+    applyDeviceControl_(swgDeviceSlot_, "SWG Pump", swgFsm_, swgDesired, nowMs);
+    applyDeviceControl_(fillingDeviceSlot_, "Filling Pump", fillingFsm_, fillingDesired, nowMs);
+}

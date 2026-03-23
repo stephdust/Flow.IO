@@ -2,6 +2,9 @@
 /**
  * @file WebInterfaceModule.h
  * @brief Web interface module for Supervisor profile.
+ *
+ * Public facade only. The implementation is split across Server / WS / Log /
+ * Lifecycle translation units.
  */
 
 #include "Core/Module.h"
@@ -48,6 +51,45 @@ private:
     static constexpr size_t kLineBufferSize = kSerialLogLineChars * 4U;
     static constexpr size_t kUartRxBufferSize = kLineBufferSize * 2U;
 
+    // Server and network integration
+    void startServer_();
+    void handleUpdateRequest_(AsyncWebServerRequest* request, FirmwareUpdateTarget target);
+    bool isWebReachable_() const;
+    bool getNetworkIp_(char* out, size_t len, NetworkAccessMode* modeOut) const;
+
+    // WebSocket transport
+    void onWsEvent_(AsyncWebSocket* server,
+                    AsyncWebSocketClient* client,
+                    AwsEventType type,
+                    void* arg,
+                    uint8_t* data,
+                    size_t len);
+    void onWsLogEvent_(AsyncWebSocket* server,
+                       AsyncWebSocketClient* client,
+                       AwsEventType type,
+                       void* arg,
+                       uint8_t* data,
+                       size_t len);
+    void flushLine_(bool force);
+    void logWsFlowPressure_(const char* reason);
+
+    // Log formatting and local sink plumbing
+    void flushLocalLogQueue_();
+    static bool isLogByte_(uint8_t c);
+    static char levelChar_(LogLevel lvl);
+    static const char* levelColor_(LogLevel lvl);
+    static const char* colorReset_();
+    static bool isSystemTimeValid_();
+    static void formatUptime_(char* out, size_t outSize, uint32_t ms);
+    static void formatTimestamp_(WebInterfaceModule* self, const LogEntry& e, char* out, size_t outSize);
+    static void onLocalLogSinkWrite_(void* ctx, const LogEntry& e);
+
+    // Lifecycle and service surface
+    static bool svcSetPaused_(void* ctx, bool paused);
+    static bool svcIsPaused_(void* ctx);
+    static void onEventStatic_(const Event& e, void* user);
+    void onEvent_(const Event& e);
+
     HardwareSerial& uart_ = Serial2;
     uint32_t uartBaud_ = 115200U;
     int uartRxPin_ = 16;
@@ -87,36 +129,4 @@ private:
     uint32_t wsFlowPartialCount_ = 0;
     uint32_t wsFlowDiscardCount_ = 0;
     uint32_t wsFlowLastPressureLogMs_ = 0;
-
-    void startServer_();
-    void onWsEvent_(AsyncWebSocket* server,
-                    AsyncWebSocketClient* client,
-                    AwsEventType type,
-                    void* arg,
-                    uint8_t* data,
-                    size_t len);
-    void onWsLogEvent_(AsyncWebSocket* server,
-                       AsyncWebSocketClient* client,
-                       AwsEventType type,
-                       void* arg,
-                       uint8_t* data,
-                       size_t len);
-    void handleUpdateRequest_(AsyncWebServerRequest* request, FirmwareUpdateTarget target);
-    bool isWebReachable_() const;
-    bool getNetworkIp_(char* out, size_t len, NetworkAccessMode* modeOut) const;
-    void flushLine_(bool force);
-    void flushLocalLogQueue_();
-    void logWsFlowPressure_(const char* reason);
-    static bool isLogByte_(uint8_t c);
-    static char levelChar_(LogLevel lvl);
-    static const char* levelColor_(LogLevel lvl);
-    static const char* colorReset_();
-    static bool isSystemTimeValid_();
-    static void formatUptime_(char* out, size_t outSize, uint32_t ms);
-    static void formatTimestamp_(WebInterfaceModule* self, const LogEntry& e, char* out, size_t outSize);
-    static void onLocalLogSinkWrite_(void* ctx, const LogEntry& e);
-    static bool svcSetPaused_(void* ctx, bool paused);
-    static bool svcIsPaused_(void* ctx);
-    static void onEventStatic_(const Event& e, void* user);
-    void onEvent_(const Event& e);
 };

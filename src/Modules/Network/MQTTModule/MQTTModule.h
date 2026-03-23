@@ -2,6 +2,9 @@
 /**
  * @file MQTTModule.h
  * @brief Unified MQTT module with job-based TX core.
+ *
+ * Public facade only. The implementation is split across Lifecycle / Transport /
+ * Queue / Rx / Producers translation units.
  */
 
 #include "Core/Module.h"
@@ -259,16 +262,22 @@ private:
     MqttPublishProducer runtimeProducerDesc_{};
     MqttPublishProducer alarmProducerDesc_{};
 
+    // Lifecycle and public service surface
+    static bool svcEnqueue_(void* ctx, uint8_t producerId, uint16_t messageId, uint8_t prio, uint8_t flags);
+    static bool svcRegisterProducer_(void* ctx, const MqttPublishProducer* producer);
+    static void svcFormatTopic_(void* ctx, const char* suffix, char* out, size_t outLen);
+    static bool svcIsConnected_(void* ctx);
     void setState_(MQTTState s);
     void refreshTopicDeviceId_();
     void buildTopics_();
-    void enqueueAlarmFullSync_();
+    static void onEventStatic_(const Event& e, void* user);
+    void onEvent_(const Event& e);
 
+    // Transport
     void connectMqtt_();
     bool ensureClient_();
     void stopClient_(bool intentional);
     void destroyClient_();
-
     void onConnect_(bool sessionPresent);
     void onDisconnect_(const esp_mqtt_error_codes_t* err);
     void onMessage_(const char* topic,
@@ -277,23 +286,23 @@ private:
                     size_t len,
                     size_t index,
                     size_t total);
+    static void mqttEventHandlerStatic_(void* handler_args,
+                                        esp_event_base_t base,
+                                        int32_t event_id,
+                                        void* event_data);
 
+    // Rx path
     void processRx_(const RxMsg& msg);
     void processRxCmd_(const RxMsg& msg);
     void processRxCfgSet_(const RxMsg& msg);
     void publishRxError_(const char* ackTopicSuffix, ErrorCode code, const char* where, bool parseFailure);
-    void updateAndReportQueueOccupancy_(uint32_t nowMs);
-    void tickProducers_(uint32_t nowMs);
+    void syncRxMetrics_();
+    void countRxDrop_();
+    void countOversizeDrop_();
 
-    bool enqueueAck_(const char* topicSuffix,
-                     const char* payload,
-                     uint8_t qos,
-                     bool retain,
-                     MqttPublishPriority priority);
-
+    // Queue and dispatch
     bool tryPublishNow_(const char* topic, const char* payload, uint8_t qos, bool retain);
     void processJobs_(uint32_t nowMs);
-
     bool enqueueJob_(uint8_t producerId, uint16_t messageId, uint8_t priority, uint8_t flags);
     void snapshotQueueStatsNoLock_(uint16_t& jobsUsed,
                                    uint16_t& highCount,
@@ -313,36 +322,25 @@ private:
     bool dequeueNextJob_(uint32_t nowMs, uint8_t& slotIdx);
     int16_t findJobSlot_(uint8_t producerId, uint16_t messageId) const;
     int16_t allocJobSlot_();
-
     const MqttPublishProducer* findProducer_(uint8_t producerId) const;
+    void updateAndReportQueueOccupancy_(uint32_t nowMs);
 
-    static void mqttEventHandlerStatic_(void* handler_args,
-                                        esp_event_base_t base,
-                                        int32_t event_id,
-                                        void* event_data);
-    static void onEventStatic_(const Event& e, void* user);
-    void onEvent_(const Event& e);
-
-    void syncRxMetrics_();
-    void countRxDrop_();
-    void countOversizeDrop_();
-
-    static bool svcEnqueue_(void* ctx, uint8_t producerId, uint16_t messageId, uint8_t prio, uint8_t flags);
-    static bool svcRegisterProducer_(void* ctx, const MqttPublishProducer* producer);
-    static void svcFormatTopic_(void* ctx, const char* suffix, char* out, size_t outLen);
-    static bool svcIsConnected_(void* ctx);
-
+    // Producers and runtime publishing
+    void enqueueAlarmFullSync_();
+    void tickProducers_(uint32_t nowMs);
+    bool enqueueAck_(const char* topicSuffix,
+                     const char* payload,
+                     uint8_t qos,
+                     bool retain,
+                     MqttPublishPriority priority);
     static MqttBuildResult buildAckStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx);
     static void onAckPublishedStatic_(void* ctx, uint16_t messageId);
     static void onAckDroppedStatic_(void* ctx, uint16_t messageId);
-
     static MqttBuildResult buildStatusStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx);
     static MqttBuildResult buildAlarmStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx);
-
     MqttBuildResult buildAck_(uint16_t messageId, MqttBuildContext& buildCtx);
     void onAckPublished_(uint16_t messageId);
     void onAckDropped_(uint16_t messageId);
-
     MqttBuildResult buildStatus_(uint16_t messageId, MqttBuildContext& buildCtx);
     MqttBuildResult buildAlarm_(uint16_t messageId, MqttBuildContext& buildCtx);
 };
