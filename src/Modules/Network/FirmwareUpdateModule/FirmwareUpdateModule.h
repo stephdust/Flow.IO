@@ -44,6 +44,7 @@ private:
         Queued,
         Downloading,
         Flashing,
+        Rebooting,
         Done,
         Error
     };

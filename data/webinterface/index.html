@@ -38,7 +38,7 @@
       <nav class="menu-group">
         <button class="menu-item active" data-page="page-pool-measures"><span class="ico icon-measures" aria-hidden="true"></span><span class="label">Mesures</span></button>
         <button class="menu-item" data-page="page-terminal"><span class="ico icon-terminal" aria-hidden="true"></span><span class="label">Journaux</span></button>
-        <button class="menu-item" data-page="page-system"><span class="ico icon-system" aria-hidden="true"></span><span class="label">Update</span></button>
+        <button class="menu-item" data-page="page-system"><span class="ico icon-system" aria-hidden="true"></span><span class="label">Mise à jour</span></button>
         <button class="menu-item" data-page="page-control"><span class="ico icon-flowcfg" aria-hidden="true"></span><span class="label">Config Flow.IO</span></button>
         <button class="menu-item" data-page="page-local-config"><span class="ico icon-supervisorcfg" aria-hidden="true"></span><span class="label">Config Superviseur</span></button>
       </nav>
@@ -102,7 +102,7 @@
 
       <section id="page-system" class="page">
         <div class="topbar">
-          <h1>Update</h1>
+          <h1>Mise à jour</h1>
         </div>
         <div class="system-groups">
           <div class="card">
@@ -182,10 +182,23 @@
                   </div>
                 </div>
               </div>
-              <div class="upgrade-progress" aria-label="Progression mise à jour firmware">
-                <div id="upgradeProgressBar" class="upgrade-progress-bar"></div>
+              <div class="upgrade-journey" aria-label="Progression mise à jour firmware">
+                <div class="ug-header">
+                  <span id="upgradeJourneyLabel" class="ug-label">Upgrade firmware</span>
+                  <span id="upgradePct" class="ug-pct">0%</span>
+                </div>
+                <div class="bar-shell">
+                  <div id="upgradeProgressBar" class="bar-fill" style="width:0%">
+                    <div class="bar-shimmer"></div>
+                    <div id="upgradeProgressDot" class="bar-dot"></div>
+                  </div>
+                </div>
+                <div id="upgradeSteps" class="steps"></div>
+                <div class="upgrade-footer">
+                  <span id="upgradeFooterStatus" class="status-txt"><span class="sdot"></span>Prêt</span>
+                  <span id="upgradeEta" class="eta-txt">En attente</span>
+                </div>
               </div>
-              <div id="upgradeStatusText" class="upgrade-status">Aucune opération en cours.</div>
               <div class="btn-row upgrade-secondary-actions">
                 <button id="saveCfg" class="btn-tonal">Enregistrer la configuration</button>
                 <button id="refreshState" class="btn-tonal">Rafraîchir l'état</button>

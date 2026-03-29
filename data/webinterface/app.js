@@ -8,6 +8,8 @@
     const appHeapSummary = document.getElementById('appHeapSummary');
     const flowWebAssetVersionStorageKey = 'flow_web_asset_version';
     const deferredVisualAssetsStateKey = 'flow_web_deferred_visual_assets';
+    const upgradeUiSessionStorageKey = 'flow_upgrade_ui_session';
+    const upgradeStatusPollIntervalMs = 900;
     const deferredBrandAssetDelayMs = 320;
     const deferredMenuAssetStartDelayMs = 520;
     const deferredMenuAssetStepMs = 140;
@@ -310,6 +312,10 @@
     async function loadWebMeta() {
       try {
         const data = await fetchOkJson('/api/web/meta', { cache: 'no-store' }, 'meta web indisponible');
+        const currentUpgradeSession = readUpgradeUiSession();
+        if (currentUpgradeSession && currentUpgradeSession.awaitingReconnect) {
+          handleUpgradeReconnectSuccess();
+        }
 
         if (typeof data.web_asset_version === 'string') {
           const announcedVersion = data.web_asset_version.trim();
@@ -369,6 +375,9 @@
     function setMobileDrawerOpen(open) {
       drawer.classList.toggle('mobile-open', open);
       overlay.classList.toggle('visible', open);
+      if (open) {
+        refreshDrawerRuntimeMeta(false).catch(() => {});
+      }
     }
 
     function closeMobileDrawer() {
@@ -533,8 +542,12 @@
     const upNextionBtn = document.getElementById('upNextion');
     const upSpiffsBtn = document.getElementById('upSpiffs');
     const refreshStateBtn = document.getElementById('refreshState');
-    const upgradeStatusText = document.getElementById('upgradeStatusText');
     const upgradeProgressBar = document.getElementById('upgradeProgressBar');
+    const upgradePct = document.getElementById('upgradePct');
+    const upgradeJourneyLabel = document.getElementById('upgradeJourneyLabel');
+    const upgradeSteps = document.getElementById('upgradeSteps');
+    const upgradeFooterStatus = document.getElementById('upgradeFooterStatus');
+    const upgradeEta = document.getElementById('upgradeEta');
     const upStatusChip = document.getElementById('upStatusChip');
 
     const wifiEnabled = document.getElementById('wifiEnabled');
@@ -596,11 +609,15 @@
     };
     let runtimeManifestCache = null;
     let poolMeasureEntries = [];
+    const upgradeReconnectFetchTimeoutMs = 1400;
 
     const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
     let logSource = 'flow';
     let logSocket = null;
-    const upgradeStatusPoller = createIntervalRunner(() => refreshUpgradeStatus(), 4000);
+    const upgradeStatusPoller = createIntervalRunner(() => refreshUpgradeStatus(), upgradeStatusPollIntervalMs);
+    const upgradeReconnectStageTimer = createTimeoutRunner(() => enterUpgradeReconnectPhase());
+    const upgradeReconnectCompletionTimer = createTimeoutRunner(() => markUpgradeUiCompletedAfterReconnect());
+    const upgradeReconnectMonitor = createIntervalRunner(() => probeUpgradeReconnect(), 1500);
     const poolMeasuresPoller = createIntervalRunner(() => {
       if (getActivePageId() !== 'page-pool-measures' || document.hidden) return;
       return refreshPoolMeasures(false);
@@ -781,30 +798,478 @@
     function setUpgradeProgress(value) {
       const p = Math.max(0, Math.min(100, Number(value) || 0));
       upgradeProgressBar.style.width = p + '%';
+      upgradeProgressBar.classList.toggle('is-complete', p >= 100);
+      if (upgradePct) {
+        upgradePct.textContent = p + '%';
+      }
     }
 
     function setUpgradeMessage(text) {
-      upgradeStatusText.textContent = text;
+      const message = String(text || '').trim() || 'Aucune opération en cours.';
+      if (upgradeFooterStatus) {
+        upgradeFooterStatus.innerHTML = '<span class="sdot"></span>' + message;
+      }
+    }
+
+    function readUpgradeUiSession() {
+      const raw = getStorageValue(sessionStorage, upgradeUiSessionStorageKey);
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function writeUpgradeUiSession(session) {
+      if (!session || typeof session !== 'object') return;
+      setStorageValue(sessionStorage, upgradeUiSessionStorageKey, JSON.stringify(session));
+    }
+
+    function clearUpgradeUiSession() {
+      stopUpgradeReconnectFlow();
+      try {
+        sessionStorage.removeItem(upgradeUiSessionStorageKey);
+      } catch (err) {
+      }
+    }
+
+    function upgradeTargetLabel(target) {
+      const key = String(target || '').trim().toLowerCase();
+      if (key === 'flowio') return 'Flow.IO';
+      if (key === 'supervisor') return 'Superviseur';
+      if (key === 'nextion') return 'Nextion';
+      if (key === 'spiffs') return 'SPIFFS';
+      return 'Firmware';
+    }
+
+    function upgradeUsesReconnect(target) {
+      const key = String(target || '').trim().toLowerCase();
+      return key === 'supervisor' || key === 'spiffs';
+    }
+
+    function upgradeStepDefinitions(target) {
+      return [
+        { id: 'target', label: 'Sélection de la cible ' + upgradeTargetLabel(target) },
+        { id: 'download', label: 'Téléchargement du firmware' },
+        { id: 'flash', label: 'Mise à jour' },
+        { id: 'reboot', label: 'Redémarrage' },
+        { id: 'reconnect', label: 'Attente de Reconnection' },
+        { id: 'done', label: 'Mise à jour terminée' }
+      ];
+    }
+
+    function upgradePhaseIndex(phase) {
+      if (phase === 'target') return 0;
+      if (phase === 'download') return 1;
+      if (phase === 'flash') return 2;
+      if (phase === 'reboot') return 3;
+      if (phase === 'reconnect') return 4;
+      if (phase === 'done') return 5;
+      return -1;
+    }
+
+    function upgradePhasePercent(session) {
+      const phase = String(session && session.phase ? session.phase : 'idle');
+      const progress = Math.max(0, Math.min(100, Number(session && session.backendProgress) || 0));
+      const reconnectProgress = Math.max(0, Math.min(100, Number(session && session.reconnectProgress) || 0));
+      if (phase === 'target') return 8;
+      if (phase === 'download') return 14 + Math.round(progress * 0.28);
+      if (phase === 'flash') return 46 + Math.round(progress * 0.30);
+      if (phase === 'reboot') return 82;
+      if (phase === 'reconnect') return 92 + Math.round(reconnectProgress * 0.07);
+      if (phase === 'done') return 100;
+      if (phase === 'error') return Math.max(6, Math.min(96, Number(session && session.lastPercent) || 12));
+      return 0;
+    }
+
+    function upgradeStepProgress(stepId, state, session) {
+      if (state === 'done') return 100;
+      if (state !== 'active') return null;
+      const phase = String(session && session.phase ? session.phase : '');
+      if (stepId !== phase) return null;
+      if (phase === 'target') return 100;
+      if (phase === 'download' || phase === 'flash') {
+        return Math.max(0, Math.min(100, Number(session && session.backendProgress) || 0));
+      }
+      if (phase === 'reboot') return 100;
+      if (phase === 'reconnect') {
+        return Math.max(0, Math.min(100, Number(session && session.reconnectProgress) || 0));
+      }
+      if (phase === 'done') return 100;
+      return null;
+    }
+
+    function upgradeStepStatusLabel(stepId, state, session) {
+      if (state === 'done') return 'OK';
+      const progress = upgradeStepProgress(stepId, state, session);
+      if (progress !== null) return progress + '%';
+      if (state === 'error') return 'erreur';
+      return '';
+    }
+
+    function upgradeStepIcon(state) {
+      if (state === 'done') return '✓';
+      if (state === 'active') return '↻';
+      if (state === 'error') return '!';
+      return '○';
+    }
+
+    function upgradeStepState(stepId, session) {
+      const phase = String(session && session.phase ? session.phase : 'idle');
+      if (phase === 'idle') return 'pending';
+      if (phase === 'error') {
+        const failedStep = String(session && session.failedStep ? session.failedStep : 'flash');
+        const failedIndex = upgradePhaseIndex(failedStep);
+        const stepIndex = upgradePhaseIndex(stepId);
+        if (stepIndex < failedIndex) return 'done';
+        if (stepId === failedStep) return 'error';
+        return 'pending';
+      }
+      const activeIndex = upgradePhaseIndex(phase);
+      const stepIndex = upgradePhaseIndex(stepId);
+      if (stepIndex < activeIndex) return 'done';
+      if (stepIndex === activeIndex) return phase === 'done' ? 'done' : 'active';
+      return 'pending';
+    }
+
+    function renderUpgradeSteps(session) {
+      if (!upgradeSteps) return;
+      const defs = upgradeStepDefinitions(session && session.target);
+      upgradeSteps.innerHTML = '';
+      defs.forEach((step) => {
+        const state = upgradeStepState(step.id, session);
+        const row = document.createElement('div');
+        row.className = 'step-row';
+
+        const icon = document.createElement('span');
+        icon.className = 'step-ic ' + state;
+        icon.textContent = upgradeStepIcon(state);
+        row.appendChild(icon);
+
+        const label = document.createElement('span');
+        label.className = 'step-lbl ' + state;
+        label.textContent = step.label;
+        row.appendChild(label);
+
+        const trailing = document.createElement('span');
+        trailing.className = 'step-t';
+        trailing.textContent = upgradeStepStatusLabel(step.id, state, session);
+        row.appendChild(trailing);
+
+        upgradeSteps.appendChild(row);
+      });
+    }
+
+    function renderUpgradeJourney(session) {
+      const safeSession = session && typeof session === 'object' ? session : { phase: 'idle', target: '' };
+      const phase = String(safeSession.phase || 'idle');
+      const detail = String(safeSession.detail || '');
+      const targetLabel = upgradeTargetLabel(safeSession.target);
+      const stateLabel = phase === 'idle'
+        ? 'Prêt'
+        : phase === 'target'
+          ? 'Cible sélectionnée'
+          : phase === 'download'
+            ? 'Téléchargement'
+            : phase === 'flash'
+              ? 'Mise à jour'
+              : phase === 'reboot'
+                ? 'Redémarrage'
+                : phase === 'reconnect'
+                  ? 'Attente de Reconnection'
+                  : phase === 'done'
+                    ? 'Mise à jour terminée'
+                    : 'Erreur';
+
+      if (upgradeJourneyLabel) {
+        upgradeJourneyLabel.textContent = safeSession.target ? ('Upgrade ' + targetLabel) : 'Upgrade firmware';
+      }
+      setUpgradeProgress(upgradePhasePercent(safeSession));
+      setUpgradeMessage(detail || (phase === 'idle' ? 'Aucune opération en cours.' : stateLabel));
+      renderUpgradeSteps(safeSession);
+      if (upStatusChip) {
+        upStatusChip.textContent = stateLabel;
+      }
+    }
+
+    function updateUpgradeUiSession(patch) {
+      const current = readUpgradeUiSession() || {
+        phase: 'idle',
+        target: '',
+        detail: 'Aucune opération en cours.',
+        backendProgress: 0,
+        lastPercent: 0,
+        awaitingReconnect: false,
+        reconnectShown: false,
+        reconnectProgress: 0
+      };
+      const next = Object.assign({}, current, patch || {});
+      next.lastPercent = upgradePhasePercent(next);
+      writeUpgradeUiSession(next);
+      renderUpgradeJourney(next);
+      return next;
+    }
+
+    function startUpgradeUiSession(target) {
+      stopUpgradeReconnectFlow();
+      return updateUpgradeUiSession({
+        phase: 'target',
+        target: target,
+        detail: 'Sélection de la cible ' + upgradeTargetLabel(target) + '.',
+        backendProgress: 0,
+        awaitingReconnect: false,
+        reconnectShown: false,
+        reconnectProgress: 0,
+        failedStep: ''
+      });
+    }
+
+    function stopUpgradeReconnectFlow() {
+      upgradeReconnectStageTimer.stop();
+      upgradeReconnectCompletionTimer.stop();
+      upgradeReconnectMonitor.stop();
+    }
+
+    function scheduleUpgradeReconnectPhase(delayMs) {
+      upgradeReconnectStageTimer.schedule(Math.max(0, Number(delayMs) || 0));
+    }
+
+    function startUpgradeReconnectMonitor() {
+      upgradeReconnectMonitor.start();
+    }
+
+    function scheduleUpgradeReconnectCompletion(delayMs) {
+      upgradeReconnectCompletionTimer.schedule(Math.max(0, Number(delayMs) || 0));
+    }
+
+    function markUpgradeUiAwaitingReconnect() {
+      const current = readUpgradeUiSession();
+      if (!current || !current.awaitingReconnect) return null;
+      return updateUpgradeUiSession({
+        phase: 'reconnect',
+        detail: 'Attente de Reconnection.',
+        reconnectShown: true,
+        reconnectProgress: Math.max(5, Math.min(95, Number(current.reconnectProgress) || 0))
+      });
+    }
+
+    function markUpgradeUiCompletedAfterReconnect() {
+      const current = readUpgradeUiSession();
+      if (!current || !current.awaitingReconnect) return null;
+      stopUpgradeReconnectFlow();
+      return updateUpgradeUiSession({
+        phase: 'done',
+        detail: 'Mise à jour terminée.',
+        backendProgress: 100,
+        awaitingReconnect: false,
+        reconnectShown: true,
+        reconnectProgress: 100,
+        failedStep: ''
+      });
+    }
+
+    function handleUpgradeReconnectSuccess() {
+      const current = readUpgradeUiSession();
+      if (!current || !current.awaitingReconnect) return null;
+      if (!current.reconnectShown || current.phase === 'reboot') {
+        upgradeReconnectStageTimer.stop();
+        upgradeReconnectMonitor.stop();
+        markUpgradeUiAwaitingReconnect();
+        scheduleUpgradeReconnectCompletion(320);
+        return readUpgradeUiSession();
+      }
+      return markUpgradeUiCompletedAfterReconnect();
+    }
+
+    function incrementUpgradeReconnectProgress() {
+      const current = readUpgradeUiSession();
+      if (!current || !current.awaitingReconnect) return null;
+      const nextProgress = Math.max(5, Math.min(95, (Number(current.reconnectProgress) || 0) + 12));
+      return updateUpgradeUiSession({
+        phase: 'reconnect',
+        detail: 'Attente de Reconnection.',
+        reconnectShown: true,
+        reconnectProgress: nextProgress
+      });
+    }
+
+    function enterUpgradeReconnectPhase() {
+      const current = readUpgradeUiSession();
+      if (!current || !current.awaitingReconnect) return null;
+      markUpgradeUiAwaitingReconnect();
+      startUpgradeReconnectMonitor();
+      return readUpgradeUiSession();
+    }
+
+    async function fetchUpgradeReconnectHeartbeat() {
+      const supportsAbort = typeof AbortController === 'function';
+      const controller = supportsAbort ? new AbortController() : null;
+      const timeoutId = controller
+        ? setTimeout(() => {
+            try {
+              controller.abort();
+            } catch (err) {
+            }
+          }, upgradeReconnectFetchTimeoutMs)
+        : null;
+      try {
+        return await fetchOkJson('/api/web/meta', {
+          cache: 'no-store',
+          signal: controller ? controller.signal : undefined
+        }, 'meta web indisponible');
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    }
+
+    async function probeUpgradeReconnect() {
+      const current = readUpgradeUiSession();
+      if (!current || !current.awaitingReconnect) {
+        stopUpgradeReconnectFlow();
+        return;
+      }
+      try {
+        await fetchUpgradeReconnectHeartbeat();
+        handleUpgradeReconnectSuccess();
+      } catch (err) {
+        incrementUpgradeReconnectProgress();
+      }
+    }
+
+    function resumeUpgradeReconnectFlow() {
+      const current = readUpgradeUiSession();
+      if (!current || !current.awaitingReconnect) return;
+      if (current.reconnectShown || current.phase === 'reconnect') {
+        startUpgradeReconnectMonitor();
+        return;
+      }
+      scheduleUpgradeReconnectPhase(700);
     }
 
     function updateUpgradeView(data) {
       if (!data || data.ok !== true) return;
-      const state = data.state || 'inconnu';
-      const target = data.target || '-';
-      const progress = Number.isFinite(data.progress) ? data.progress : 0;
-      const msg = data.msg || '';
-      let stateLabel = state;
-      if (state === 'idle') stateLabel = 'inactif';
-      else if (state === 'queued') stateLabel = 'en attente';
-      else if (state === 'running') stateLabel = 'en cours';
-      else if (state === 'done') stateLabel = 'terminé';
-      else if (state === 'error') stateLabel = 'erreur';
-      if (upStatusChip) upStatusChip.textContent = stateLabel;
-      let p = progress;
-      if (state === 'done') p = 100;
-      if (state === 'queued' && p <= 0) p = 2;
-      setUpgradeProgress(p);
-      setUpgradeMessage(stateLabel + ' | cible=' + target + (msg ? ' | ' + msg : ''));
+      const current = readUpgradeUiSession();
+      const state = String(data.state || 'idle');
+      const target = String(data.target || (current && current.target) || '').trim().toLowerCase();
+      const progress = Math.max(0, Math.min(100, Number(data.progress) || 0));
+      const msg = String(data.msg || '').trim();
+
+      if (state === 'idle') {
+        if (current && current.awaitingReconnect) {
+          handleUpgradeReconnectSuccess();
+        } else if (!current || current.phase === 'idle') {
+          clearUpgradeUiSession();
+          renderUpgradeJourney({ phase: 'idle', target: '', detail: 'Aucune opération en cours.' });
+        }
+        return;
+      }
+
+      if (state === 'queued') {
+        stopUpgradeReconnectFlow();
+        updateUpgradeUiSession({
+          phase: 'target',
+          target: target,
+          detail: 'Sélection de la cible ' + upgradeTargetLabel(target) + '.',
+          backendProgress: progress,
+          awaitingReconnect: false,
+          reconnectShown: false,
+          reconnectProgress: 0,
+          failedStep: ''
+        });
+        return;
+      }
+
+      if (state === 'downloading') {
+        stopUpgradeReconnectFlow();
+        updateUpgradeUiSession({
+          phase: 'download',
+          target: target,
+          detail: 'Téléchargement du firmware.',
+          backendProgress: progress,
+          awaitingReconnect: false,
+          reconnectShown: false,
+          reconnectProgress: 0,
+          failedStep: ''
+        });
+        return;
+      }
+
+      if (state === 'flashing') {
+        stopUpgradeReconnectFlow();
+        updateUpgradeUiSession({
+          phase: 'flash',
+          target: target,
+          detail: 'Mise à jour en cours.',
+          backendProgress: progress,
+          awaitingReconnect: false,
+          reconnectShown: false,
+          reconnectProgress: 0,
+          failedStep: ''
+        });
+        return;
+      }
+
+      if (state === 'rebooting') {
+        stopUpgradeReconnectFlow();
+        updateUpgradeUiSession({
+          phase: 'reboot',
+          target: target,
+          detail: 'Redémarrage.',
+          backendProgress: 100,
+          awaitingReconnect: true,
+          reconnectShown: false,
+          reconnectProgress: 0,
+          failedStep: ''
+        });
+        scheduleUpgradeReconnectPhase(900);
+        return;
+      }
+
+      if (state === 'done') {
+        if (upgradeUsesReconnect(target)) {
+          stopUpgradeReconnectFlow();
+          updateUpgradeUiSession({
+            phase: 'reboot',
+            target: target,
+            detail: 'Redémarrage.',
+            backendProgress: 100,
+            awaitingReconnect: true,
+            reconnectShown: false,
+            reconnectProgress: 0,
+            failedStep: ''
+          });
+          scheduleUpgradeReconnectPhase(900);
+        } else {
+          stopUpgradeReconnectFlow();
+          updateUpgradeUiSession({
+            phase: 'done',
+            target: target,
+            detail: 'Mise à jour terminée.',
+            backendProgress: 100,
+            awaitingReconnect: false,
+            reconnectShown: true,
+            reconnectProgress: 100,
+            failedStep: ''
+          });
+        }
+        return;
+      }
+
+      if (state === 'error') {
+        stopUpgradeReconnectFlow();
+        updateUpgradeUiSession({
+          phase: 'error',
+          target: target,
+          detail: msg || 'Erreur de mise à jour.',
+          backendProgress: progress,
+          awaitingReconnect: false,
+          reconnectShown: false,
+          reconnectProgress: 0,
+          failedStep: current && current.phase && current.phase !== 'idle' ? current.phase : 'flash'
+        });
+      }
     }
 
     async function loadUpgradeConfig() {
@@ -835,22 +1300,37 @@
       try {
         updateUpgradeView(await fetchOkJson('/api/fwupdate/status', { cache: 'no-store' }, 'échec lecture état'));
       } catch (err) {
+        const current = readUpgradeUiSession();
+        if (current && (current.awaitingReconnect || current.phase === 'reboot')) {
+          enterUpgradeReconnectPhase();
+          return;
+        }
         setUpgradeMessage('Échec de lecture de l\'état : ' + err);
       }
     }
 
     async function startUpgrade(target) {
       try {
+        startUpgradeUiSession(target);
         await saveUpgradeConfig();
         let endpoint = '/fwupdate/nextion';
         if (target === 'supervisor') endpoint = '/fwupdate/supervisor';
         else if (target === 'flowio') endpoint = '/fwupdate/flowio';
         else if (target === 'spiffs') endpoint = '/fwupdate/spiffs';
         await fetchOkJson(endpoint, { method: 'POST' }, 'échec démarrage');
-        setUpgradeProgress(1);
-        setUpgradeMessage('Demande de mise à jour acceptée pour ' + target + '.');
         await refreshUpgradeStatus();
       } catch (err) {
+        stopUpgradeReconnectFlow();
+        updateUpgradeUiSession({
+          phase: 'error',
+          target: target,
+          detail: 'Échec de la mise à jour : ' + err,
+          backendProgress: 0,
+          awaitingReconnect: false,
+          reconnectShown: false,
+          reconnectProgress: 0,
+          failedStep: 'target'
+        });
         setUpgradeMessage('Échec de la mise à jour : ' + err);
       }
     }
@@ -1026,7 +1506,9 @@
     }
 
     function isDrawerRuntimeMetaVisible() {
-      return !!appRuntimeMeta && !isMobileLayout() && !drawer.classList.contains('collapsed');
+      return !!appRuntimeMeta
+        && ((!isMobileLayout() && !drawer.classList.contains('collapsed'))
+          || (isMobileLayout() && drawer.classList.contains('mobile-open')));
     }
 
     function fmtFlowFixed(value, decimals, unit) {
@@ -2206,6 +2688,8 @@
     }
 
     async function onUpgradePageShown() {
+      renderUpgradeJourney(readUpgradeUiSession() || { phase: 'idle', target: '', detail: 'Aucune opération en cours.' });
+      resumeUpgradeReconnectFlow();
       if (!upgradeCfgLoadedOnce) {
         upgradeCfgLoadedOnce = true;
         await loadUpgradeConfig();
@@ -3501,7 +3985,8 @@
     initConfigBindings();
     initGlobalUiBindings();
 
-    setUpgradeProgress(0);
+    renderUpgradeJourney(readUpgradeUiSession() || { phase: 'idle', target: '', detail: 'Aucune opération en cours.' });
+    resumeUpgradeReconnectFlow();
     startDrawerRuntimeTimer();
     const initialPageId = resolveInitialPageId();
     const startInitialUi = () => {

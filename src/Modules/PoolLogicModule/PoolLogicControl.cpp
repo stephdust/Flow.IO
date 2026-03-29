@@ -363,8 +363,11 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     }
 
     bool windowActive = false;
+    bool forceFiltrationReconcile = false;
     portENTER_CRITICAL(&pendingMux_);
     windowActive = filtrationWindowActive_;
+    forceFiltrationReconcile = pendingFiltrationReconcile_;
+    pendingFiltrationReconcile_ = false;
     portEXIT_CRITICAL(&pendingMux_);
 
     // Filtration arbitration intentionally applies safety, then manual mode,
@@ -491,6 +494,12 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
         }
     }
 
+    if (forceFiltrationReconcile) {
+        // Re-entering auto mode should immediately reconcile the live pump state
+        // against the current scheduler window instead of waiting for a retry.
+        filtrationFsm_.lastDesired = !filtrationDesired;
+        filtrationFsm_.lastCmdMs = 0U;
+    }
     applyDeviceControl_(filtrationDeviceSlot_, "Filtration Pump", filtrationFsm_, filtrationDesired, nowMs);
     applyDeviceControl_(phPumpDeviceSlot_, "pH Pump", phPumpFsm_, phPumpDesired, nowMs);
     applyDeviceControl_(orpPumpDeviceSlot_, "Chlorine Pump", orpPumpFsm_, orpPumpDesired, nowMs);

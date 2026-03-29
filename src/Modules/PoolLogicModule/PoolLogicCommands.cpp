@@ -194,6 +194,18 @@ bool PoolLogicModule::cmdAutoModeSet_(const CommandRequest& req, char* reply, si
     (void)cfgStore_->set(autoModeVar_, requested);
     autoMode_ = requested;
 
+    if (requested) {
+        bool windowActive = filtrationWindowActive_;
+        if (schedSvc_ && schedSvc_->isActive) {
+            windowActive = schedSvc_->isActive(schedSvc_->ctx, SLOT_FILTR_WINDOW);
+        }
+
+        portENTER_CRITICAL(&pendingMux_);
+        filtrationWindowActive_ = windowActive;
+        pendingFiltrationReconcile_ = true;
+        portEXIT_CRITICAL(&pendingMux_);
+    }
+
     snprintf(reply, replyLen, "{\"ok\":true,\"value\":%s}", requested ? "true" : "false");
     return true;
 }

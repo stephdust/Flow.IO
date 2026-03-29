@@ -172,6 +172,7 @@ const char* FirmwareUpdateModule::stateStr_(UpdateState s)
         case UpdateState::Queued: return "queued";
         case UpdateState::Downloading: return "downloading";
         case UpdateState::Flashing: return "flashing";
+        case UpdateState::Rebooting: return "rebooting";
         case UpdateState::Done: return "done";
         case UpdateState::Error: return "error";
         default: return "unknown";
@@ -647,8 +648,8 @@ bool FirmwareUpdateModule::runSupervisorUpdate_(const char* url, char* errOut, s
         return false;
     }
 
-    setStatus_(UpdateState::Done, FirmwareUpdateTarget::Supervisor, 100, "supervisor update complete; rebooting");
-    delay(700);
+    setStatus_(UpdateState::Rebooting, FirmwareUpdateTarget::Supervisor, 100, "rebooting");
+    delay(1800);
     ESP.restart();
     return true;
 }
@@ -830,8 +831,8 @@ bool FirmwareUpdateModule::runSpiffsUpdate_(const char* url, char* errOut, size_
         return false;
     }
 
-    setStatus_(UpdateState::Done, FirmwareUpdateTarget::Spiffs, 100, "spiffs update complete; rebooting");
-    delay(700);
+    setStatus_(UpdateState::Rebooting, FirmwareUpdateTarget::Spiffs, 100, "rebooting");
+    delay(1800);
     ESP.restart();
     return true;
 }

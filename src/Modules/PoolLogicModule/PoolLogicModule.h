@@ -185,6 +185,7 @@ private:
     bool filtrationWindowActive_ = false;
     bool pendingDailyRecalc_ = false;
     bool pendingDayReset_ = false;
+    bool pendingFiltrationReconcile_ = false;
 
     bool psiError_ = false;
     bool phTankLowError_ = false;
