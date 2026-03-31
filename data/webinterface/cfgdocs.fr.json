@@ -1,10 +1,10 @@
 {
   "_meta": {
     "generated": true,
-    "total": 324,
-    "decl_total": 218,
+    "total": 337,
+    "decl_total": 231,
     "decl_with_cfgdoc": 122,
-    "missing_cfgdoc_count": 96,
+    "missing_cfgdoc_count": 109,
     "manual_overrides_total": 18,
     "manual_overrides_applied": 0
   },
@@ -42,6 +42,58 @@
         {
           "value": 121,
           "label": "121 | PortDsAir | DS18B20 | bus air"
+        },
+        {
+          "value": 130,
+          "label": "130 | PortSht40Temp | SHT40 | canal 0"
+        },
+        {
+          "value": 131,
+          "label": "131 | PortSht40Humidity | SHT40 | canal 1"
+        },
+        {
+          "value": 132,
+          "label": "132 | PortBmp280Temp | BMP280 | canal 0"
+        },
+        {
+          "value": 133,
+          "label": "133 | PortBmp280Pressure | BMP280 | canal 1"
+        },
+        {
+          "value": 134,
+          "label": "134 | PortBme680Temp | BME680 | canal 0"
+        },
+        {
+          "value": 135,
+          "label": "135 | PortBme680Humidity | BME680 | canal 1"
+        },
+        {
+          "value": 136,
+          "label": "136 | PortBme680Pressure | BME680 | canal 2"
+        },
+        {
+          "value": 137,
+          "label": "137 | PortBme680Gas | BME680 | canal 3"
+        },
+        {
+          "value": 138,
+          "label": "138 | PortIna226ShuntMv | INA226 | canal 0"
+        },
+        {
+          "value": 139,
+          "label": "139 | PortIna226BusV | INA226 | canal 1"
+        },
+        {
+          "value": 140,
+          "label": "140 | PortIna226CurrentMa | INA226 | canal 2"
+        },
+        {
+          "value": 141,
+          "label": "141 | PortIna226PowerMw | INA226 | canal 3"
+        },
+        {
+          "value": 142,
+          "label": "142 | PortIna226LoadV | INA226 | canal 4"
         }
       ],
       "flowio_binding_port_digital_input": [
@@ -227,6 +279,98 @@
       "source": "cfgdoc",
       "unit": "ms"
     },
+    "elink/client/enabled": {
+      "module": "elink/client",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Client eLink actif",
+      "help": "Active le client eLink cote Supervisor pour dialoguer avec Flow.IO.",
+      "var": "enabledVar_",
+      "source": "cfgdoc"
+    },
+    "elink/client/freq_hz": {
+      "module": "elink/client",
+      "name": "freq_hz",
+      "type": "Int32",
+      "label": "Frequence eLink",
+      "help": "Frequence du bus eLink en hertz.",
+      "var": "freqVar_",
+      "source": "cfgdoc",
+      "unit": "Hz"
+    },
+    "elink/client/scl": {
+      "module": "elink/client",
+      "name": "scl",
+      "type": "Int32",
+      "label": "GPIO SCL interlink",
+      "help": "GPIO utilise pour la ligne SCL du bus interlink Supervisor -> Flow.IO.",
+      "var": "sclVar_",
+      "source": "cfgdoc"
+    },
+    "elink/client/sda": {
+      "module": "elink/client",
+      "name": "sda",
+      "type": "Int32",
+      "label": "GPIO SDA interlink",
+      "help": "GPIO utilise pour la ligne SDA du bus interlink Supervisor -> Flow.IO.",
+      "var": "sdaVar_",
+      "source": "cfgdoc"
+    },
+    "elink/client/target_addr": {
+      "module": "elink/client",
+      "name": "target_addr",
+      "type": "UInt8",
+      "label": "Adresse cible Flow.IO",
+      "help": "Adresse I2C du serveur de configuration sur Flow.IO (mode esclave).",
+      "var": "addrVar_",
+      "source": "cfgdoc"
+    },
+    "elink/server/address": {
+      "module": "elink/server",
+      "name": "address",
+      "type": "UInt8",
+      "label": "Adresse locale Flow.IO",
+      "help": "Adresse I2C locale du serveur de configuration Flow.IO (mode esclave).",
+      "var": "addrVar_",
+      "source": "cfgdoc"
+    },
+    "elink/server/enabled": {
+      "module": "elink/server",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Serveur eLink actif",
+      "help": "Active le serveur eLink cote Flow.IO pour repondre au Supervisor.",
+      "var": "enabledVar_",
+      "source": "cfgdoc"
+    },
+    "elink/server/freq_hz": {
+      "module": "elink/server",
+      "name": "freq_hz",
+      "type": "Int32",
+      "label": "Frequence eLink",
+      "help": "Frequence du bus eLink en hertz.",
+      "var": "freqVar_",
+      "source": "cfgdoc",
+      "unit": "Hz"
+    },
+    "elink/server/scl": {
+      "module": "elink/server",
+      "name": "scl",
+      "type": "Int32",
+      "label": "GPIO SCL interlink",
+      "help": "GPIO utilise pour la ligne SCL du bus interlink Flow.IO <-> Supervisor.",
+      "var": "sclVar_",
+      "source": "cfgdoc"
+    },
+    "elink/server/sda": {
+      "module": "elink/server",
+      "name": "sda",
+      "type": "Int32",
+      "label": "GPIO SDA interlink",
+      "help": "GPIO utilise pour la ligne SDA du bus interlink Flow.IO <-> Supervisor.",
+      "var": "sdaVar_",
+      "source": "cfgdoc"
+    },
     "fwupdate/cfgdocs_path": {
       "module": "fwupdate",
       "name": "cfgdocs_path",
@@ -317,144 +461,6 @@
       "var": "vendorVar",
       "source": "cfgdoc"
     },
-    "i2c/cfg/client/enabled": {
-      "module": "i2c/cfg/client",
-      "name": "enabled",
-      "type": "Bool",
-      "label": "Client cfg I2C actif",
-      "help": "Active le client de configuration I2C cote Supervisor pour dialoguer avec Flow.IO.",
-      "var": "enabledVar_",
-      "source": "cfgdoc"
-    },
-    "i2c/cfg/client/freq_hz": {
-      "module": "i2c/cfg/client",
-      "name": "freq_hz",
-      "type": "Int32",
-      "label": "Frequence I2C interlink",
-      "help": "Frequence du bus interlink en hertz.",
-      "var": "freqVar_",
-      "source": "cfgdoc",
-      "unit": "Hz"
-    },
-    "i2c/cfg/client/scl": {
-      "module": "i2c/cfg/client",
-      "name": "scl",
-      "type": "Int32",
-      "label": "GPIO SCL interlink",
-      "help": "GPIO utilise pour la ligne SCL du bus interlink Supervisor -> Flow.IO.",
-      "var": "sclVar_",
-      "source": "cfgdoc"
-    },
-    "i2c/cfg/client/sda": {
-      "module": "i2c/cfg/client",
-      "name": "sda",
-      "type": "Int32",
-      "label": "GPIO SDA interlink",
-      "help": "GPIO utilise pour la ligne SDA du bus interlink Supervisor -> Flow.IO.",
-      "var": "sdaVar_",
-      "source": "cfgdoc"
-    },
-    "i2c/cfg/client/target_addr": {
-      "module": "i2c/cfg/client",
-      "name": "target_addr",
-      "type": "UInt8",
-      "label": "Adresse cible Flow.IO",
-      "help": "Adresse I2C du serveur de configuration sur Flow.IO (mode esclave).",
-      "var": "addrVar_",
-      "source": "cfgdoc"
-    },
-    "i2c/cfg/server/address": {
-      "module": "i2c/cfg/server",
-      "name": "address",
-      "type": "UInt8",
-      "label": "Adresse locale Flow.IO",
-      "help": "Adresse I2C locale du serveur de configuration Flow.IO (mode esclave).",
-      "var": "addrVar_",
-      "source": "cfgdoc"
-    },
-    "i2c/cfg/server/enabled": {
-      "module": "i2c/cfg/server",
-      "name": "enabled",
-      "type": "Bool",
-      "label": "Serveur cfg I2C actif",
-      "help": "Active le serveur de configuration I2C cote Flow.IO pour repondre au Supervisor.",
-      "var": "enabledVar_",
-      "source": "cfgdoc"
-    },
-    "i2c/cfg/server/freq_hz": {
-      "module": "i2c/cfg/server",
-      "name": "freq_hz",
-      "type": "Int32",
-      "label": "Frequence I2C interlink",
-      "help": "Frequence du bus interlink en hertz.",
-      "var": "freqVar_",
-      "source": "cfgdoc",
-      "unit": "Hz"
-    },
-    "i2c/cfg/server/scl": {
-      "module": "i2c/cfg/server",
-      "name": "scl",
-      "type": "Int32",
-      "label": "GPIO SCL interlink",
-      "help": "GPIO utilise pour la ligne SCL du bus interlink Flow.IO <-> Supervisor.",
-      "var": "sclVar_",
-      "source": "cfgdoc"
-    },
-    "i2c/cfg/server/sda": {
-      "module": "i2c/cfg/server",
-      "name": "sda",
-      "type": "Int32",
-      "label": "GPIO SDA interlink",
-      "help": "GPIO utilise pour la ligne SDA du bus interlink Flow.IO <-> Supervisor.",
-      "var": "sdaVar_",
-      "source": "cfgdoc"
-    },
-    "io/ads_ext_addr": {
-      "module": "io",
-      "name": "ads_ext_addr",
-      "type": "UInt8",
-      "label": "Adresse ADS externe",
-      "help": "Adresse I2C du convertisseur ADS externe.",
-      "var": "adsExternalAddrVar_",
-      "source": "auto-hint"
-    },
-    "io/ads_gain": {
-      "module": "io",
-      "name": "ads_gain",
-      "type": "Int32",
-      "label": "Gain ADS",
-      "help": "Gain de conversion ADS (pleine échelle).",
-      "var": "adsGainVar_",
-      "source": "auto-hint"
-    },
-    "io/ads_int_addr": {
-      "module": "io",
-      "name": "ads_int_addr",
-      "type": "UInt8",
-      "label": "Adresse ADS interne",
-      "help": "Adresse I2C du convertisseur ADS interne.",
-      "var": "adsInternalAddrVar_",
-      "source": "auto-hint"
-    },
-    "io/ads_poll_ms": {
-      "module": "io",
-      "name": "ads_poll_ms",
-      "type": "Int32",
-      "label": "Période lecture ADS (ms)",
-      "help": "Intervalle entre deux acquisitions des entrées analogiques ADS.",
-      "var": "adsPollVar_",
-      "source": "auto-hint",
-      "unit": "ms"
-    },
-    "io/ads_rate": {
-      "module": "io",
-      "name": "ads_rate",
-      "type": "Int32",
-      "label": "Fréquence ADS",
-      "help": "Fréquence d'échantillonnage ADS.",
-      "var": "adsRateVar_",
-      "source": "auto-hint"
-    },
     "io/debug/trace_enabled": {
       "module": "io/debug",
       "name": "trace_enabled",
@@ -474,9 +480,139 @@
       "source": "auto-hint",
       "unit": "ms"
     },
-    "io/digital_poll_ms": {
-      "module": "io",
-      "name": "digital_poll_ms",
+    "io/drivers/ads1115/gain": {
+      "module": "io/drivers/ads1115",
+      "name": "gain",
+      "type": "Int32",
+      "label": "Gain ADS",
+      "help": "Gain de conversion ADS (pleine échelle).",
+      "var": "adsGainVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/ads1115/poll_ms": {
+      "module": "io/drivers/ads1115",
+      "name": "poll_ms",
+      "type": "Int32",
+      "label": "Période lecture ADS (ms)",
+      "help": "Intervalle entre deux acquisitions des entrées analogiques ADS.",
+      "var": "adsPollVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/drivers/ads1115/rate": {
+      "module": "io/drivers/ads1115",
+      "name": "rate",
+      "type": "Int32",
+      "label": "Fréquence ADS",
+      "help": "Fréquence d'échantillonnage ADS.",
+      "var": "adsRateVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/ads1115_ext/address": {
+      "module": "io/drivers/ads1115_ext",
+      "name": "address",
+      "type": "UInt8",
+      "label": "Adresse ADS externe",
+      "help": "Adresse I2C du convertisseur ADS1115 externe.",
+      "var": "adsExternalAddrVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/ads1115_int/address": {
+      "module": "io/drivers/ads1115_int",
+      "name": "address",
+      "type": "UInt8",
+      "label": "Adresse ADS interne",
+      "help": "Adresse I2C du convertisseur ADS1115 interne.",
+      "var": "adsInternalAddrVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/bme680/address": {
+      "module": "io/drivers/bme680",
+      "name": "address",
+      "type": "UInt8",
+      "label": "Adresse BME680",
+      "help": "Adresse I2C du capteur BME680.",
+      "var": "bme680AddressVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/bme680/enabled": {
+      "module": "io/drivers/bme680",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "BME680 actif",
+      "help": "Active le driver BME680.",
+      "var": "bme680EnabledVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/bme680/poll_ms": {
+      "module": "io/drivers/bme680",
+      "name": "poll_ms",
+      "type": "Int32",
+      "label": "Période lecture BME680 (ms)",
+      "help": "Intervalle entre deux acquisitions BME680.",
+      "var": "bme680PollVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/drivers/bmp280/address": {
+      "module": "io/drivers/bmp280",
+      "name": "address",
+      "type": "UInt8",
+      "label": "Adresse BMP280",
+      "help": "Adresse I2C du capteur BMP280.",
+      "var": "bmp280AddressVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/bmp280/enabled": {
+      "module": "io/drivers/bmp280",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "BMP280 actif",
+      "help": "Active le driver BMP280.",
+      "var": "bmp280EnabledVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/bmp280/poll_ms": {
+      "module": "io/drivers/bmp280",
+      "name": "poll_ms",
+      "type": "Int32",
+      "label": "Période lecture BMP280 (ms)",
+      "help": "Intervalle entre deux acquisitions BMP280.",
+      "var": "bmp280PollVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/drivers/bus/scl": {
+      "module": "io/drivers/bus",
+      "name": "scl",
+      "type": "Int32",
+      "label": "Broche bus SCL",
+      "help": "Broche SCL du bus I2C utilisé par le module IO.",
+      "var": "i2cSclVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/bus/sda": {
+      "module": "io/drivers/bus",
+      "name": "sda",
+      "type": "Int32",
+      "label": "Broche bus SDA",
+      "help": "Broche SDA du bus I2C utilisé par le module IO.",
+      "var": "i2cSdaVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/ds18b20/poll_ms": {
+      "module": "io/drivers/ds18b20",
+      "name": "poll_ms",
+      "type": "Int32",
+      "label": "Période lecture DS18B20 (ms)",
+      "help": "Intervalle entre deux lectures des sondes DS18B20.",
+      "var": "dsPollVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/drivers/gpio/poll_ms": {
+      "module": "io/drivers/gpio",
+      "name": "poll_ms",
       "type": "Int32",
       "label": "Période lecture digitales (ms)",
       "help": "Intervalle de rafraîchissement des entrées digitales.",
@@ -484,13 +620,105 @@
       "source": "auto-hint",
       "unit": "ms"
     },
-    "io/ds_poll_ms": {
-      "module": "io",
-      "name": "ds_poll_ms",
+    "io/drivers/ina226/address": {
+      "module": "io/drivers/ina226",
+      "name": "address",
+      "type": "UInt8",
+      "label": "Adresse INA226",
+      "help": "Adresse I2C du capteur INA226.",
+      "var": "ina226AddressVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/ina226/enabled": {
+      "module": "io/drivers/ina226",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "INA226 actif",
+      "help": "Active le driver INA226.",
+      "var": "ina226EnabledVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/ina226/poll_ms": {
+      "module": "io/drivers/ina226",
+      "name": "poll_ms",
       "type": "Int32",
-      "label": "Période lecture DS18B20 (ms)",
-      "help": "Intervalle entre deux lectures des sondes DS18B20.",
-      "var": "dsPollVar_",
+      "label": "Période lecture INA226 (ms)",
+      "help": "Intervalle entre deux acquisitions INA226.",
+      "var": "ina226PollVar_",
+      "source": "auto-hint",
+      "unit": "ms"
+    },
+    "io/drivers/ina226/shunt_ohms": {
+      "module": "io/drivers/ina226",
+      "name": "shunt_ohms",
+      "type": "Float",
+      "label": "Shunt INA226 (Ohm)",
+      "help": "Valeur de la résistance shunt utilisée pour la calibration INA226.",
+      "var": "ina226ShuntOhmsVar_",
+      "source": "auto-hint",
+      "unit": "Ohm"
+    },
+    "io/drivers/pcf857x/active_low": {
+      "module": "io/drivers/pcf857x",
+      "name": "active_low",
+      "type": "Bool",
+      "label": "PCF actif à 0",
+      "help": "Force une logique active-bas sur les sorties PCF.",
+      "var": "pcfActiveLowVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/pcf857x/address": {
+      "module": "io/drivers/pcf857x",
+      "name": "address",
+      "type": "UInt8",
+      "label": "Adresse PCF",
+      "help": "Adresse I2C du composant PCF857x.",
+      "var": "pcfAddressVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/pcf857x/enabled": {
+      "module": "io/drivers/pcf857x",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "PCF actif",
+      "help": "Active l'extension PCF857x pour E/S supplémentaires.",
+      "var": "pcfEnabledVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/pcf857x/mask_default": {
+      "module": "io/drivers/pcf857x",
+      "name": "mask_default",
+      "type": "UInt8",
+      "label": "Masque par défaut PCF",
+      "help": "État par défaut du masque de sorties PCF.",
+      "var": "pcfMaskDefaultVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/sht40/address": {
+      "module": "io/drivers/sht40",
+      "name": "address",
+      "type": "UInt8",
+      "label": "Adresse SHT40",
+      "help": "Adresse I2C du capteur SHT40.",
+      "var": "sht40AddressVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/sht40/enabled": {
+      "module": "io/drivers/sht40",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "SHT40 actif",
+      "help": "Active le driver SHT40.",
+      "var": "sht40EnabledVar_",
+      "source": "auto-hint"
+    },
+    "io/drivers/sht40/poll_ms": {
+      "module": "io/drivers/sht40",
+      "name": "poll_ms",
+      "type": "Int32",
+      "label": "Période lecture SHT40 (ms)",
+      "help": "Intervalle entre deux acquisitions SHT40.",
+      "var": "sht40PollVar_",
       "source": "auto-hint",
       "unit": "ms"
     },
@@ -501,24 +729,6 @@
       "label": "Module IO actif",
       "help": "Active ou désactive la couche IO (entrées/sorties).",
       "var": "enabledVar_",
-      "source": "auto-hint"
-    },
-    "io/i2c_scl": {
-      "module": "io",
-      "name": "i2c_scl",
-      "type": "Int32",
-      "label": "Broche I2C SCL",
-      "help": "Broche SCL du bus I2C utilisé par le module IO.",
-      "var": "i2cSclVar_",
-      "source": "auto-hint"
-    },
-    "io/i2c_sda": {
-      "module": "io",
-      "name": "i2c_sda",
-      "type": "Int32",
-      "label": "Broche I2C SDA",
-      "help": "Broche SDA du bus I2C utilisé par le module IO.",
-      "var": "i2cSdaVar_",
       "source": "auto-hint"
     },
     "io/input/a0/a0_c0": {
@@ -1485,42 +1695,6 @@
       "var": "d7PulseVar_",
       "source": "auto-hint",
       "unit": "ms"
-    },
-    "io/pcf_active_low": {
-      "module": "io",
-      "name": "pcf_active_low",
-      "type": "Bool",
-      "label": "PCF actif à 0",
-      "help": "Force une logique active-bas sur les sorties PCF.",
-      "var": "pcfActiveLowVar_",
-      "source": "auto-hint"
-    },
-    "io/pcf_address": {
-      "module": "io",
-      "name": "pcf_address",
-      "type": "UInt8",
-      "label": "Adresse PCF",
-      "help": "Adresse I2C du composant PCF857x.",
-      "var": "pcfAddressVar_",
-      "source": "auto-hint"
-    },
-    "io/pcf_enabled": {
-      "module": "io",
-      "name": "pcf_enabled",
-      "type": "Bool",
-      "label": "PCF actif",
-      "help": "Active l'extension PCF857x pour E/S supplémentaires.",
-      "var": "pcfEnabledVar_",
-      "source": "auto-hint"
-    },
-    "io/pcf_mask_def": {
-      "module": "io",
-      "name": "pcf_mask_def",
-      "type": "UInt8",
-      "label": "Masque par défaut PCF",
-      "help": "État par défaut du masque de sorties PCF.",
-      "var": "pcfMaskDefaultVar_",
-      "source": "auto-hint"
     },
     "mqtt/baseTopic": {
       "module": "mqtt",

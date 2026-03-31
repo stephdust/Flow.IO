@@ -37,6 +37,17 @@ static constexpr uint8_t kCfgBranchIoI1 = 18;
 static constexpr uint8_t kCfgBranchIoI2 = 19;
 static constexpr uint8_t kCfgBranchIoI3 = 20;
 static constexpr uint8_t kCfgBranchIoI4 = 21;
+static constexpr uint8_t kCfgBranchIoBus = 22;
+static constexpr uint8_t kCfgBranchIoDs18b20 = 23;
+static constexpr uint8_t kCfgBranchIoGpio = 24;
+static constexpr uint8_t kCfgBranchIoAds1115 = 25;
+static constexpr uint8_t kCfgBranchIoAdsInt = 26;
+static constexpr uint8_t kCfgBranchIoAdsExt = 27;
+static constexpr uint8_t kCfgBranchIoPcf857x = 28;
+static constexpr uint8_t kCfgBranchIoSht40 = 29;
+static constexpr uint8_t kCfgBranchIoBmp280 = 30;
+static constexpr uint8_t kCfgBranchIoBme680 = 31;
+static constexpr uint8_t kCfgBranchIoIna226 = 32;
 static constexpr MqttConfigRouteProducer::Route kIoCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::Io, kCfgBranchIo}, "io", "io", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {2, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoDebug}, "io/debug", "io/debug", (uint8_t)MqttPublishPriority::Normal, nullptr},
@@ -59,6 +70,17 @@ static constexpr MqttConfigRouteProducer::Route kIoCfgRoutes[] = {
     {19, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoI2}, "io/input/i2", "io/input/i2", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {20, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoI3}, "io/input/i3", "io/input/i3", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {21, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoI4}, "io/input/i4", "io/input/i4", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {22, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoBus}, "io/drivers/bus", "io/drivers/bus", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {23, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoDs18b20}, "io/drivers/ds18b20", "io/drivers/ds18b20", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {24, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoGpio}, "io/drivers/gpio", "io/drivers/gpio", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {25, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoAds1115}, "io/drivers/ads1115", "io/drivers/ads1115", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {26, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoAdsInt}, "io/drivers/ads1115_int", "io/drivers/ads1115_int", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {27, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoAdsExt}, "io/drivers/ads1115_ext", "io/drivers/ads1115_ext", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {28, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoPcf857x}, "io/drivers/pcf857x", "io/drivers/pcf857x", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {29, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoSht40}, "io/drivers/sht40", "io/drivers/sht40", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {30, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoBmp280}, "io/drivers/bmp280", "io/drivers/bmp280", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {31, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoBme680}, "io/drivers/bme680", "io/drivers/bme680", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {32, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoIna226}, "io/drivers/ina226", "io/drivers/ina226", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
 }
 
@@ -615,8 +637,8 @@ bool IOModule::tickFastAds_(void* ctx, uint32_t nowMs)
     IOModule* self = static_cast<IOModule*>(ctx);
     if (!self || !self->runtimeReady_) return false;
 
-    self->adsInternalProvider_.tick(nowMs);
-    self->adsExternalProvider_.tick(nowMs);
+    self->analogProviders_[IO_SRC_ADS_INTERNAL_SINGLE].tick(nowMs);
+    self->analogProviders_[IO_SRC_ADS_EXTERNAL_DIFF].tick(nowMs);
 
     for (uint8_t i = 0; i < MAX_ANALOG_ENDPOINTS; ++i) {
         if (!self->analogSlots_[i].used) continue;
@@ -633,13 +655,33 @@ bool IOModule::tickSlowDs_(void* ctx, uint32_t nowMs)
     IOModule* self = static_cast<IOModule*>(ctx);
     if (!self || !self->runtimeReady_) return false;
 
-    self->dsWaterProvider_.tick(nowMs);
-    self->dsAirProvider_.tick(nowMs);
+    self->analogProviders_[IO_SRC_DS18_WATER].tick(nowMs);
+    self->analogProviders_[IO_SRC_DS18_AIR].tick(nowMs);
 
     for (uint8_t i = 0; i < MAX_ANALOG_ENDPOINTS; ++i) {
         if (!self->analogSlots_[i].used) continue;
         uint8_t src = self->analogSlots_[i].source;
         if (src == IO_SRC_DS18_WATER || src == IO_SRC_DS18_AIR) {
+            self->processAnalogDefinition_(i, nowMs);
+        }
+    }
+    return true;
+}
+
+bool IOModule::tickI2cAnalogs_(void* ctx, uint32_t nowMs)
+{
+    IOModule* self = static_cast<IOModule*>(ctx);
+    if (!self || !self->runtimeReady_) return false;
+
+    self->analogProviders_[IO_SRC_SHT40].tick(nowMs);
+    self->analogProviders_[IO_SRC_BMP280].tick(nowMs);
+    self->analogProviders_[IO_SRC_BME680].tick(nowMs);
+    self->analogProviders_[IO_SRC_INA226].tick(nowMs);
+
+    for (uint8_t i = 0; i < MAX_ANALOG_ENDPOINTS; ++i) {
+        if (!self->analogSlots_[i].used) continue;
+        const uint8_t src = self->analogSlots_[i].source;
+        if (src == IO_SRC_SHT40 || src == IO_SRC_BMP280 || src == IO_SRC_BME680 || src == IO_SRC_INA226) {
             self->processAnalogDefinition_(i, nowMs);
         }
     }
@@ -662,12 +704,8 @@ bool IOModule::tickDigitalInputs_(void* ctx, uint32_t nowMs)
 
 const IOAnalogProvider* IOModule::analogProviderForSource_(uint8_t source) const
 {
-    // Kernel-side routing stays on compact source ids; provider binding happens once in runtime setup.
-    if (source == IO_SRC_ADS_INTERNAL_SINGLE) return &adsInternalProvider_;
-    if (source == IO_SRC_ADS_EXTERNAL_DIFF) return &adsExternalProvider_;
-    if (source == IO_SRC_DS18_WATER) return &dsWaterProvider_;
-    if (source == IO_SRC_DS18_AIR) return &dsAirProvider_;
-    return nullptr;
+    // Kernel-side routing stays on compact source ids; runtime setup binds one provider per physical device.
+    return (source < IO_SRC_COUNT) ? &analogProviders_[source] : nullptr;
 }
 
 bool IOModule::processAnalogDefinition_(uint8_t idx, uint32_t nowMs)
@@ -697,11 +735,11 @@ bool IOModule::processAnalogDefinition_(uint8_t idx, uint32_t nowMs)
     uint32_t sampleSeq = sample.seq;
     bool hasSampleSeq = sample.hasSeq;
 
-    // ADS values are processed only when a fresh sample arrives for that channel/pair.
+    // Providers expose an optional sequence so multi-channel sensors only update endpoints on fresh acquisitions.
     if (hasSampleSeq) {
-        if (slot.lastAdsSampleSeqValid && sampleSeq == slot.lastAdsSampleSeq) return false;
-        slot.lastAdsSampleSeq = sampleSeq;
-        slot.lastAdsSampleSeqValid = true;
+        if (slot.lastSampleSeqValid && sampleSeq == slot.lastSampleSeq) return false;
+        slot.lastSampleSeq = sampleSeq;
+        slot.lastSampleSeqValid = true;
     }
 
     float filtered = slot.median.update(raw);
@@ -1222,6 +1260,7 @@ bool IOModule::resolveAnalogBinding_(PhysicalPortId portId, uint8_t& sourceOut, 
     const IOBindingPortSpec* spec = bindingPortSpec_(portId);
     if (!spec) return false;
 
+    // `sourceOut` identifies the shared physical provider, while `channelOut` selects the logical measurement.
     switch (spec->kind) {
         case IO_PORT_KIND_ADS_INTERNAL_SINGLE:
             sourceOut = IO_SRC_ADS_INTERNAL_SINGLE;
@@ -1243,6 +1282,26 @@ bool IOModule::resolveAnalogBinding_(PhysicalPortId portId, uint8_t& sourceOut, 
             channelOut = 0U;
             backendOut = IO_BACKEND_DS18B20;
             return true;
+        case IO_PORT_KIND_SHT40:
+            sourceOut = IO_SRC_SHT40;
+            channelOut = spec->param0;
+            backendOut = IO_BACKEND_SHT40;
+            return channelOut <= 1U;
+        case IO_PORT_KIND_BMP280:
+            sourceOut = IO_SRC_BMP280;
+            channelOut = spec->param0;
+            backendOut = IO_BACKEND_BMP280;
+            return channelOut <= 1U;
+        case IO_PORT_KIND_BME680:
+            sourceOut = IO_SRC_BME680;
+            channelOut = spec->param0;
+            backendOut = IO_BACKEND_BME680;
+            return channelOut <= 3U;
+        case IO_PORT_KIND_INA226:
+            sourceOut = IO_SRC_INA226;
+            channelOut = spec->param0;
+            backendOut = IO_BACKEND_INA226;
+            return channelOut <= 4U;
         default:
             return false;
     }
@@ -1351,17 +1410,18 @@ bool IOModule::configureRuntime_()
     LOGI("ADS1115 probe 0x48: %s", ads48Present ? "found" : "not found");
     LOGI("ADS1115 probe 0x49: %s", ads49Present ? "found" : "not found");
 
-    bool needAdsInternal = false;
-    bool needAdsExternal = false;
-    bool needDsWater = false;
-    bool needDsAir = false;
+    bool needAnalogSource[IO_SRC_COUNT] = {false};
 
     for (uint8_t i = 0; i < MAX_ANALOG_ENDPOINTS; ++i) {
         if (!analogSlots_[i].used) continue;
         analogSlots_[i].ioId = (IoId)(IO_ID_AI_BASE + i);
-        analogSlots_[i].source = 0xFFu;
+        analogSlots_[i].source = IO_ANALOG_SOURCE_INVALID;
         analogSlots_[i].channel = 0U;
         analogSlots_[i].backend = IO_BACKEND_GPIO;
+        analogSlots_[i].lastSampleSeqValid = false;
+        analogSlots_[i].lastSampleSeq = 0;
+        analogSlots_[i].lastRoundedValid = false;
+        analogSlots_[i].lastRounded = 0.0f;
 
         if (i < ANALOG_CFG_SLOTS) {
             snprintf(analogSlots_[i].def.id, sizeof(analogSlots_[i].def.id), "a%u", (unsigned)i);
@@ -1370,7 +1430,7 @@ bool IOModule::configureRuntime_()
             analogSlots_[i].def.c1 = analogCfg_[i].c1;
             analogSlots_[i].def.precision = analogCfg_[i].precision;
 
-            uint8_t source = 0xFFu;
+            uint8_t source = IO_ANALOG_SOURCE_INVALID;
             uint8_t channel = 0U;
             uint8_t backend = IO_BACKEND_GPIO;
             if (resolveAnalogBinding_(analogSlots_[i].def.bindingPort, source, channel, backend)) {
@@ -1383,7 +1443,7 @@ bool IOModule::configureRuntime_()
                      (unsigned)analogSlots_[i].def.bindingPort);
             }
 
-            if (i < 3 && analogSlots_[i].source != 0xFFu) {
+            if (i < 3 && analogSlots_[i].source != IO_ANALOG_SOURCE_INVALID) {
                 LOGI("Analog map %s binding_port=%u source=%u channel=%u",
                      analogSlots_[i].def.id,
                      (unsigned)analogSlots_[i].def.bindingPort,
@@ -1392,10 +1452,9 @@ bool IOModule::configureRuntime_()
             }
         }
 
-        if (analogSlots_[i].source == IO_SRC_ADS_INTERNAL_SINGLE) needAdsInternal = true;
-        else if (analogSlots_[i].source == IO_SRC_ADS_EXTERNAL_DIFF) needAdsExternal = true;
-        else if (analogSlots_[i].source == IO_SRC_DS18_WATER) needDsWater = true;
-        else if (analogSlots_[i].source == IO_SRC_DS18_AIR) needDsAir = true;
+        if (analogSlots_[i].source < IO_SRC_COUNT) {
+            needAnalogSource[analogSlots_[i].source] = true;
+        }
 
         analogSlots_[i].endpoint = allocAnalogEndpoint_(analogSlots_[i].def.id);
         if (!analogSlots_[i].endpoint) continue;
@@ -1556,7 +1615,27 @@ bool IOModule::configureRuntime_()
     adsExternalCfg.address = cfgData_.adsExternalAddr;
     adsExternalCfg.differentialPairs = true;
 
-    if (needAdsInternal) {
+    if (needAnalogSource[IO_SRC_SHT40] || cfgData_.sht40Enabled) {
+        const bool present = i2cBus_.probe(cfgData_.sht40Address);
+        LOGI("SHT40 probe 0x%02X: %s", cfgData_.sht40Address, present ? "found" : "not found");
+    }
+
+    if (needAnalogSource[IO_SRC_BMP280] || cfgData_.bmp280Enabled) {
+        const bool present = i2cBus_.probe(cfgData_.bmp280Address);
+        LOGI("BMP280 probe 0x%02X: %s", cfgData_.bmp280Address, present ? "found" : "not found");
+    }
+
+    if (needAnalogSource[IO_SRC_BME680] || cfgData_.bme680Enabled) {
+        const bool present = i2cBus_.probe(cfgData_.bme680Address);
+        LOGI("BME680 probe 0x%02X: %s", cfgData_.bme680Address, present ? "found" : "not found");
+    }
+
+    if (needAnalogSource[IO_SRC_INA226] || cfgData_.ina226Enabled) {
+        const bool present = i2cBus_.probe(cfgData_.ina226Address);
+        LOGI("INA226 probe 0x%02X: %s", cfgData_.ina226Address, present ? "found" : "not found");
+    }
+
+    if (needAnalogSource[IO_SRC_ADS_INTERNAL_SINGLE]) {
         IAnalogSourceDriver* driver = allocAdsDriver_("ads_internal", &i2cBus_, adsInternalCfg);
         if (!driver) {
             LOGW("ADS internal pool exhausted");
@@ -1564,14 +1643,14 @@ bool IOModule::configureRuntime_()
         if (!makeAnalogProvider(driver).begin()) {
             LOGW("ADS internal not detected at 0x%02X", cfgData_.adsInternalAddr);
         } else {
-            adsInternalProvider_ = makeAnalogProvider(driver);
+            analogProviders_[IO_SRC_ADS_INTERNAL_SINGLE] = makeAnalogProvider(driver);
             if (cfgData_.adsInternalAddr == 0x49) {
                 LOGI("ADS1115 found at 0x49 (internal)");
             }
         }
     }
 
-    if (needAdsExternal) {
+    if (needAnalogSource[IO_SRC_ADS_EXTERNAL_DIFF]) {
         IAnalogSourceDriver* driver = allocAdsDriver_("ads_external", &i2cBus_, adsExternalCfg);
         if (!driver) {
             LOGW("ADS external pool exhausted");
@@ -1579,7 +1658,7 @@ bool IOModule::configureRuntime_()
         if (!makeAnalogProvider(driver).begin()) {
             LOGW("ADS external not detected at 0x%02X", cfgData_.adsExternalAddr);
         } else {
-            adsExternalProvider_ = makeAnalogProvider(driver);
+            analogProviders_[IO_SRC_ADS_EXTERNAL_DIFF] = makeAnalogProvider(driver);
             if (cfgData_.adsExternalAddr == 0x49) {
                 LOGI("ADS1115 found at 0x49 (external)");
             }
@@ -1590,13 +1669,13 @@ bool IOModule::configureRuntime_()
     dsCfg.pollMs = (cfgData_.dsPollMs < 750) ? 750 : (uint32_t)cfgData_.dsPollMs;
     dsCfg.conversionWaitMs = 750;
 
-    if (needDsWater && oneWireWater_) {
+    if (needAnalogSource[IO_SRC_DS18_WATER] && oneWireWater_) {
         oneWireWaterAddrValid_ = resolveDsBusAddress_(oneWireWater_, NvsKeys::Io::DsRomWater, oneWireWaterAddr_);
         if (oneWireWaterAddrValid_) {
             IAnalogSourceDriver* driver = allocDsDriver_("ds18_water", oneWireWater_, oneWireWaterAddr_, dsCfg);
             if (driver) {
-                dsWaterProvider_ = makeAnalogProvider(driver);
-                (void)dsWaterProvider_.begin();
+                analogProviders_[IO_SRC_DS18_WATER] = makeAnalogProvider(driver);
+                (void)analogProviders_[IO_SRC_DS18_WATER].begin();
             } else {
                 LOGW("DS18 water pool exhausted");
             }
@@ -1605,18 +1684,99 @@ bool IOModule::configureRuntime_()
         }
     }
 
-    if (needDsAir && oneWireAir_) {
+    if (needAnalogSource[IO_SRC_DS18_AIR] && oneWireAir_) {
         oneWireAirAddrValid_ = resolveDsBusAddress_(oneWireAir_, NvsKeys::Io::DsRomAir, oneWireAirAddr_);
         if (oneWireAirAddrValid_) {
             IAnalogSourceDriver* driver = allocDsDriver_("ds18_air", oneWireAir_, oneWireAirAddr_, dsCfg);
             if (driver) {
-                dsAirProvider_ = makeAnalogProvider(driver);
-                (void)dsAirProvider_.begin();
+                analogProviders_[IO_SRC_DS18_AIR] = makeAnalogProvider(driver);
+                (void)analogProviders_[IO_SRC_DS18_AIR].begin();
             } else {
                 LOGW("DS18 air pool exhausted");
             }
         } else {
             LOGW("No resolvable DS18B20 found on air OneWire bus");
+        }
+    }
+
+    if (needAnalogSource[IO_SRC_SHT40]) {
+        if (!cfgData_.sht40Enabled) {
+            LOGW("SHT40 required by analog slots but disabled");
+        } else {
+            Sht40DriverConfig shtCfg{};
+            shtCfg.address = cfgData_.sht40Address;
+            shtCfg.pollMs = (cfgData_.sht40PollMs < 250) ? 250U : (uint32_t)cfgData_.sht40PollMs;
+
+            IAnalogSourceDriver* driver = allocSht40Driver_("sht40", &i2cBus_, shtCfg);
+            if (!driver) {
+                LOGW("SHT40 pool exhausted");
+            } else {
+                IOAnalogProvider provider = makeAnalogProvider(driver);
+                if (provider.begin()) {
+                    analogProviders_[IO_SRC_SHT40] = provider;
+                }
+            }
+        }
+    }
+
+    if (needAnalogSource[IO_SRC_BMP280]) {
+        if (!cfgData_.bmp280Enabled) {
+            LOGW("BMP280 required by analog slots but disabled");
+        } else {
+            Bmp280DriverConfig bmpCfg{};
+            bmpCfg.address = cfgData_.bmp280Address;
+            bmpCfg.pollMs = (cfgData_.bmp280PollMs < 100) ? 100U : (uint32_t)cfgData_.bmp280PollMs;
+
+            IAnalogSourceDriver* driver = allocBmp280Driver_("bmp280", &i2cBus_, bmpCfg);
+            if (!driver) {
+                LOGW("BMP280 pool exhausted");
+            } else {
+                IOAnalogProvider provider = makeAnalogProvider(driver);
+                if (provider.begin()) {
+                    analogProviders_[IO_SRC_BMP280] = provider;
+                }
+            }
+        }
+    }
+
+    if (needAnalogSource[IO_SRC_BME680]) {
+        if (!cfgData_.bme680Enabled) {
+            LOGW("BME680 required by analog slots but disabled");
+        } else {
+            Bme680DriverConfig bmeCfg{};
+            bmeCfg.address = cfgData_.bme680Address;
+            bmeCfg.pollMs = (cfgData_.bme680PollMs < 250) ? 250U : (uint32_t)cfgData_.bme680PollMs;
+
+            IAnalogSourceDriver* driver = allocBme680Driver_("bme680", &i2cBus_, bmeCfg);
+            if (!driver) {
+                LOGW("BME680 pool exhausted");
+            } else {
+                IOAnalogProvider provider = makeAnalogProvider(driver);
+                if (provider.begin()) {
+                    analogProviders_[IO_SRC_BME680] = provider;
+                }
+            }
+        }
+    }
+
+    if (needAnalogSource[IO_SRC_INA226]) {
+        if (!cfgData_.ina226Enabled) {
+            LOGW("INA226 required by analog slots but disabled");
+        } else {
+            Ina226DriverConfig inaCfg{};
+            inaCfg.address = cfgData_.ina226Address;
+            inaCfg.pollMs = (cfgData_.ina226PollMs < 100) ? 100U : (uint32_t)cfgData_.ina226PollMs;
+            inaCfg.shuntOhms = (cfgData_.ina226ShuntOhms > 0.0f) ? cfgData_.ina226ShuntOhms : 0.1f;
+
+            IAnalogSourceDriver* driver = allocIna226Driver_("ina226", &i2cBus_, inaCfg);
+            if (!driver) {
+                LOGW("INA226 pool exhausted");
+            } else {
+                IOAnalogProvider provider = makeAnalogProvider(driver);
+                if (provider.begin()) {
+                    analogProviders_[IO_SRC_INA226] = provider;
+                }
+            }
         }
     }
 
@@ -1669,6 +1829,19 @@ bool IOModule::configureRuntime_()
     dsJob.ctx = this;
     scheduler_.add(dsJob);
 
+    const bool needI2cAnalogJob = needAnalogSource[IO_SRC_SHT40]
+        || needAnalogSource[IO_SRC_BMP280]
+        || needAnalogSource[IO_SRC_BME680]
+        || needAnalogSource[IO_SRC_INA226];
+    IOScheduledJob i2cAnalogJob{};
+    if (needI2cAnalogJob) {
+        i2cAnalogJob.id = "i2c_analog";
+        i2cAnalogJob.periodMs = 20U;
+        i2cAnalogJob.fn = &IOModule::tickI2cAnalogs_;
+        i2cAnalogJob.ctx = this;
+        scheduler_.add(i2cAnalogJob);
+    }
+
     IOScheduledJob dinJob{};
     dinJob.id = "din_poll";
     dinJob.periodMs = (cfgData_.digitalPollMs < 20) ? 20 : (uint32_t)cfgData_.digitalPollMs;
@@ -1679,9 +1852,10 @@ bool IOModule::configureRuntime_()
     runtimeReady_ = true;
     pcfLastEnabled_ = cfgData_.pcfEnabled;
 
-    LOGI("I/O ready (ads=%ldms ds=%ldms din=%ldms endpoints=%u pcf=%s)",
+    LOGI("I/O ready (ads=%ldms ds=%ldms i2c_ai=%s din=%ldms endpoints=%u pcf=%s)",
          (long)adsJob.periodMs,
          (long)dsJob.periodMs,
+         needI2cAnalogJob ? "20ms" : "off",
          (long)dinJob.periodMs,
          (unsigned)registry_.count(),
          cfgData_.pcfEnabled ? "on" : "off");
@@ -1756,6 +1930,34 @@ IAnalogSourceDriver* IOModule::allocDsDriver_(const char* driverId, OneWireBus* 
     return new (mem) Ds18b20Driver(driverId, bus, address, cfg);
 }
 
+IAnalogSourceDriver* IOModule::allocSht40Driver_(const char* driverId, I2CBus* bus, const Sht40DriverConfig& cfg)
+{
+    if (sht40DriverPoolUsed_ >= 1) return nullptr;
+    void* mem = sht40DriverPool_[sht40DriverPoolUsed_++];
+    return new (mem) Sht40Driver(driverId, bus, cfg);
+}
+
+IAnalogSourceDriver* IOModule::allocBmp280Driver_(const char* driverId, I2CBus* bus, const Bmp280DriverConfig& cfg)
+{
+    if (bmp280DriverPoolUsed_ >= 1) return nullptr;
+    void* mem = bmp280DriverPool_[bmp280DriverPoolUsed_++];
+    return new (mem) Bmp280Driver(driverId, bus, cfg);
+}
+
+IAnalogSourceDriver* IOModule::allocBme680Driver_(const char* driverId, I2CBus* bus, const Bme680DriverConfig& cfg)
+{
+    if (bme680DriverPoolUsed_ >= 1) return nullptr;
+    void* mem = bme680DriverPool_[bme680DriverPoolUsed_++];
+    return new (mem) Bme680Driver(driverId, bus, cfg);
+}
+
+IAnalogSourceDriver* IOModule::allocIna226Driver_(const char* driverId, I2CBus* bus, const Ina226DriverConfig& cfg)
+{
+    if (ina226DriverPoolUsed_ >= 1) return nullptr;
+    void* mem = ina226DriverPool_[ina226DriverPoolUsed_++];
+    return new (mem) Ina226Driver(driverId, bus, cfg);
+}
+
 IDigitalPinDriver* IOModule::allocPcfBitDriver_(const char* driverId, Pcf8574Driver* parent, uint8_t bit, bool activeHigh)
 {
     if (pcfBitDriverPoolUsed_ >= MAX_DIGITAL_OUTPUTS) return nullptr;
@@ -1827,19 +2029,32 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
     }
 
     cfg.registerVar(enabledVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(i2cSdaVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(i2cSclVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(adsPollVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(dsPollVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(digitalPollVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(adsInternalAddrVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(adsExternalAddrVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(adsGainVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(adsRateVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(pcfEnabledVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(pcfAddressVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(pcfMaskDefaultVar_, kCfgModuleId, kCfgBranchIo);
-    cfg.registerVar(pcfActiveLowVar_, kCfgModuleId, kCfgBranchIo);
+    cfg.registerVar(i2cSdaVar_, kCfgModuleId, kCfgBranchIoBus);
+    cfg.registerVar(i2cSclVar_, kCfgModuleId, kCfgBranchIoBus);
+    cfg.registerVar(adsPollVar_, kCfgModuleId, kCfgBranchIoAds1115);
+    cfg.registerVar(dsPollVar_, kCfgModuleId, kCfgBranchIoDs18b20);
+    cfg.registerVar(digitalPollVar_, kCfgModuleId, kCfgBranchIoGpio);
+    cfg.registerVar(adsInternalAddrVar_, kCfgModuleId, kCfgBranchIoAdsInt);
+    cfg.registerVar(adsExternalAddrVar_, kCfgModuleId, kCfgBranchIoAdsExt);
+    cfg.registerVar(adsGainVar_, kCfgModuleId, kCfgBranchIoAds1115);
+    cfg.registerVar(adsRateVar_, kCfgModuleId, kCfgBranchIoAds1115);
+    cfg.registerVar(sht40EnabledVar_, kCfgModuleId, kCfgBranchIoSht40);
+    cfg.registerVar(sht40AddressVar_, kCfgModuleId, kCfgBranchIoSht40);
+    cfg.registerVar(sht40PollVar_, kCfgModuleId, kCfgBranchIoSht40);
+    cfg.registerVar(bmp280EnabledVar_, kCfgModuleId, kCfgBranchIoBmp280);
+    cfg.registerVar(bmp280AddressVar_, kCfgModuleId, kCfgBranchIoBmp280);
+    cfg.registerVar(bmp280PollVar_, kCfgModuleId, kCfgBranchIoBmp280);
+    cfg.registerVar(bme680EnabledVar_, kCfgModuleId, kCfgBranchIoBme680);
+    cfg.registerVar(bme680AddressVar_, kCfgModuleId, kCfgBranchIoBme680);
+    cfg.registerVar(bme680PollVar_, kCfgModuleId, kCfgBranchIoBme680);
+    cfg.registerVar(ina226EnabledVar_, kCfgModuleId, kCfgBranchIoIna226);
+    cfg.registerVar(ina226AddressVar_, kCfgModuleId, kCfgBranchIoIna226);
+    cfg.registerVar(ina226PollVar_, kCfgModuleId, kCfgBranchIoIna226);
+    cfg.registerVar(ina226ShuntOhmsVar_, kCfgModuleId, kCfgBranchIoIna226);
+    cfg.registerVar(pcfEnabledVar_, kCfgModuleId, kCfgBranchIoPcf857x);
+    cfg.registerVar(pcfAddressVar_, kCfgModuleId, kCfgBranchIoPcf857x);
+    cfg.registerVar(pcfMaskDefaultVar_, kCfgModuleId, kCfgBranchIoPcf857x);
+    cfg.registerVar(pcfActiveLowVar_, kCfgModuleId, kCfgBranchIoPcf857x);
     cfg.registerVar(traceEnabledVar_, kCfgModuleId, kCfgBranchIoDebug);
     cfg.registerVar(tracePeriodVar_, kCfgModuleId, kCfgBranchIoDebug);
 

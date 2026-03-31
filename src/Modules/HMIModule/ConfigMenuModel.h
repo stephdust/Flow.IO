@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "Core/SystemLimits.h"
 #include "Core/Services/IConfig.h"
 
 enum class ConfigMenuWidget : uint8_t {
@@ -66,7 +67,7 @@ class ConfigMenuModel {
 public:
     static constexpr uint8_t RowsPerPage = 6;
     static constexpr uint8_t MaxRows = 72;
-    static constexpr uint8_t MaxModules = 48;
+    static constexpr uint8_t MaxModules = Limits::Config::Capacity::ModuleListMax;
 
     bool begin(const ConfigStoreService* cfgSvc);
     void setHints(const ConfigMenuHint* hints, uint8_t count);

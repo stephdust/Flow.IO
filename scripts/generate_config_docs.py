@@ -269,19 +269,133 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
     if module_name == "io":
         mapping = {
             "enabled": ("Module IO actif", "Active ou désactive la couche IO (entrées/sorties).", None),
-            "i2c_sda": ("Broche I2C SDA", "Broche SDA du bus I2C utilisé par le module IO.", None),
-            "i2c_scl": ("Broche I2C SCL", "Broche SCL du bus I2C utilisé par le module IO.", None),
-            "ads_poll_ms": ("Période lecture ADS (ms)", "Intervalle entre deux acquisitions des entrées analogiques ADS.", "ms"),
-            "ds_poll_ms": ("Période lecture DS18B20 (ms)", "Intervalle entre deux lectures des sondes DS18B20.", "ms"),
-            "digital_poll_ms": ("Période lecture digitales (ms)", "Intervalle de rafraîchissement des entrées digitales.", "ms"),
-            "ads_int_addr": ("Adresse ADS interne", "Adresse I2C du convertisseur ADS interne.", None),
-            "ads_ext_addr": ("Adresse ADS externe", "Adresse I2C du convertisseur ADS externe.", None),
-            "ads_gain": ("Gain ADS", "Gain de conversion ADS (pleine échelle).", None),
-            "ads_rate": ("Fréquence ADS", "Fréquence d'échantillonnage ADS.", None),
-            "pcf_enabled": ("PCF actif", "Active l'extension PCF857x pour E/S supplémentaires.", None),
-            "pcf_address": ("Adresse PCF", "Adresse I2C du composant PCF857x.", None),
-            "pcf_mask_def": ("Masque par défaut PCF", "État par défaut du masque de sorties PCF.", None),
-            "pcf_active_low": ("PCF actif à 0", "Force une logique active-bas sur les sorties PCF.", None),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/bus":
+        mapping = {
+            "sda": ("Broche bus SDA", "Broche SDA du bus I2C utilisé par le module IO.", None),
+            "scl": ("Broche bus SCL", "Broche SCL du bus I2C utilisé par le module IO.", None),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/ds18b20":
+        mapping = {
+            "poll_ms": ("Période lecture DS18B20 (ms)", "Intervalle entre deux lectures des sondes DS18B20.", "ms"),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/gpio":
+        mapping = {
+            "poll_ms": ("Période lecture digitales (ms)", "Intervalle de rafraîchissement des entrées digitales.", "ms"),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/ads1115":
+        mapping = {
+            "poll_ms": ("Période lecture ADS (ms)", "Intervalle entre deux acquisitions des entrées analogiques ADS.", "ms"),
+            "gain": ("Gain ADS", "Gain de conversion ADS (pleine échelle).", None),
+            "rate": ("Fréquence ADS", "Fréquence d'échantillonnage ADS.", None),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/ads1115_int":
+        mapping = {
+            "address": ("Adresse ADS interne", "Adresse I2C du convertisseur ADS1115 interne.", None),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/ads1115_ext":
+        mapping = {
+            "address": ("Adresse ADS externe", "Adresse I2C du convertisseur ADS1115 externe.", None),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/pcf857x":
+        mapping = {
+            "enabled": ("PCF actif", "Active l'extension PCF857x pour E/S supplémentaires.", None),
+            "address": ("Adresse PCF", "Adresse I2C du composant PCF857x.", None),
+            "mask_default": ("Masque par défaut PCF", "État par défaut du masque de sorties PCF.", None),
+            "active_low": ("PCF actif à 0", "Force une logique active-bas sur les sorties PCF.", None),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/sht40":
+        mapping = {
+            "enabled": ("SHT40 actif", "Active le driver SHT40.", None),
+            "address": ("Adresse SHT40", "Adresse I2C du capteur SHT40.", None),
+            "poll_ms": ("Période lecture SHT40 (ms)", "Intervalle entre deux acquisitions SHT40.", "ms"),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/bmp280":
+        mapping = {
+            "enabled": ("BMP280 actif", "Active le driver BMP280.", None),
+            "address": ("Adresse BMP280", "Adresse I2C du capteur BMP280.", None),
+            "poll_ms": ("Période lecture BMP280 (ms)", "Intervalle entre deux acquisitions BMP280.", "ms"),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/bme680":
+        mapping = {
+            "enabled": ("BME680 actif", "Active le driver BME680.", None),
+            "address": ("Adresse BME680", "Adresse I2C du capteur BME680.", None),
+            "poll_ms": ("Période lecture BME680 (ms)", "Intervalle entre deux acquisitions BME680.", "ms"),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "io/drivers/ina226":
+        mapping = {
+            "enabled": ("INA226 actif", "Active le driver INA226.", None),
+            "address": ("Adresse INA226", "Adresse I2C du capteur INA226.", None),
+            "poll_ms": ("Période lecture INA226 (ms)", "Intervalle entre deux acquisitions INA226.", "ms"),
+            "shunt_ohms": ("Shunt INA226 (Ohm)", "Valeur de la résistance shunt utilisée pour la calibration INA226.", "Ohm"),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "elink/client":
+        mapping = {
+            "enabled": ("Client eLink actif", "Active le client eLink côté Supervisor pour dialoguer avec Flow.IO.", None),
+            "sda": ("GPIO SDA eLink", "GPIO utilisé pour la ligne SDA du bus eLink Supervisor -> Flow.IO.", None),
+            "scl": ("GPIO SCL eLink", "GPIO utilisé pour la ligne SCL du bus eLink Supervisor -> Flow.IO.", None),
+            "freq_hz": ("Fréquence eLink", "Fréquence du bus eLink en hertz.", "Hz"),
+            "target_addr": ("Adresse cible Flow.IO", "Adresse I2C du serveur eLink sur Flow.IO.", None),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "elink/server":
+        mapping = {
+            "enabled": ("Serveur eLink actif", "Active le serveur eLink côté Flow.IO.", None),
+            "sda": ("GPIO SDA eLink", "GPIO utilisé pour la ligne SDA du bus eLink Flow.IO <-> Supervisor.", None),
+            "scl": ("GPIO SCL eLink", "GPIO utilisé pour la ligne SCL du bus eLink Flow.IO <-> Supervisor.", None),
+            "freq_hz": ("Fréquence eLink", "Fréquence du bus eLink en hertz.", "Hz"),
+            "address": ("Adresse locale Flow.IO", "Adresse I2C locale du serveur eLink sur Flow.IO.", None),
         }
         hit = mapping.get(json_name)
         if hit:

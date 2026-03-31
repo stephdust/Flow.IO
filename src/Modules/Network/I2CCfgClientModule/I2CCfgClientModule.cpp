@@ -22,7 +22,7 @@ constexpr uint32_t kRuntimeCacheTtlMs = 5000U;
 constexpr uint32_t kRemoteRetryCooldownMs = 3000U;
 constexpr uint32_t kPriorityI2cHoldMs = 1500U;
 static constexpr MqttConfigRouteProducer::Route kI2cClientCfgRoutes[] = {
-    {1, {(uint8_t)ConfigModuleId::I2cCfg, kI2cClientCfgBranch}, "i2c/cfg/client", "i2c/cfg/client", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {1, {(uint8_t)ConfigModuleId::I2cCfg, kI2cClientCfgBranch}, "elink/client", "elink/client", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
 
 const char* opName(uint8_t op)

@@ -23,6 +23,19 @@ struct IOModuleConfig {
     uint8_t adsExternalAddr = FLOW_WIRDEF_IO_AEAD;
     int32_t adsGain = FLOW_MODDEF_IO_AGAI;
     int32_t adsRate = FLOW_MODDEF_IO_ARAT;
+    bool sht40Enabled = false;
+    uint8_t sht40Address = 0x44;
+    int32_t sht40PollMs = 2000;
+    bool bmp280Enabled = false;
+    uint8_t bmp280Address = 0x76;
+    int32_t bmp280PollMs = 1000;
+    bool bme680Enabled = false;
+    uint8_t bme680Address = 0x77;
+    int32_t bme680PollMs = 2000;
+    bool ina226Enabled = false;
+    uint8_t ina226Address = 0x40;
+    int32_t ina226PollMs = 500;
+    float ina226ShuntOhms = 0.1f;
     bool pcfEnabled = FLOW_WIRDEF_IO_PCFEN;
     uint8_t pcfAddress = FLOW_WIRDEF_IO_PCFAD;
     uint8_t pcfMaskDefault = FLOW_WIRDEF_IO_PCFMK;
@@ -35,8 +48,15 @@ enum IOAnalogSource : uint8_t {
     IO_SRC_ADS_INTERNAL_SINGLE = 0,
     IO_SRC_ADS_EXTERNAL_DIFF = 1,
     IO_SRC_DS18_WATER = 2,
-    IO_SRC_DS18_AIR = 3
+    IO_SRC_DS18_AIR = 3,
+    IO_SRC_SHT40 = 4,
+    IO_SRC_BMP280 = 5,
+    IO_SRC_BME680 = 6,
+    IO_SRC_INA226 = 7,
+    IO_SRC_COUNT = 8
 };
+
+constexpr uint8_t IO_ANALOG_SOURCE_INVALID = 0xFFu;
 
 enum IOBindingPortKind : uint8_t {
     IO_PORT_KIND_NONE = 0,

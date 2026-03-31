@@ -47,29 +47,29 @@ private:
         uint8_t address = 0x42;
     } cfgData_{};
 
-    // CFGDOC: {"label":"Serveur cfg I2C actif", "help":"Active le serveur de configuration I2C cote Flow.IO pour repondre au Supervisor."}
+    // CFGDOC: {"label":"Serveur eLink actif", "help":"Active le serveur eLink cote Flow.IO pour repondre au Supervisor."}
     ConfigVariable<bool, 0> enabledVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ServerEnabled), "enabled", "i2c/cfg/server",
+        NVS_KEY(NvsKeys::I2cCfg::ServerEnabled), "enabled", "elink/server",
         ConfigType::Bool, &cfgData_.enabled, ConfigPersistence::Persistent, 0
     };
     // CFGDOC: {"label":"GPIO SDA interlink", "help":"GPIO utilise pour la ligne SDA du bus interlink Flow.IO <-> Supervisor."}
     ConfigVariable<int32_t, 0> sdaVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ServerSda), "sda", "i2c/cfg/server",
+        NVS_KEY(NvsKeys::I2cCfg::ServerSda), "sda", "elink/server",
         ConfigType::Int32, &cfgData_.sda, ConfigPersistence::Persistent, 0
     };
     // CFGDOC: {"label":"GPIO SCL interlink", "help":"GPIO utilise pour la ligne SCL du bus interlink Flow.IO <-> Supervisor."}
     ConfigVariable<int32_t, 0> sclVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ServerScl), "scl", "i2c/cfg/server",
+        NVS_KEY(NvsKeys::I2cCfg::ServerScl), "scl", "elink/server",
         ConfigType::Int32, &cfgData_.scl, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"Frequence I2C interlink", "help":"Frequence du bus interlink en hertz.", "unit":"Hz"}
+    // CFGDOC: {"label":"Frequence eLink", "help":"Frequence du bus eLink en hertz.", "unit":"Hz"}
     ConfigVariable<int32_t, 0> freqVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ServerFreq), "freq_hz", "i2c/cfg/server",
+        NVS_KEY(NvsKeys::I2cCfg::ServerFreq), "freq_hz", "elink/server",
         ConfigType::Int32, &cfgData_.freqHz, ConfigPersistence::Persistent, 0
     };
     // CFGDOC: {"label":"Adresse locale Flow.IO", "help":"Adresse I2C locale du serveur de configuration Flow.IO (mode esclave)."}
     ConfigVariable<uint8_t, 0> addrVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ServerAddr), "address", "i2c/cfg/server",
+        NVS_KEY(NvsKeys::I2cCfg::ServerAddr), "address", "elink/server",
         ConfigType::UInt8, &cfgData_.address, ConfigPersistence::Persistent, 0
     };
 

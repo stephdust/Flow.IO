@@ -26,7 +26,7 @@ constexpr uint8_t kInterlinkBus = 1;  // Interlink is fixed on I2C controller 1 
 constexpr uint8_t kI2cServerCfgProducerId = 50;
 constexpr uint8_t kI2cServerCfgBranch = 1;
 static constexpr MqttConfigRouteProducer::Route kI2cServerCfgRoutes[] = {
-    {1, {(uint8_t)ConfigModuleId::I2cCfg, kI2cServerCfgBranch}, "i2c/cfg/server", "i2c/cfg/server", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {1, {(uint8_t)ConfigModuleId::I2cCfg, kI2cServerCfgBranch}, "elink/server", "elink/server", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
 constexpr uint8_t kRuntimeUiMaxIdsPerRequest = (uint8_t)((I2cCfgProtocol::MaxPayload - 1U) / 2U);
 constexpr uint8_t kI2cRuntimeUiValueLinkOk = 1;
@@ -947,9 +947,9 @@ void I2CCfgServerModule::handleRequest_(uint8_t op, uint8_t seq, const uint8_t* 
     }
 
     if (op == I2cCfgProtocol::OpListCount) {
-        const char* modules[Limits::Mqtt::Capacity::CfgTopicMax] = {0};
+        const char* modules[Limits::Config::Capacity::ModuleListMax] = {0};
         const uint8_t count = cfgSvc_->listModules
-                                  ? cfgSvc_->listModules(cfgSvc_->ctx, modules, Limits::Mqtt::Capacity::CfgTopicMax)
+                                  ? cfgSvc_->listModules(cfgSvc_->ctx, modules, Limits::Config::Capacity::ModuleListMax)
                                   : 0;
         const uint8_t out[1] = {count};
         buildResponse_(op, seq, I2cCfgProtocol::StatusOk, out, sizeof(out));
@@ -962,8 +962,8 @@ void I2CCfgServerModule::handleRequest_(uint8_t op, uint8_t seq, const uint8_t* 
             return;
         }
         const uint8_t idx = payload[0];
-        const char* modules[Limits::Mqtt::Capacity::CfgTopicMax] = {0};
-        const uint8_t count = cfgSvc_->listModules(cfgSvc_->ctx, modules, Limits::Mqtt::Capacity::CfgTopicMax);
+        const char* modules[Limits::Config::Capacity::ModuleListMax] = {0};
+        const uint8_t count = cfgSvc_->listModules(cfgSvc_->ctx, modules, Limits::Config::Capacity::ModuleListMax);
         if (idx >= count || !modules[idx]) {
             buildResponse_(op, seq, I2cCfgProtocol::StatusRange, nullptr, 0);
             return;
@@ -990,9 +990,9 @@ void I2CCfgServerModule::handleRequest_(uint8_t op, uint8_t seq, const uint8_t* 
             --prefixLen;
         }
 
-        const char* modules[Limits::Mqtt::Capacity::CfgTopicMax] = {0};
+        const char* modules[Limits::Config::Capacity::ModuleListMax] = {0};
         const uint8_t countModules =
-            cfgSvc_->listModules ? cfgSvc_->listModules(cfgSvc_->ctx, modules, Limits::Mqtt::Capacity::CfgTopicMax) : 0;
+            cfgSvc_->listModules ? cfgSvc_->listModules(cfgSvc_->ctx, modules, Limits::Config::Capacity::ModuleListMax) : 0;
 
         uint8_t childCount = 0;
         bool hasExact = false;
@@ -1049,9 +1049,9 @@ void I2CCfgServerModule::handleRequest_(uint8_t op, uint8_t seq, const uint8_t* 
             --prefixLen;
         }
 
-        const char* modules[Limits::Mqtt::Capacity::CfgTopicMax] = {0};
+        const char* modules[Limits::Config::Capacity::ModuleListMax] = {0};
         const uint8_t countModules =
-            cfgSvc_->listModules(cfgSvc_->ctx, modules, Limits::Mqtt::Capacity::CfgTopicMax);
+            cfgSvc_->listModules(cfgSvc_->ctx, modules, Limits::Config::Capacity::ModuleListMax);
 
         uint8_t childRank = 0;
         for (uint8_t i = 0; i < countModules; ++i) {
@@ -1307,9 +1307,9 @@ void I2CCfgServerModule::handleRequest_(uint8_t op, uint8_t seq, const uint8_t* 
 
         char ack[96] = {0};
         if (ok) {
-            (void)writeOkJson(ack, sizeof(ack), "i2c/cfg/apply");
+            (void)writeOkJson(ack, sizeof(ack), "elink/apply");
         } else {
-            (void)writeErrorJson(ack, sizeof(ack), ErrorCode::CfgApplyFailed, "i2c/cfg/apply");
+            (void)writeErrorJson(ack, sizeof(ack), ErrorCode::CfgApplyFailed, "elink/apply");
         }
         const size_t n = strnlen(ack, sizeof(ack));
         buildResponse_(op, seq, ok ? I2cCfgProtocol::StatusOk : I2cCfgProtocol::StatusFailed, (const uint8_t*)ack, n);

@@ -14,11 +14,15 @@
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Modules/IOModule/IOBus/I2CBus.h"
 #include "Modules/IOModule/IODrivers/Ads1115Driver.h"
+#include "Modules/IOModule/IODrivers/Bme680Driver.h"
+#include "Modules/IOModule/IODrivers/Bmp280Driver.h"
 #include "Modules/IOModule/IODrivers/Ds18b20Driver.h"
 #include "Modules/IOModule/IODrivers/GpioCounterDriver.h"
 #include "Modules/IOModule/IODrivers/GpioDriver.h"
+#include "Modules/IOModule/IODrivers/Ina226Driver.h"
 #include "Modules/IOModule/IODrivers/Pcf8574BitDriver.h"
 #include "Modules/IOModule/IODrivers/Pcf8574Driver.h"
+#include "Modules/IOModule/IODrivers/Sht40Driver.h"
 #include "Modules/IOModule/IOEndpoints/AnalogSensorEndpoint.h"
 #include "Modules/IOModule/IOEndpoints/DigitalActuatorEndpoint.h"
 #include "Modules/IOModule/IOEndpoints/DigitalSensorEndpoint.h"
@@ -101,6 +105,7 @@ private:
 
     static bool tickFastAds_(void* ctx, uint32_t nowMs);
     static bool tickSlowDs_(void* ctx, uint32_t nowMs);
+    static bool tickI2cAnalogs_(void* ctx, uint32_t nowMs);
     static bool tickDigitalInputs_(void* ctx, uint32_t nowMs);
 
     uint8_t ioCount_() const;
@@ -163,6 +168,10 @@ private:
                                             uint32_t counterDebounceUs = 0);
     IAnalogSourceDriver* allocAdsDriver_(const char* driverId, I2CBus* bus, const Ads1115DriverConfig& cfg);
     IAnalogSourceDriver* allocDsDriver_(const char* driverId, OneWireBus* bus, const uint8_t address[8], const Ds18b20DriverConfig& cfg);
+    IAnalogSourceDriver* allocSht40Driver_(const char* driverId, I2CBus* bus, const Sht40DriverConfig& cfg);
+    IAnalogSourceDriver* allocBmp280Driver_(const char* driverId, I2CBus* bus, const Bmp280DriverConfig& cfg);
+    IAnalogSourceDriver* allocBme680Driver_(const char* driverId, I2CBus* bus, const Bme680DriverConfig& cfg);
+    IAnalogSourceDriver* allocIna226Driver_(const char* driverId, I2CBus* bus, const Ina226DriverConfig& cfg);
     IDigitalPinDriver* allocPcfBitDriver_(const char* driverId, Pcf8574Driver* parent, uint8_t bit, bool activeHigh);
     IMaskOutputDriver* allocPcfDriver_(const char* driverId, I2CBus* bus, uint8_t address);
     Pcf8574MaskEndpoint* allocMaskEndpoint_(const char* endpointId, MaskWriteFn writeFn, MaskReadFn readFn, void* fnCtx);
@@ -182,13 +191,14 @@ private:
         bool used = false;
         IoId ioId = IO_ID_INVALID;
         IOAnalogDefinition def{};
+        // `source` identifies the shared physical driver; `channel` selects one logical measurement.
         uint8_t source = IO_SRC_ADS_INTERNAL_SINGLE;
         uint8_t channel = 0;
         uint8_t backend = IO_BACKEND_ADS1115_INT;
         AnalogSensorEndpoint* endpoint = nullptr;
         RunningMedianAverageFloat median{11, 5};
-        bool lastAdsSampleSeqValid = false;
-        uint32_t lastAdsSampleSeq = 0;
+        bool lastSampleSeqValid = false;
+        uint32_t lastSampleSeq = 0;
         bool lastRoundedValid = false;
         float lastRounded = 0.0f;
     };
@@ -242,10 +252,7 @@ private:
     bool oneWireWaterAddrValid_ = false;
     bool oneWireAirAddrValid_ = false;
 
-    IOAnalogProvider adsInternalProvider_{};
-    IOAnalogProvider adsExternalProvider_{};
-    IOAnalogProvider dsWaterProvider_{};
-    IOAnalogProvider dsAirProvider_{};
+    IOAnalogProvider analogProviders_[IO_SRC_COUNT]{};
     IOMaskProvider ledMaskProvider_{};
     Pcf8574MaskEndpoint* ledMaskEp_ = nullptr;
     Pcf8574Driver* pcfDriver_ = nullptr;
@@ -281,6 +288,10 @@ private:
     alignas(Pcf8574BitDriver) uint8_t pcfBitDriverPool_[MAX_DIGITAL_OUTPUTS][sizeof(Pcf8574BitDriver)]{};
     alignas(Ads1115Driver) uint8_t adsDriverPool_[2][sizeof(Ads1115Driver)]{};
     alignas(Ds18b20Driver) uint8_t dsDriverPool_[2][sizeof(Ds18b20Driver)]{};
+    alignas(Sht40Driver) uint8_t sht40DriverPool_[1][sizeof(Sht40Driver)]{};
+    alignas(Bmp280Driver) uint8_t bmp280DriverPool_[1][sizeof(Bmp280Driver)]{};
+    alignas(Bme680Driver) uint8_t bme680DriverPool_[1][sizeof(Bme680Driver)]{};
+    alignas(Ina226Driver) uint8_t ina226DriverPool_[1][sizeof(Ina226Driver)]{};
     alignas(Pcf8574Driver) uint8_t pcfDriverPool_[1][sizeof(Pcf8574Driver)]{};
     alignas(Pcf8574MaskEndpoint) uint8_t maskEndpointPool_[1][sizeof(Pcf8574MaskEndpoint)]{};
     uint8_t analogEndpointPoolUsed_ = 0;
@@ -291,6 +302,10 @@ private:
     uint8_t pcfBitDriverPoolUsed_ = 0;
     uint8_t adsDriverPoolUsed_ = 0;
     uint8_t dsDriverPoolUsed_ = 0;
+    uint8_t sht40DriverPoolUsed_ = 0;
+    uint8_t bmp280DriverPoolUsed_ = 0;
+    uint8_t bme680DriverPoolUsed_ = 0;
+    uint8_t ina226DriverPoolUsed_ = 0;
     uint8_t pcfDriverPoolUsed_ = 0;
     uint8_t maskEndpointPoolUsed_ = 0;
     bool runtimeReady_ = false;
@@ -302,19 +317,32 @@ private:
     uint16_t analogConfigDirtyMask_ = 0;
 
     ConfigVariable<bool,0> enabledVar_ { NVS_KEY(NvsKeys::Io::IO_EN),"enabled","io",ConfigType::Bool,&cfgData_.enabled,ConfigPersistence::Persistent,0 };
-    ConfigVariable<int32_t,0> i2cSdaVar_ { NVS_KEY(NvsKeys::Io::IO_SDA),"i2c_sda","io",ConfigType::Int32,&cfgData_.i2cSda,ConfigPersistence::Persistent,0 };
-    ConfigVariable<int32_t,0> i2cSclVar_ { NVS_KEY(NvsKeys::Io::IO_SCL),"i2c_scl","io",ConfigType::Int32,&cfgData_.i2cScl,ConfigPersistence::Persistent,0 };
-    ConfigVariable<int32_t,0> adsPollVar_ { NVS_KEY(NvsKeys::Io::IO_ADS),"ads_poll_ms","io",ConfigType::Int32,&cfgData_.adsPollMs,ConfigPersistence::Persistent,0 };
-    ConfigVariable<int32_t,0> dsPollVar_ { NVS_KEY(NvsKeys::Io::IO_DS),"ds_poll_ms","io",ConfigType::Int32,&cfgData_.dsPollMs,ConfigPersistence::Persistent,0 };
-    ConfigVariable<int32_t,0> digitalPollVar_ { NVS_KEY(NvsKeys::Io::IO_DIN),"digital_poll_ms","io",ConfigType::Int32,&cfgData_.digitalPollMs,ConfigPersistence::Persistent,0 };
-    ConfigVariable<uint8_t,0> adsInternalAddrVar_ { NVS_KEY(NvsKeys::Io::IO_AIAD),"ads_int_addr","io",ConfigType::UInt8,&cfgData_.adsInternalAddr,ConfigPersistence::Persistent,0 };
-    ConfigVariable<uint8_t,0> adsExternalAddrVar_ { NVS_KEY(NvsKeys::Io::IO_AEAD),"ads_ext_addr","io",ConfigType::UInt8,&cfgData_.adsExternalAddr,ConfigPersistence::Persistent,0 };
-    ConfigVariable<int32_t,0> adsGainVar_ { NVS_KEY(NvsKeys::Io::IO_AGAI),"ads_gain","io",ConfigType::Int32,&cfgData_.adsGain,ConfigPersistence::Persistent,0 };
-    ConfigVariable<int32_t,0> adsRateVar_ { NVS_KEY(NvsKeys::Io::IO_ARAT),"ads_rate","io",ConfigType::Int32,&cfgData_.adsRate,ConfigPersistence::Persistent,0 };
-    ConfigVariable<bool,0> pcfEnabledVar_ { NVS_KEY(NvsKeys::Io::IO_PCFEN),"pcf_enabled","io",ConfigType::Bool,&cfgData_.pcfEnabled,ConfigPersistence::Persistent,0 };
-    ConfigVariable<uint8_t,0> pcfAddressVar_ { NVS_KEY(NvsKeys::Io::IO_PCFAD),"pcf_address","io",ConfigType::UInt8,&cfgData_.pcfAddress,ConfigPersistence::Persistent,0 };
-    ConfigVariable<uint8_t,0> pcfMaskDefaultVar_ { NVS_KEY(NvsKeys::Io::IO_PCFMK),"pcf_mask_def","io",ConfigType::UInt8,&cfgData_.pcfMaskDefault,ConfigPersistence::Persistent,0 };
-    ConfigVariable<bool,0> pcfActiveLowVar_ { NVS_KEY(NvsKeys::Io::IO_PCFAL),"pcf_active_low","io",ConfigType::Bool,&cfgData_.pcfActiveLow,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> i2cSdaVar_ { NVS_KEY(NvsKeys::Io::IO_SDA),"sda","io/drivers/bus",ConfigType::Int32,&cfgData_.i2cSda,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> i2cSclVar_ { NVS_KEY(NvsKeys::Io::IO_SCL),"scl","io/drivers/bus",ConfigType::Int32,&cfgData_.i2cScl,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> adsPollVar_ { NVS_KEY(NvsKeys::Io::IO_ADS),"poll_ms","io/drivers/ads1115",ConfigType::Int32,&cfgData_.adsPollMs,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> dsPollVar_ { NVS_KEY(NvsKeys::Io::IO_DS),"poll_ms","io/drivers/ds18b20",ConfigType::Int32,&cfgData_.dsPollMs,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> digitalPollVar_ { NVS_KEY(NvsKeys::Io::IO_DIN),"poll_ms","io/drivers/gpio",ConfigType::Int32,&cfgData_.digitalPollMs,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> adsInternalAddrVar_ { NVS_KEY(NvsKeys::Io::IO_AIAD),"address","io/drivers/ads1115_int",ConfigType::UInt8,&cfgData_.adsInternalAddr,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> adsExternalAddrVar_ { NVS_KEY(NvsKeys::Io::IO_AEAD),"address","io/drivers/ads1115_ext",ConfigType::UInt8,&cfgData_.adsExternalAddr,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> adsGainVar_ { NVS_KEY(NvsKeys::Io::IO_AGAI),"gain","io/drivers/ads1115",ConfigType::Int32,&cfgData_.adsGain,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> adsRateVar_ { NVS_KEY(NvsKeys::Io::IO_ARAT),"rate","io/drivers/ads1115",ConfigType::Int32,&cfgData_.adsRate,ConfigPersistence::Persistent,0 };
+    ConfigVariable<bool,0> sht40EnabledVar_ { NVS_KEY(NvsKeys::Io::IO_SHTEN),"enabled","io/drivers/sht40",ConfigType::Bool,&cfgData_.sht40Enabled,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> sht40AddressVar_ { NVS_KEY(NvsKeys::Io::IO_SHTAD),"address","io/drivers/sht40",ConfigType::UInt8,&cfgData_.sht40Address,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> sht40PollVar_ { NVS_KEY(NvsKeys::Io::IO_SHTPL),"poll_ms","io/drivers/sht40",ConfigType::Int32,&cfgData_.sht40PollMs,ConfigPersistence::Persistent,0 };
+    ConfigVariable<bool,0> bmp280EnabledVar_ { NVS_KEY(NvsKeys::Io::IO_BMPEN),"enabled","io/drivers/bmp280",ConfigType::Bool,&cfgData_.bmp280Enabled,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> bmp280AddressVar_ { NVS_KEY(NvsKeys::Io::IO_BMPAD),"address","io/drivers/bmp280",ConfigType::UInt8,&cfgData_.bmp280Address,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> bmp280PollVar_ { NVS_KEY(NvsKeys::Io::IO_BMPPL),"poll_ms","io/drivers/bmp280",ConfigType::Int32,&cfgData_.bmp280PollMs,ConfigPersistence::Persistent,0 };
+    ConfigVariable<bool,0> bme680EnabledVar_ { NVS_KEY(NvsKeys::Io::IO_BMEEN),"enabled","io/drivers/bme680",ConfigType::Bool,&cfgData_.bme680Enabled,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> bme680AddressVar_ { NVS_KEY(NvsKeys::Io::IO_BMEAD),"address","io/drivers/bme680",ConfigType::UInt8,&cfgData_.bme680Address,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> bme680PollVar_ { NVS_KEY(NvsKeys::Io::IO_BMEPL),"poll_ms","io/drivers/bme680",ConfigType::Int32,&cfgData_.bme680PollMs,ConfigPersistence::Persistent,0 };
+    ConfigVariable<bool,0> ina226EnabledVar_ { NVS_KEY(NvsKeys::Io::IO_INAEN),"enabled","io/drivers/ina226",ConfigType::Bool,&cfgData_.ina226Enabled,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> ina226AddressVar_ { NVS_KEY(NvsKeys::Io::IO_INAAD),"address","io/drivers/ina226",ConfigType::UInt8,&cfgData_.ina226Address,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> ina226PollVar_ { NVS_KEY(NvsKeys::Io::IO_INAPL),"poll_ms","io/drivers/ina226",ConfigType::Int32,&cfgData_.ina226PollMs,ConfigPersistence::Persistent,0 };
+    ConfigVariable<float,0> ina226ShuntOhmsVar_ { NVS_KEY(NvsKeys::Io::IO_INASH),"shunt_ohms","io/drivers/ina226",ConfigType::Float,&cfgData_.ina226ShuntOhms,ConfigPersistence::Persistent,0 };
+    ConfigVariable<bool,0> pcfEnabledVar_ { NVS_KEY(NvsKeys::Io::IO_PCFEN),"enabled","io/drivers/pcf857x",ConfigType::Bool,&cfgData_.pcfEnabled,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> pcfAddressVar_ { NVS_KEY(NvsKeys::Io::IO_PCFAD),"address","io/drivers/pcf857x",ConfigType::UInt8,&cfgData_.pcfAddress,ConfigPersistence::Persistent,0 };
+    ConfigVariable<uint8_t,0> pcfMaskDefaultVar_ { NVS_KEY(NvsKeys::Io::IO_PCFMK),"mask_default","io/drivers/pcf857x",ConfigType::UInt8,&cfgData_.pcfMaskDefault,ConfigPersistence::Persistent,0 };
+    ConfigVariable<bool,0> pcfActiveLowVar_ { NVS_KEY(NvsKeys::Io::IO_PCFAL),"active_low","io/drivers/pcf857x",ConfigType::Bool,&cfgData_.pcfActiveLow,ConfigPersistence::Persistent,0 };
     ConfigVariable<bool,0> traceEnabledVar_ { NVS_KEY(NvsKeys::Io::IO_TREN),"trace_enabled","io/debug",ConfigType::Bool,&cfgData_.traceEnabled,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> tracePeriodVar_ { NVS_KEY(NvsKeys::Io::IO_TRMS),"trace_period_ms","io/debug",ConfigType::Int32,&cfgData_.tracePeriodMs,ConfigPersistence::Persistent,0 };
 

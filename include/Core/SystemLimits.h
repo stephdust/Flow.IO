@@ -57,6 +57,14 @@ constexpr uint32_t LoopDelayMs = 10;
 }  // namespace Timing
 }  // namespace Core
 
+/** @brief Configuration tree limits shared by local and remote explorers. */
+namespace Config {
+namespace Capacity {
+/** @brief Maximum number of unique config branches returned by `ConfigStore::listModules`. */
+constexpr uint8_t ModuleListMax = 96;
+}  // namespace Capacity
+}  // namespace Config
+
 /** @brief MQTT-specific limits grouped by concern to keep `SystemLimits` readable. */
 namespace Mqtt {
 

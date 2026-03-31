@@ -38,6 +38,7 @@
         <div class="topbar">
           <h1>Mesures</h1>
           <div class="topbar-actions">
+            <span id="poolMeasuresStatus" class="status-chip measure-status-badge">en attente...</span>
             <button id="poolMeasuresRefresh" class="btn-tonal btn-icon-only btn-refresh-icon" aria-label="Rafraîchir les mesures actives" title="Rafraîchir les mesures actives"><span class="refresh-icon-glyph" aria-hidden="true"></span></button>
           </div>
         </div>
@@ -47,7 +48,6 @@
           <div class="control-divider measure-domain-divider"></div>
           <div class="control-section-title">Mesures</div>
           <div class="measure-results-shell">
-            <div id="poolMeasuresStatus" class="config-status measure-status">en attente...</div>
             <div id="poolMeasuresGrid" class="status-grid measure-status-grid"></div>
           </div>
         </div>
@@ -85,9 +85,12 @@
       <section id="page-system" class="page">
         <div class="topbar">
           <h1>Mise à jour</h1>
+          <div class="topbar-actions">
+            <span id="systemStatusText" class="status-chip system-status-badge">Prêt</span>
+          </div>
         </div>
         <div class="system-groups">
-          <div class="card">
+          <div class="card system-card system-card-firmware">
             <div class="config-section">
               <h2>Mise à jour Firmware</h2>
               <div class="form-grid upgrade-form-grid">
@@ -161,30 +164,34 @@
             </div>
           </div>
 
-          <div class="system-actions">
-            <div class="system-action">
-              <h3>Redémarrer le Superviseur</h3>
-              <p>Redémarre uniquement le Superviseur pour relancer les services sans modifier la configuration.</p>
-              <div class="btn-row system-action-actions">
-                <button id="rebootSupervisor" class="btn-tonal system-reboot-btn">Redémarrer</button>
-              </div>
-            </div>
-            <div class="system-action">
-              <h3>Redémarrer Flow.IO</h3>
-              <p>Redémarre Flow.IO proprement via le lien I2C.</p>
-              <div class="btn-row system-action-actions">
-                <button id="rebootFlow" class="btn-tonal system-reboot-btn">Redémarrer</button>
-              </div>
-            </div>
-            <div class="system-action">
-              <h3>Réinitialisation</h3>
-              <p>Efface la configuration de Flow.IO puis redémarre l’équipement.</p>
-              <div class="btn-row system-action-actions">
-                <button id="flowFactoryReset" class="btn-primary">Réinitialiser</button>
+          <div class="card system-card system-card-actions">
+            <div class="config-section">
+              <h2>Redémarrage</h2>
+              <div class="system-actions">
+                <div class="system-action">
+                  <h3>Redémarrer le Superviseur</h3>
+                  <p>Redémarre uniquement le Superviseur pour relancer les services sans modifier la configuration.</p>
+                  <div class="btn-row system-action-actions">
+                    <button id="rebootSupervisor" class="btn-tonal system-reboot-btn">Redémarrer</button>
+                  </div>
+                </div>
+                <div class="system-action">
+                  <h3>Redémarrer Flow.IO</h3>
+                  <p>Redémarre Flow.IO proprement via le lien I2C.</p>
+                  <div class="btn-row system-action-actions">
+                    <button id="rebootFlow" class="btn-tonal system-reboot-btn">Redémarrer</button>
+                  </div>
+                </div>
+                <div class="system-action">
+                  <h3>Réinitialisation</h3>
+                  <p>Efface la configuration de Flow.IO puis redémarre l’équipement.</p>
+                  <div class="btn-row system-action-actions">
+                    <button id="flowFactoryReset" class="btn-primary">Réinitialiser</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <div id="systemStatusText" class="config-status">Aucune action système en cours.</div>
         </div>
       </section>
 

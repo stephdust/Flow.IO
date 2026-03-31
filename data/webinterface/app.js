@@ -1513,7 +1513,17 @@
     }
 
     async function onControlPageShown() {
-      await ensureFlowCfgLoaded(false);
+      const shouldShowInitialTreeSkeleton = !flowCfgLoadedOnce;
+      if (shouldShowInitialTreeSkeleton) {
+        beginFlowCfgLoading('Chargement de la configuration distante...', { tree: true, detail: false });
+      }
+      try {
+        await ensureFlowCfgLoaded(false);
+      } finally {
+        if (shouldShowInitialTreeSkeleton) {
+          endFlowCfgLoading({ tree: true, detail: false });
+        }
+      }
     }
 
     function fmtFlowStatusVal(v) {
@@ -3073,8 +3083,10 @@
 
     function refreshPoolMeasuresStatus() {
       const activeDomains = activePoolMeasureDomainKeys();
+      const domainLabel = (count) => count > 1 ? 'Domaines' : 'Domaine';
+      const valueLabel = (count) => count > 1 ? 'Valeurs' : 'Valeur';
       if (!activeDomains.length) {
-        poolMeasuresStatus.textContent = 'Aucun domaine charge.';
+        poolMeasuresStatus.textContent = 'Domaine: 0 | Valeur: 0';
         return;
       }
 
@@ -3090,18 +3102,17 @@
 
       if (loadingCount > 0) {
         poolMeasuresStatus.textContent =
-          'Chargement en cours : ' + loadingCount + ' domaine' + (loadingCount > 1 ? 's' : '') + '.';
+          'Chargement: ' + loadingCount + ' domaine' + (loadingCount > 1 ? 's' : '');
         return;
       }
       if (errorCount > 0) {
         poolMeasuresStatus.textContent =
-          'Lecture partielle : ' + errorCount + ' domaine' + (errorCount > 1 ? 's' : '') + ' en erreur.';
+          'Erreur(s): ' + errorCount + ' domaine' + (errorCount > 1 ? 's' : '');
         return;
       }
       poolMeasuresStatus.textContent =
-        activeDomains.length + ' domaine' + (activeDomains.length > 1 ? 's' : '') +
-        ' actif' + (activeDomains.length > 1 ? 's' : '') + ' · ' +
-        valueCount + ' valeur' + (valueCount > 1 ? 's' : '') + ' affichee' + (valueCount > 1 ? 's' : '') + '.';
+        domainLabel(activeDomains.length) + ': ' + activeDomains.length + ' | ' +
+        valueLabel(valueCount) + ': ' + valueCount;
     }
 
     function refreshPoolMeasuresView() {
@@ -3504,7 +3515,12 @@
       toggle.type = 'button';
       toggle.className = 'cfg-tree-toggle' + (isExpanded ? ' is-expanded' : '') + (canExpand ? '' : ' is-leaf');
       toggle.setAttribute('aria-label', canExpand ? ('Afficher ' + label) : (label + ' sans sous-branche'));
-      toggle.textContent = canExpand ? (isExpanded ? '-' : '+') : '';
+      if (canExpand) {
+        const glyph = document.createElement('span');
+        glyph.className = 'cfg-tree-toggle-glyph' + (isExpanded ? ' is-minus' : ' is-plus');
+        glyph.textContent = isExpanded ? '-' : '+';
+        toggle.appendChild(glyph);
+      }
       toggle.disabled = !canExpand;
       if (canExpand) {
         toggle.addEventListener('click', async (event) => {
@@ -3561,7 +3577,12 @@
       const toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'cfg-tree-toggle' + (expanded ? ' is-expanded' : '') + (children.length > 0 ? '' : ' is-leaf');
-      toggle.textContent = children.length > 0 ? (expanded ? '-' : '+') : '';
+      if (children.length > 0) {
+        const glyph = document.createElement('span');
+        glyph.className = 'cfg-tree-toggle-glyph' + (expanded ? ' is-minus' : ' is-plus');
+        glyph.textContent = expanded ? '-' : '+';
+        toggle.appendChild(glyph);
+      }
       toggle.disabled = children.length === 0;
       toggle.setAttribute('aria-label', expanded ? ('Replier ' + label) : ('Afficher ' + label));
       toggle.addEventListener('click', async (event) => {
@@ -4546,13 +4567,13 @@
       else if (target === 'supervisor' && action === 'factory_reset') endpoint = '/api/system/factory-reset';
       await fetchOkJson(endpoint, { method: 'POST' }, 'échec action', target === 'flow' ? fetchFlowRemoteQueued : fetch);
       if (target === 'flow' && action === 'factory_reset') {
-        systemStatusText.textContent = 'Réinitialisation usine de Flow.IO lancée. Redémarrage en cours...';
+        systemStatusText.textContent = 'Reset Flow.IO en cours';
       } else if (target === 'flow' && action === 'reboot') {
-        systemStatusText.textContent = 'Redémarrage de Flow.IO lancé...';
+        systemStatusText.textContent = 'Redémarrage Flow.IO';
       } else if (target === 'supervisor' && action === 'factory_reset') {
-        systemStatusText.textContent = 'Réinitialisation usine du Superviseur lancée. Redémarrage en cours...';
+        systemStatusText.textContent = 'Reset superviseur en cours';
       } else {
-        systemStatusText.textContent = 'Redémarrage du Superviseur lancé...';
+        systemStatusText.textContent = 'Redémarrage superviseur';
       }
     }
 
@@ -4576,7 +4597,7 @@
 
       const tick = () => {
         button.textContent = remaining + ' s';
-        systemStatusText.textContent = countdownLabel + ' dans ' + remaining + ' s...';
+        systemStatusText.textContent = countdownLabel + ' dans ' + remaining + ' s';
 
         if (remaining <= 1) {
           pendingSystemActionCountdowns.delete(button);
@@ -4586,7 +4607,7 @@
               await actionRunner();
             } catch (err) {
               clearPendingSystemAction(button);
-              systemStatusText.textContent = failurePrefix + ' : ' + err;
+              systemStatusText.textContent = failurePrefix;
               return;
             }
             button.textContent = 'Redémarrer';
@@ -4677,17 +4698,17 @@
       bindClickAction(rebootSupervisorBtn, () => {
         startDelayedSystemAction(
           rebootSupervisorBtn,
-          'Redémarrage du Superviseur',
+          'Reboot superviseur',
           () => callSystemAction('supervisor', 'reboot'),
-          'Redémarrage du Superviseur échoué'
+          'Reboot superviseur échoué'
         );
       });
       bindClickAction(rebootFlowBtn, () => {
         startDelayedSystemAction(
           rebootFlowBtn,
-          'Redémarrage de Flow.IO',
+          'Reboot Flow.IO',
           () => callSystemAction('flow', 'reboot'),
-          'Redémarrage de Flow.IO échoué'
+          'Reboot Flow.IO échoué'
         );
       });
       bindClickAction(flowFactoryResetBtn, async () => {
@@ -4695,7 +4716,7 @@
         try {
           await callSystemAction('flow', 'factory_reset');
         } catch (err) {
-          systemStatusText.textContent = 'Réinitialisation usine de Flow.IO échouée : ' + err;
+          systemStatusText.textContent = 'Reset Flow.IO échoué';
         }
       });
     }

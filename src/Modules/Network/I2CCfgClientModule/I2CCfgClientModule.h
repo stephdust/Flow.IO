@@ -59,29 +59,29 @@ private:
         uint8_t targetAddr = 0x42;
     } cfgData_{};
 
-    // CFGDOC: {"label":"Client cfg I2C actif", "help":"Active le client de configuration I2C cote Supervisor pour dialoguer avec Flow.IO."}
+    // CFGDOC: {"label":"Client eLink actif", "help":"Active le client eLink cote Supervisor pour dialoguer avec Flow.IO."}
     ConfigVariable<bool, 0> enabledVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ClientEnabled), "enabled", "i2c/cfg/client",
+        NVS_KEY(NvsKeys::I2cCfg::ClientEnabled), "enabled", "elink/client",
         ConfigType::Bool, &cfgData_.enabled, ConfigPersistence::Persistent, 0
     };
     // CFGDOC: {"label":"GPIO SDA interlink", "help":"GPIO utilise pour la ligne SDA du bus interlink Supervisor -> Flow.IO."}
     ConfigVariable<int32_t, 0> sdaVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ClientSda), "sda", "i2c/cfg/client",
+        NVS_KEY(NvsKeys::I2cCfg::ClientSda), "sda", "elink/client",
         ConfigType::Int32, &cfgData_.sda, ConfigPersistence::Persistent, 0
     };
     // CFGDOC: {"label":"GPIO SCL interlink", "help":"GPIO utilise pour la ligne SCL du bus interlink Supervisor -> Flow.IO."}
     ConfigVariable<int32_t, 0> sclVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ClientScl), "scl", "i2c/cfg/client",
+        NVS_KEY(NvsKeys::I2cCfg::ClientScl), "scl", "elink/client",
         ConfigType::Int32, &cfgData_.scl, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"Frequence I2C interlink", "help":"Frequence du bus interlink en hertz.", "unit":"Hz"}
+    // CFGDOC: {"label":"Frequence eLink", "help":"Frequence du bus eLink en hertz.", "unit":"Hz"}
     ConfigVariable<int32_t, 0> freqVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ClientFreq), "freq_hz", "i2c/cfg/client",
+        NVS_KEY(NvsKeys::I2cCfg::ClientFreq), "freq_hz", "elink/client",
         ConfigType::Int32, &cfgData_.freqHz, ConfigPersistence::Persistent, 0
     };
     // CFGDOC: {"label":"Adresse cible Flow.IO", "help":"Adresse I2C du serveur de configuration sur Flow.IO (mode esclave)."}
     ConfigVariable<uint8_t, 0> addrVar_{
-        NVS_KEY(NvsKeys::I2cCfg::ClientAddr), "target_addr", "i2c/cfg/client",
+        NVS_KEY(NvsKeys::I2cCfg::ClientAddr), "target_addr", "elink/client",
         ConfigType::UInt8, &cfgData_.targetAddr, ConfigPersistence::Persistent, 0
     };
 

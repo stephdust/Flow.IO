@@ -1992,7 +1992,7 @@ void WebInterfaceModule::startServer_()
             return;
         }
 
-        constexpr uint8_t kMaxModules = 96;
+        constexpr uint8_t kMaxModules = Limits::Config::Capacity::ModuleListMax;
         const char* modules[kMaxModules] = {0};
         const uint8_t moduleCount = cfgStore_->listModules(modules, kMaxModules);
 

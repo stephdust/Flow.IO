@@ -393,6 +393,13 @@
       margin-top: 0;
       background: rgba(247, 250, 252, 0.9);
     }
+    .measure-status-badge,
+    .system-status-badge {
+      white-space: nowrap;
+      max-width: min(100%, 340px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .measure-status-grid {
       margin-top: 0;
     }
@@ -1446,6 +1453,12 @@
       display: grid;
       gap: 16px;
     }
+    .system-card {
+      min-width: 0;
+    }
+    .system-card .config-section {
+      margin-bottom: 0;
+    }
     .system-group-title {
       margin: 0 0 8px 0;
       font-size: 15px;
@@ -1477,6 +1490,19 @@
     }
     .system-reboot-btn {
       min-width: 108px;
+    }
+    @media (min-width: 1120px) {
+      .system-groups {
+        grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
+        align-items: start;
+      }
+      .system-card {
+        height: 100%;
+      }
+      .system-card-actions .config-section {
+        display: grid;
+        gap: 14px;
+      }
     }
     .control-card {
       border: none;
@@ -1516,6 +1542,11 @@
     .cfg-tree-pane {
       position: sticky;
       top: 16px;
+      border-color: rgba(175, 195, 210, 0.32);
+      background: var(--md-bg);
+      box-shadow: none;
+      --cfg-tree-line-color: rgba(175, 195, 210, 0.34);
+      --cfg-tree-trim-bg: var(--md-bg);
     }
     .cfg-tree-root {
       margin-top: 10px;
@@ -1550,6 +1581,24 @@
       max-height: 72vh;
       overflow: auto;
       padding-right: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(175, 195, 210, 0.48) var(--cfg-tree-trim-bg, var(--md-bg));
+    }
+    .cfg-tree::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    .cfg-tree::-webkit-scrollbar-track {
+      background: var(--cfg-tree-trim-bg, var(--md-bg));
+      border-radius: 999px;
+    }
+    .cfg-tree::-webkit-scrollbar-thumb {
+      background: rgba(175, 195, 210, 0.38);
+      border: 2px solid var(--cfg-tree-trim-bg, var(--md-bg));
+      border-radius: 999px;
+    }
+    .cfg-tree::-webkit-scrollbar-thumb:hover {
+      background: rgba(175, 195, 210, 0.58);
     }
     .cfg-tree-group {
       list-style: none;
@@ -1557,7 +1606,7 @@
       padding: 0;
       display: grid;
       align-content: start;
-      gap: 2px;
+      gap: 0;
     }
     .cfg-tree-item {
       position: relative;
@@ -1574,24 +1623,24 @@
       padding-left: 18px;
     }
     .cfg-tree-group-root::before {
+      content: none;
+    }
+    .cfg-tree-group-root::after {
+      content: none;
+    }
+    .cfg-tree-group-root > .cfg-tree-item::before {
       content: '';
       position: absolute;
-      left: 9px;
+      left: -9px;
       top: 0;
       bottom: 0;
       width: 1px;
-      background: rgba(107, 128, 146, 0.26);
+      background: var(--cfg-tree-line-color, rgba(107, 128, 146, 0.26));
       pointer-events: none;
     }
     .cfg-tree-group-root > .cfg-tree-item:last-child::before {
-      content: '';
-      position: absolute;
-      left: 9px;
-      top: 14px;
-      bottom: 0;
-      width: 1px;
-      background: rgba(248, 251, 254, 0.96);
-      pointer-events: none;
+      bottom: auto;
+      height: 19px;
     }
     .cfg-tree-group-root > .cfg-tree-item > .cfg-tree-row::before {
       content: '';
@@ -1600,29 +1649,29 @@
       top: 50%;
       width: 6px;
       height: 1px;
-      background: rgba(107, 128, 146, 0.26);
+      background: var(--cfg-tree-line-color, rgba(107, 128, 146, 0.26));
       transform: translateY(-50%);
       pointer-events: none;
     }
     .cfg-tree-group.is-nested::before {
+      content: none;
+    }
+    .cfg-tree-group.is-nested::after {
+      content: none;
+    }
+    .cfg-tree-group.is-nested > .cfg-tree-item::before {
       content: '';
       position: absolute;
-      left: 9px;
+      left: -9px;
       top: 0;
       bottom: 0;
       width: 1px;
-      background: rgba(107, 128, 146, 0.26);
+      background: var(--cfg-tree-line-color, rgba(107, 128, 146, 0.26));
       pointer-events: none;
     }
     .cfg-tree-group.is-nested > .cfg-tree-item:last-child::before {
-      content: '';
-      position: absolute;
-      left: 9px;
-      top: 14px;
-      bottom: 0;
-      width: 1px;
-      background: rgba(248, 251, 254, 0.96);
-      pointer-events: none;
+      bottom: auto;
+      height: 19px;
     }
     .cfg-tree-row {
       position: relative;
@@ -1640,7 +1689,7 @@
       top: 50%;
       width: 6px;
       height: 1px;
-      background: rgba(107, 128, 146, 0.26);
+      background: var(--cfg-tree-line-color, rgba(107, 128, 146, 0.26));
       transform: translateY(-50%);
       pointer-events: none;
     }
@@ -1669,6 +1718,14 @@
       font-weight: 500;
       line-height: 1;
       transition: border-color 0.18s ease, color 0.18s ease;
+    }
+    .cfg-tree-toggle-glyph {
+      display: block;
+      line-height: 1;
+      transform: translateY(-0.5px);
+    }
+    .cfg-tree-toggle-glyph.is-minus {
+      transform: translateY(-0.5px);
     }
     .cfg-tree-toggle:hover {
       border-color: rgba(43, 118, 180, 0.34);
@@ -1718,6 +1775,36 @@
     .cfg-tree-node.is-selected .cfg-tree-node-label {
       font-weight: 600;
     }
+    .cfg-tree-pane .cfg-tree-root-label {
+      color: rgba(221, 235, 245, 0.82);
+    }
+    .cfg-tree-pane .cfg-tree-root-label.is-selected {
+      color: #A8E6FF;
+    }
+    .cfg-tree-pane .cfg-tree-toggle {
+      border-color: rgba(175, 195, 210, 0.52);
+      color: #D9E5EF;
+    }
+    .cfg-tree-pane .cfg-tree-toggle:hover {
+      border-color: rgba(168, 230, 255, 0.72);
+      color: #FFFFFF;
+    }
+    .cfg-tree-pane .cfg-tree-node {
+      color: #D9E5EF;
+    }
+    .cfg-tree-pane .cfg-tree-node:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #FFFFFF;
+    }
+    .cfg-tree-pane .cfg-tree-node.is-selected {
+      background: rgba(255, 255, 255, 0.04);
+      color: #A8E6FF;
+    }
+    .cfg-tree-pane .cfg-tree-empty {
+      border-color: rgba(175, 195, 210, 0.42);
+      background: rgba(255, 255, 255, 0.03);
+      color: #C7D6E3;
+    }
     .cfg-tree-empty {
       border: 1px dashed rgba(167, 187, 203, 0.75);
       border-radius: 16px;
@@ -1735,6 +1822,8 @@
     .cfg-tree-skeleton-line {
       height: 42px;
       border-radius: 16px;
+      background: linear-gradient(100deg, rgba(69, 92, 118, 0.62) 20%, rgba(113, 136, 160, 0.26) 50%, rgba(69, 92, 118, 0.62) 80%);
+      background-size: 200% 100%;
     }
     .cfg-tree-skeleton-line.is-indented {
       width: calc(100% - 24px);
@@ -2275,24 +2364,32 @@
         padding-left: 16px;
       }
       .cfg-tree-group-root::before {
-        left: 8px;
+        content: none;
+      }
+      .cfg-tree-group-root::after {
+        content: none;
+      }
+      .cfg-tree-group-root > .cfg-tree-item::before {
+        left: -8px;
       }
       .cfg-tree-group-root > .cfg-tree-item:last-child::before {
-        left: 8px;
-        top: 13px;
-        width: 1px;
+        height: 18px;
       }
       .cfg-tree-group-root > .cfg-tree-item > .cfg-tree-row::before {
         left: -7px;
         width: 5px;
       }
       .cfg-tree-group.is-nested::before {
-        left: 8px;
+        content: none;
+      }
+      .cfg-tree-group.is-nested::after {
+        content: none;
+      }
+      .cfg-tree-group.is-nested > .cfg-tree-item::before {
+        left: -8px;
       }
       .cfg-tree-group.is-nested > .cfg-tree-item:last-child::before {
-        left: 8px;
-        top: 13px;
-        width: 1px;
+        height: 18px;
       }
       .cfg-tree-group.is-nested > .cfg-tree-item > .cfg-tree-row::before {
         left: -7px;

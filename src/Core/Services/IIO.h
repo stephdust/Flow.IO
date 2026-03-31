@@ -57,7 +57,11 @@ enum IoBackend : uint8_t {
     IO_BACKEND_PCF8574 = 1,
     IO_BACKEND_ADS1115_INT = 2,
     IO_BACKEND_ADS1115_EXT_DIFF = 3,
-    IO_BACKEND_DS18B20 = 4
+    IO_BACKEND_DS18B20 = 4,
+    IO_BACKEND_SHT40 = 5,
+    IO_BACKEND_BMP280 = 6,
+    IO_BACKEND_BME680 = 7,
+    IO_BACKEND_INA226 = 8
 };
 
 /** Endpoint capability bitmask. */
