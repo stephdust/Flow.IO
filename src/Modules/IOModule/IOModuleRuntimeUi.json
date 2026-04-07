@@ -97,7 +97,7 @@
       "group": "Compteur",
       "display": "value",
       "unit": "L",
-      "decimals": null,
+      "decimals": 1,
       "order": 50
     }
   ]

@@ -271,7 +271,7 @@
       "domain": "pool",
       "group": "Compteur",
       "unit": "L",
-      "decimals": null,
+      "decimals": 1,
       "order": 50,
       "enum": null,
       "flags": null,
