@@ -1090,8 +1090,18 @@ bool TimeModule::serializeSchedule_(char* out, size_t outLen) const
 bool TimeModule::persistSchedule_()
 {
     if (!cfgStore) return false;
-    if (!serializeSchedule_(schedulePersistBuf_, sizeof(schedulePersistBuf_))) return false;
-    return cfgStore->set(scheduleBlobVar, schedulePersistBuf_);
+    // Serialize on demand to avoid keeping a second 1.5 KB scheduler buffer in BSS.
+    char* persistBuf = static_cast<char*>(malloc(TIME_SCHED_BLOB_SIZE));
+    if (!persistBuf) {
+        LOGE("scheduler persist alloc failed (%u bytes)", (unsigned)TIME_SCHED_BLOB_SIZE);
+        return false;
+    }
+
+    const bool ok =
+        serializeSchedule_(persistBuf, TIME_SCHED_BLOB_SIZE) &&
+        cfgStore->set(scheduleBlobVar, persistBuf);
+    free(persistBuf);
+    return ok;
 }
 
 bool TimeModule::setSlot_(const TimeSchedulerSlot& slotDef)

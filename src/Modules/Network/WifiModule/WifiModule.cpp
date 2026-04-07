@@ -38,6 +38,22 @@ const char* profileMdnsHost_()
     return "flowio";
 #endif
 }
+
+void formatStaMac_(char* out, size_t outLen)
+{
+    if (!out || outLen == 0U) return;
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    snprintf(out,
+             outLen,
+             "%02X:%02X:%02X:%02X:%02X:%02X",
+             (unsigned)mac[0],
+             (unsigned)mac[1],
+             (unsigned)mac[2],
+             (unsigned)mac[3],
+             (unsigned)mac[4],
+             (unsigned)mac[5]);
+}
 }
 
 WifiState WifiModule::stateSvc_() const {
@@ -211,6 +227,9 @@ bool WifiModule::cmdDumpCfg_(void* userCtx, const CommandRequest& req, char* rep
     char ipText[16] = {0};
     snprintf(ipText, sizeof(ipText), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
     doc["ip"] = ipText;
+    char macText[18] = {0};
+    formatStaMac_(macText, sizeof(macText));
+    doc["mac"] = macText;
 
     const size_t written = serializeJson(doc, reply, replyLen);
     return written > 0 && written < replyLen;
@@ -626,6 +645,66 @@ bool WifiModule::buildScanStatusJson_(char* out, size_t outLen)
     return wrote > 0 && wrote < outLen;
 }
 
+void WifiModule::registerHaEntities_(ServiceRegistry& services)
+{
+    if (haEntitiesRegistered_) return;
+    if (!haSvc_) haSvc_ = services.get<HAService>(ServiceId::Ha);
+    if (!haSvc_ || !haSvc_->addSensor) return;
+
+    static constexpr const char* kWifiAvailabilityTpl =
+        "{{ 'online' if value_json.ready else 'offline' }}";
+
+    const HASensorEntry wifiIp{
+        "wifi",
+        "wifi_ip",
+        "IP",
+        "rt/network/state",
+        "{{ value_json.ip | default('', true) }}",
+        "diagnostic",
+        "mdi:ip-network-outline",
+        nullptr,
+        false,
+        kWifiAvailabilityTpl,
+        true
+    };
+    const HASensorEntry wifiMac{
+        "wifi",
+        "wifi_mac",
+        "MAC",
+        "rt/network/state",
+        "{{ value_json.mac | default('', true) }}",
+        "diagnostic",
+        "mdi:card-account-details-outline",
+        nullptr,
+        false,
+        kWifiAvailabilityTpl,
+        true
+    };
+    const HASensorEntry wifiRssi{
+        "wifi",
+        "wifi_rssi",
+        "WiFi RSSI",
+        "rt/network/state",
+        "{{ value_json.rssi | int(-127) }}",
+        "diagnostic",
+        "mdi:wifi",
+        "dBm",
+        false,
+        kWifiAvailabilityTpl,
+        false
+    };
+
+    bool ok = true;
+    ok = haSvc_->addSensor(haSvc_->ctx, &wifiIp) && ok;
+    ok = haSvc_->addSensor(haSvc_->ctx, &wifiMac) && ok;
+    ok = haSvc_->addSensor(haSvc_->ctx, &wifiRssi) && ok;
+    if (ok) {
+        haEntitiesRegistered_ = true;
+    } else {
+        LOGW("HA registration failed: wifi entities");
+    }
+}
+
 void WifiModule::init(ConfigStore& cfg,
                       ServiceRegistry& services)
 {
@@ -689,6 +768,7 @@ void WifiModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
                                (uint8_t)(sizeof(kWifiCfgRoutes) / sizeof(kWifiCfgRoutes[0])),
                                services);
     }
+    registerHaEntities_(services);
 
     applyProfileMdnsHost_();
     logConfigSummary_();

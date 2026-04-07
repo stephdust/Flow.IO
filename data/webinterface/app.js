@@ -708,14 +708,15 @@
       pool: { data: null, fetchedAt: 0 },
       i2c: { data: null, fetchedAt: 0 }
     };
-    const runtimeMeasureDomainKeys = ['pool', 'mqtt', 'system', 'wifi'];
+    const runtimeMeasureDomainKeys = ['pool', 'mqtt', 'system', 'wifi', 'alarm'];
     let runtimeManifestDomainCache = null;
     let runtimeManifestDomainLoadPromise = null;
     const poolMeasureDomainState = {
       pool: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 },
       mqtt: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 },
       system: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 },
-      wifi: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 }
+      wifi: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 },
+      alarm: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 }
     };
     const poolMeasureDomainAnimations = {};
     const upgradeReconnectFetchTimeoutMs = 1400;
@@ -2515,7 +2516,8 @@
         pool: [],
         mqtt: [],
         system: [],
-        wifi: []
+        wifi: [],
+        alarm: []
       };
     }
 
@@ -2646,11 +2648,12 @@
 
     function formatRuntimeDomainLabel(domain) {
       const key = String(domain || '').trim().toLowerCase();
-      if (key === 'pool') return 'Pool';
+      if (key === 'pool') return 'Piscine';
       if (key === 'mqtt') return 'MQTT';
       if (key === 'wifi') return 'WiFi';
       if (key === 'i2c') return 'I2C';
-      if (key === 'system') return 'Systeme';
+      if (key === 'system') return 'Système';
+      if (key === 'alarm') return 'Alarmes';
       if (!key) return 'Runtime';
       return key.charAt(0).toUpperCase() + key.slice(1);
     }
@@ -2703,6 +2706,17 @@
       return entry.label || entry.key || String(entry.id);
     }
 
+    function formatRuntimeFloatValue(value, decimals) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '-';
+      if (decimals !== null) {
+        return n.toFixed(decimals);
+      }
+      const rounded = Math.round(n * 1000) / 1000;
+      const text = rounded.toFixed(3).replace(/(?:\.0+|(\.\d*?)0+)$/, '$1');
+      return text === '-0' ? '0' : text;
+    }
+
     function formatRuntimeMeasureValue(entry, runtimeValue) {
       if (!runtimeValue || runtimeValue.status === 'not_found' || runtimeValue.status === 'unavailable') {
         return 'Indisponible';
@@ -2722,7 +2736,7 @@
       }
       if (type === 'float' && Number.isFinite(Number(rawValue))) {
         const value = Number(rawValue);
-        const text = (decimals !== null) ? value.toFixed(decimals) : String(value);
+        const text = formatRuntimeFloatValue(value, decimals);
         return unit ? (text + ' ' + unit) : text;
       }
       if ((type === 'int32' || type === 'uint32' || type === 'enum') && Number.isFinite(Number(rawValue))) {
@@ -2746,7 +2760,7 @@
     function runtimeMeasureDisplayKind(entry) {
       const explicit = String(entry && entry.display ? entry.display : '').trim();
       if (explicit === 'gauge') return 'circ-gauge';
-      if (explicit === 'circ-gauge' || explicit === 'horiz-gauge' || explicit === 'badge' || explicit === 'boolean' || explicit === 'time' || explicit === 'value') {
+      if (explicit === 'circ-gauge' || explicit === 'horiz-gauge' || explicit === 'badge' || explicit === 'boolean' || explicit === 'time' || explicit === 'value' || explicit === 'flags') {
         return explicit;
       }
       return String(entry && entry.type ? entry.type : '') === 'bool' ? 'boolean' : 'value';
@@ -2832,6 +2846,124 @@
       return badge;
     }
 
+    function runtimeMeasureFlagRole(entry) {
+      const displayConfig = runtimeMeasureDisplayConfig(entry);
+      const role = String(displayConfig.flagRole || '').trim().toLowerCase();
+      if (role === 'active' || role === 'acked' || role === 'condition') return role;
+      return '';
+    }
+
+    function runtimeMeasureFlagColumnLabel(entry) {
+      const displayConfig = runtimeMeasureDisplayConfig(entry);
+      const explicit = String(displayConfig.columnLabel || '').trim();
+      if (explicit) return explicit;
+      const role = runtimeMeasureFlagRole(entry);
+      if (role === 'active') return 'Act.';
+      if (role === 'acked') return 'Ack';
+      if (role === 'condition') return 'Cond.';
+      return runtimeMeasureDisplayLabel(entry);
+    }
+
+    function normalizeRuntimeMeasureFlags(entry) {
+      const rawFlags = Array.isArray(entry && entry.flags) ? entry.flags : [];
+      return rawFlags
+        .map((flag, index) => {
+          const mask = Number(flag && flag.mask);
+          const label = String(flag && flag.label ? flag.label : '').trim();
+          if (!Number.isFinite(mask) || mask <= 0 || !label) return null;
+          return {
+            mask: Math.trunc(mask),
+            label,
+            order: Number.isFinite(Number(flag && flag.order)) ? Number(flag.order) : index
+          };
+        })
+        .filter((flag) => !!flag)
+        .sort((left, right) => left.order - right.order);
+    }
+
+    function runtimeMeasureMaskValue(runtimeValue) {
+      if (!runtimeValue || runtimeValue.status === 'not_found' || runtimeValue.status === 'unavailable') {
+        return null;
+      }
+      const value = Number(runtimeValue.value);
+      if (!Number.isFinite(value)) return null;
+      return Math.trunc(value);
+    }
+
+    function buildRuntimeMeasureFlagCell(value, label, columnLabel) {
+      const known = typeof value === 'boolean';
+      const state = known ? (value ? 'is-true' : 'is-false') : 'is-empty';
+      const marker = document.createElement('span');
+      marker.className = 'status-flag-check ' + state;
+      marker.textContent = known ? (value ? '✓' : '') : '?';
+      marker.setAttribute(
+        'aria-label',
+        label + ' / ' + columnLabel + ' : ' + (known ? (value ? 'oui' : 'non') : 'indisponible')
+      );
+      return marker;
+    }
+
+    function buildRuntimeMeasureFlagsTable(entries, valueById) {
+      const columnsByRole = new Map();
+      let flagDefs = [];
+
+      (entries || []).forEach((entry) => {
+        const role = runtimeMeasureFlagRole(entry);
+        if (!role || columnsByRole.has(role)) return;
+        columnsByRole.set(role, entry);
+        if (!flagDefs.length) {
+          flagDefs = normalizeRuntimeMeasureFlags(entry);
+        }
+      });
+
+      if (!flagDefs.length || columnsByRole.size === 0) return null;
+
+      const orderedColumns = ['active', 'acked', 'condition']
+        .map((role) => ({ role, entry: columnsByRole.get(role) || null }))
+        .filter((column) => !!column.entry);
+      if (!orderedColumns.length) return null;
+
+      const table = document.createElement('table');
+      table.className = 'status-flag-table';
+
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      const nameHead = document.createElement('th');
+      nameHead.scope = 'col';
+      nameHead.textContent = 'Alarme';
+      headRow.appendChild(nameHead);
+      orderedColumns.forEach((column) => {
+        const th = document.createElement('th');
+        th.scope = 'col';
+        th.textContent = runtimeMeasureFlagColumnLabel(column.entry);
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      flagDefs.forEach((flag) => {
+        const row = document.createElement('tr');
+        const labelCell = document.createElement('th');
+        labelCell.scope = 'row';
+        labelCell.textContent = flag.label;
+        row.appendChild(labelCell);
+
+        orderedColumns.forEach((column) => {
+          const runtimeValue = valueById.get(Number(column.entry.id));
+          const maskValue = runtimeMeasureMaskValue(runtimeValue);
+          const cell = document.createElement('td');
+          const enabled = maskValue === null ? null : ((maskValue & flag.mask) !== 0);
+          cell.appendChild(buildRuntimeMeasureFlagCell(enabled, flag.label, runtimeMeasureFlagColumnLabel(column.entry)));
+          row.appendChild(cell);
+        });
+
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      return table;
+    }
+
     function buildPoolMeasureCards(entries, values) {
       const fragment = document.createDocumentFragment();
       const valueById = new Map();
@@ -2867,6 +2999,7 @@
         const circGaugeNodes = [];
         const horizGaugeRows = [];
         const booleanNodes = [];
+        const flagEntries = [];
         const valueRows = [];
 
         group.entries.forEach((entry) => {
@@ -2894,6 +3027,10 @@
             booleanNodes.push(buildRuntimeMeasureBooleanNode(entry, runtimeValue));
             return;
           }
+          if (display === 'flags') {
+            flagEntries.push(entry);
+            return;
+          }
           valueRows.push([
             runtimeMeasureDisplayLabel(entry),
             formatRuntimeMeasureValue(entry, runtimeValue)
@@ -2915,6 +3052,11 @@
         if (booleanNodes.length) {
           const stateGrid = buildFlowReadonlyStateGrid(booleanNodes);
           if (stateGrid) card.appendChild(stateGrid);
+        }
+
+        if (flagEntries.length) {
+          const flagTable = buildRuntimeMeasureFlagsTable(flagEntries, valueById);
+          if (flagTable) card.appendChild(flagTable);
         }
 
         if (horizGaugeRows.length || valueRows.length) {

@@ -12,6 +12,34 @@
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolLogicModule)
 #include "Core/ModuleLog.h"
 
+namespace {
+const char* poolDeviceSvcStatusStr_(PoolDeviceSvcStatus st)
+{
+    switch (st) {
+        case POOLDEV_SVC_OK: return "ok";
+        case POOLDEV_SVC_ERR_INVALID_ARG: return "invalid_arg";
+        case POOLDEV_SVC_ERR_UNKNOWN_SLOT: return "unknown_slot";
+        case POOLDEV_SVC_ERR_NOT_READY: return "not_ready";
+        case POOLDEV_SVC_ERR_DISABLED: return "disabled";
+        case POOLDEV_SVC_ERR_INTERLOCK: return "interlock";
+        case POOLDEV_SVC_ERR_IO: return "io";
+        default: return "unknown";
+    }
+}
+
+const char* poolDeviceBlockReasonStr_(uint8_t reason)
+{
+    switch (reason) {
+        case POOL_DEVICE_BLOCK_NONE: return "none";
+        case POOL_DEVICE_BLOCK_DISABLED: return "disabled";
+        case POOL_DEVICE_BLOCK_INTERLOCK: return "interlock";
+        case POOL_DEVICE_BLOCK_IO_ERROR: return "io_error";
+        case POOL_DEVICE_BLOCK_MAX_UPTIME: return "max_uptime";
+        default: return "unknown";
+    }
+}
+}  // namespace
+
 // Alarm conditions intentionally stay close to the control helpers because they
 // read the same live IO/runtime state and should evolve together.
 AlarmCondState PoolLogicModule::condPsiLowStatic_(void* ctx, uint32_t nowMs)
@@ -68,6 +96,31 @@ AlarmCondState PoolLogicModule::condChlorineTankLowStatic_(void* ctx, uint32_t)
     return low ? AlarmCondState::True : AlarmCondState::False;
 }
 
+AlarmCondState PoolLogicModule::condPhPumpMaxUptimeStatic_(void* ctx, uint32_t)
+{
+    PoolLogicModule* self = static_cast<PoolLogicModule*>(ctx);
+    return self ? self->condPumpMaxUptime_(self->phPumpDeviceSlot_) : AlarmCondState::Unknown;
+}
+
+AlarmCondState PoolLogicModule::condChlorinePumpMaxUptimeStatic_(void* ctx, uint32_t)
+{
+    PoolLogicModule* self = static_cast<PoolLogicModule*>(ctx);
+    return self ? self->condPumpMaxUptime_(self->orpPumpDeviceSlot_) : AlarmCondState::Unknown;
+}
+
+AlarmCondState PoolLogicModule::condPumpMaxUptime_(uint8_t deviceSlot) const
+{
+    if (!poolSvc_ || !poolSvc_->meta) return AlarmCondState::Unknown;
+
+    PoolDeviceSvcMeta meta{};
+    const PoolDeviceSvcStatus st = poolSvc_->meta(poolSvc_->ctx, deviceSlot, &meta);
+    if (st == POOLDEV_SVC_OK) {
+        return (meta.blockReason == POOL_DEVICE_BLOCK_MAX_UPTIME) ? AlarmCondState::True : AlarmCondState::False;
+    }
+    if (st == POOLDEV_SVC_ERR_DISABLED) return AlarmCondState::False;
+    return AlarmCondState::Unknown;
+}
+
 bool PoolLogicModule::readDeviceActualOn_(uint8_t deviceSlot, bool& onOut) const
 {
     if (!poolSvc_ || !poolSvc_->readActualOn) return false;
@@ -82,10 +135,26 @@ bool PoolLogicModule::writeDeviceDesired_(uint8_t deviceSlot, bool on)
     if (!poolSvc_ || !poolSvc_->writeDesired) return false;
     const PoolDeviceSvcStatus st = poolSvc_->writeDesired(poolSvc_->ctx, deviceSlot, on ? 1U : 0U);
     if (st != POOLDEV_SVC_OK) {
-        LOGW("pooldev.writeDesired failed slot=%u desired=%u st=%u",
-             (unsigned)deviceSlot,
-             on ? 1u : 0u,
-             (unsigned)st);
+        PoolDeviceSvcMeta meta{};
+        const bool haveMeta = poolSvc_->meta &&
+                              (poolSvc_->meta(poolSvc_->ctx, deviceSlot, &meta) == POOLDEV_SVC_OK);
+        if (haveMeta) {
+            LOGW("pooldev.writeDesired failed slot=%u desired=%u st=%u(%s) block=%u(%s) enabled=%u io=%u",
+                 (unsigned)deviceSlot,
+                 on ? 1u : 0u,
+                 (unsigned)st,
+                 poolDeviceSvcStatusStr_(st),
+                 (unsigned)meta.blockReason,
+                 poolDeviceBlockReasonStr_(meta.blockReason),
+                 (unsigned)meta.enabled,
+                 (unsigned)meta.ioId);
+        } else {
+            LOGW("pooldev.writeDesired failed slot=%u desired=%u st=%u(%s)",
+                 (unsigned)deviceSlot,
+                 on ? 1u : 0u,
+                 (unsigned)st,
+                 poolDeviceSvcStatusStr_(st));
+        }
         return false;
     }
     return true;

@@ -5,6 +5,7 @@
  */
 
 #include "Core/Module.h"
+#include "Core/RuntimeUi.h"
 #include "Core/ServiceBinding.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/NvsKeys.h"
@@ -13,9 +14,10 @@
 
 struct CommandRequest;
 
-class AlarmModule : public Module {
+class AlarmModule : public Module, public IRuntimeUiValueProvider {
 public:
     ModuleId moduleId() const override { return ModuleId::Alarm; }
+    ModuleId runtimeUiProviderModuleId() const override { return moduleId(); }
     const char* taskName() const override { return "alarms"; }
     BaseType_t taskCore() const override { return 1; }
     uint16_t taskStackSize() const override { return 2816; }
@@ -33,8 +35,15 @@ public:
     void init(ConfigStore& cfg, ServiceRegistry& services) override;
     void onConfigLoaded(ConfigStore&, ServiceRegistry&) override;
     void loop() override;
+    bool writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) const override;
 
 private:
+    enum RuntimeUiValueId : uint8_t {
+        RuntimeUiActiveMask = 1,
+        RuntimeUiAckedMask = 2,
+        RuntimeUiConditionMask = 3,
+    };
+
     struct AlarmSlot {
         bool used = false;
         AlarmId id = AlarmId::None;
@@ -74,6 +83,7 @@ private:
     bool handleCmdAckSlot_(const CommandRequest& req, char* reply, size_t replyLen);
     bool slotAlarmId_(uint8_t slot, AlarmId& outId) const;
     void evaluateOnce_(uint32_t nowMs);
+    uint32_t buildRuntimeMask_(RuntimeUiValueId valueId) const;
 
     int16_t findSlotById_(AlarmId id) const;
     int16_t findFreeSlot_() const;

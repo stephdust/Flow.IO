@@ -24,8 +24,9 @@ constexpr size_t JsonCmdTimeBuf = 768;
 constexpr size_t JsonCmdPoolDeviceBuf = 256;
 /** @brief JSON capacity for `ConfigStore::applyJson` root document (covers full multi-module patch). */
 constexpr size_t JsonConfigApplyBuf = JsonCfgBuf * 4;
-/** @brief Maximum number of registered config variables in `ConfigStore` metadata table. */
-constexpr size_t MaxConfigVars = 330;
+/** @brief Maximum number of registered config variables in `ConfigStore` metadata table.
+ *  Sized for the current FlowIO profile with modest headroom while staying within DRAM budget. */
+constexpr size_t MaxConfigVars = 368;
 /** @brief Maximum NVS key length (without null terminator) enforced by `ConfigTypes::NVS_KEY`. */
 constexpr size_t MaxNvsKeyLen = 15;
 /** @brief FreeRTOS log queue length used by `LogHub` (`LogHubModule::init`).

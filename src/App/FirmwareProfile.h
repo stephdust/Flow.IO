@@ -15,7 +15,7 @@ struct ProductIdentity {
 
 struct SupervisorRuntimeOptions {
     uint32_t pirTimeoutMs = 60000U;
-    uint32_t wifiResetHoldMs = 3000U;
+    uint32_t factoryResetHoldMs = 5000U;
 };
 
 struct FirmwareProfile {

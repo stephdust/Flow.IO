@@ -59,6 +59,44 @@ static bool sameFloat_(float a, float b)
     return fabsf(a - b) <= 0.0001f;
 }
 
+static bool isHexDisplayField_(const char* module, const char* key)
+{
+    if (!module || !key) return false;
+    if (strcmp(key, "target_addr") == 0) {
+        return strcmp(module, "elink/client") == 0;
+    }
+    if (strcmp(key, "address") != 0) return false;
+    if (strcmp(module, "elink/server") == 0) return true;
+    return strncmp(module, "io/drivers/", strlen("io/drivers/")) == 0;
+}
+
+static bool parseIntText_(const char* text, bool hexDisplay, int32_t& out)
+{
+    if (!text) return false;
+    char* end = nullptr;
+    const int base = hexDisplay ? 16 : 10;
+    const long v = strtol(text, &end, base);
+    if (!end || *end != '\0') return false;
+    out = (int32_t)v;
+    return true;
+}
+
+static void formatHexInt_(char* out, size_t outLen, int32_t value)
+{
+    if (!out || outLen == 0) return;
+
+    const bool negative = value < 0;
+    const uint32_t raw = negative ? (uint32_t)(-(int64_t)value) : (uint32_t)value;
+    const int width = (raw <= 0xFFU) ? 2 : 0;
+    if (negative) {
+        if (width > 0) snprintf(out, outLen, "-0x%0*lX", width, (unsigned long)raw);
+        else snprintf(out, outLen, "-0x%lX", (unsigned long)raw);
+        return;
+    }
+    if (width > 0) snprintf(out, outLen, "0x%0*lX", width, (unsigned long)raw);
+    else snprintf(out, outLen, "0x%lX", (unsigned long)raw);
+}
+
 } // namespace
 
 bool ConfigMenuModel::begin(const ConfigStoreService* cfgSvc)
@@ -184,10 +222,7 @@ bool ConfigMenuModel::setText(uint8_t rowOnPage, const char* value)
             break;
         }
         case ConfigMenuValueType::Int: {
-            char* end = nullptr;
-            const long v = strtol(value, &end, 10);
-            if (!end || *end != '\0') return false;
-            r.intCur = (int32_t)v;
+            if (!parseIntText_(value, r.hexDisplay, r.intCur)) return false;
             break;
         }
         case ConfigMenuValueType::Float: {
@@ -444,6 +479,7 @@ bool ConfigMenuModel::loadModule_(const char* module)
         copyStr_(row.module, sizeof(row.module), module);
         copyStr_(row.key, sizeof(row.key), key);
         copyStr_(row.label, sizeof(row.label), key);
+        row.hexDisplay = isHexDisplayField_(module, key);
 
         if (value.is<bool>()) {
             row.type = ConfigMenuValueType::Bool;
@@ -501,7 +537,8 @@ void ConfigMenuModel::formatValueText_(Row& row)
             copyStr_(row.value, sizeof(row.value), row.boolCur ? "ON" : "OFF");
             break;
         case ConfigMenuValueType::Int:
-            snprintf(row.value, sizeof(row.value), "%ld", (long)row.intCur);
+            if (row.hexDisplay) formatHexInt_(row.value, sizeof(row.value), row.intCur);
+            else snprintf(row.value, sizeof(row.value), "%ld", (long)row.intCur);
             break;
         case ConfigMenuValueType::Float:
             snprintf(row.value, sizeof(row.value), "%.3f", row.floatCur);

@@ -11,7 +11,7 @@ const SupervisorRuntimeOptions& runtimeOptions()
 {
     static constexpr SupervisorRuntimeOptions kRuntimeOptions{
         60000U,
-        3000U
+        5000U
     };
     return kRuntimeOptions;
 }

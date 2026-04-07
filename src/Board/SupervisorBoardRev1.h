@@ -40,7 +40,7 @@ inline constexpr SupervisorInputSpec kSupervisorBoardRev1Inputs{
     36,
     120,
     true,
-    -1,
+    23,
     40
 };
 

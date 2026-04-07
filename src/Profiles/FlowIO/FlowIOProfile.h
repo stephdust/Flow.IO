@@ -8,7 +8,6 @@
 #include "Modules/HMIModule/HMIModule.h"
 #include "Modules/IOModule/IOBus/OneWireBus.h"
 #include "Modules/IOModule/IOModule.h"
-#include "Modules/Logs/LogAlarmSinkModule/LogAlarmSinkModule.h"
 #include "Modules/Logs/LogDispatcherModule/LogDispatcherModule.h"
 #include "Modules/Logs/LogHubModule/LogHubModule.h"
 #include "Modules/Logs/LogSerialSinkModule/LogSerialSinkModule.h"
@@ -50,7 +49,6 @@ struct ModuleInstances {
     SystemModule systemModule{};
     SystemMonitorModule systemMonitorModule{};
     LogSerialSinkModule logSerialSinkModule{};
-    LogAlarmSinkModule logAlarmSinkModule{};
     LogDispatcherModule logDispatcherModule{};
     LogHubModule logHubModule{};
     EventBusModule eventBusModule{};

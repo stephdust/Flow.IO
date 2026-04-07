@@ -388,6 +388,9 @@ private:
     static AlarmCondState condPsiHighStatic_(void* ctx, uint32_t nowMs);
     static AlarmCondState condPhTankLowStatic_(void* ctx, uint32_t nowMs);
     static AlarmCondState condChlorineTankLowStatic_(void* ctx, uint32_t nowMs);
+    static AlarmCondState condPhPumpMaxUptimeStatic_(void* ctx, uint32_t nowMs);
+    static AlarmCondState condChlorinePumpMaxUptimeStatic_(void* ctx, uint32_t nowMs);
+    AlarmCondState condPumpMaxUptime_(uint8_t deviceSlot) const;
     bool readDeviceActualOn_(uint8_t deviceSlot, bool& onOut) const;
     bool writeDeviceDesired_(uint8_t deviceSlot, bool on);
     void syncDeviceState_(uint8_t deviceSlot, DeviceFsm& fsm, uint32_t nowMs, bool& turnedOnOut, bool& turnedOffOut);

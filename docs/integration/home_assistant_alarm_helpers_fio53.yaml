@@ -4,10 +4,14 @@
 #
 # template: !include docs/integration/home_assistant_alarm_helpers_fio53.yaml
 #
-# Current firmware behavior:
-# - Flow.IO auto-discovers only `sensor.fio53_alm_pack` for alarms in Home Assistant.
+# Current firmware behavior for Flow.IO:
+# - Flow.IO auto-discovers `sensor.fio53_alm_pack` for alarm state packing.
+# - Flow.IO auto-discovers one global `button.*` ack entity using
+#   the MQTT command path `{"cmd":"alarms.ack_all"}`.
+# - Flow.IO auto-discovers one `button.*` per slot `0..7` using
+#   the MQTT command path `{"cmd":"alarms.ack_slot","args":{"slot":N}}`.
 # - The detailed MQTT payload still exists in firmware (`rt/alarms/id<id>`), but the
-#   current HA discovery layer does not expose one entity per alarm.
+#   current HA discovery layer does not expose one state entity per alarm.
 #
 # This helper file decodes `sensor.fio53_alm_pack`, which is built in
 # `AlarmModule::buildPacked_()` with 5 bits per slot:
@@ -17,70 +21,21 @@
 # - bits 3..4: severity
 #
 # Slot mapping for the current FlowIO profile, based on module init order:
-# - slot 0 -> AlarmId 1100 -> log_warning
-# - slot 1 -> AlarmId 1101 -> log_error
-# - slot 2 -> AlarmId 1000 -> psi_low
-# - slot 3 -> AlarmId 1001 -> psi_high
-# - slot 4 -> AlarmId 1002 -> ph_tank_low
-# - slot 5 -> AlarmId 1003 -> chlorine_tank_low
+# - slot 0 -> AlarmId 1000 -> psi_low
+# - slot 1 -> AlarmId 1001 -> psi_high
+# - slot 2 -> AlarmId 1002 -> ph_tank_low
+# - slot 3 -> AlarmId 1003 -> chlorine_tank_low
+# - slot 4 -> AlarmId 1004 -> ph_pump_max_uptime
+# - slot 5 -> AlarmId 1005 -> chlorine_pump_max_uptime
+#
+# `PoolPhPumpMaxUptime` and `PoolChlorinePumpMaxUptime` are latched alarms.
+# Their matching HA ack buttons are:
+# - slot 4 -> button.fio53_alm_ack_slot_4
+# - slot 5 -> button.fio53_alm_ack_slot_5
 #
 # If alarm registration order changes in firmware, this mapping must be updated.
 
 - binary_sensor:
-      - name: fio53_log_warning_active
-        unique_id: fio53_log_warning_active
-        icon: mdi:alarm-light
-        availability: >
-          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
-        state: >
-          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 1) % 2) == 1 }}
-
-      - name: fio53_log_warning_acked
-        unique_id: fio53_log_warning_acked
-        icon: mdi:check-circle-outline
-        availability: >
-          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
-        state: >
-          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 2) % 2) == 1 }}
-
-      - name: fio53_log_warning_condition
-        unique_id: fio53_log_warning_condition
-        icon: mdi:flash-alert
-        availability: >
-          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
-        state: >
-          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 4) % 2) == 1 }}
-
-      - name: fio53_log_error_active
-        unique_id: fio53_log_error_active
-        icon: mdi:alarm-light
-        availability: >
-          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
-        state: >
-          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 32) % 2) == 1 }}
-
-      - name: fio53_log_error_acked
-        unique_id: fio53_log_error_acked
-        icon: mdi:check-circle-outline
-        availability: >
-          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
-        state: >
-          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 64) % 2) == 1 }}
-
-      - name: fio53_log_error_condition
-        unique_id: fio53_log_error_condition
-        icon: mdi:flash-alert
-        availability: >
-          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
-        state: >
-          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 128) % 2) == 1 }}
-
       - name: fio53_psi_low_active
         unique_id: fio53_psi_low_active
         icon: mdi:alarm-light
@@ -88,7 +43,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 1024) % 2) == 1 }}
+          {{ ((pack // 1) % 2) == 1 }}
 
       - name: fio53_psi_low_acked
         unique_id: fio53_psi_low_acked
@@ -97,7 +52,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 2048) % 2) == 1 }}
+          {{ ((pack // 2) % 2) == 1 }}
 
       - name: fio53_psi_low_condition
         unique_id: fio53_psi_low_condition
@@ -106,7 +61,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 4096) % 2) == 1 }}
+          {{ ((pack // 4) % 2) == 1 }}
 
       - name: fio53_psi_high_active
         unique_id: fio53_psi_high_active
@@ -115,7 +70,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 32768) % 2) == 1 }}
+          {{ ((pack // 32) % 2) == 1 }}
 
       - name: fio53_psi_high_acked
         unique_id: fio53_psi_high_acked
@@ -124,7 +79,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 65536) % 2) == 1 }}
+          {{ ((pack // 64) % 2) == 1 }}
 
       - name: fio53_psi_high_condition
         unique_id: fio53_psi_high_condition
@@ -133,7 +88,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 131072) % 2) == 1 }}
+          {{ ((pack // 128) % 2) == 1 }}
 
       - name: fio53_ph_tank_low_active
         unique_id: fio53_ph_tank_low_active
@@ -142,7 +97,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 1048576) % 2) == 1 }}
+          {{ ((pack // 1024) % 2) == 1 }}
 
       - name: fio53_ph_tank_low_acked
         unique_id: fio53_ph_tank_low_acked
@@ -151,7 +106,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 2097152) % 2) == 1 }}
+          {{ ((pack // 2048) % 2) == 1 }}
 
       - name: fio53_ph_tank_low_condition
         unique_id: fio53_ph_tank_low_condition
@@ -160,7 +115,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 4194304) % 2) == 1 }}
+          {{ ((pack // 4096) % 2) == 1 }}
 
       - name: fio53_chlorine_tank_low_active
         unique_id: fio53_chlorine_tank_low_active
@@ -169,7 +124,7 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 33554432) % 2) == 1 }}
+          {{ ((pack // 32768) % 2) == 1 }}
 
       - name: fio53_chlorine_tank_low_acked
         unique_id: fio53_chlorine_tank_low_acked
@@ -178,10 +133,64 @@
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
         state: >
           {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
-          {{ ((pack // 67108864) % 2) == 1 }}
+          {{ ((pack // 65536) % 2) == 1 }}
 
       - name: fio53_chlorine_tank_low_condition
         unique_id: fio53_chlorine_tank_low_condition
+        icon: mdi:flash-alert
+        availability: >
+          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
+        state: >
+          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
+          {{ ((pack // 131072) % 2) == 1 }}
+
+      - name: fio53_ph_pump_max_uptime_active
+        unique_id: fio53_ph_pump_max_uptime_active
+        icon: mdi:alarm-light
+        availability: >
+          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
+        state: >
+          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
+          {{ ((pack // 1048576) % 2) == 1 }}
+
+      - name: fio53_ph_pump_max_uptime_acked
+        unique_id: fio53_ph_pump_max_uptime_acked
+        icon: mdi:check-circle-outline
+        availability: >
+          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
+        state: >
+          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
+          {{ ((pack // 2097152) % 2) == 1 }}
+
+      - name: fio53_ph_pump_max_uptime_condition
+        unique_id: fio53_ph_pump_max_uptime_condition
+        icon: mdi:flash-alert
+        availability: >
+          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
+        state: >
+          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
+          {{ ((pack // 4194304) % 2) == 1 }}
+
+      - name: fio53_chlorine_pump_max_uptime_active
+        unique_id: fio53_chlorine_pump_max_uptime_active
+        icon: mdi:alarm-light
+        availability: >
+          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
+        state: >
+          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
+          {{ ((pack // 33554432) % 2) == 1 }}
+
+      - name: fio53_chlorine_pump_max_uptime_acked
+        unique_id: fio53_chlorine_pump_max_uptime_acked
+        icon: mdi:check-circle-outline
+        availability: >
+          {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}
+        state: >
+          {% set pack = states('sensor.fio53_alm_pack') | int(0) %}
+          {{ ((pack // 67108864) % 2) == 1 }}
+
+      - name: fio53_chlorine_pump_max_uptime_condition
+        unique_id: fio53_chlorine_pump_max_uptime_condition
         icon: mdi:flash-alert
         availability: >
           {{ states('sensor.fio53_alm_pack') not in ['unknown', 'unavailable', 'none'] }}

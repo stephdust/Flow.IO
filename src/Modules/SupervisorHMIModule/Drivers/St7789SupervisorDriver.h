@@ -84,7 +84,7 @@ struct SupervisorHmiViewModel {
     bool fwPending = false;
     char fwMsg[48]{};
 
-    bool wifiResetPending = false;
+    bool factoryResetPending = false;
     char banner[48]{};
 };
 

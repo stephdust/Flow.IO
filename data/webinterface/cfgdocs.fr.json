@@ -1,12 +1,12 @@
 {
   "_meta": {
     "generated": true,
-    "total": 392,
+    "total": 397,
     "decl_total": 211,
     "decl_with_cfgdoc": 116,
     "missing_cfgdoc_count": 95,
-    "manual_overrides_total": 18,
-    "manual_overrides_applied": 0
+    "manual_overrides_total": 23,
+    "manual_overrides_applied": 5
   },
   "meta": {
     "enum_sets": {
@@ -515,7 +515,8 @@
       "label": "Adresse ADS externe",
       "help": "Adresse I2C du convertisseur ADS1115 externe.",
       "var": "adsExternalAddrVar_",
-      "source": "auto-hint"
+      "source": "auto-hint",
+      "display_format": "hex"
     },
     "io/drivers/ads1115_int/address": {
       "module": "io/drivers/ads1115_int",
@@ -524,7 +525,8 @@
       "label": "Adresse ADS interne",
       "help": "Adresse I2C du convertisseur ADS1115 interne.",
       "var": "adsInternalAddrVar_",
-      "source": "auto-hint"
+      "source": "auto-hint",
+      "display_format": "hex"
     },
     "io/drivers/bme680/address": {
       "module": "io/drivers/bme680",
@@ -533,7 +535,8 @@
       "label": "Adresse BME680",
       "help": "Adresse I2C du capteur BME680.",
       "var": "bme680AddressVar_",
-      "source": "auto-hint"
+      "source": "auto-hint",
+      "display_format": "hex"
     },
     "io/drivers/bme680/enabled": {
       "module": "io/drivers/bme680",
@@ -561,7 +564,8 @@
       "label": "Adresse BMP280",
       "help": "Adresse I2C du capteur BMP280.",
       "var": "bmp280AddressVar_",
-      "source": "auto-hint"
+      "source": "auto-hint",
+      "display_format": "hex"
     },
     "io/drivers/bmp280/enabled": {
       "module": "io/drivers/bmp280",
@@ -627,7 +631,8 @@
       "label": "Adresse INA226",
       "help": "Adresse I2C du capteur INA226.",
       "var": "ina226AddressVar_",
-      "source": "auto-hint"
+      "source": "auto-hint",
+      "display_format": "hex"
     },
     "io/drivers/ina226/enabled": {
       "module": "io/drivers/ina226",
@@ -674,7 +679,8 @@
       "label": "Adresse PCF",
       "help": "Adresse I2C du composant PCF857x.",
       "var": "pcfAddressVar_",
-      "source": "auto-hint"
+      "source": "auto-hint",
+      "display_format": "hex"
     },
     "io/drivers/pcf857x/enabled": {
       "module": "io/drivers/pcf857x",
@@ -701,7 +707,8 @@
       "label": "Adresse SHT40",
       "help": "Adresse I2C du capteur SHT40.",
       "var": "sht40AddressVar_",
-      "source": "auto-hint"
+      "source": "auto-hint",
+      "display_format": "hex"
     },
     "io/drivers/sht40/enabled": {
       "module": "io/drivers/sht40",
@@ -736,7 +743,7 @@
       "name": "a00_c0",
       "type": "Float",
       "label": "Coefficient C0 A00",
-      "help": "Coefficient C0 pour la calibration de A00.",
+      "help": "Coefficient multiplicateur de calibration pour A00. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a00",
       "source": "synthetic-analog"
     },
@@ -744,8 +751,8 @@
       "module": "io/input/a00",
       "name": "a00_c1",
       "type": "Float",
-      "label": "Coefficient C1 A00",
-      "help": "Coefficient C1 pour la calibration de A00.",
+      "label": "Offset C1 A00",
+      "help": "Offset de calibration pour A00. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a00",
       "source": "synthetic-analog"
     },
@@ -783,7 +790,7 @@
       "name": "a01_c0",
       "type": "Float",
       "label": "Coefficient C0 A01",
-      "help": "Coefficient C0 pour la calibration de A01.",
+      "help": "Coefficient multiplicateur de calibration pour A01. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a01",
       "source": "synthetic-analog"
     },
@@ -791,8 +798,8 @@
       "module": "io/input/a01",
       "name": "a01_c1",
       "type": "Float",
-      "label": "Coefficient C1 A01",
-      "help": "Coefficient C1 pour la calibration de A01.",
+      "label": "Offset C1 A01",
+      "help": "Offset de calibration pour A01. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a01",
       "source": "synthetic-analog"
     },
@@ -830,7 +837,7 @@
       "name": "a02_c0",
       "type": "Float",
       "label": "Coefficient C0 A02",
-      "help": "Coefficient C0 pour la calibration de A02.",
+      "help": "Coefficient multiplicateur de calibration pour A02. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a02",
       "source": "synthetic-analog"
     },
@@ -838,8 +845,8 @@
       "module": "io/input/a02",
       "name": "a02_c1",
       "type": "Float",
-      "label": "Coefficient C1 A02",
-      "help": "Coefficient C1 pour la calibration de A02.",
+      "label": "Offset C1 A02",
+      "help": "Offset de calibration pour A02. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a02",
       "source": "synthetic-analog"
     },
@@ -877,7 +884,7 @@
       "name": "a03_c0",
       "type": "Float",
       "label": "Coefficient C0 A03",
-      "help": "Coefficient C0 pour la calibration de A03.",
+      "help": "Coefficient multiplicateur de calibration pour A03. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a03",
       "source": "synthetic-analog"
     },
@@ -885,8 +892,8 @@
       "module": "io/input/a03",
       "name": "a03_c1",
       "type": "Float",
-      "label": "Coefficient C1 A03",
-      "help": "Coefficient C1 pour la calibration de A03.",
+      "label": "Offset C1 A03",
+      "help": "Offset de calibration pour A03. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a03",
       "source": "synthetic-analog"
     },
@@ -924,7 +931,7 @@
       "name": "a04_c0",
       "type": "Float",
       "label": "Coefficient C0 A04",
-      "help": "Coefficient C0 pour la calibration de A04.",
+      "help": "Coefficient multiplicateur de calibration pour A04. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a04",
       "source": "synthetic-analog"
     },
@@ -932,8 +939,8 @@
       "module": "io/input/a04",
       "name": "a04_c1",
       "type": "Float",
-      "label": "Coefficient C1 A04",
-      "help": "Coefficient C1 pour la calibration de A04.",
+      "label": "Offset C1 A04",
+      "help": "Offset de calibration pour A04. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a04",
       "source": "synthetic-analog"
     },
@@ -971,7 +978,7 @@
       "name": "a05_c0",
       "type": "Float",
       "label": "Coefficient C0 A05",
-      "help": "Coefficient C0 pour la calibration de A05.",
+      "help": "Coefficient multiplicateur de calibration pour A05. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a05",
       "source": "synthetic-analog"
     },
@@ -979,8 +986,8 @@
       "module": "io/input/a05",
       "name": "a05_c1",
       "type": "Float",
-      "label": "Coefficient C1 A05",
-      "help": "Coefficient C1 pour la calibration de A05.",
+      "label": "Offset C1 A05",
+      "help": "Offset de calibration pour A05. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a05",
       "source": "synthetic-analog"
     },
@@ -1018,7 +1025,7 @@
       "name": "a06_c0",
       "type": "Float",
       "label": "Coefficient C0 A06",
-      "help": "Coefficient C0 pour la calibration de A06.",
+      "help": "Coefficient multiplicateur de calibration pour A06. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a06",
       "source": "synthetic-analog"
     },
@@ -1026,8 +1033,8 @@
       "module": "io/input/a06",
       "name": "a06_c1",
       "type": "Float",
-      "label": "Coefficient C1 A06",
-      "help": "Coefficient C1 pour la calibration de A06.",
+      "label": "Offset C1 A06",
+      "help": "Offset de calibration pour A06. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a06",
       "source": "synthetic-analog"
     },
@@ -1065,7 +1072,7 @@
       "name": "a07_c0",
       "type": "Float",
       "label": "Coefficient C0 A07",
-      "help": "Coefficient C0 pour la calibration de A07.",
+      "help": "Coefficient multiplicateur de calibration pour A07. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a07",
       "source": "synthetic-analog"
     },
@@ -1073,8 +1080,8 @@
       "module": "io/input/a07",
       "name": "a07_c1",
       "type": "Float",
-      "label": "Coefficient C1 A07",
-      "help": "Coefficient C1 pour la calibration de A07.",
+      "label": "Offset C1 A07",
+      "help": "Offset de calibration pour A07. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a07",
       "source": "synthetic-analog"
     },
@@ -1112,7 +1119,7 @@
       "name": "a08_c0",
       "type": "Float",
       "label": "Coefficient C0 A08",
-      "help": "Coefficient C0 pour la calibration de A08.",
+      "help": "Coefficient multiplicateur de calibration pour A08. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a08",
       "source": "synthetic-analog"
     },
@@ -1120,8 +1127,8 @@
       "module": "io/input/a08",
       "name": "a08_c1",
       "type": "Float",
-      "label": "Coefficient C1 A08",
-      "help": "Coefficient C1 pour la calibration de A08.",
+      "label": "Offset C1 A08",
+      "help": "Offset de calibration pour A08. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a08",
       "source": "synthetic-analog"
     },
@@ -1159,7 +1166,7 @@
       "name": "a09_c0",
       "type": "Float",
       "label": "Coefficient C0 A09",
-      "help": "Coefficient C0 pour la calibration de A09.",
+      "help": "Coefficient multiplicateur de calibration pour A09. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a09",
       "source": "synthetic-analog"
     },
@@ -1167,8 +1174,8 @@
       "module": "io/input/a09",
       "name": "a09_c1",
       "type": "Float",
-      "label": "Coefficient C1 A09",
-      "help": "Coefficient C1 pour la calibration de A09.",
+      "label": "Offset C1 A09",
+      "help": "Offset de calibration pour A09. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a09",
       "source": "synthetic-analog"
     },
@@ -1206,7 +1213,7 @@
       "name": "a10_c0",
       "type": "Float",
       "label": "Coefficient C0 A10",
-      "help": "Coefficient C0 pour la calibration de A10.",
+      "help": "Coefficient multiplicateur de calibration pour A10. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a10",
       "source": "synthetic-analog"
     },
@@ -1214,8 +1221,8 @@
       "module": "io/input/a10",
       "name": "a10_c1",
       "type": "Float",
-      "label": "Coefficient C1 A10",
-      "help": "Coefficient C1 pour la calibration de A10.",
+      "label": "Offset C1 A10",
+      "help": "Offset de calibration pour A10. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a10",
       "source": "synthetic-analog"
     },
@@ -1253,7 +1260,7 @@
       "name": "a11_c0",
       "type": "Float",
       "label": "Coefficient C0 A11",
-      "help": "Coefficient C0 pour la calibration de A11.",
+      "help": "Coefficient multiplicateur de calibration pour A11. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a11",
       "source": "synthetic-analog"
     },
@@ -1261,8 +1268,8 @@
       "module": "io/input/a11",
       "name": "a11_c1",
       "type": "Float",
-      "label": "Coefficient C1 A11",
-      "help": "Coefficient C1 pour la calibration de A11.",
+      "label": "Offset C1 A11",
+      "help": "Offset de calibration pour A11. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a11",
       "source": "synthetic-analog"
     },
@@ -1300,7 +1307,7 @@
       "name": "a12_c0",
       "type": "Float",
       "label": "Coefficient C0 A12",
-      "help": "Coefficient C0 pour la calibration de A12.",
+      "help": "Coefficient multiplicateur de calibration pour A12. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a12",
       "source": "synthetic-analog"
     },
@@ -1308,8 +1315,8 @@
       "module": "io/input/a12",
       "name": "a12_c1",
       "type": "Float",
-      "label": "Coefficient C1 A12",
-      "help": "Coefficient C1 pour la calibration de A12.",
+      "label": "Offset C1 A12",
+      "help": "Offset de calibration pour A12. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a12",
       "source": "synthetic-analog"
     },
@@ -1347,7 +1354,7 @@
       "name": "a13_c0",
       "type": "Float",
       "label": "Coefficient C0 A13",
-      "help": "Coefficient C0 pour la calibration de A13.",
+      "help": "Coefficient multiplicateur de calibration pour A13. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a13",
       "source": "synthetic-analog"
     },
@@ -1355,8 +1362,8 @@
       "module": "io/input/a13",
       "name": "a13_c1",
       "type": "Float",
-      "label": "Coefficient C1 A13",
-      "help": "Coefficient C1 pour la calibration de A13.",
+      "label": "Offset C1 A13",
+      "help": "Offset de calibration pour A13. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a13",
       "source": "synthetic-analog"
     },
@@ -1394,7 +1401,7 @@
       "name": "a14_c0",
       "type": "Float",
       "label": "Coefficient C0 A14",
-      "help": "Coefficient C0 pour la calibration de A14.",
+      "help": "Coefficient multiplicateur de calibration pour A14. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
       "var": "a14",
       "source": "synthetic-analog"
     },
@@ -1402,8 +1409,8 @@
       "module": "io/input/a14",
       "name": "a14_c1",
       "type": "Float",
-      "label": "Coefficient C1 A14",
-      "help": "Coefficient C1 pour la calibration de A14.",
+      "label": "Offset C1 A14",
+      "help": "Offset de calibration pour A14. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
       "var": "a14",
       "source": "synthetic-analog"
     },
@@ -1446,6 +1453,14 @@
       "source": "cfgdoc",
       "enum_set": "flowio_binding_port_digital_input"
     },
+    "io/input/i00/counter_total": {
+      "module": "io/input/i00",
+      "name": "counter_total",
+      "source": "override",
+      "type": "Float",
+      "label": "Cumul compteur",
+      "help": "Valeur cumulée éditable pour I00 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
+    },
     "io/input/i00/edge_mode": {
       "module": "io/input/i00",
       "name": "edge_mode",
@@ -1469,10 +1484,10 @@
       "module": "io/input/i00",
       "name": "i00_c0",
       "type": "Float",
-      "label": "I00 c0",
-      "help": "Parametre 'i00_c0' pour la branche 'io/input/i00' (type Float).",
+      "label": "Coefficient C0 I00",
+      "help": "Coefficient multiplicateur applique au nombre d'impulsions de I00 en mode compteur. Il convertit les impulsions brutes en valeur cumulee publiee. Formule: value = c0 * impulsions.",
       "var": "i0C0Var_",
-      "source": "auto"
+      "source": "auto-hint"
     },
     "io/input/i00/i00_name": {
       "module": "io/input/i00",
@@ -1487,10 +1502,11 @@
       "module": "io/input/i00",
       "name": "i00_prec",
       "type": "Int32",
-      "label": "I00 prec",
-      "help": "Parametre 'i00_prec' pour la branche 'io/input/i00' (type Int32).",
+      "label": "Precision I00",
+      "help": "Nombre de decimales conservees pour la valeur calculee de I00 en mode compteur.",
       "var": "i0PrecVar_",
-      "source": "auto"
+      "source": "auto-hint",
+      "unit": "digits"
     },
     "io/input/i00/i00_pull_mode": {
       "module": "io/input/i00",
@@ -1510,6 +1526,14 @@
       "var": "i1BindingVar_",
       "source": "cfgdoc",
       "enum_set": "flowio_binding_port_digital_input"
+    },
+    "io/input/i01/counter_total": {
+      "module": "io/input/i01",
+      "name": "counter_total",
+      "source": "override",
+      "type": "Float",
+      "label": "Cumul compteur",
+      "help": "Valeur cumulée éditable pour I01 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
     },
     "io/input/i01/edge_mode": {
       "module": "io/input/i01",
@@ -1534,10 +1558,10 @@
       "module": "io/input/i01",
       "name": "i01_c0",
       "type": "Float",
-      "label": "I01 c0",
-      "help": "Parametre 'i01_c0' pour la branche 'io/input/i01' (type Float).",
+      "label": "Coefficient C0 I01",
+      "help": "Coefficient multiplicateur applique au nombre d'impulsions de I01 en mode compteur. Il convertit les impulsions brutes en valeur cumulee publiee. Formule: value = c0 * impulsions.",
       "var": "i1C0Var_",
-      "source": "auto"
+      "source": "auto-hint"
     },
     "io/input/i01/i01_name": {
       "module": "io/input/i01",
@@ -1552,10 +1576,11 @@
       "module": "io/input/i01",
       "name": "i01_prec",
       "type": "Int32",
-      "label": "I01 prec",
-      "help": "Parametre 'i01_prec' pour la branche 'io/input/i01' (type Int32).",
+      "label": "Precision I01",
+      "help": "Nombre de decimales conservees pour la valeur calculee de I01 en mode compteur.",
       "var": "i1PrecVar_",
-      "source": "auto"
+      "source": "auto-hint",
+      "unit": "digits"
     },
     "io/input/i01/i01_pull_mode": {
       "module": "io/input/i01",
@@ -1575,6 +1600,14 @@
       "var": "i2BindingVar_",
       "source": "cfgdoc",
       "enum_set": "flowio_binding_port_digital_input"
+    },
+    "io/input/i02/counter_total": {
+      "module": "io/input/i02",
+      "name": "counter_total",
+      "source": "override",
+      "type": "Float",
+      "label": "Cumul compteur",
+      "help": "Valeur cumulée éditable pour I02 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
     },
     "io/input/i02/edge_mode": {
       "module": "io/input/i02",
@@ -1599,10 +1632,10 @@
       "module": "io/input/i02",
       "name": "i02_c0",
       "type": "Float",
-      "label": "I02 c0",
-      "help": "Parametre 'i02_c0' pour la branche 'io/input/i02' (type Float).",
+      "label": "Coefficient C0 I02",
+      "help": "Coefficient multiplicateur applique au nombre d'impulsions de I02 en mode compteur. Il convertit les impulsions brutes en valeur cumulee publiee. Formule: value = c0 * impulsions.",
       "var": "i2C0Var_",
-      "source": "auto"
+      "source": "auto-hint"
     },
     "io/input/i02/i02_name": {
       "module": "io/input/i02",
@@ -1617,10 +1650,11 @@
       "module": "io/input/i02",
       "name": "i02_prec",
       "type": "Int32",
-      "label": "I02 prec",
-      "help": "Parametre 'i02_prec' pour la branche 'io/input/i02' (type Int32).",
+      "label": "Precision I02",
+      "help": "Nombre de decimales conservees pour la valeur calculee de I02 en mode compteur.",
       "var": "i2PrecVar_",
-      "source": "auto"
+      "source": "auto-hint",
+      "unit": "digits"
     },
     "io/input/i02/i02_pull_mode": {
       "module": "io/input/i02",
@@ -1640,6 +1674,14 @@
       "var": "i3BindingVar_",
       "source": "cfgdoc",
       "enum_set": "flowio_binding_port_digital_input"
+    },
+    "io/input/i03/counter_total": {
+      "module": "io/input/i03",
+      "name": "counter_total",
+      "source": "override",
+      "type": "Float",
+      "label": "Cumul compteur",
+      "help": "Valeur cumulée éditable pour I03 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
     },
     "io/input/i03/edge_mode": {
       "module": "io/input/i03",
@@ -1664,10 +1706,10 @@
       "module": "io/input/i03",
       "name": "i03_c0",
       "type": "Float",
-      "label": "I03 c0",
-      "help": "Parametre 'i03_c0' pour la branche 'io/input/i03' (type Float).",
+      "label": "Coefficient C0 I03",
+      "help": "Coefficient multiplicateur applique au nombre d'impulsions de I03 en mode compteur. Il convertit les impulsions brutes en valeur cumulee publiee. Formule: value = c0 * impulsions.",
       "var": "i3C0Var_",
-      "source": "auto"
+      "source": "auto-hint"
     },
     "io/input/i03/i03_name": {
       "module": "io/input/i03",
@@ -1682,10 +1724,11 @@
       "module": "io/input/i03",
       "name": "i03_prec",
       "type": "Int32",
-      "label": "I03 prec",
-      "help": "Parametre 'i03_prec' pour la branche 'io/input/i03' (type Int32).",
+      "label": "Precision I03",
+      "help": "Nombre de decimales conservees pour la valeur calculee de I03 en mode compteur.",
       "var": "i3PrecVar_",
-      "source": "auto"
+      "source": "auto-hint",
+      "unit": "digits"
     },
     "io/input/i03/i03_pull_mode": {
       "module": "io/input/i03",
@@ -1705,6 +1748,14 @@
       "var": "i4BindingVar_",
       "source": "cfgdoc",
       "enum_set": "flowio_binding_port_digital_input"
+    },
+    "io/input/i04/counter_total": {
+      "module": "io/input/i04",
+      "name": "counter_total",
+      "source": "override",
+      "type": "Float",
+      "label": "Cumul compteur",
+      "help": "Valeur cumulée éditable pour I04 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
     },
     "io/input/i04/edge_mode": {
       "module": "io/input/i04",
@@ -1729,10 +1780,10 @@
       "module": "io/input/i04",
       "name": "i04_c0",
       "type": "Float",
-      "label": "I04 c0",
-      "help": "Parametre 'i04_c0' pour la branche 'io/input/i04' (type Float).",
+      "label": "Coefficient C0 I04",
+      "help": "Coefficient multiplicateur applique au nombre d'impulsions de I04 en mode compteur. Il convertit les impulsions brutes en valeur cumulee publiee. Formule: value = c0 * impulsions.",
       "var": "i4C0Var_",
-      "source": "auto"
+      "source": "auto-hint"
     },
     "io/input/i04/i04_name": {
       "module": "io/input/i04",
@@ -1747,10 +1798,11 @@
       "module": "io/input/i04",
       "name": "i04_prec",
       "type": "Int32",
-      "label": "I04 prec",
-      "help": "Parametre 'i04_prec' pour la branche 'io/input/i04' (type Int32).",
+      "label": "Precision I04",
+      "help": "Nombre de decimales conservees pour la valeur calculee de I04 en mode compteur.",
       "var": "i4PrecVar_",
-      "source": "auto"
+      "source": "auto-hint",
+      "unit": "digits"
     },
     "io/input/i04/i04_pull_mode": {
       "module": "io/input/i04",

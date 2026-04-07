@@ -20,11 +20,11 @@ constexpr IoId IO_ID_DI_BASE = 64;
 /** Reserved base for analog inputs. */
 constexpr IoId IO_ID_AI_BASE = 192;
 /** Hard upper bound used by static service implementations. */
-constexpr uint8_t IO_SVC_MAX_ENDPOINTS = 24;
+constexpr uint8_t IO_SVC_MAX_ENDPOINTS = 32;
 /** Max length for display names in metadata payloads. */
 constexpr size_t IO_NAME_MAX_LEN = 24;
 /** Max number of changed ids tracked per cycle. */
-constexpr uint8_t IO_MAX_CHANGED_IDS = 24;
+constexpr uint8_t IO_MAX_CHANGED_IDS = 32;
 
 /** Result code for IOServiceV2 calls. */
 enum IoStatus : uint8_t {

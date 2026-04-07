@@ -36,8 +36,8 @@ constexpr DataKey HaDeviceId = 12;
 
 /** @brief Reserved base for IO endpoint runtime keys (`IORuntime`). */
 constexpr DataKey IoBase = 40;
-/** @brief Reserved IO runtime key count: supports endpoints `[0..23]`. */
-constexpr uint8_t IoReservedCount = 24;
+/** @brief Reserved IO runtime key count: supports endpoints `[0..31]`. */
+constexpr uint8_t IoReservedCount = 32;
 /** @brief End-exclusive bound for IO runtime key range. */
 constexpr DataKey IoEndExclusive = IoBase + IoReservedCount;
 

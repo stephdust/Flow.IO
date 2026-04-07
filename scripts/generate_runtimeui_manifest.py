@@ -199,7 +199,7 @@ def main():
             if display is not None:
                 if display == "gauge":
                     display = "circ-gauge"
-                if display not in ("circ-gauge", "horiz-gauge", "badge", "boolean", "time", "value"):
+                if display not in ("circ-gauge", "horiz-gauge", "badge", "boolean", "time", "value", "flags"):
                     raise RuntimeError(f"Invalid display in {path}: {display!r}")
             else:
                 value_type = value.get("type")

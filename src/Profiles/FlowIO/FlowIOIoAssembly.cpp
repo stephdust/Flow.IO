@@ -33,6 +33,7 @@ struct FlowIoDigitalHaSpec {
     const char* objectSuffix = nullptr;
     const char* name = nullptr;
     const char* icon = nullptr;
+    const char* unit = nullptr;
 };
 
 constexpr FlowIoAnalogHaSpec kAnalogHaSpecs[kFlowIoAnalogHaSlots] = {
@@ -54,10 +55,10 @@ constexpr FlowIoAnalogHaSpec kAnalogHaSpecs[kFlowIoAnalogHaSlots] = {
 };
 
 constexpr FlowIoDigitalHaSpec kDigitalHaSpecs[] = {
-    {0, "io_pool_lvl", "Pool Level", "mdi:waves-arrow-up"},
-    {1, "io_ph_lvl", "pH Level", "mdi:flask-outline"},
-    {2, "io_chl_lvl", "Chlorine Level", "mdi:test-tube"},
-    {3, "io_wat_cnt", "Water Counter", "mdi:water-sync"},
+    {0, "io_pool_lvl", "Pool Level", "mdi:waves-arrow-up", nullptr},
+    {1, "io_ph_lvl", "pH Level", "mdi:flask-outline", nullptr},
+    {2, "io_chl_lvl", "Chlorine Level", "mdi:test-tube", nullptr},
+    {3, "io_wat_cnt", "Water Counter", "mdi:water-sync", "L"},
 };
 
 struct FlowIoDiscoveryHeap {
@@ -116,22 +117,6 @@ void requireSetup(bool ok, const char* step)
     while (true) delay(1000);
 }
 
-void onIoFloatValue(void* ctx, float value)
-{
-    ModuleInstances& modules = Profiles::FlowIO::moduleInstances();
-    if (!modules.ioDataStore) return;
-    const uint8_t idx = (uint8_t)(uintptr_t)ctx;
-    setIoEndpointFloat(*modules.ioDataStore, idx, value, millis());
-}
-
-void onIoBoolValue(void* ctx, bool value)
-{
-    ModuleInstances& modules = Profiles::FlowIO::moduleInstances();
-    if (!modules.ioDataStore) return;
-    const uint8_t idx = (uint8_t)(uintptr_t)ctx;
-    setIoEndpointBool(*modules.ioDataStore, idx, value, millis());
-}
-
 void applyAnalogDefaultsForRole(DomainRole role, IOAnalogDefinition& def)
 {
     const FlowIoLayout::AnalogRoleDefault* spec = FlowIoLayout::analogDefaultForRole(role);
@@ -171,7 +156,7 @@ void syncAnalogSensors(ModuleInstances& modules)
     static constexpr const char* kAvailabilityTpl = "{{ 'online' if value_json.available else 'offline' }}";
 
     for (uint8_t i = 0; i < kFlowIoAnalogHaSlots; ++i) {
-        if (!modules.ioModule.analogSlotUsed(i)) continue;
+        if (!modules.ioModule.analogSlotPublished(i)) continue;
         const FlowIoAnalogHaSpec& spec = kAnalogHaSpecs[i];
 
         buildAnalogValueTemplate(
@@ -260,7 +245,7 @@ void syncDigitalInputBinarySensors(ModuleInstances& modules)
                 kNumericTpl,
                 nullptr,
                 spec.icon,
-                nullptr,
+                spec.unit,
                 false,
                 kAvailabilityTpl
             };
@@ -297,7 +282,7 @@ void syncSwitches(ModuleInstances& modules)
         snprintf(
             gDiscoveryHeap->switchStateSuffix[i],
             sizeof(gDiscoveryHeap->switchStateSuffix[i]),
-            "rt/io/output/d%u",
+            "rt/io/output/d%02u",
             (unsigned)logical
         );
         bool payloadOk = true;
@@ -380,8 +365,6 @@ void configureIoModule(const AppContext& ctx, ModuleInstances& modules)
             def.activeHigh = preset.activeHigh;
             def.pullMode = preset.pullMode;
             applyDigitalDefaultsForRole(preset.role, def);
-            def.onValueChanged = onIoBoolValue;
-            def.onValueCtx = (void*)(uintptr_t)compat->runtimeIndex;
             requireSetup(modules.ioModule.defineDigitalInput(def), "define digital input");
             continue;
         }
@@ -389,10 +372,15 @@ void configureIoModule(const AppContext& ctx, ModuleInstances& modules)
         IOAnalogDefinition def{};
         snprintf(def.id, sizeof(def.id), "%s", compat->endpointId);
         def.ioId = compat->ioId;
-        def.onValueChanged = onIoFloatValue;
-        def.onValueCtx = (void*)(uintptr_t)compat->runtimeIndex;
         applyAnalogDefaultsForRole(preset.role, def);
         requireSetup(modules.ioModule.defineAnalogInput(def), "define analog input");
+    }
+
+    for (uint8_t i = 6; i < 15; ++i) {
+        IOAnalogDefinition def{};
+        snprintf(def.id, sizeof(def.id), "a%02u", (unsigned)i);
+        def.ioId = (IoId)(IO_ID_AI_BASE + i);
+        requireSetup(modules.ioModule.defineAnalogInput(def), "define extra analog input");
     }
 
     for (uint8_t i = 0; i < ctx.domain->poolDeviceCount; ++i) {

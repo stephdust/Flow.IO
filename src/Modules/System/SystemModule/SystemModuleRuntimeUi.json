@@ -7,7 +7,7 @@
       "label": "Firmware",
       "type": "string",
       "domain": "system",
-      "group": "Systeme",
+      "group": "Système",
       "display": "value",
       "order": 10
     },
@@ -17,7 +17,7 @@
       "label": "Uptime",
       "type": "uint32",
       "domain": "system",
-      "group": "Systeme",
+      "group": "Système",
       "display": "time",
       "unit": "ms",
       "order": 20
@@ -28,7 +28,7 @@
       "label": "Heap libre",
       "type": "uint32",
       "domain": "system",
-      "group": "Systeme",
+      "group": "Système",
       "display": "value",
       "unit": "B",
       "order": 30
@@ -39,7 +39,7 @@
       "label": "Heap min",
       "type": "uint32",
       "domain": "system",
-      "group": "Systeme",
+      "group": "Système",
       "display": "value",
       "unit": "B",
       "order": 40

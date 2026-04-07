@@ -401,7 +401,7 @@ void MQTTModule::processJobs_(uint32_t nowMs)
                     ctx.payloadLen = (uint16_t)strnlen(ctx.payload, ctx.payloadCapacity);
                 }
 
-                if (ctx.topicLen == 0U || ctx.payloadLen == 0U) {
+                if (ctx.topicLen == 0U || (ctx.payloadLen == 0U && !ctx.allowEmptyPayload)) {
                     buildResult = MqttBuildResult::PermanentError;
                 } else {
                     BufferUsageTracker::note(TrackedBufferId::MqttPayloadBuf,

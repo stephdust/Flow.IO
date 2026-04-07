@@ -11,6 +11,7 @@
 #include "Core/SystemLimits.h"
 #include <esp_system.h>
 #include <ctype.h>
+#include <math.h>
 #include <new>
 #include <stdarg.h>
 #include <string.h>
@@ -20,6 +21,7 @@
 
 namespace {
 static constexpr uint8_t kHaCfgBranch = 1;
+static constexpr char kLegacyUptimeSecondsObjectSuffix[] = "sys_upt_s";
 static constexpr MqttConfigRouteProducer::Route kHaCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::Ha, kHaCfgBranch}, "ha", "ha", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
@@ -169,6 +171,36 @@ bool HAModule::requestRefreshSvc_()
 {
     requestAutoconfigRefresh();
     return true;
+}
+
+static bool isIntegralHaNumberValue(float value)
+{
+    return fabsf(value - roundf(value)) <= 0.0005f;
+}
+
+static bool buildHaNumberRangeField(char* out, size_t outLen, float minValue, float maxValue, float step)
+{
+    if (!out || outLen == 0) return false;
+    if (isIntegralHaNumberValue(minValue) &&
+        isIntegralHaNumberValue(maxValue) &&
+        isIntegralHaNumberValue(step)) {
+        return formatChecked(
+            out,
+            outLen,
+            "\"min\":%ld,\"max\":%ld,\"step\":%ld",
+            (long)lroundf(minValue),
+            (long)lroundf(maxValue),
+            (long)lroundf(step)
+        );
+    }
+    return formatChecked(
+        out,
+        outLen,
+        "\"min\":%.3f,\"max\":%.3f,\"step\":%.3f",
+        (double)minValue,
+        (double)maxValue,
+        (double)step
+    );
 }
 
 bool HAModule::addSensorEntry(const HASensorEntry& entry)
@@ -378,6 +410,7 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
                              const char* entityCategory, const char* icon, const char* unit,
                              bool hasEntityName,
                              const char* availabilityTemplate,
+                             bool isText,
                              MqttBuildContext* outCtx)
 {
     if (!outCtx) return false;
@@ -404,16 +437,17 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
     if (!buildUniqueId(objectId, name, uniqueId, sizeof(uniqueId))) return false;
     char availabilityField[768] = {0};
     buildAvailabilityField(mqttSvc_, availabilityField, sizeof(availabilityField), stateTopic, availabilityTemplate);
+    const char* stateClassField = isText ? "" : ",\"stat_cla\":\"measurement\"";
 
     if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
              "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
-             "\"stat_t\":\"%s\",\"val_tpl\":\"%s\",\"stat_cla\":\"measurement\"%s%s%s%s%s,"
+             "\"stat_t\":\"%s\",\"val_tpl\":\"%s\"%s%s%s%s%s%s,"
              "\"o\":{\"name\":\"Flow.IO\"},"
              "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
              "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
              name, objectId, defaultEntityId, uniqueId,
              stateTopic, valueTemplate,
-             entityCategoryField, iconField, unitField, hasEntityNameField, availabilityField,
+             stateClassField, entityCategoryField, iconField, unitField, hasEntityNameField, availabilityField,
              deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
         LOGW("HA sensor payload truncated object=%s", objectId);
         return false;
@@ -549,17 +583,22 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
     if (entityCategory && entityCategory[0] != '\0') {
         snprintf(entityCategoryField, sizeof(entityCategoryField), ",\"ent_cat\":\"%s\"", entityCategory);
     }
+    char rangeField[80] = {0};
+    if (!buildHaNumberRangeField(rangeField, sizeof(rangeField), minValue, maxValue, step)) {
+        LOGW("HA number range payload truncated object=%s", objectId);
+        return false;
+    }
 
     if (icon && icon[0] != '\0') {
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
                  "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\",\"stat_t\":\"%s\","
                  "\"val_tpl\":\"%s\",\"cmd_t\":\"%s\",\"cmd_tpl\":\"%s\","
-                 "\"min\":%.3f,\"max\":%.3f,\"step\":%.3f,\"mode\":\"%s\",\"ic\":\"%s\"%s%s%s,"
+                 "%s,\"mode\":\"%s\",\"ic\":\"%s\"%s%s%s,"
                  "\"o\":{\"name\":\"Flow.IO\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
-                 (double)minValue, (double)maxValue, (double)step, mode ? mode : "slider", icon, entityCategoryField, unitField, availabilityField,
+                 rangeField, mode ? mode : "slider", icon, entityCategoryField, unitField, availabilityField,
                  deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
             LOGW("HA number payload truncated object=%s", objectId);
             return false;
@@ -568,12 +607,12 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
                  "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\",\"stat_t\":\"%s\","
                  "\"val_tpl\":\"%s\",\"cmd_t\":\"%s\",\"cmd_tpl\":\"%s\","
-                 "\"min\":%.3f,\"max\":%.3f,\"step\":%.3f,\"mode\":\"%s\"%s%s%s,"
+                 "%s,\"mode\":\"%s\"%s%s%s,"
                  "\"o\":{\"name\":\"Flow.IO\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
-                 (double)minValue, (double)maxValue, (double)step, mode ? mode : "slider", entityCategoryField, unitField, availabilityField,
+                 rangeField, mode ? mode : "slider", entityCategoryField, unitField, availabilityField,
                  deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
             LOGW("HA number payload truncated object=%s", objectId);
             return false;
@@ -697,9 +736,14 @@ uint16_t HAModule::entityCount_() const
            (uint16_t)buttonCount_;
 }
 
+uint16_t HAModule::messageCount_() const
+{
+    return (uint16_t)(entityCount_() + MAX_HA_DISCOVERY_CLEANUPS);
+}
+
 bool HAModule::isPending_(uint16_t messageId) const
 {
-    if (messageId >= MAX_HA_ENTITIES) return false;
+    if (messageId >= MAX_HA_MESSAGES) return false;
     const uint16_t word = (uint16_t)(messageId / 32U);
     const uint16_t bit = (uint16_t)(messageId % 32U);
     return (pendingBits_[word] & (1UL << bit)) != 0UL;
@@ -707,7 +751,7 @@ bool HAModule::isPending_(uint16_t messageId) const
 
 void HAModule::setPending_(uint16_t messageId, bool pending)
 {
-    if (messageId >= MAX_HA_ENTITIES) return;
+    if (messageId >= MAX_HA_MESSAGES) return;
     const uint16_t word = (uint16_t)(messageId / 32U);
     const uint16_t bit = (uint16_t)(messageId % 32U);
     const uint32_t mask = (1UL << bit);
@@ -718,7 +762,7 @@ void HAModule::setPending_(uint16_t messageId, bool pending)
 void HAModule::markAllPending_()
 {
     memset(pendingBits_, 0, sizeof(pendingBits_));
-    const uint16_t count = entityCount_();
+    const uint16_t count = messageCount_();
     for (uint16_t i = 0; i < count; ++i) {
         setPending_(i, true);
     }
@@ -738,13 +782,13 @@ bool HAModule::enqueuePending_(MqttPublishPriority prio)
     if (!mqttSvc_ || !mqttSvc_->enqueue) return false;
     if (!startupReady_) return false;
 
-    bool any = false;
-    const uint16_t count = entityCount_();
+    const uint16_t count = messageCount_();
+    constexpr uint8_t kFlags = (uint8_t)MqttEnqueueFlags::SilentRejectLog;
     for (uint16_t i = 0; i < count; ++i) {
         if (!isPending_(i)) continue;
-        any = mqttSvc_->enqueue(mqttSvc_->ctx, ProducerId, i, (uint8_t)prio, 0) || any;
+        return mqttSvc_->enqueue(mqttSvc_->ctx, ProducerId, i, (uint8_t)prio, kFlags);
     }
-    return any;
+    return false;
 }
 
 MqttBuildResult HAModule::producerBuildStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx)
@@ -775,7 +819,7 @@ bool HAModule::buildEntityMessage_(uint16_t messageId, MqttBuildContext& buildCt
         if (buildObjectId(e.objectSuffix, objectIdBuf_, sizeof(objectIdBuf_))) {
             mqttSvc_->formatTopic(mqttSvc_->ctx, e.stateTopicSuffix, stateTopicBuf_, sizeof(stateTopicBuf_));
             ok = publishSensor(objectIdBuf_, e.name, stateTopicBuf_, e.valueTemplate,
-                               e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate, &buildCtx);
+                               e.entityCategory, e.icon, e.unit, e.hasEntityName, e.availabilityTemplate, e.isText, &buildCtx);
         }
     } else {
         cursor = (uint16_t)(cursor + sensorCount_);
@@ -825,6 +869,19 @@ bool HAModule::buildEntityMessage_(uint16_t messageId, MqttBuildContext& buildCt
     return true;
 }
 
+bool HAModule::buildLegacyCleanupMessage_(uint16_t cleanupId, MqttBuildContext& buildCtx)
+{
+    if (cleanupId != 0U) return false;
+    if (!buildObjectId(kLegacyUptimeSecondsObjectSuffix, objectIdBuf_, sizeof(objectIdBuf_))) return false;
+    if (!publishDiscovery("sensor", objectIdBuf_, buildCtx)) return false;
+    if (buildCtx.payload && buildCtx.payloadCapacity > 0U) {
+        buildCtx.payload[0] = '\0';
+    }
+    buildCtx.payloadLen = 0U;
+    buildCtx.allowEmptyPayload = true;
+    return true;
+}
+
 MqttBuildResult HAModule::buildMessage_(uint16_t messageId, MqttBuildContext& buildCtx)
 {
     if (!startupReady_) return MqttBuildResult::RetryLater;
@@ -839,7 +896,14 @@ MqttBuildResult HAModule::buildMessage_(uint16_t messageId, MqttBuildContext& bu
     setHaVendor(*dsSvc_->store, cfgData_.vendor);
     setHaDeviceId(*dsSvc_->store, deviceId_);
 
-    if (!buildEntityMessage_(messageId, buildCtx)) return MqttBuildResult::PermanentError;
+    const uint16_t entityCount = entityCount_();
+    if (messageId < entityCount) {
+        if (!buildEntityMessage_(messageId, buildCtx)) return MqttBuildResult::PermanentError;
+        return MqttBuildResult::Ready;
+    }
+    if (!buildLegacyCleanupMessage_((uint16_t)(messageId - entityCount), buildCtx)) {
+        return MqttBuildResult::PermanentError;
+    }
     return MqttBuildResult::Ready;
 }
 
@@ -896,11 +960,13 @@ void HAModule::requestAutoconfigRefresh()
     if (dsSvc_ && dsSvc_->store) {
         setHaAutoconfigPublished(*dsSvc_->store, false);
     }
-    (void)enqueuePending_(MqttPublishPriority::Low);
 }
 
 void HAModule::loop()
 {
+    if (anyPending_()) {
+        (void)enqueuePending_(MqttPublishPriority::Low);
+    }
     vTaskDelay(pdMS_TO_TICKS(250));
 }
 
@@ -954,7 +1020,4 @@ void HAModule::init(ConfigStore& cfg, ServiceRegistry& services)
     }
 
     markAllPending_();
-    if (dsSvc_ && dsSvc_->store && wifiReady(*dsSvc_->store) && mqttReady(*dsSvc_->store)) {
-        (void)enqueuePending_(MqttPublishPriority::Low);
-    }
 }

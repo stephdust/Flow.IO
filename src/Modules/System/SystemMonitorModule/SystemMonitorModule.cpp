@@ -94,15 +94,15 @@ void SystemMonitorModule::registerHaEntities_(ServiceRegistry& services)
     if (!haSvc_) haSvc_ = services.get<HAService>(ServiceId::Ha);
     if (!haSvc_ || !haSvc_->addSensor) return;
 
-    const HASensorEntry uptimeSeconds{
+    const HASensorEntry uptimeMinutes{
         "system",
-        "sys_upt_s",
+        "sys_upt_mn",
         "Uptime",
         "rt/system/state",
-        "{{ value_json.upt_s | int(0) }}",
+        "{{ ((value_json.upt_ms | float(0)) / 60000) | round(0) | int(0) }}",
         "diagnostic",
         "mdi:timer-outline",
-        "s",
+        "mn",
         false,
         nullptr
     };
@@ -144,7 +144,7 @@ void SystemMonitorModule::registerHaEntities_(ServiceRegistry& services)
     };
 
     bool ok = true;
-    ok = haSvc_->addSensor(haSvc_->ctx, &uptimeSeconds) && ok;
+    ok = haSvc_->addSensor(haSvc_->ctx, &uptimeMinutes) && ok;
     ok = haSvc_->addSensor(haSvc_->ctx, &heapFreeBytes) && ok;
     ok = haSvc_->addSensor(haSvc_->ctx, &heapMinFreeBytes) && ok;
     ok = haSvc_->addSensor(haSvc_->ctx, &heapFragPercent) && ok;

@@ -41,13 +41,15 @@ private:
     static constexpr uint8_t ProducerId = 32;
     static constexpr uint8_t ProducerIdCfg = 49;
 
-    static constexpr uint8_t MAX_HA_SENSORS = 24;
-    static constexpr uint8_t MAX_HA_BINARY_SENSORS = 8;
-    static constexpr uint8_t MAX_HA_SWITCHES = 16;
-    static constexpr uint8_t MAX_HA_NUMBERS = 16;
-    static constexpr uint8_t MAX_HA_BUTTONS = 8;
+    static constexpr uint8_t MAX_HA_SENSORS = 40;
+    static constexpr uint8_t MAX_HA_BINARY_SENSORS = 6;
+    static constexpr uint8_t MAX_HA_SWITCHES = 14;
+    static constexpr uint8_t MAX_HA_NUMBERS = 14;
+    static constexpr uint8_t MAX_HA_BUTTONS = 12;
+    static constexpr uint8_t MAX_HA_DISCOVERY_CLEANUPS = 1;
     static constexpr uint16_t MAX_HA_ENTITIES =
         MAX_HA_SENSORS + MAX_HA_BINARY_SENSORS + MAX_HA_SWITCHES + MAX_HA_NUMBERS + MAX_HA_BUTTONS;
+    static constexpr uint16_t MAX_HA_MESSAGES = MAX_HA_ENTITIES + MAX_HA_DISCOVERY_CLEANUPS;
 
     struct HAConfig {
         bool enabled = true;
@@ -67,13 +69,13 @@ private:
     bool published_ = false;
 
     char deviceId_[32] = {0};
-    char deviceIdent_[96] = {0};
+    char deviceIdent_[64] = {0};
     char nodeTopicId_[32] = {0};
     uint16_t entityHash2_ = 0;
 
-    char stateTopicBuf_[192] = {0};
-    char objectIdBuf_[192] = {0};
-    char commandTopicBuf_[192] = {0};
+    char stateTopicBuf_[96] = {0};
+    char objectIdBuf_[96] = {0};
+    char commandTopicBuf_[96] = {0};
 
     HASensorEntry sensors_[MAX_HA_SENSORS]{};
     uint8_t sensorCount_ = 0;
@@ -86,7 +88,7 @@ private:
     HAButtonEntry buttons_[MAX_HA_BUTTONS]{};
     uint8_t buttonCount_ = 0;
 
-    uint32_t pendingBits_[(MAX_HA_ENTITIES + 31U) / 32U] = {0};
+    uint32_t pendingBits_[(MAX_HA_MESSAGES + 31U) / 32U] = {0};
 
     MqttPublishProducer producer_{};
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
@@ -140,6 +142,7 @@ private:
     void setPending_(uint16_t messageId, bool pending);
     bool anyPending_() const;
     uint16_t entityCount_() const;
+    uint16_t messageCount_() const;
 
     static MqttBuildResult producerBuildStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx);
     static void producerPublishedStatic_(void* ctx, uint16_t messageId);
@@ -150,6 +153,7 @@ private:
     void onMessageDropped_(uint16_t messageId);
 
     bool buildEntityMessage_(uint16_t messageId, MqttBuildContext& buildCtx);
+    bool buildLegacyCleanupMessage_(uint16_t cleanupId, MqttBuildContext& buildCtx);
     bool resolveMqttTopicDeviceId_(char* out, size_t outLen) const;
 
     bool buildObjectId(const char* suffix, char* out, size_t outLen) const;
@@ -163,6 +167,7 @@ private:
                        const char* unit = nullptr,
                        bool hasEntityName = false,
                        const char* availabilityTemplate = nullptr,
+                       bool isText = false,
                        MqttBuildContext* outCtx = nullptr);
     bool publishBinarySensor(const char* objectId, const char* name,
                              const char* stateTopic, const char* valueTemplate,

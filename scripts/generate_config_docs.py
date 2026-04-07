@@ -85,7 +85,7 @@ TOKEN_MAP = {
 }
 
 ANALOG_KEY_RE = re.compile(r"^a(?P<idx>[0-9]+)_(?P<field>name|source|channel|binding_port|c0|c1|prec|min|max)$")
-DIGITAL_INPUT_KEY_RE = re.compile(r"^i(?P<idx>[0-9]+)_(?P<field>name|binding_port|active_high|pull_mode|edge_mode)$")
+DIGITAL_INPUT_KEY_RE = re.compile(r"^i(?P<idx>[0-9]+)_(?P<field>name|binding_port|active_high|pull_mode|edge_mode|c0|prec)$")
 DIGITAL_OUTPUT_KEY_RE = re.compile(r"^d(?P<idx>[0-9]+)_(?P<field>name|pin|binding_port|active_high|initial_on|momentary|pulse_ms)$")
 ANALOG_MODULE_RE = re.compile(r"^io/input/a(?P<idx>[0-9]+)$")
 PORT_ENUM_RE = re.compile(r"^\s*(?P<name>Port[A-Za-z0-9_]+)\s*=\s*(?P<value>\d+)\s*,\s*$", re.M)
@@ -345,7 +345,7 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
         }
         hit = mapping.get(json_name)
         if hit:
-            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            return {"label": hit[0], "help": hit[1], "unit": hit[2], "display_format": "hex"}
 
     if module_name == "io/drivers/ads1115_ext":
         mapping = {
@@ -353,7 +353,7 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
         }
         hit = mapping.get(json_name)
         if hit:
-            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            return {"label": hit[0], "help": hit[1], "unit": hit[2], "display_format": "hex"}
 
     if module_name == "io/drivers/pcf857x":
         mapping = {
@@ -364,7 +364,10 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
         }
         hit = mapping.get(json_name)
         if hit:
-            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            out = {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            if json_name == "address":
+                out["display_format"] = "hex"
+            return out
 
     if module_name == "io/drivers/sht40":
         mapping = {
@@ -374,7 +377,10 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
         }
         hit = mapping.get(json_name)
         if hit:
-            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            out = {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            if json_name == "address":
+                out["display_format"] = "hex"
+            return out
 
     if module_name == "io/drivers/bmp280":
         mapping = {
@@ -384,7 +390,10 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
         }
         hit = mapping.get(json_name)
         if hit:
-            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            out = {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            if json_name == "address":
+                out["display_format"] = "hex"
+            return out
 
     if module_name == "io/drivers/bme680":
         mapping = {
@@ -394,7 +403,10 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
         }
         hit = mapping.get(json_name)
         if hit:
-            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            out = {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            if json_name == "address":
+                out["display_format"] = "hex"
+            return out
 
     if module_name == "io/drivers/ina226":
         mapping = {
@@ -405,7 +417,10 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
         }
         hit = mapping.get(json_name)
         if hit:
-            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            out = {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            if json_name == "address":
+                out["display_format"] = "hex"
+            return out
 
     if module_name == "elink/client":
         mapping = {
@@ -462,7 +477,7 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
                 "channel": f"Canal entrée A{label_idx}",
                 "binding_port": f"Port physique A{label_idx}",
                 "c0": f"Coefficient C0 A{label_idx}",
-                "c1": f"Coefficient C1 A{label_idx}",
+                "c1": f"Offset C1 A{label_idx}",
                 "prec": f"Precision A{label_idx}",
                 "min": f"Seuil mini A{label_idx}",
                 "max": f"Seuil maxi A{label_idx}",
@@ -472,8 +487,8 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
                 "source": f"Source ADC de A{label_idx} (0=ADS interne, 1=ADS externe).",
                 "channel": f"Canal ADC utilisé pour A{label_idx}.",
                 "binding_port": f"Identifiant du port physique utilise par A{label_idx}. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut.",
-                "c0": f"Coefficient C0 pour la calibration de A{label_idx}.",
-                "c1": f"Coefficient C1 pour la calibration de A{label_idx}.",
+                "c0": f"Coefficient multiplicateur de calibration pour A{label_idx}. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
+                "c1": f"Offset de calibration pour A{label_idx}. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
                 "prec": f"Nombre de décimales conservées pour A{label_idx}.",
                 "min": f"Valeur minimale valide pour A{label_idx} (avant invalidation).",
                 "max": f"Valeur maximale valide pour A{label_idx} (avant invalidation).",
@@ -493,6 +508,8 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
                 "active_high": f"Actif a 1 I{idx}",
                 "pull_mode": f"Pull entrée I{idx}",
                 "edge_mode": f"Mode de front I{idx}",
+                "c0": f"Coefficient C0 I{idx}",
+                "prec": f"Precision I{idx}",
             }
             helps = {
                 "name": f"Nom lisible de l'entrée digitale I{idx}.",
@@ -500,8 +517,11 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
                 "active_high": f"Si active, l'entrée I{idx} est consideree active a l'etat haut.",
                 "pull_mode": f"Mode de resistance interne applique a l'entrée I{idx}.",
                 "edge_mode": f"Front a compter pour I{idx} en mode compteur (0=descendant, 1=montant, 2=les deux).",
+                "c0": f"Coefficient multiplicateur applique au nombre d'impulsions de I{idx} en mode compteur. Il convertit les impulsions brutes en valeur cumulee publiee. Formule: value = c0 * impulsions.",
+                "prec": f"Nombre de decimales conservees pour la valeur calculee de I{idx} en mode compteur.",
             }
-            return {"label": labels[field], "help": helps[field], "unit": None}
+            unit = "digits" if field == "prec" else None
+            return {"label": labels[field], "help": helps[field], "unit": unit}
 
     if module_name.startswith("io/output/d"):
         m = DIGITAL_OUTPUT_KEY_RE.match(json_name)
@@ -612,12 +632,15 @@ def _parse_cfgdoc_payload(payload: str) -> Optional[dict]:
     label = data.get("label")
     help_txt = data.get("help")
     unit = data.get("unit")
+    display_format = data.get("display_format")
     if isinstance(label, str) and label.strip():
         out["label"] = label.strip()
     if isinstance(help_txt, str) and help_txt.strip():
         out["help"] = help_txt.strip()
     if isinstance(unit, str) and unit.strip():
         out["unit"] = unit.strip()
+    if isinstance(display_format, str) and display_format.strip():
+        out["display_format"] = display_format.strip()
     return out
 
 
@@ -653,12 +676,16 @@ def _load_overrides(path: Path) -> dict:
         if not isinstance(key, str) or not isinstance(val, dict):
             continue
         item = {}
+        if isinstance(val.get("type"), str) and val["type"].strip():
+            item["type"] = val["type"].strip()
         if isinstance(val.get("label"), str) and val["label"].strip():
             item["label"] = val["label"].strip()
         if isinstance(val.get("help"), str) and val["help"].strip():
             item["help"] = val["help"].strip()
         if isinstance(val.get("unit"), str) and val["unit"].strip():
             item["unit"] = val["unit"].strip()
+        if isinstance(val.get("display_format"), str) and val["display_format"].strip():
+            item["display_format"] = val["display_format"].strip()
         normalized[key.strip("/")] = item
     return normalized
 
@@ -781,6 +808,7 @@ def _build_entries(src_root: Path) -> Tuple[Dict[str, dict], dict]:
                 "label": cfgdoc.get("label"),
                 "help": cfgdoc.get("help"),
                 "unit": cfgdoc.get("unit"),
+                "display_format": cfgdoc.get("display_format"),
                 "type": d["type"],
             }
 
@@ -807,6 +835,10 @@ def _build_entries(src_root: Path) -> Tuple[Dict[str, dict], dict]:
             item["unit"] = cfgdoc["unit"]
         elif auto_doc and auto_doc.get("unit"):
             item["unit"] = auto_doc["unit"]
+        if cfgdoc and cfgdoc.get("display_format"):
+            item["display_format"] = cfgdoc["display_format"]
+        elif auto_doc and auto_doc.get("display_format"):
+            item["display_format"] = auto_doc["display_format"]
         _apply_doc_extras(item, module_name, json_name)
         prio = 30 if cfgdoc else 20
         _upsert_entry(entries, f"{module_name}/{json_name}", item, prio)
@@ -849,6 +881,8 @@ def _build_entries(src_root: Path) -> Tuple[Dict[str, dict], dict]:
             }
             if cfgdoc.get("unit"):
                 item["unit"] = cfgdoc["unit"]
+            if cfgdoc.get("display_format"):
+                item["display_format"] = cfgdoc["display_format"]
             _upsert_entry(entries, f"@var/{var_name}", item, 12)
             continue
         modules = sorted(var_mod_assign.get(decl_key, set()))
@@ -866,6 +900,8 @@ def _build_entries(src_root: Path) -> Tuple[Dict[str, dict], dict]:
             }
             if cfgdoc.get("unit"):
                 base_item["unit"] = cfgdoc["unit"]
+            if cfgdoc.get("display_format"):
+                base_item["display_format"] = cfgdoc["display_format"]
             _apply_doc_extras(base_item, "*", field)
 
             # If module literal was assigned, prefer full key docs.
@@ -903,6 +939,8 @@ def _build_entries(src_root: Path) -> Tuple[Dict[str, dict], dict]:
             }
             if auto_doc and auto_doc.get("unit"):
                 item["unit"] = auto_doc["unit"]
+            if auto_doc and auto_doc.get("display_format"):
+                item["display_format"] = auto_doc["display_format"]
             _apply_doc_extras(item, module_name, json_name)
             _upsert_entry(entries, f"{module_name}/{json_name}", item, 10)
 
@@ -919,20 +957,41 @@ def _merge_overrides(entries: Dict[str, dict], overrides: dict) -> int:
     applied = 0
     for key, val in overrides.items():
         key = key.strip("/")
-        if key not in entries:
-            continue
-        base = entries[key]
+        base = entries.get(key)
+        if base is None:
+            if "/" not in key:
+                continue
+            module, name = key.rsplit("/", 1)
+            base = {
+                "module": module,
+                "name": name,
+                "source": "override",
+                "__prio": 0,
+            }
+            type_hint = val.get("type")
+            display_format = val.get("display_format")
+            if isinstance(type_hint, str) and type_hint.strip():
+                base["type"] = type_hint.strip()
+            if isinstance(display_format, str) and display_format.strip():
+                base["display_format"] = display_format.strip()
+            entries[key] = base
         if str(base.get("source", "")).startswith("cfgdoc"):
             continue
         label = val.get("label")
         help_txt = val.get("help")
+        type_hint = val.get("type")
         unit = val.get("unit")
+        display_format = val.get("display_format")
         if isinstance(label, str) and label.strip():
             base["label"] = label.strip()
         if isinstance(help_txt, str) and help_txt.strip():
             base["help"] = help_txt.strip()
+        if isinstance(type_hint, str) and type_hint.strip():
+            base["type"] = type_hint.strip()
         if isinstance(unit, str) and unit.strip():
             base["unit"] = unit.strip()
+        if isinstance(display_format, str) and display_format.strip():
+            base["display_format"] = display_format.strip()
         base["source"] = "override"
         base["__prio"] = max(base.get("__prio", 0), 40)
         applied += 1

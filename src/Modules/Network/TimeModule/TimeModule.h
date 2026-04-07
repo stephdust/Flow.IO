@@ -71,7 +71,6 @@ private:
 
     TimeConfig cfgData{};
     char scheduleBlob_[TIME_SCHED_BLOB_SIZE] = {0};
-    char schedulePersistBuf_[TIME_SCHED_BLOB_SIZE] = {0};
 
     ConfigStore* cfgStore = nullptr;
     const CommandService* cmdSvc = nullptr;

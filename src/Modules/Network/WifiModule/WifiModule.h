@@ -118,6 +118,8 @@ private:
     WifiScanEntry scanEntries_[kScanMaxResults] = {};
     portMUX_TYPE scanMux_ = portMUX_INITIALIZER_UNLOCKED;
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
+    const HAService* haSvc_ = nullptr;
+    bool haEntitiesRegistered_ = false;
     
     // Config variables
     // CFGDOC: {"label":"WiFi active","help":"Active ou désactive la connexion WiFi en mode station."}
@@ -179,6 +181,7 @@ private:
     bool requestScan_(bool force);
     void processScan_();
     bool buildScanStatusJson_(char* out, size_t outLen);
+    void registerHaEntities_(ServiceRegistry& services);
 
     WifiService wifiSvc_{
         ServiceBinding::bind<&WifiModule::stateSvc_>,

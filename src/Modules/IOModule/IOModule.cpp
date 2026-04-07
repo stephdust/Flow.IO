@@ -58,6 +58,7 @@ static constexpr uint8_t kCfgBranchIoSht40 = 29;
 static constexpr uint8_t kCfgBranchIoBmp280 = 30;
 static constexpr uint8_t kCfgBranchIoBme680 = 31;
 static constexpr uint8_t kCfgBranchIoIna226 = 32;
+static constexpr char kLegacyCounterRuntimeKeyFmt[] = "ioi%02urt";
 #define FLOW_IO_ANALOG_ROUTE_ENTRY(ROUTE_ID, BRANCH_ID, SLOT_STR) \
     {ROUTE_ID, {(uint8_t)ConfigModuleId::Io, BRANCH_ID}, "io/input/a" SLOT_STR, "io/input/a" SLOT_STR, (uint8_t)MqttPublishPriority::Normal, nullptr}
 static constexpr MqttConfigRouteProducer::Route kIoCfgRoutes[] = {
@@ -162,6 +163,33 @@ bool IOModule::ensureExtraAnalogCfgVars_()
     return true;
 }
 
+bool IOModule::ensureDigitalCounterCfgVars_()
+{
+    if (extraDigitalCounterCfgVars_) return true;
+    void* mem = heap_caps_malloc(sizeof(ExtraDigitalCounterConfigVars), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!mem) return false;
+    extraDigitalCounterCfgVars_ = new (mem) ExtraDigitalCounterConfigVars(digitalInCfg_);
+    return true;
+}
+
+bool IOModule::ensureDigitalCounterConfigState_()
+{
+    if (digitalCounterLastConfigTotals_) return true;
+    digitalCounterLastConfigTotals_ = static_cast<float*>(
+        heap_caps_calloc(MAX_DIGITAL_INPUTS, sizeof(float), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
+    );
+    return digitalCounterLastConfigTotals_ != nullptr;
+}
+
+bool IOModule::ensureLastCycleState_()
+{
+    if (lastCycle_) return true;
+    lastCycle_ = static_cast<IoCycleInfo*>(
+        heap_caps_calloc(1, sizeof(IoCycleInfo), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
+    );
+    return lastCycle_ != nullptr;
+}
+
 bool IOModule::ensureAnalogPrecisionState_()
 {
     if (analogPrecisionLast_) return true;
@@ -235,23 +263,56 @@ bool IOModule::findDigitalSlotByIoId_(IoId id, uint8_t& slotIdxOut) const
     return false;
 }
 
+ConfigVariable<float,0>* IOModule::counterTotalVar_(uint8_t logicalIdx)
+{
+    if (logicalIdx >= MAX_DIGITAL_INPUTS) return nullptr;
+    if (!extraDigitalCounterCfgVars_ && !ensureDigitalCounterCfgVars_()) return nullptr;
+
+    switch (logicalIdx) {
+        case 0: return &extraDigitalCounterCfgVars_->i0TotalVar_;
+        case 1: return &extraDigitalCounterCfgVars_->i1TotalVar_;
+        case 2: return &extraDigitalCounterCfgVars_->i2TotalVar_;
+        case 3: return &extraDigitalCounterCfgVars_->i3TotalVar_;
+        case 4: return &extraDigitalCounterCfgVars_->i4TotalVar_;
+        default: return nullptr;
+    }
+}
+
+float* IOModule::counterConfigTotalState_(uint8_t logicalIdx)
+{
+    if (logicalIdx >= MAX_DIGITAL_INPUTS) return nullptr;
+    if (!digitalCounterLastConfigTotals_ && !ensureDigitalCounterConfigState_()) return nullptr;
+    return &digitalCounterLastConfigTotals_[logicalIdx];
+}
+
+void IOModule::eraseLegacyCounterPersistedTotal_(uint8_t logicalIdx)
+{
+    if (!cfgStore_ || logicalIdx >= MAX_DIGITAL_INPUTS) return;
+
+    char key[16];
+    snprintf(key, sizeof(key), kLegacyCounterRuntimeKeyFmt, (unsigned)logicalIdx);
+    (void)cfgStore_->eraseKey(key);
+}
+
 void IOModule::beginIoCycle_(uint32_t nowMs)
 {
-    ++lastCycle_.seq;
-    lastCycle_.tsMs = nowMs;
-    lastCycle_.changedCount = 0;
+    if (!ensureLastCycleState_()) return;
+    ++lastCycle_->seq;
+    lastCycle_->tsMs = nowMs;
+    lastCycle_->changedCount = 0;
 }
 
 void IOModule::markIoCycleChanged_(IoId id)
 {
     if (id == IO_ID_INVALID) return;
+    if (!ensureLastCycleState_()) return;
 
-    for (uint8_t i = 0; i < lastCycle_.changedCount; ++i) {
-        if (lastCycle_.changedIds[i] == id) return;
+    for (uint8_t i = 0; i < lastCycle_->changedCount; ++i) {
+        if (lastCycle_->changedIds[i] == id) return;
     }
 
-    if (lastCycle_.changedCount >= IO_MAX_CHANGED_IDS) return;
-    lastCycle_.changedIds[lastCycle_.changedCount++] = id;
+    if (lastCycle_->changedCount >= IO_MAX_CHANGED_IDS) return;
+    lastCycle_->changedIds[lastCycle_->changedCount++] = id;
 }
 
 bool IOModule::defineDigitalInput(const IODigitalInputDefinition& def)
@@ -338,6 +399,11 @@ const char* IOModule::analogSlotName(uint8_t idx) const
 bool IOModule::analogSlotUsed(uint8_t idx) const
 {
     return idx < MAX_ANALOG_ENDPOINTS && analogSlots_[idx].used;
+}
+
+bool IOModule::analogSlotPublished(uint8_t idx) const
+{
+    return analogSlotPublished_(idx);
 }
 
 bool IOModule::digitalInputSlotUsed(uint8_t logicalIdx) const
@@ -459,9 +525,11 @@ bool IOModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) co
 
 uint8_t IOModule::runtimeSnapshotCount() const
 {
+    if (!cfgData_.enabled) return 0;
+
     uint8_t count = 0;
     for (uint8_t i = 0; i < MAX_ANALOG_ENDPOINTS; ++i) {
-        if (analogSlots_[i].used) ++count;
+        if (analogSlotPublished_(i)) ++count;
     }
     for (uint8_t i = 0; i < MAX_DIGITAL_SLOTS; ++i) {
         if (digitalSlots_[i].used) ++count;
@@ -475,9 +543,11 @@ bool IOModule::runtimeSnapshotRouteFromIndex_(uint8_t snapshotIdx, uint8_t& rout
     static constexpr uint8_t ROUTE_DIGITAL_INPUT = 1;
     static constexpr uint8_t ROUTE_DIGITAL_OUTPUT = 2;
 
+    if (!cfgData_.enabled) return false;
+
     uint8_t seen = 0;
     for (uint8_t i = 0; i < MAX_ANALOG_ENDPOINTS; ++i) {
-        if (!analogSlots_[i].used) continue;
+        if (!analogSlotPublished_(i)) continue;
         if (seen == snapshotIdx) {
             routeTypeOut = ROUTE_ANALOG;
             slotIdxOut = i;
@@ -508,7 +578,7 @@ bool IOModule::runtimeSnapshotRouteFromIndex_(uint8_t snapshotIdx, uint8_t& rout
     return false;
 }
 
-bool IOModule::buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uint32_t& maxTsOut) const
+bool IOModule::buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uint32_t& maxTsOut, bool invalidAsUndefined) const
 {
     if (!ep || !out || len == 0) return false;
     if ((ep->capabilities() & IO_CAP_READ) == 0) return false;
@@ -527,7 +597,7 @@ bool IOModule::buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uin
     size_t used = (size_t)wrote;
 
     if (!v.valid) {
-        wrote = snprintf(out + used, len - used, "null");
+        wrote = snprintf(out + used, len - used, invalidAsUndefined ? "\"undefined\"" : "null");
     } else if (v.valueType == IO_EP_VALUE_BOOL) {
         wrote = snprintf(out + used, len - used, "%s", v.v.b ? "true" : "false");
     } else if (v.valueType == IO_EP_VALUE_FLOAT) {
@@ -625,9 +695,9 @@ bool IOModule::buildRuntimeSnapshot(uint8_t idx, char* out, size_t len, uint32_t
     IOEndpoint* ep = nullptr;
     if (routeType == ROUTE_ANALOG) {
         ep = static_cast<IOEndpoint*>(analogSlots_[slotIdx].endpoint);
-    } else {
-        ep = digitalSlots_[slotIdx].endpoint;
+        return buildEndpointSnapshot_(ep, out, len, maxTsOut, analogSlotUsesUndefinedInvalidValue_(slotIdx));
     }
+    ep = digitalSlots_[slotIdx].endpoint;
     return buildEndpointSnapshot_(ep, out, len, maxTsOut);
 }
 
@@ -651,6 +721,10 @@ bool IOModule::buildGroupSnapshot_(char* out, size_t len, bool inputGroup, uint3
         if (!id || id[0] == '\0') continue;
         if (inputGroup && !isInputEndpointIdLocal(id)) continue;
         if (!inputGroup && !isOutputEndpointIdLocal(id)) continue;
+        if (inputGroup && id[0] == 'a' && hasDecimalSuffixLocal(id + 1)) {
+            const uint8_t analogIdx = (uint8_t)atoi(id + 1);
+            if (!analogSlotPublished_(analogIdx)) continue;
+        }
 
         IOEndpointValue v{};
         bool ok = ep->read(v);
@@ -770,6 +844,80 @@ const IOAnalogProvider* IOModule::analogProviderForSource_(uint8_t source) const
     return (source < IO_SRC_COUNT) ? &analogProviders_[source] : nullptr;
 }
 
+bool IOModule::resolveConfiguredAnalogSource_(uint8_t idx, uint8_t& sourceOut) const
+{
+    if (idx >= ANALOG_CFG_SLOTS) return false;
+    if (!analogSlots_[idx].used) return false;
+
+    uint8_t channel = 0U;
+    uint8_t backend = IO_BACKEND_GPIO;
+    uint8_t source = IO_ANALOG_SOURCE_INVALID;
+    if (!resolveAnalogBinding_(analogCfg_[idx].bindingPort, source, channel, backend)) return false;
+
+    sourceOut = source;
+    return true;
+}
+
+bool IOModule::analogSourceRequiresDriverEnable_(uint8_t source) const
+{
+    return source == IO_SRC_SHT40 ||
+           source == IO_SRC_BMP280 ||
+           source == IO_SRC_BME680 ||
+           source == IO_SRC_INA226;
+}
+
+bool IOModule::analogSourceDriverEnabled_(uint8_t source) const
+{
+    switch (source) {
+        case IO_SRC_SHT40:
+            return cfgData_.sht40Enabled;
+        case IO_SRC_BMP280:
+            return cfgData_.bmp280Enabled;
+        case IO_SRC_BME680:
+            return cfgData_.bme680Enabled;
+        case IO_SRC_INA226:
+            return cfgData_.ina226Enabled;
+        default:
+            return true;
+    }
+}
+
+bool IOModule::analogSlotPublished_(uint8_t idx) const
+{
+    if (idx >= MAX_ANALOG_ENDPOINTS) return false;
+    if (!cfgData_.enabled || !analogSlots_[idx].used) return false;
+
+    uint8_t source = IO_ANALOG_SOURCE_INVALID;
+    if (!resolveConfiguredAnalogSource_(idx, source)) return false;
+
+    if (!analogSourceRequiresDriverEnable_(source)) return true;
+    return analogSourceDriverEnabled_(source);
+}
+
+bool IOModule::analogSlotUsesUndefinedInvalidValue_(uint8_t idx) const
+{
+    uint8_t source = IO_ANALOG_SOURCE_INVALID;
+    if (!resolveConfiguredAnalogSource_(idx, source)) return false;
+    return analogSourceRequiresDriverEnable_(source) && analogSourceDriverEnabled_(source);
+}
+
+void IOModule::invalidateAnalogSlot_(AnalogSlot& slot, uint32_t nowMs)
+{
+    if (!slot.endpoint) return;
+    if (!slot.lastRoundedValid) return;
+
+    slot.endpoint->update(slot.lastRounded, false, nowMs);
+    slot.lastRoundedValid = false;
+
+    if (dataStore_) {
+        uint8_t rtIdx = 0;
+        if (endpointIndexFromId_(slot.def.id, rtIdx)) {
+            (void)setIoEndpointInvalid(*dataStore_, rtIdx, IO_VALUE_FLOAT, nowMs);
+        }
+    }
+    markIoCycleChanged_(slot.ioId);
+}
+
 bool IOModule::processAnalogDefinition_(uint8_t idx, uint32_t nowMs)
 {
     if (idx >= MAX_ANALOG_ENDPOINTS) return false;
@@ -777,19 +925,14 @@ bool IOModule::processAnalogDefinition_(uint8_t idx, uint32_t nowMs)
     if (!slot.used || !slot.endpoint) return false;
 
     const IOAnalogProvider* provider = analogProviderForSource_(slot.source);
-    if (!provider || !provider->isBound()) return false;
+    if (!provider || !provider->isBound()) {
+        invalidateAnalogSlot_(slot, nowMs);
+        return false;
+    }
 
     IOAnalogSample sample{};
     if (!provider->readSample(slot.channel, sample)) {
-        const bool isDsSource =
-            (slot.source == IO_SRC_DS18_WATER) || (slot.source == IO_SRC_DS18_AIR);
-        if (isDsSource) {
-            // Surface DS18 disconnect/failure once on transition to invalid; keep timestamp stable while invalid.
-            if (slot.lastRoundedValid) {
-                slot.endpoint->update(slot.lastRounded, false, nowMs);
-                slot.lastRoundedValid = false;
-            }
-        }
+        invalidateAnalogSlot_(slot, nowMs);
         return false;
     }
     float raw = sample.value;
@@ -835,6 +978,12 @@ bool IOModule::processAnalogDefinition_(uint8_t idx, uint32_t nowMs)
     if (!slot.lastRoundedValid || rounded != slot.lastRounded) {
         slot.lastRounded = rounded;
         slot.lastRoundedValid = true;
+        if (dataStore_) {
+            uint8_t rtIdx = 0;
+            if (endpointIndexFromId_(slot.def.id, rtIdx)) {
+                (void)setIoEndpointFloat(*dataStore_, rtIdx, rounded, nowMs);
+            }
+        }
         markIoCycleChanged_(slot.ioId);
         if (slot.def.onValueChanged) {
             slot.def.onValueChanged(slot.def.onValueCtx, rounded);
@@ -872,6 +1021,14 @@ bool IOModule::processDigitalInputDefinition_(uint8_t slotIdx, uint32_t nowMs)
             return false;
         }
 
+        float* lastConfigTotal = counterConfigTotalState_(slot.logicalIdx);
+        if (cfg && lastConfigTotal && *lastConfigTotal != cfg->counterTotal) {
+            slot.counterScaledTotal = cfg->counterTotal;
+            *lastConfigTotal = cfg->counterTotal;
+            slot.counterLastRawCount = rawCount;
+            slot.counterLastFlushedRawCount = rawCount;
+        }
+
         const int32_t delta = rawCount - slot.counterLastRawCount;
         if (delta > 0) {
             slot.counterScaledTotal += ((float)delta * c0);
@@ -879,6 +1036,7 @@ bool IOModule::processDigitalInputDefinition_(uint8_t slotIdx, uint32_t nowMs)
             (void)persistCounterTotalIfNeeded_(slot, rawCount);
         } else if (delta < 0) {
             slot.counterLastRawCount = rawCount;
+            slot.counterLastFlushedRawCount = rawCount;
         }
 
         const float scaledValue = ioRoundToPrecision(slot.counterScaledTotal, precision);
@@ -1160,7 +1318,7 @@ IoStatus IOModule::ioReadValue_(IoId id, IoValue* outValue) const
 
         outValue->valid = 1U;
         outValue->tsMs = v.timestampMs;
-        outValue->cycleSeq = lastCycle_.seq;
+        outValue->cycleSeq = lastCycle_ ? lastCycle_->seq : 0U;
         if (v.valueType == IO_EP_VALUE_BOOL) {
             outValue->type = IO_VAL_BOOL;
             outValue->v.b = v.v.b ? 1U : 0U;
@@ -1190,7 +1348,7 @@ IoStatus IOModule::ioReadValue_(IoId id, IoValue* outValue) const
         outValue->valid = 1U;
         outValue->type = IO_VAL_FLOAT;
         outValue->tsMs = v.timestampMs;
-        outValue->cycleSeq = lastCycle_.seq;
+        outValue->cycleSeq = lastCycle_ ? lastCycle_->seq : 0U;
         outValue->v.f = v.v.f;
         return IO_OK;
     }
@@ -1213,7 +1371,7 @@ IoStatus IOModule::ioReadDigital_(IoId id, uint8_t* outOn, uint32_t* outTsMs, Io
 
     *outOn = v.v.b ? 1U : 0U;
     if (outTsMs) *outTsMs = v.timestampMs;
-    if (outSeq) *outSeq = lastCycle_.seq;
+    if (outSeq) *outSeq = lastCycle_ ? lastCycle_->seq : 0U;
     return IO_OK;
 }
 
@@ -1258,7 +1416,7 @@ IoStatus IOModule::ioReadAnalog_(IoId id, float* outValue, uint32_t* outTsMs, Io
 
     *outValue = v.v.f;
     if (outTsMs) *outTsMs = v.timestampMs;
-    if (outSeq) *outSeq = lastCycle_.seq;
+    if (outSeq) *outSeq = lastCycle_ ? lastCycle_->seq : 0U;
     return IO_OK;
 }
 
@@ -1298,7 +1456,7 @@ IoStatus IOModule::ioTick_(uint32_t nowMs)
 IoStatus IOModule::ioLastCycle_(IoCycleInfo* outCycle) const
 {
     if (!outCycle) return IO_ERR_INVALID_ARG;
-    *outCycle = lastCycle_;
+    *outCycle = lastCycle_ ? *lastCycle_ : IoCycleInfo{};
     return IO_OK;
 }
 
@@ -1484,16 +1642,6 @@ bool IOModule::resolveDsBusAddress_(OneWireBus* bus, const char* runtimeKey, uin
     return true;
 }
 
-bool IOModule::loadCounterPersistedTotal_(uint8_t logicalIdx, float& totalOut) const
-{
-    if (!cfgStore_) return false;
-
-    char key[16];
-    snprintf(key, sizeof(key), NvsKeys::Io::CounterRuntimeFmt, (unsigned)logicalIdx);
-    size_t len = 0U;
-    return cfgStore_->readRuntimeBlob(key, &totalOut, sizeof(totalOut), &len) && len == sizeof(totalOut);
-}
-
 bool IOModule::persistCounterTotalIfNeeded_(DigitalSlot& slot, int32_t rawCount)
 {
     static constexpr int32_t kCounterPersistPulseDelta = 32;
@@ -1502,11 +1650,14 @@ bool IOModule::persistCounterTotalIfNeeded_(DigitalSlot& slot, int32_t rawCount)
     if (slot.kind != DIGITAL_SLOT_INPUT || slot.inDef.mode != IO_DIGITAL_INPUT_COUNTER) return false;
     if (rawCount < slot.counterLastFlushedRawCount) return false;
     if ((rawCount - slot.counterLastFlushedRawCount) < kCounterPersistPulseDelta) return false;
+    ConfigVariable<float,0>* totalVar = counterTotalVar_(slot.logicalIdx);
+    if (!totalVar) return false;
 
-    char key[16];
-    snprintf(key, sizeof(key), NvsKeys::Io::CounterRuntimeFmt, (unsigned)slot.logicalIdx);
-    if (!cfgStore_->writeRuntimeBlob(key, &slot.counterScaledTotal, sizeof(slot.counterScaledTotal))) {
+    if (!cfgStore_->set(*totalVar, slot.counterScaledTotal)) {
         return false;
+    }
+    if (float* lastConfigTotal = counterConfigTotalState_(slot.logicalIdx)) {
+        *lastConfigTotal = slot.counterScaledTotal;
     }
     slot.counterLastFlushedRawCount = rawCount;
     return true;
@@ -1551,7 +1702,7 @@ bool IOModule::configureRuntime_()
                 analogSlots_[i].source = source;
                 analogSlots_[i].channel = channel;
                 analogSlots_[i].backend = backend;
-            } else {
+            } else if (analogSlots_[i].def.bindingPort != IO_PORT_INVALID) {
                 LOGW("Analog %s unresolved binding_port=%u",
                      analogSlots_[i].def.id,
                      (unsigned)analogSlots_[i].def.bindingPort);
@@ -1631,6 +1782,7 @@ bool IOModule::configureRuntime_()
             s.endpoint = allocDigitalSensorEndpoint_(s.endpointId, valueType);
             if (!s.endpoint) continue;
             if (s.inDef.mode == IO_DIGITAL_INPUT_COUNTER) {
+                eraseLegacyCounterPersistedTotal_(s.logicalIdx);
                 int32_t initialRawCount = 0;
                 if (driver) {
                     (void)driver->readCount(initialRawCount);
@@ -1639,14 +1791,15 @@ bool IOModule::configureRuntime_()
                 const IODigitalInputSlotConfig* cfg = (s.logicalIdx < MAX_DIGITAL_INPUTS) ? &digitalInCfg_[s.logicalIdx] : nullptr;
                 const float c0 = cfg ? cfg->c0 : 1.0f;
                 const int32_t precision = sanitizeAnalogPrecision_(cfg ? cfg->precision : 0);
+                const float configTotal = cfg ? cfg->counterTotal : 0.0f;
 
-                float persistedTotal = 0.0f;
-                if (loadCounterPersistedTotal_(s.logicalIdx, persistedTotal)) {
-                    s.counterScaledTotal = persistedTotal;
+                if (float* lastConfigTotal = counterConfigTotalState_(s.logicalIdx)) {
+                    *lastConfigTotal = configTotal;
                 }
+                s.counterScaledTotal = configTotal;
                 s.counterScaledTotal += ((float)initialRawCount * c0);
                 s.counterLastRawCount = initialRawCount;
-                s.counterLastFlushedRawCount = 0;
+                s.counterLastFlushedRawCount = initialRawCount;
                 s.lastValid = false;
                 const float scaledValue = ioRoundToPrecision(s.counterScaledTotal, precision);
                 static_cast<DigitalSensorEndpoint*>(s.endpoint)->updateFloat(scaledValue, true, millis());
@@ -2084,7 +2237,9 @@ IAnalogSourceDriver* IOModule::allocIna226Driver_(const char* driverId, I2CBus* 
 IDigitalPinDriver* IOModule::allocPcfBitDriver_(const char* driverId, Pcf8574Driver* parent, uint8_t bit, bool activeHigh)
 {
     if (pcfBitDriverPoolUsed_ >= MAX_DIGITAL_OUTPUTS) return nullptr;
-    void* mem = pcfBitDriverPool_[pcfBitDriverPoolUsed_++];
+    void* mem = heap_caps_malloc(sizeof(Pcf8574BitDriver), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!mem) return nullptr;
+    ++pcfBitDriverPoolUsed_;
     return new (mem) Pcf8574BitDriver(driverId, parent, bit, activeHigh);
 }
 
@@ -2222,6 +2377,17 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(i2NameVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2BindingVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2ActiveHighVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2PullModeVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2EdgeModeVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2C0Var_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2PrecVar_, kCfgModuleId, kCfgBranchIoI2);
     cfg.registerVar(i3NameVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3BindingVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3ActiveHighVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3PullModeVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3EdgeModeVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3C0Var_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3PrecVar_, kCfgModuleId, kCfgBranchIoI3);
     cfg.registerVar(i4NameVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4BindingVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4ActiveHighVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4PullModeVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4EdgeModeVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4C0Var_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4PrecVar_, kCfgModuleId, kCfgBranchIoI4);
+
+    if (ensureDigitalCounterCfgVars_()) {
+        ExtraDigitalCounterConfigVars& totals = *extraDigitalCounterCfgVars_;
+        cfg.registerVar(totals.i0TotalVar_, kCfgModuleId, kCfgBranchIoI0);
+        cfg.registerVar(totals.i1TotalVar_, kCfgModuleId, kCfgBranchIoI1);
+        cfg.registerVar(totals.i2TotalVar_, kCfgModuleId, kCfgBranchIoI2);
+        cfg.registerVar(totals.i3TotalVar_, kCfgModuleId, kCfgBranchIoI3);
+        cfg.registerVar(totals.i4TotalVar_, kCfgModuleId, kCfgBranchIoI4);
+    } else {
+        LOGE("failed to allocate digital counter config vars");
+    }
 
     cfg.registerVar(d0NameVar_, kCfgModuleId, kCfgBranchIoD0); cfg.registerVar(d0BindingVar_, kCfgModuleId, kCfgBranchIoD0); cfg.registerVar(d0ActiveHighVar_, kCfgModuleId, kCfgBranchIoD0); cfg.registerVar(d0InitialOnVar_, kCfgModuleId, kCfgBranchIoD0); cfg.registerVar(d0MomentaryVar_, kCfgModuleId, kCfgBranchIoD0); cfg.registerVar(d0PulseVar_, kCfgModuleId, kCfgBranchIoD0);
     cfg.registerVar(d1NameVar_, kCfgModuleId, kCfgBranchIoD1); cfg.registerVar(d1BindingVar_, kCfgModuleId, kCfgBranchIoD1); cfg.registerVar(d1ActiveHighVar_, kCfgModuleId, kCfgBranchIoD1); cfg.registerVar(d1InitialOnVar_, kCfgModuleId, kCfgBranchIoD1); cfg.registerVar(d1MomentaryVar_, kCfgModuleId, kCfgBranchIoD1); cfg.registerVar(d1PulseVar_, kCfgModuleId, kCfgBranchIoD1);

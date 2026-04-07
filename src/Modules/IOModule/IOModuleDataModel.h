@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 
-constexpr uint8_t IO_MAX_ENDPOINTS = 24;
+constexpr uint8_t IO_MAX_ENDPOINTS = 32;
 
 enum IOValueType : uint8_t {
     IO_VALUE_BOOL = 0,

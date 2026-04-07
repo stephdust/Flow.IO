@@ -17,6 +17,9 @@ struct RuntimeUiManifestItem {
 };
 
 inline constexpr RuntimeUiManifestItem kRuntimeUiManifestItems[] = {
+    {901, "alarms.active_mask", "uint32", nullptr},
+    {902, "alarms.acked_mask", "uint32", nullptr},
+    {903, "alarms.condition_mask", "uint32", nullptr},
     {2001, "mqtt.ready", "bool", nullptr},
     {2002, "mqtt.server", "string", nullptr},
     {2003, "mqtt.rx_drop", "uint32", nullptr},

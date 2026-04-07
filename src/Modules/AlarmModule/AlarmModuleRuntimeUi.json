@@ -1,0 +1,71 @@
+{
+  "moduleId": "alarms",
+  "values": [
+    {
+      "valueId": 1,
+      "key": "alarms.active_mask",
+      "label": "Alarmes actives",
+      "type": "uint32",
+      "domain": "alarm",
+      "group": "Alarmes",
+      "display": "flags",
+      "flags": [
+        { "mask": 1, "label": "Pression Filtration Basse" },
+        { "mask": 2, "label": "Pression Filtration Haute" },
+        { "mask": 4, "label": "Bidon pH bas" },
+        { "mask": 8, "label": "Bidon chlore bas" },
+        { "mask": 16, "label": "Max Uptime atteint Pompe pH" },
+        { "mask": 32, "label": "Max Uptime atteint Pompe Orp" }
+      ],
+      "displayConfig": {
+        "flagRole": "active",
+        "columnLabel": "Act."
+      },
+      "order": 10
+    },
+    {
+      "valueId": 2,
+      "key": "alarms.acked_mask",
+      "label": "Alarmes acquittees",
+      "type": "uint32",
+      "domain": "alarm",
+      "group": "Alarmes",
+      "display": "flags",
+      "flags": [
+        { "mask": 1, "label": "Pression Filtration Basse" },
+        { "mask": 2, "label": "Pression Filtration Haute" },
+        { "mask": 4, "label": "Bidon pH bas" },
+        { "mask": 8, "label": "Bidon chlore bas" },
+        { "mask": 16, "label": "Max Uptime atteint Pompe pH" },
+        { "mask": 32, "label": "Max Uptime atteint Pompe Orp" }
+      ],
+      "displayConfig": {
+        "flagRole": "acked",
+        "columnLabel": "Ack"
+      },
+      "order": 20
+    },
+    {
+      "valueId": 3,
+      "key": "alarms.condition_mask",
+      "label": "Conditions alarmes",
+      "type": "uint32",
+      "domain": "alarm",
+      "group": "Alarmes",
+      "display": "flags",
+      "flags": [
+        { "mask": 1, "label": "Pression Filtration Basse" },
+        { "mask": 2, "label": "Pression Filtration Haute" },
+        { "mask": 4, "label": "Bidon pH bas" },
+        { "mask": 8, "label": "Bidon chlore bas" },
+        { "mask": 16, "label": "Max Uptime atteint Pompe pH" },
+        { "mask": 32, "label": "Max Uptime atteint Pompe Orp" }
+      ],
+      "displayConfig": {
+        "flagRole": "condition",
+        "columnLabel": "Cond."
+      },
+      "order": 30
+    }
+  ]
+}

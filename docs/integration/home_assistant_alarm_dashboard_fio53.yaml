@@ -10,6 +10,46 @@ views:
           Une ligne par alarme, avec 3 indicateurs a droite: `active`, `ack`, `condition`.
 
       - type: grid
+        columns: 1
+        square: false
+        cards:
+          - type: button
+            entity: button.fio53_alm_ack_all
+            name: Ack active alarms
+            icon: mdi:alarm-check
+
+      - type: markdown
+        content: |
+          ## Ack slots (Flow.IO current mapping)
+          - slot 0: psi_low
+          - slot 1: psi_high
+          - slot 2: ph_tank_low
+          - slot 3: chlorine_tank_low
+          - slot 4: ph_pump_max_uptime
+          - slot 5: chlorine_pump_max_uptime
+
+      - type: grid
+        columns: 3
+        square: false
+        cards:
+          - type: button
+            entity: button.fio53_alm_ack_slot_0
+            name: Ack psi_low
+            icon: mdi:numeric-0-box-outline
+          - type: button
+            entity: button.fio53_alm_ack_slot_1
+            name: Ack psi_high
+            icon: mdi:numeric-1-box-outline
+          - type: button
+            entity: button.fio53_alm_ack_slot_4
+            name: Ack pH max uptime
+            icon: mdi:numeric-4-box-outline
+          - type: button
+            entity: button.fio53_alm_ack_slot_5
+            name: Ack chlorine max uptime
+            icon: mdi:numeric-5-box-outline
+
+      - type: grid
         columns: 4
         square: false
         cards:
@@ -189,18 +229,14 @@ views:
             hold_action:
               action: more-info
 
-      - type: markdown
-        content: |
-          ## Internal log alarms
-
       - type: grid
         columns: 4
         square: false
         cards:
           - type: button
-            entity: binary_sensor.fio53_log_warning_active
-            name: Warning log
-            icon: mdi:alert-outline
+            entity: binary_sensor.fio53_ph_pump_max_uptime_active
+            name: pH pump max uptime
+            icon: mdi:timer-alert-outline
             show_state: false
             state_color: true
             tap_action:
@@ -208,7 +244,7 @@ views:
             hold_action:
               action: more-info
           - type: button
-            entity: binary_sensor.fio53_log_warning_active
+            entity: binary_sensor.fio53_ph_pump_max_uptime_active
             name: Active
             icon: mdi:alarm-light
             show_state: false
@@ -218,7 +254,7 @@ views:
             hold_action:
               action: more-info
           - type: button
-            entity: binary_sensor.fio53_log_warning_acked
+            entity: binary_sensor.fio53_ph_pump_max_uptime_acked
             name: Ack
             icon: mdi:check-circle-outline
             show_state: false
@@ -228,7 +264,7 @@ views:
             hold_action:
               action: more-info
           - type: button
-            entity: binary_sensor.fio53_log_warning_condition
+            entity: binary_sensor.fio53_ph_pump_max_uptime_condition
             name: Cond
             icon: mdi:flash-alert
             show_state: false
@@ -243,9 +279,9 @@ views:
         square: false
         cards:
           - type: button
-            entity: binary_sensor.fio53_log_error_active
-            name: Error log
-            icon: mdi:alert-circle-outline
+            entity: binary_sensor.fio53_chlorine_pump_max_uptime_active
+            name: Chlorine pump max uptime
+            icon: mdi:timer-alert-outline
             show_state: false
             state_color: true
             tap_action:
@@ -253,7 +289,7 @@ views:
             hold_action:
               action: more-info
           - type: button
-            entity: binary_sensor.fio53_log_error_active
+            entity: binary_sensor.fio53_chlorine_pump_max_uptime_active
             name: Active
             icon: mdi:alarm-light
             show_state: false
@@ -263,7 +299,7 @@ views:
             hold_action:
               action: more-info
           - type: button
-            entity: binary_sensor.fio53_log_error_acked
+            entity: binary_sensor.fio53_chlorine_pump_max_uptime_acked
             name: Ack
             icon: mdi:check-circle-outline
             show_state: false
@@ -273,7 +309,7 @@ views:
             hold_action:
               action: more-info
           - type: button
-            entity: binary_sensor.fio53_log_error_condition
+            entity: binary_sensor.fio53_chlorine_pump_max_uptime_condition
             name: Cond
             icon: mdi:flash-alert
             show_state: false

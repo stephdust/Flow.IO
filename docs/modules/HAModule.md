@@ -74,7 +74,7 @@ Réactions:
   - `availability` basée sur topic `status`
 - capteurs diagnostic natifs publiés:
   - `alarms_pack` (`rt/alarms/p`)
-  - `uptime_seconds` (`rt/system/state`, valeur `upt_s`)
+  - `uptime` (`rt/system/state`, conversion en minutes depuis `upt_ms`)
   - `heap_free_bytes` (`rt/system/state`, conversion en `ko`)
   - `heap_min_free_bytes` (`rt/system/state`, conversion en `ko`)
   - `heap_fragmentation` (`rt/system/state`, valeur `%`)

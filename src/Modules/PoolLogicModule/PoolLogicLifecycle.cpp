@@ -329,6 +329,38 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         (void)haSvc_->addSensor(haSvc_->ctx, &filtrationStop);
     }
     if (haSvc_ && haSvc_->addNumber) {
+        const HANumberEntry filtrationStartMin{
+            "poollogic",
+            "pl_flt_start_min",
+            "Min Start Filtration Pump",
+            "cfg/poollogic/filtration",
+            "{{ value_json.filtr_start_min | int(0) }}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/filtration\\\":{\\\"filtr_start_min\\\":{{ value | int(0) }}}}",
+            0.0f,
+            23.0f,
+            1.0f,
+            "box",
+            "config",
+            "mdi:clock-start",
+            "h"
+        };
+        const HANumberEntry filtrationStopMax{
+            "poollogic",
+            "pl_flt_stop_max",
+            "Max End Filtration Pump",
+            "cfg/poollogic/filtration",
+            "{{ value_json.filtr_stop_max | int(0) }}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/filtration\\\":{\\\"filtr_stop_max\\\":{{ value | int(0) }}}}",
+            0.0f,
+            23.0f,
+            1.0f,
+            "box",
+            "config",
+            "mdi:clock-end",
+            "h"
+        };
         const HANumberEntry delayPidsMin{
             "poollogic",
             "pl_dly_pid",
@@ -344,6 +376,22 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "config",
             "mdi:timer-sand",
             "min"
+        };
+        const HANumberEntry fillMinUptime{
+            "poollogic",
+            "pl_fill_min_upt",
+            "Min Uptime Fill Pump",
+            "cfg/poollogic/delay",
+            "{{ ((value_json.fill_min_on_s | float(0)) / 60) | round(1) }}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/delay\\\":{\\\"fill_min_on_s\\\":{{ (value | float(0) * 60) | round(0) | int(0) }}}}",
+            0.0f,
+            4.0f,
+            0.5f,
+            "box",
+            "config",
+            "mdi:timer-cog-outline",
+            "mn"
         };
         const HANumberEntry phSetpoint{
             "poollogic",
@@ -441,7 +489,10 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:gauge-full",
             "bar"
         };
+        (void)haSvc_->addNumber(haSvc_->ctx, &filtrationStartMin);
+        (void)haSvc_->addNumber(haSvc_->ctx, &filtrationStopMax);
         (void)haSvc_->addNumber(haSvc_->ctx, &delayPidsMin);
+        (void)haSvc_->addNumber(haSvc_->ctx, &fillMinUptime);
         (void)haSvc_->addNumber(haSvc_->ctx, &phSetpoint);
         (void)haSvc_->addNumber(haSvc_->ctx, &orpSetpoint);
         (void)haSvc_->addNumber(haSvc_->ctx, &phWindowMin);
@@ -527,6 +578,36 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         };
         if (!alarmSvc_->registerAlarm(alarmSvc_->ctx, &chlorineTankLowAlarm, &PoolLogicModule::condChlorineTankLowStatic_, this)) {
             LOGW("PoolLogic failed to register AlarmId::PoolChlorineTankLow");
+        }
+
+        const AlarmRegistration phPumpMaxUptimeAlarm{
+            AlarmId::PoolPhPumpMaxUptime,
+            AlarmSeverity::Alarm,
+            true,
+            500,
+            1000,
+            60000,
+            "ph_pump_max_uptime",
+            "pH pump max uptime reached",
+            "poollogic"
+        };
+        if (!alarmSvc_->registerAlarm(alarmSvc_->ctx, &phPumpMaxUptimeAlarm, &PoolLogicModule::condPhPumpMaxUptimeStatic_, this)) {
+            LOGW("PoolLogic failed to register AlarmId::PoolPhPumpMaxUptime");
+        }
+
+        const AlarmRegistration chlorinePumpMaxUptimeAlarm{
+            AlarmId::PoolChlorinePumpMaxUptime,
+            AlarmSeverity::Alarm,
+            true,
+            500,
+            1000,
+            60000,
+            "chlorine_pump_uptime",
+            "Chlorine pump max uptime reached",
+            "poollogic"
+        };
+        if (!alarmSvc_->registerAlarm(alarmSvc_->ctx, &chlorinePumpMaxUptimeAlarm, &PoolLogicModule::condChlorinePumpMaxUptimeStatic_, this)) {
+            LOGW("PoolLogic failed to register AlarmId::PoolChlorinePumpMaxUptime");
         }
     } else {
         LOGW("PoolLogic running without alarm service");

@@ -34,6 +34,7 @@ struct MqttBuildContext {
     uint16_t payloadLen = 0;
     uint8_t qos = 0;
     bool retain = false;
+    bool allowEmptyPayload = false;
 };
 
 struct MqttPublishProducer {

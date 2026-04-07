@@ -36,7 +36,7 @@ inline constexpr PoolDevicePreset kPoolDevices[] = {
      PoolDefaults::PeristalticTankCapacityMl, PoolDefaults::PeristalticTankInitialMl, DomainRole::FiltrationPump,
      PoolDefaults::DosePumpMaxUptimeDaySec},
     {DomainRole::Robot, "io_robot", "Robot", "mdi:robot-vacuum", 3, POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, DomainRole::FiltrationPump, 0},
-    {DomainRole::FillPump, "io_fill_pmp", "Fill Pump", "mdi:water-plus", 4, POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, DomainRole::None,
+    {DomainRole::FillPump, "io_fill_pmp", "Fill Pump", "mdi:waves-arrow-up", 4, POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f, DomainRole::None,
      PoolDefaults::FillPumpMaxUptimeDaySec},
     {DomainRole::ChlorineGenerator, "io_chl_gen", "Chlorine Generator", "mdi:flash", 5, POOL_DEVICE_RELAY_STD, 0.0f, 0.0f, 0.0f,
      DomainRole::FiltrationPump, PoolDefaults::ChlorineGeneratorMaxUptimeDaySec},

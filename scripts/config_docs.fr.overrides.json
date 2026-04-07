@@ -70,5 +70,30 @@
   "poollogic/filtr_stop_max": {
     "label": "Arrêt filtration max",
     "help": "Heure maximale autorisée pour l'arrêt de la filtration."
+  },
+  "io/input/i00/counter_total": {
+    "type": "Float",
+    "label": "Cumul compteur",
+    "help": "Valeur cumulée éditable pour I00 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
+  },
+  "io/input/i01/counter_total": {
+    "type": "Float",
+    "label": "Cumul compteur",
+    "help": "Valeur cumulée éditable pour I01 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
+  },
+  "io/input/i02/counter_total": {
+    "type": "Float",
+    "label": "Cumul compteur",
+    "help": "Valeur cumulée éditable pour I02 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
+  },
+  "io/input/i03/counter_total": {
+    "type": "Float",
+    "label": "Cumul compteur",
+    "help": "Valeur cumulée éditable pour I03 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
+  },
+  "io/input/i04/counter_total": {
+    "type": "Float",
+    "label": "Cumul compteur",
+    "help": "Valeur cumulée éditable pour I04 en mode compteur. Cette correction écrase immédiatement le total actuel du compteur, devient la nouvelle statistique long terme et est écrite immédiatement en NVS."
   }
 }

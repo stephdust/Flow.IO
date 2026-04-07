@@ -75,6 +75,7 @@ public:
     bool defineDigitalOutput(const IODigitalOutputDefinition& def);
     const char* analogSlotName(uint8_t idx) const;
     bool analogSlotUsed(uint8_t idx) const;
+    bool analogSlotPublished(uint8_t idx) const;
     bool digitalInputSlotUsed(uint8_t logicalIdx) const;
     uint8_t digitalInputValueType(uint8_t logicalIdx) const;
     int32_t digitalInputPrecision(uint8_t logicalIdx) const;
@@ -94,6 +95,7 @@ public:
     IORegistry& registry() { return registry_; }
 
 private:
+    struct AnalogSlot;
     struct DigitalSlot;
 
     enum RuntimeUiValueId : uint8_t {
@@ -138,9 +140,15 @@ private:
                                       bool& usesPcfOut) const;
     bool resolveDsBusAddress_(OneWireBus* bus, const char* runtimeKey, uint8_t outAddr[8]);
     bool runtimeSnapshotRouteFromIndex_(uint8_t snapshotIdx, uint8_t& routeTypeOut, uint8_t& slotIdxOut) const;
-    bool buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uint32_t& maxTsOut) const;
+    bool buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uint32_t& maxTsOut, bool invalidAsUndefined = false) const;
     bool buildGroupSnapshot_(char* out, size_t len, bool inputGroup, uint32_t& maxTsOut) const;
     const IOAnalogProvider* analogProviderForSource_(uint8_t source) const;
+    bool resolveConfiguredAnalogSource_(uint8_t idx, uint8_t& sourceOut) const;
+    bool analogSourceRequiresDriverEnable_(uint8_t source) const;
+    bool analogSourceDriverEnabled_(uint8_t source) const;
+    bool analogSlotPublished_(uint8_t idx) const;
+    bool analogSlotUsesUndefinedInvalidValue_(uint8_t idx) const;
+    void invalidateAnalogSlot_(AnalogSlot& slot, uint32_t nowMs);
     bool processAnalogDefinition_(uint8_t idx, uint32_t nowMs);
     bool processDigitalInputDefinition_(uint8_t slotIdx, uint32_t nowMs);
     int32_t sanitizeAnalogPrecision_(int32_t precision) const;
@@ -148,11 +156,16 @@ private:
     void refreshAnalogConfigState_();
     bool ensureAnalogPrecisionState_();
     bool ensureExtraAnalogCfgVars_();
+    bool ensureDigitalCounterCfgVars_();
+    bool ensureDigitalCounterConfigState_();
+    bool ensureLastCycleState_();
     bool endpointIndexFromId_(const char* id, uint8_t& idxOut) const;
     bool digitalLogicalUsed_(uint8_t kind, uint8_t logicalIdx) const;
     bool findDigitalSlotByLogical_(uint8_t kind, uint8_t logicalIdx, uint8_t& slotIdxOut) const;
     bool findDigitalSlotByIoId_(IoId id, uint8_t& slotIdxOut) const;
-    bool loadCounterPersistedTotal_(uint8_t logicalIdx, float& totalOut) const;
+    ConfigVariable<float,0>* counterTotalVar_(uint8_t logicalIdx);
+    float* counterConfigTotalState_(uint8_t logicalIdx);
+    void eraseLegacyCounterPersistedTotal_(uint8_t logicalIdx);
     bool persistCounterTotalIfNeeded_(DigitalSlot& slot, int32_t rawCount);
     void traceDigitalCounters_(uint32_t nowMs);
     void beginIoCycle_(uint32_t nowMs);
@@ -329,6 +342,28 @@ private:
         }
     };
 
+    struct ExtraDigitalCounterConfigVars {
+        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
+        ConfigVariable<float,0> i0TotalVar_;
+        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
+        ConfigVariable<float,0> i1TotalVar_;
+        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
+        ConfigVariable<float,0> i2TotalVar_;
+        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
+        ConfigVariable<float,0> i3TotalVar_;
+        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
+        ConfigVariable<float,0> i4TotalVar_;
+
+        explicit ExtraDigitalCounterConfigVars(IODigitalInputSlotConfig* digitalCfg)
+            : i0TotalVar_{NVS_KEY(NvsKeys::Io::IO_I0CT), "counter_total", "io/input/i00", ConfigType::Float, &digitalCfg[0].counterTotal, ConfigPersistence::Persistent, 0},
+              i1TotalVar_{NVS_KEY(NvsKeys::Io::IO_I1CT), "counter_total", "io/input/i01", ConfigType::Float, &digitalCfg[1].counterTotal, ConfigPersistence::Persistent, 0},
+              i2TotalVar_{NVS_KEY(NvsKeys::Io::IO_I2CT), "counter_total", "io/input/i02", ConfigType::Float, &digitalCfg[2].counterTotal, ConfigPersistence::Persistent, 0},
+              i3TotalVar_{NVS_KEY(NvsKeys::Io::IO_I3CT), "counter_total", "io/input/i03", ConfigType::Float, &digitalCfg[3].counterTotal, ConfigPersistence::Persistent, 0},
+              i4TotalVar_{NVS_KEY(NvsKeys::Io::IO_I4CT), "counter_total", "io/input/i04", ConfigType::Float, &digitalCfg[4].counterTotal, ConfigPersistence::Persistent, 0}
+        {
+        }
+    };
+
     IOModuleConfig cfgData_{};
     IOAnalogSlotConfig analogCfg_[ANALOG_CFG_SLOTS]{};
     IODigitalInputSlotConfig digitalInCfg_[MAX_DIGITAL_INPUTS]{};
@@ -377,7 +412,7 @@ private:
     bool pcfLastEnabled_ = false;
     uint8_t pcfLogicalMask_ = 0;
     bool pcfLogicalValid_ = false;
-    IoCycleInfo lastCycle_{};
+    IoCycleInfo* lastCycle_ = nullptr;
 
     AnalogSlot analogSlots_[MAX_ANALOG_ENDPOINTS]{};
     DigitalSlot digitalSlots_[MAX_DIGITAL_SLOTS]{};
@@ -386,7 +421,6 @@ private:
     alignas(DigitalActuatorEndpoint) uint8_t digitalActuatorEndpointPool_[MAX_DIGITAL_OUTPUTS][sizeof(DigitalActuatorEndpoint)]{};
     alignas(GpioDriver) uint8_t gpioDriverPool_[MAX_DIGITAL_SLOTS][sizeof(GpioDriver)]{};
     alignas(GpioCounterDriver) uint8_t gpioCounterDriverPool_[MAX_DIGITAL_INPUTS][sizeof(GpioCounterDriver)]{};
-    alignas(Pcf8574BitDriver) uint8_t pcfBitDriverPool_[MAX_DIGITAL_OUTPUTS][sizeof(Pcf8574BitDriver)]{};
     alignas(Ads1115Driver) uint8_t adsDriverPool_[2][sizeof(Ads1115Driver)]{};
     alignas(Ds18b20Driver) uint8_t dsDriverPool_[2][sizeof(Ds18b20Driver)]{};
     alignas(Sht40Driver) uint8_t sht40DriverPool_[1][sizeof(Sht40Driver)]{};
@@ -415,9 +449,11 @@ private:
     uint32_t counterTraceLastMs_ = 0;
     uint32_t analogCalcLogLastMs_[3]{0, 0, 0};
     int32_t* analogPrecisionLast_ = nullptr;
+    float* digitalCounterLastConfigTotals_ = nullptr;
     bool analogPrecisionLastInit_ = false;
     uint16_t analogConfigDirtyMask_ = 0;
     ExtraAnalogConfigVars* extraAnalogCfgVars_ = nullptr;
+    ExtraDigitalCounterConfigVars* extraDigitalCounterCfgVars_ = nullptr;
 
     ConfigVariable<bool,0> enabledVar_ { NVS_KEY(NvsKeys::Io::IO_EN),"enabled","io",ConfigType::Bool,&cfgData_.enabled,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> i2cSdaVar_ { NVS_KEY(NvsKeys::Io::IO_SDA),"sda","io/drivers/bus",ConfigType::Int32,&cfgData_.i2cSda,ConfigPersistence::Persistent,0 };

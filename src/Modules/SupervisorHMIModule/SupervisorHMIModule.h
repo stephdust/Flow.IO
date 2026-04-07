@@ -1,7 +1,7 @@
 #pragma once
 /**
  * @file SupervisorHMIModule.h
- * @brief Local Supervisor HMI module (ST7789 + PIR + WiFi reset button).
+ * @brief Local Supervisor HMI module (ST7789 + PIR + factory reset button).
  */
 
 #include "Core/EventBus/EventBus.h"
@@ -23,15 +23,16 @@ public:
     uint8_t taskCount() const override { return 1; }
     const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
 
-    uint8_t dependencyCount() const override { return 7; }
+    uint8_t dependencyCount() const override { return 8; }
     ModuleId dependency(uint8_t i) const override {
         if (i == 0) return ModuleId::LogHub;
         if (i == 1) return ModuleId::ConfigStore;
-        if (i == 2) return ModuleId::EventBus;
-        if (i == 3) return ModuleId::DataStore;
-        if (i == 4) return ModuleId::Wifi;
-        if (i == 5) return ModuleId::WifiProvisioning;
-        if (i == 6) return ModuleId::FirmwareUpdate;
+        if (i == 2) return ModuleId::Command;
+        if (i == 3) return ModuleId::EventBus;
+        if (i == 4) return ModuleId::DataStore;
+        if (i == 5) return ModuleId::Wifi;
+        if (i == 6) return ModuleId::WifiProvisioning;
+        if (i == 7) return ModuleId::FirmwareUpdate;
         return ModuleId::Unknown;
     }
 
@@ -51,13 +52,15 @@ private:
     void pollFirmwareStatus_();
     void refreshFlowStatusFromDataStore_();
     void updateBacklight_();
-    void updateWifiResetButton_();
-    void triggerWifiReset_();
+    void updateFactoryResetButton_();
+    void scheduleFactoryReset_();
+    void executePendingFactoryReset_();
     void rebuildBanner_();
     void setDefaultBanner_();
 
     const LogHubService* logHub_ = nullptr;
     const ConfigStoreService* cfgSvc_ = nullptr;
+    const CommandService* cmdSvc_ = nullptr;
     const EventBusService* eventBusSvc_ = nullptr;
     const DataStoreService* dsSvc_ = nullptr;
     const WifiService* wifiSvc_ = nullptr;
@@ -72,16 +75,16 @@ private:
     volatile bool flowRuntimeDirty_ = true;
 
     int8_t pirPin_ = -1;
-    int8_t wifiResetPin_ = -1;
+    int8_t factoryResetPin_ = -1;
     uint32_t pirTimeoutMs_ = 60000U;
     uint32_t pirDebounceMs_ = 120U;
     bool pirActiveHigh_ = true;
-    uint32_t wifiResetHoldMs_ = 3000U;
-    uint32_t wifiResetDebounceMs_ = 40U;
+    uint32_t factoryResetHoldMs_ = 5000U;
+    uint32_t factoryResetDebounceMs_ = 40U;
 
     bool fwBusyOrPending_ = false;
-    bool wifiResetPending_ = false;
-    uint32_t restartAtMs_ = 0;
+    bool factoryResetPending_ = false;
+    uint32_t factoryResetExecuteAtMs_ = 0;
 
     uint32_t lastFwPollMs_ = 0;
     uint32_t lastRenderMs_ = 0;

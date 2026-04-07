@@ -24,8 +24,8 @@ namespace {
 static constexpr uint32_t kFwPollMs = 500U;
 static constexpr uint32_t kStartupSplashHoldMs = 5000U;
 static constexpr uint32_t kStartupBacklightForceOnMs = 60000U;
-static constexpr uint32_t kButtonBootGuardMs = 8000U;
 static constexpr uint32_t kButtonArmHighStableMs = 500U;
+static constexpr uint32_t kFactoryResetMessageDelayMs = 900U;
 static constexpr uint32_t kPageRotateMs = 10000U;
 
 const SupervisorBoardSpec& supervisorBoardSpec_(const BoardSpec& board)
@@ -75,12 +75,12 @@ SupervisorHMIModule::SupervisorHMIModule(const BoardSpec& board, const Superviso
 {
     const SupervisorBoardSpec& boardCfg = supervisorBoardSpec_(board);
     pirPin_ = boardCfg.inputs.pirPin;
-    wifiResetPin_ = boardCfg.inputs.wifiResetPin;
+    factoryResetPin_ = boardCfg.inputs.factoryResetPin;
     pirTimeoutMs_ = runtime.pirTimeoutMs;
     pirDebounceMs_ = boardCfg.inputs.pirDebounceMs;
     pirActiveHigh_ = boardCfg.inputs.pirActiveHigh;
-    wifiResetHoldMs_ = runtime.wifiResetHoldMs;
-    wifiResetDebounceMs_ = boardCfg.inputs.wifiResetDebounceMs;
+    factoryResetHoldMs_ = runtime.factoryResetHoldMs;
+    factoryResetDebounceMs_ = boardCfg.inputs.factoryResetDebounceMs;
 }
 
 St7789SupervisorDriverConfig SupervisorHMIModule::makeDriverConfig_(const BoardSpec& board)
@@ -155,7 +155,7 @@ uint32_t SupervisorHMIModule::buildRenderKey_() const
     mix(&view_.flowAlarmAckCount, sizeof(view_.flowAlarmAckCount));
     mix(&view_.flowAlarmClrCount, sizeof(view_.flowAlarmClrCount));
     mix(view_.flowAlarmStates, sizeof(view_.flowAlarmStates));
-    mix(&view_.wifiResetPending, sizeof(view_.wifiResetPending));
+    mix(&view_.factoryResetPending, sizeof(view_.factoryResetPending));
     mix(view_.banner, strnlen(view_.banner, sizeof(view_.banner)) + 1U);
 
     return h;
@@ -183,6 +183,7 @@ void SupervisorHMIModule::init(ConfigStore&, ServiceRegistry& services)
 {
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);
     cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
+    cmdSvc_ = services.get<CommandService>(ServiceId::Command);
     eventBusSvc_ = services.get<EventBusService>(ServiceId::EventBus);
     dsSvc_ = services.get<DataStoreService>(ServiceId::DataStore);
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
@@ -210,9 +211,9 @@ void SupervisorHMIModule::init(ConfigStore&, ServiceRegistry& services)
         pirStableState_ = rawPir;
         pirDebounceChangedAtMs_ = millis();
     }
-    if (wifiResetPin_ >= 0) {
-        pinMode(wifiResetPin_, INPUT_PULLUP);
-        const bool rawPressed = (digitalRead(wifiResetPin_) == LOW);
+    if (factoryResetPin_ >= 0) {
+        pinMode(factoryResetPin_, INPUT_PULLUP);
+        const bool rawPressed = (digitalRead(factoryResetPin_) == LOW);
         buttonRawPressed_ = rawPressed;
         buttonStablePressed_ = rawPressed;
         buttonDebounceChangedAtMs_ = millis();
@@ -238,7 +239,7 @@ void SupervisorHMIModule::init(ConfigStore&, ServiceRegistry& services)
          (int)driverCfg_.rowStart,
          (int)pirPin_,
          (int)(pirActiveHigh_ ? 1 : 0),
-         (int)wifiResetPin_);
+         (int)factoryResetPin_);
 }
 
 void SupervisorHMIModule::onEvent_(const Event& e)
@@ -336,46 +337,49 @@ void SupervisorHMIModule::refreshFlowStatusFromDataStore_()
     view_.flowAirTemp = flow.airTemp;
 }
 
-void SupervisorHMIModule::triggerWifiReset_()
+void SupervisorHMIModule::scheduleFactoryReset_()
 {
-    if (wifiResetPending_) return;
-    if (!cfgSvc_ || !cfgSvc_->applyJson) {
-        copyText_(view_.banner, sizeof(view_.banner), "WiFi reset failed: config unavailable");
-        return;
-    }
-
-    static constexpr const char* kWifiResetPatch = "{\"wifi\":{\"enabled\":true,\"ssid\":\"\",\"pass\":\"\"}}";
-    const bool ok = cfgSvc_->applyJson(cfgSvc_->ctx, kWifiResetPatch);
-    if (!ok) {
-        copyText_(view_.banner, sizeof(view_.banner), "WiFi reset failed: applyJson");
-        return;
-    }
-
-    if (netAccessSvc_ && netAccessSvc_->notifyWifiConfigChanged) {
-        (void)netAccessSvc_->notifyWifiConfigChanged(netAccessSvc_->ctx);
-    }
-    if (wifiSvc_ && wifiSvc_->requestReconnect) {
-        (void)wifiSvc_->requestReconnect(wifiSvc_->ctx);
-    }
-
-    wifiResetPending_ = true;
-    restartAtMs_ = millis() + 1200U;
-    copyText_(view_.banner, sizeof(view_.banner), "WiFi credentials reset: rebooting...");
-    LOGW("WiFi credentials reset requested from local button");
+    if (factoryResetPending_) return;
+    factoryResetPending_ = true;
+    factoryResetExecuteAtMs_ = millis() + kFactoryResetMessageDelayMs;
+    copyText_(view_.banner, sizeof(view_.banner), "Factory reset starting...");
+    LOGW("Factory reset requested from local button");
 }
 
-void SupervisorHMIModule::updateWifiResetButton_()
+void SupervisorHMIModule::executePendingFactoryReset_()
 {
-    if (wifiResetPin_ < 0) return;
+    if (!factoryResetPending_ || factoryResetExecuteAtMs_ == 0U) return;
+    if ((int32_t)(millis() - factoryResetExecuteAtMs_) < 0) return;
+
+    factoryResetExecuteAtMs_ = 0U;
+    if (!cmdSvc_ || !cmdSvc_->execute) {
+        factoryResetPending_ = false;
+        copyText_(view_.banner, sizeof(view_.banner), "Factory reset failed: command unavailable");
+        LOGE("Factory reset failed: command service unavailable");
+        return;
+    }
+
+    char reply[160] = {0};
+    const bool ok = cmdSvc_->execute(cmdSvc_->ctx, "system.factory_reset", "{}", nullptr, reply, sizeof(reply));
+    if (!ok) {
+        factoryResetPending_ = false;
+        copyText_(view_.banner, sizeof(view_.banner), "Factory reset failed");
+        LOGE("Factory reset command failed reply=%s", reply[0] ? reply : "<empty>");
+    }
+}
+
+void SupervisorHMIModule::updateFactoryResetButton_()
+{
+    if (factoryResetPin_ < 0 || factoryResetPending_) return;
 
     const uint32_t now = millis();
-    const bool rawPressed = (digitalRead(wifiResetPin_) == LOW);
+    const bool rawPressed = (digitalRead(factoryResetPin_) == LOW);
 
     if (rawPressed != buttonRawPressed_) {
         buttonRawPressed_ = rawPressed;
         buttonDebounceChangedAtMs_ = now;
     }
-    if ((uint32_t)(now - buttonDebounceChangedAtMs_) >= wifiResetDebounceMs_) {
+    if ((uint32_t)(now - buttonDebounceChangedAtMs_) >= factoryResetDebounceMs_) {
         buttonStablePressed_ = buttonRawPressed_;
     }
 
@@ -399,12 +403,8 @@ void SupervisorHMIModule::updateWifiResetButton_()
         if ((uint32_t)(now - buttonHighSinceMs_) < kButtonArmHighStableMs) {
             return;
         }
-        if (now < kButtonBootGuardMs) {
-            return;
-        }
-
         buttonArmed_ = true;
-        LOGI("WiFi reset button armed");
+        LOGI("Factory reset button armed");
         return;
     }
 
@@ -417,14 +417,19 @@ void SupervisorHMIModule::updateWifiResetButton_()
     if (!buttonPressed_) {
         buttonPressed_ = true;
         buttonPressedAtMs_ = now;
+        const uint32_t holdSeconds = (factoryResetHoldMs_ + 999U) / 1000U;
+        snprintf(view_.banner,
+                 sizeof(view_.banner),
+                 "Keep holding %lus for factory reset",
+                 (unsigned long)holdSeconds);
         return;
     }
 
     if (buttonTriggered_) return;
-    if ((uint32_t)(now - buttonPressedAtMs_) < wifiResetHoldMs_) return;
+    if ((uint32_t)(now - buttonPressedAtMs_) < factoryResetHoldMs_) return;
 
     buttonTriggered_ = true;
-    triggerWifiReset_();
+    scheduleFactoryReset_();
 }
 
 void SupervisorHMIModule::updateBacklight_()
@@ -459,9 +464,17 @@ void SupervisorHMIModule::updateBacklight_()
 
 void SupervisorHMIModule::rebuildBanner_()
 {
-    if (wifiResetPending_) return;
+    if (factoryResetPending_) return;
     if (!driver_.isBacklightOn()) {
         copyText_(view_.banner, sizeof(view_.banner), "PIR idle: backlight off");
+        return;
+    }
+    if (buttonPressed_ && !buttonTriggered_) {
+        const uint32_t holdSeconds = (factoryResetHoldMs_ + 999U) / 1000U;
+        snprintf(view_.banner,
+                 sizeof(view_.banner),
+                 "Keep holding %lus for factory reset",
+                 (unsigned long)holdSeconds);
         return;
     }
     setDefaultBanner_();
@@ -469,12 +482,12 @@ void SupervisorHMIModule::rebuildBanner_()
 
 void SupervisorHMIModule::setDefaultBanner_()
 {
-    if (wifiResetPin_ < 0) {
+    if (factoryResetPin_ < 0) {
         copyText_(view_.banner, sizeof(view_.banner), "Local display ready");
         return;
     }
-    const uint32_t holdSeconds = (wifiResetHoldMs_ + 999U) / 1000U;
-    snprintf(view_.banner, sizeof(view_.banner), "Hold WiFi button %lus to reset credentials", (unsigned long)holdSeconds);
+    const uint32_t holdSeconds = (factoryResetHoldMs_ + 999U) / 1000U;
+    snprintf(view_.banner, sizeof(view_.banner), "Hold reset button %lus for factory reset", (unsigned long)holdSeconds);
 }
 
 void SupervisorHMIModule::loop()
@@ -507,11 +520,11 @@ void SupervisorHMIModule::loop()
         refreshFlowStatusFromDataStore_();
     }
 
-    updateWifiResetButton_();
+    updateFactoryResetButton_();
     updateBacklight_();
     rebuildBanner_();
 
-    view_.wifiResetPending = wifiResetPending_;
+    view_.factoryResetPending = factoryResetPending_;
 
     if ((int32_t)(millis() - splashHoldUntilMs_) < 0) {
         vTaskDelay(pdMS_TO_TICKS(25));
@@ -537,10 +550,7 @@ void SupervisorHMIModule::loop()
     }
     lastBacklightOn_ = backlightOn;
 
-    if (restartAtMs_ != 0U && (int32_t)(millis() - restartAtMs_) >= 0) {
-        delay(30);
-        esp_restart();
-    }
+    executePendingFactoryReset_();
 
     vTaskDelay(pdMS_TO_TICKS(25));
 }

@@ -150,6 +150,7 @@ struct IODigitalInputSlotConfig {
     uint8_t edgeMode = IO_EDGE_RISING;
     uint32_t counterDebounceUs = 0;
     float c0 = 1.0f;
+    float counterTotal = 0.0f;
     int32_t precision = 0;
 };
 

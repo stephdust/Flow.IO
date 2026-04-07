@@ -86,8 +86,8 @@ struct SupervisorInputSpec {
     int8_t pirPin;
     uint16_t pirDebounceMs;
     bool pirActiveHigh;
-    int8_t wifiResetPin;
-    uint16_t wifiResetDebounceMs;
+    int8_t factoryResetPin;
+    uint16_t factoryResetDebounceMs;
 };
 
 struct SupervisorUpdateSpec {

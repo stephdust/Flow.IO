@@ -57,11 +57,24 @@ bool buildNetworkSnapshot(MQTTModule* mqtt, char* out, size_t len)
     const bool netReady = wifiReady(*ds);
     const bool mqttOk = mqttReady(*ds);
     const int rssi = WiFi.isConnected() ? WiFi.RSSI() : -127;
+    uint8_t mac[6] = {0};
+    char macText[18] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    snprintf(macText,
+             sizeof(macText),
+             "%02X:%02X:%02X:%02X:%02X:%02X",
+             (unsigned)mac[0],
+             (unsigned)mac[1],
+             (unsigned)mac[2],
+             (unsigned)mac[3],
+             (unsigned)mac[4],
+             (unsigned)mac[5]);
 
     const int wrote = snprintf(out, len,
-                               "{\"ready\":%s,\"ip\":\"%s\",\"rssi\":%d,\"mqtt\":%s,\"ts\":%lu}",
+                               "{\"ready\":%s,\"ip\":\"%s\",\"mac\":\"%s\",\"rssi\":%d,\"mqtt\":%s,\"ts\":%lu}",
                                netReady ? "true" : "false",
                                ip,
+                               macText,
                                rssi,
                                mqttOk ? "true" : "false",
                                (unsigned long)millis());
@@ -82,10 +95,9 @@ bool buildSystemSnapshot(MQTTModule* mqtt, char* out, size_t len)
 
     const int wrote = snprintf(
         out, len,
-        "{\"upt_ms\":%llu,\"upt_s\":%llu,\"heap\":{\"free\":%lu,\"min_free\":%lu,\"largest\":%lu,\"frag\":%u},"
+        "{\"upt_ms\":%llu,\"heap\":{\"free\":%lu,\"min_free\":%lu,\"largest\":%lu,\"frag\":%u},"
         "\"mqtt_rx\":{\"rx_drop\":%lu,\"oversize_drop\":%lu,\"parse_fail\":%lu,\"handler_fail\":%lu},\"ts\":%lu}",
         (unsigned long long)snap.uptimeMs64,
-        (unsigned long long)(snap.uptimeMs64 / 1000ULL),
         (unsigned long)snap.heap.freeBytes,
         (unsigned long)snap.heap.minFreeBytes,
         (unsigned long)snap.heap.largestFreeBlock,
@@ -152,7 +164,6 @@ void registerModules(AppContext& ctx, ModuleInstances& modules)
     ctx.moduleManager.add(&modules.i2cCfgServerModule);
     ctx.moduleManager.add(&modules.hmiModule);
     ctx.moduleManager.add(&modules.alarmModule);
-    ctx.moduleManager.add(&modules.logAlarmSinkModule);
     ctx.moduleManager.add(&modules.wifiModule);
     ctx.moduleManager.add(&modules.timeModule);
     ctx.moduleManager.add(&modules.mqttModule);
@@ -238,6 +249,7 @@ void setupProfile(AppContext& ctx)
     requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.systemModule), "register runtime ui provider system");
     requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.wifiModule), "register runtime ui provider wifi");
     requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.mqttModule), "register runtime ui provider mqtt");
+    requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.alarmModule), "register runtime ui provider alarms");
     requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.ioModule), "register runtime ui provider io");
     requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.poolDeviceModule), "register runtime ui provider pooldev");
     requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.poolLogicModule), "register runtime ui provider poollogic");

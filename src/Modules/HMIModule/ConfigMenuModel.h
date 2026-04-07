@@ -104,6 +104,7 @@ private:
         RowKind kind = RowKind::Config;
         bool editable = false;
         bool dirty = false;
+        bool hexDisplay = false;
         ConfigMenuWidget widget = ConfigMenuWidget::Text;
         ConfigMenuValueType type = ConfigMenuValueType::Unknown;
 

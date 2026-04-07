@@ -2,6 +2,147 @@
   "ok": true,
   "values": [
     {
+      "id": 901,
+      "runtimeId": 901,
+      "moduleId": 9,
+      "module": "alarms",
+      "valueId": 1,
+      "key": "alarms.active_mask",
+      "label": "Alarmes actives",
+      "type": "uint32",
+      "domain": "alarm",
+      "group": "Alarmes",
+      "unit": null,
+      "decimals": null,
+      "order": 10,
+      "enum": null,
+      "flags": [
+        {
+          "mask": 1,
+          "label": "Pression Filtration Basse"
+        },
+        {
+          "mask": 2,
+          "label": "Pression Filtration Haute"
+        },
+        {
+          "mask": 4,
+          "label": "Bidon pH bas"
+        },
+        {
+          "mask": 8,
+          "label": "Bidon chlore bas"
+        },
+        {
+          "mask": 16,
+          "label": "Max Uptime atteint Pompe pH"
+        },
+        {
+          "mask": 32,
+          "label": "Max Uptime atteint Pompe Orp"
+        }
+      ],
+      "display": "flags",
+      "displayConfig": {
+        "flagRole": "active",
+        "columnLabel": "Act."
+      }
+    },
+    {
+      "id": 902,
+      "runtimeId": 902,
+      "moduleId": 9,
+      "module": "alarms",
+      "valueId": 2,
+      "key": "alarms.acked_mask",
+      "label": "Alarmes acquittees",
+      "type": "uint32",
+      "domain": "alarm",
+      "group": "Alarmes",
+      "unit": null,
+      "decimals": null,
+      "order": 20,
+      "enum": null,
+      "flags": [
+        {
+          "mask": 1,
+          "label": "Pression Filtration Basse"
+        },
+        {
+          "mask": 2,
+          "label": "Pression Filtration Haute"
+        },
+        {
+          "mask": 4,
+          "label": "Bidon pH bas"
+        },
+        {
+          "mask": 8,
+          "label": "Bidon chlore bas"
+        },
+        {
+          "mask": 16,
+          "label": "Max Uptime atteint Pompe pH"
+        },
+        {
+          "mask": 32,
+          "label": "Max Uptime atteint Pompe Orp"
+        }
+      ],
+      "display": "flags",
+      "displayConfig": {
+        "flagRole": "acked",
+        "columnLabel": "Ack"
+      }
+    },
+    {
+      "id": 903,
+      "runtimeId": 903,
+      "moduleId": 9,
+      "module": "alarms",
+      "valueId": 3,
+      "key": "alarms.condition_mask",
+      "label": "Conditions alarmes",
+      "type": "uint32",
+      "domain": "alarm",
+      "group": "Alarmes",
+      "unit": null,
+      "decimals": null,
+      "order": 30,
+      "enum": null,
+      "flags": [
+        {
+          "mask": 1,
+          "label": "Pression Filtration Basse"
+        },
+        {
+          "mask": 2,
+          "label": "Pression Filtration Haute"
+        },
+        {
+          "mask": 4,
+          "label": "Bidon pH bas"
+        },
+        {
+          "mask": 8,
+          "label": "Bidon chlore bas"
+        },
+        {
+          "mask": 16,
+          "label": "Max Uptime atteint Pompe pH"
+        },
+        {
+          "mask": 32,
+          "label": "Max Uptime atteint Pompe Orp"
+        }
+      ],
+      "display": "flags",
+      "displayConfig": {
+        "flagRole": "condition",
+        "columnLabel": "Cond."
+      }
+    },
+    {
       "id": 2001,
       "runtimeId": 2001,
       "moduleId": 20,
@@ -130,7 +271,7 @@
       "domain": "pool",
       "group": "Compteur",
       "unit": "L",
-      "decimals": 0,
+      "decimals": null,
       "order": 50,
       "enum": null,
       "flags": null,
@@ -426,7 +567,7 @@
       "label": "Firmware",
       "type": "string",
       "domain": "system",
-      "group": "Systeme",
+      "group": "Syst\u00e8me",
       "unit": null,
       "decimals": null,
       "order": 10,
@@ -445,7 +586,7 @@
       "label": "Uptime",
       "type": "uint32",
       "domain": "system",
-      "group": "Systeme",
+      "group": "Syst\u00e8me",
       "unit": "ms",
       "decimals": null,
       "order": 20,
@@ -464,7 +605,7 @@
       "label": "Heap libre",
       "type": "uint32",
       "domain": "system",
-      "group": "Systeme",
+      "group": "Syst\u00e8me",
       "unit": "B",
       "decimals": null,
       "order": 30,
@@ -483,7 +624,7 @@
       "label": "Heap min",
       "type": "uint32",
       "domain": "system",
-      "group": "Systeme",
+      "group": "Syst\u00e8me",
       "unit": "B",
       "decimals": null,
       "order": 40,

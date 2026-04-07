@@ -7,6 +7,7 @@
 
 #include "Core/CommandRegistry.h"
 #include "Core/ErrorCodes.h"
+#include "Core/MqttTopics.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <new>
@@ -428,6 +429,40 @@ bool AlarmModule::buildPacked_(char* out, size_t len, uint8_t slotCount) const
     return (wrote > 0) && ((size_t)wrote < len);
 }
 
+uint32_t AlarmModule::buildRuntimeMask_(RuntimeUiValueId valueId) const
+{
+    uint32_t mask = 0U;
+    portENTER_CRITICAL(&slotsMux_);
+    for (uint8_t i = 0; i < (uint8_t)Limits::Alarm::MaxAlarms && i < 32U; ++i) {
+        const AlarmSlot& slot = slots_[i];
+        if (!slot.used) continue;
+
+        bool setBit = false;
+        if (valueId == RuntimeUiActiveMask) {
+            setBit = slot.active;
+        } else if (valueId == RuntimeUiAckedMask) {
+            setBit = slot.acked;
+        } else if (valueId == RuntimeUiConditionMask) {
+            setBit = slot.lastCond == AlarmCondState::True;
+        }
+
+        if (setBit) mask |= (1UL << i);
+    }
+    portEXIT_CRITICAL(&slotsMux_);
+    return mask;
+}
+
+bool AlarmModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) const
+{
+    const RuntimeUiId runtimeId = makeRuntimeUiId(moduleId(), valueId);
+    if (valueId == RuntimeUiActiveMask ||
+        valueId == RuntimeUiAckedMask ||
+        valueId == RuntimeUiConditionMask) {
+        return writer.writeU32(runtimeId, buildRuntimeMask_((RuntimeUiValueId)valueId));
+    }
+    return false;
+}
+
 bool AlarmModule::registerAlarmSvc_(const AlarmRegistration* def, AlarmCondFn condFn, void* condCtx)
 {
     if (!def) return false;
@@ -589,25 +624,67 @@ void AlarmModule::registerHaEntities_(ServiceRegistry& services)
 {
     if (haEntitiesRegistered_) return;
     if (!haSvc_) haSvc_ = services.get<HAService>(ServiceId::Ha);
-    if (!haSvc_ || !haSvc_->addSensor) return;
+    if (!haSvc_) return;
 
-    const HASensorEntry alarmsPack{
-        "alarms",
-        "alm_pack",
-        "Alarms Pack",
-        "rt/alarms/p",
-        "{{ value_json.p | int(0) }}",
-        "diagnostic",
-        "mdi:alarm-light-outline",
-        nullptr,
-        false,
-        nullptr
-    };
-    if (haSvc_->addSensor(haSvc_->ctx, &alarmsPack)) {
-        haEntitiesRegistered_ = true;
-    } else {
-        LOGW("HA registration failed: alm_pack");
+    bool registeredAny = false;
+
+    if (haSvc_->addSensor) {
+        const HASensorEntry alarmsPack{
+            "alarms",
+            "alm_pack",
+            "Alarms Pack",
+            "rt/alarms/p",
+            "{{ value_json.p | int(0) }}",
+            "diagnostic",
+            "mdi:alarm-light-outline",
+            nullptr,
+            false,
+            nullptr
+        };
+        if (haSvc_->addSensor(haSvc_->ctx, &alarmsPack)) {
+            registeredAny = true;
+        } else {
+            LOGW("HA registration failed: alm_pack");
+        }
     }
+
+    if (haSvc_->addButton) {
+        const HAButtonEntry ackAll{
+            "alarms",
+            "alm_ack_all",
+            "Acknowledge Active Alarms",
+            MqttTopics::SuffixCmd,
+            "{\\\"cmd\\\":\\\"alarms.ack_all\\\"}",
+            "diagnostic",
+            "mdi:alarm-check"
+        };
+        if (haSvc_->addButton(haSvc_->ctx, &ackAll)) {
+            registeredAny = true;
+        } else {
+            LOGW("HA registration failed: alm_ack_all");
+        }
+
+        static constexpr HAButtonEntry kAckSlotButtons[] = {
+            {"alarms", "alm_ack_slot_0", "Acknowledge Alarm Slot 0", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":0}}", "diagnostic", "mdi:numeric-0-box-outline"},
+            {"alarms", "alm_ack_slot_1", "Acknowledge Alarm Slot 1", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":1}}", "diagnostic", "mdi:numeric-1-box-outline"},
+            {"alarms", "alm_ack_slot_2", "Acknowledge Alarm Slot 2", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":2}}", "diagnostic", "mdi:numeric-2-box-outline"},
+            {"alarms", "alm_ack_slot_3", "Acknowledge Alarm Slot 3", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":3}}", "diagnostic", "mdi:numeric-3-box-outline"},
+            {"alarms", "alm_ack_slot_4", "Acknowledge Alarm Slot 4", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":4}}", "diagnostic", "mdi:numeric-4-box-outline"},
+            {"alarms", "alm_ack_slot_5", "Acknowledge Alarm Slot 5", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":5}}", "diagnostic", "mdi:numeric-5-box-outline"},
+            {"alarms", "alm_ack_slot_6", "Acknowledge Alarm Slot 6", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":6}}", "diagnostic", "mdi:numeric-6-box-outline"},
+            {"alarms", "alm_ack_slot_7", "Acknowledge Alarm Slot 7", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":7}}", "diagnostic", "mdi:numeric-7-box-outline"},
+        };
+
+        for (uint8_t i = 0; i < (uint8_t)(sizeof(kAckSlotButtons) / sizeof(kAckSlotButtons[0])); ++i) {
+            if (haSvc_->addButton(haSvc_->ctx, &kAckSlotButtons[i])) {
+                registeredAny = true;
+            } else {
+                LOGW("HA registration failed: %s", kAckSlotButtons[i].objectSuffix);
+            }
+        }
+    }
+
+    haEntitiesRegistered_ = registeredAny;
 }
 
 void AlarmModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
