@@ -323,7 +323,8 @@
       "label": "Adresse cible Flow.IO",
       "help": "Adresse I2C du serveur de configuration sur Flow.IO (mode esclave).",
       "var": "addrVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "display_format": "hex"
     },
     "elink/server/address": {
       "module": "elink/server",
@@ -332,7 +333,8 @@
       "label": "Adresse locale Flow.IO",
       "help": "Adresse I2C locale du serveur de configuration Flow.IO (mode esclave).",
       "var": "addrVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "display_format": "hex"
     },
     "elink/server/enabled": {
       "module": "elink/server",
@@ -3311,7 +3313,8 @@
       "label": "Consigne ORP",
       "help": "Valeur cible ORP pour la régulation chlore.",
       "var": "orpSetpointVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "unit": "mV"
     },
     "poollogic/orp_window_ms": {
       "module": "poollogic",
@@ -3458,7 +3461,8 @@
       "label": "Consigne ORP",
       "help": "Valeur cible ORP pour la régulation chlore.",
       "var": "orpSetpointVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "unit": "mV"
     },
     "poollogic/pid/orp_window_ms": {
       "module": "poollogic/pid",

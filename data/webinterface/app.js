@@ -4191,22 +4191,126 @@
       return String(value ?? '');
     }
 
-    function parseConfigNumericValue(rawValue, kind, displayFormat) {
-      const raw = String(rawValue ?? '').trim();
+    function parseConfigNumericValueDetailed(rawValue, kind, displayFormat) {
       if (displayFormat === 'hex') {
+        if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+          return { ok: true, value: Math.max(0, Math.trunc(rawValue)) };
+        }
+        const raw = String(rawValue ?? '').trim();
         const normalized = raw.length > 0 ? raw : '0';
-        const parsed = normalized.startsWith('0x') || normalized.startsWith('0X')
-          ? Number.parseInt(normalized, 16)
-          : Number.parseInt(normalized, 16);
-        if (!Number.isFinite(parsed)) return 0;
-        return (kind === 'float') ? parsed : parsed;
+        if (!/^(?:0[xX])?[0-9A-Fa-f]+$/.test(normalized)) {
+          return {
+            ok: false,
+            value: 0,
+            error: 'utilisez une valeur hexadécimale valide, par exemple 0x77'
+          };
+        }
+        const parsed = Number.parseInt(normalized, 16);
+        if (!Number.isFinite(parsed)) {
+          return {
+            ok: false,
+            value: 0,
+            error: 'utilisez une valeur hexadécimale valide, par exemple 0x77'
+          };
+        }
+        return { ok: true, value: parsed };
       }
+      if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+        return { ok: true, value: kind === 'float' ? rawValue : Math.trunc(rawValue) };
+      }
+      const raw = String(rawValue ?? '').trim();
       if (kind === 'float') {
         const parsed = Number.parseFloat(raw);
-        return Number.isFinite(parsed) ? parsed : 0;
+        return { ok: true, value: Number.isFinite(parsed) ? parsed : 0 };
       }
       const parsed = Number.parseInt(raw, 10);
-      return Number.isFinite(parsed) ? parsed : 0;
+      return { ok: true, value: Number.isFinite(parsed) ? parsed : 0 };
+    }
+
+    function parseConfigNumericValue(rawValue, kind, displayFormat) {
+      const parsed = parseConfigNumericValueDetailed(rawValue, kind, displayFormat);
+      return parsed.value;
+    }
+
+    function setConfigFieldValidationState(inputEl, ok, message) {
+      if (!inputEl) return ok;
+      const row = inputEl.closest('.control-row');
+      const validationMessage = ok ? '' : String(message || 'Valeur invalide');
+      if (typeof inputEl.setCustomValidity === 'function') {
+        inputEl.setCustomValidity(validationMessage);
+      }
+      if (ok) {
+        inputEl.removeAttribute('aria-invalid');
+        inputEl.removeAttribute('title');
+      } else {
+        inputEl.setAttribute('aria-invalid', 'true');
+        inputEl.setAttribute('title', validationMessage);
+      }
+      if (row) {
+        row.classList.toggle('is-invalid', !ok);
+      }
+      return ok;
+    }
+
+    function validateConfigFieldValue(inputEl, options) {
+      const opts = options || {};
+      if (!inputEl) return true;
+      const kind = String(inputEl.dataset.kind || '').trim();
+      const displayFormat = String(inputEl.dataset.format || '').trim();
+      if ((kind !== 'int' && kind !== 'float') || displayFormat !== 'hex') {
+        return setConfigFieldValidationState(inputEl, true, '');
+      }
+      const parsed = parseConfigNumericValueDetailed(inputEl.value, kind, displayFormat);
+      const ok = setConfigFieldValidationState(inputEl, !!parsed.ok, parsed.error || '');
+      if (!ok && !opts.silent && typeof inputEl.reportValidity === 'function') {
+        inputEl.reportValidity();
+      }
+      return ok;
+    }
+
+    function readConfigFieldValueStrict(inputEl) {
+      if (!inputEl) return null;
+      const kind = String(inputEl.dataset.kind || '').trim();
+      const displayFormat = String(inputEl.dataset.format || '').trim();
+      if ((kind === 'int' || kind === 'float') && displayFormat === 'hex') {
+        const parsed = parseConfigNumericValueDetailed(inputEl.value, kind, displayFormat);
+        if (!parsed.ok) {
+          validateConfigFieldValue(inputEl);
+          const label = String(inputEl.dataset.label || inputEl.dataset.key || 'champ').trim();
+          throw new Error(label + ' : ' + parsed.error);
+        }
+        return parsed.value;
+      }
+      return readConfigFieldValue(inputEl);
+    }
+
+    function updatePrimaryCfgApplyState() {
+      if (!flowCfgApplyBtn) return;
+      if (flowCfgApplyBtn.hidden) {
+        flowCfgApplyBtn.disabled = true;
+        flowCfgApplyBtn.removeAttribute('title');
+        return;
+      }
+      const fields = flowCfgFields ? Array.from(flowCfgFields.querySelectorAll('[data-key]')) : [];
+      let hasDirty = false;
+      let hasInvalid = false;
+      fields.forEach((el) => {
+        if (!el || typeof el !== 'object') return;
+        if (!validateConfigFieldValue(el, { silent: true })) {
+          hasInvalid = true;
+        }
+        if (configFieldIsDirty(el)) {
+          hasDirty = true;
+        }
+      });
+      flowCfgApplyBtn.disabled = !hasDirty || hasInvalid;
+      if (hasInvalid) {
+        flowCfgApplyBtn.title = 'Corrigez les champs invalides avant application';
+      } else if (!hasDirty) {
+        flowCfgApplyBtn.title = 'Aucun changement a appliquer';
+      } else {
+        flowCfgApplyBtn.title = 'Appliquer les changements';
+      }
     }
 
     function configNumericKind(doc, value) {
@@ -4352,11 +4456,14 @@
 
     function updateControlFieldApplyState(inputEl, applyBtn) {
       if (!inputEl || !applyBtn) return;
+      const valid = validateConfigFieldValue(inputEl, { silent: true });
       const dirty = configFieldIsDirty(inputEl);
-      applyBtn.disabled = !dirty;
-      applyBtn.classList.toggle('is-dirty', dirty);
+      applyBtn.disabled = !dirty || !valid;
+      applyBtn.classList.toggle('is-dirty', dirty && valid);
       applyBtn.classList.remove('is-pending');
-      applyBtn.title = dirty ? 'Appliquer ce changement' : 'Aucun changement a appliquer';
+      applyBtn.title = !valid
+        ? 'Corrigez ce champ avant application'
+        : (dirty ? 'Appliquer ce changement' : 'Aucun changement a appliquer');
       applyBtn.setAttribute('aria-label', applyBtn.title);
       const row = inputEl.closest('.control-row');
       if (row) row.classList.toggle('is-dirty', dirty);
@@ -4368,7 +4475,7 @@
       if (!key) throw new Error('cle de configuration absente');
       const patch = {};
       patch[moduleName] = {
-        [key]: readConfigFieldValue(inputEl)
+        [key]: readConfigFieldValueStrict(inputEl)
       };
       return JSON.stringify(patch);
     }
@@ -4392,6 +4499,9 @@
         label.textContent = 'Aucun champ configurable dans cette branche.';
         row.appendChild(label);
         containerEl.appendChild(row);
+        if (controlsPrimaryPane && !perFieldApply) {
+          updatePrimaryCfgApplyState();
+        }
         return;
       }
 
@@ -4482,6 +4592,7 @@
           }
           input.dataset.key = key;
           input.dataset.kind = numericKind;
+          input.dataset.label = label.textContent || key;
           if (displayFormat) {
             input.dataset.format = displayFormat;
           }
@@ -4504,6 +4615,7 @@
           }
           input.dataset.key = key;
           input.dataset.kind = 'string';
+          input.dataset.label = label.textContent || key;
           storeConfigFieldInitialValue(input, value);
           inputEl = input;
           valueWrap.appendChild(input);
@@ -4528,10 +4640,22 @@
           inputEl.addEventListener('change', syncApplyState);
           updateControlFieldApplyState(inputEl, applyBtn);
           valueWrap.appendChild(applyBtn);
+        } else if (controlsPrimaryPane && inputEl) {
+          const syncPrimaryState = () => {
+            validateConfigFieldValue(inputEl, { silent: true });
+            updatePrimaryCfgApplyState();
+          };
+          inputEl.addEventListener('input', syncPrimaryState);
+          inputEl.addEventListener('change', syncPrimaryState);
+          validateConfigFieldValue(inputEl, { silent: true });
         }
 
         row.appendChild(valueWrap);
         containerEl.appendChild(row);
+      }
+
+      if (controlsPrimaryPane && !perFieldApply) {
+        updatePrimaryCfgApplyState();
       }
     }
 
@@ -4558,18 +4682,17 @@
       fields.forEach((el) => {
         const key = el.dataset.key;
         const kind = el.dataset.kind;
-        const displayFormat = String(el.dataset.format || '').trim();
         if (!key || !kind) return;
         if (kind === 'bool') {
           modulePatch[key] = !!el.checked;
           return;
         }
         if (kind === 'int') {
-          modulePatch[key] = parseConfigNumericValue(el.value, kind, displayFormat);
+          modulePatch[key] = readConfigFieldValueStrict(el);
           return;
         }
         if (kind === 'float') {
-          modulePatch[key] = parseConfigNumericValue(el.value, kind, displayFormat);
+          modulePatch[key] = readConfigFieldValueStrict(el);
           return;
         }
         const masked = el.dataset.masked === '1';
@@ -4611,7 +4734,7 @@
         flowCfgCurrentModule = m;
         flowCfgCurrentData = data.data;
         renderFlowCfgFields(flowCfgCurrentData);
-        flowCfgApplyBtn.disabled = flowCfgApplyBtn.hidden;
+        updatePrimaryCfgApplyState();
         flowCfgStatus.textContent = data.truncated
           ? 'Branche chargée (tronquée, buffer distant atteint).'
           : 'Branche chargée.';
@@ -4640,7 +4763,7 @@
         supCfgCurrentModule = m;
         supCfgCurrentData = data.data;
         renderPrimarySupervisorCfgFields(supCfgCurrentData);
-        flowCfgApplyBtn.disabled = false;
+        updatePrimaryCfgApplyState();
         flowCfgStatus.textContent = data.truncated
           ? 'Branche supervisor chargée (tronquée, buffer atteint).'
           : 'Branche supervisor chargée.';

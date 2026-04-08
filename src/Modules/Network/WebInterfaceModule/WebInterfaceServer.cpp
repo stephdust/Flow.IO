@@ -1145,7 +1145,7 @@ void WebInterfaceModule::startServer_()
             mode = NetworkAccessMode::Station;
         }
         return (mode == NetworkAccessMode::AccessPoint)
-            ? "/webinterface?page=page-system"
+            ? "/webinterface?page=page-wifi"
             : "/webinterface";
     };
 
@@ -1294,7 +1294,7 @@ void WebInterfaceModule::startServer_()
                 mode = NetworkAccessMode::Station;
             }
             if (mode == NetworkAccessMode::AccessPoint) {
-                request->redirect("/webinterface?page=page-system");
+                request->redirect("/webinterface?page=page-wifi");
                 return;
             }
         }

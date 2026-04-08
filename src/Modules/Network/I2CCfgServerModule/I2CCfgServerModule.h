@@ -41,8 +41,8 @@ public:
 private:
     struct ConfigData {
         bool enabled = true;
-        int32_t sda = 12;
-        int32_t scl = 14;
+        int32_t sda = 5;
+        int32_t scl = 15;
         int32_t freqHz = 100000;
         uint8_t address = 0x42;
     } cfgData_{};

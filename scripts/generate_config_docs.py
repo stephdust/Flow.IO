@@ -432,7 +432,10 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
         }
         hit = mapping.get(json_name)
         if hit:
-            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            out = {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            if json_name == "target_addr":
+                out["display_format"] = "hex"
+            return out
 
     if module_name == "elink/server":
         mapping = {
@@ -444,7 +447,10 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
         }
         hit = mapping.get(json_name)
         if hit:
-            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            out = {"label": hit[0], "help": hit[1], "unit": hit[2]}
+            if json_name == "address":
+                out["display_format"] = "hex"
+            return out
 
     if module_name == "io/debug":
         mapping = {
@@ -819,7 +825,7 @@ def _build_entries(src_root: Path) -> Tuple[Dict[str, dict], dict]:
         if not module_name or not json_name:
             continue
 
-        auto_doc = _auto_doc_hint(module_name, json_name) if not cfgdoc else None
+        auto_doc = _auto_doc_hint(module_name, json_name)
         label = cfgdoc.get("label") if cfgdoc else (auto_doc.get("label") if auto_doc else _humanize_json_name(json_name))
         help_txt = cfgdoc.get("help") if cfgdoc else (auto_doc.get("help") if auto_doc else _default_help(module_name, json_name, type_name))
         item = {
