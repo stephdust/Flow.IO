@@ -86,7 +86,18 @@ constexpr DataKey FlowRemoteHasWaterTemp = FlowRemoteBase + 25;
 constexpr DataKey FlowRemoteWaterTemp = FlowRemoteBase + 26;
 constexpr DataKey FlowRemoteHasAirTemp = FlowRemoteBase + 27;
 constexpr DataKey FlowRemoteAirTemp = FlowRemoteBase + 28;
-constexpr uint8_t FlowRemoteReservedCount = 32;
+constexpr DataKey FlowRemoteHasWaterCounter = FlowRemoteBase + 29;
+constexpr DataKey FlowRemoteWaterCounter = FlowRemoteBase + 30;
+constexpr DataKey FlowRemoteHasPsi = FlowRemoteBase + 31;
+constexpr DataKey FlowRemotePsi = FlowRemoteBase + 32;
+constexpr DataKey FlowRemoteHasBmp280Temp = FlowRemoteBase + 33;
+constexpr DataKey FlowRemoteBmp280Temp = FlowRemoteBase + 34;
+constexpr DataKey FlowRemoteHasBme680Temp = FlowRemoteBase + 35;
+constexpr DataKey FlowRemoteBme680Temp = FlowRemoteBase + 36;
+constexpr DataKey FlowRemoteAlarmActiveMask = FlowRemoteBase + 37;
+constexpr DataKey FlowRemoteAlarmAckedMask = FlowRemoteBase + 38;
+constexpr DataKey FlowRemoteAlarmConditionMask = FlowRemoteBase + 39;
+constexpr uint8_t FlowRemoteReservedCount = 40;
 constexpr DataKey FlowRemoteEndExclusive = FlowRemoteBase + FlowRemoteReservedCount;
 
 /** @brief Upper bound for currently reserved keys. */

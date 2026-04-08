@@ -14,7 +14,7 @@ const FirmwareProfile& profile()
         &BoardCatalog::flowIOBoardRev1(),
         &DomainCatalog::pool(),
         {
-            "Flow.IO",
+            "Flow.io",
             "flowio",
             FirmwareVersion::Full,
             "rt"

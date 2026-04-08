@@ -24,6 +24,22 @@ constexpr uint32_t kPriorityI2cHoldMs = 1500U;
 static constexpr MqttConfigRouteProducer::Route kI2cClientCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::I2cCfg, kI2cClientCfgBranch}, "elink/client", "elink/client", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
+constexpr RuntimeUiId kMirrorRuntimeUiIds[] = {
+    makeRuntimeUiId(ModuleId::Alarm, 1),
+    makeRuntimeUiId(ModuleId::Alarm, 2),
+    makeRuntimeUiId(ModuleId::Alarm, 3),
+    makeRuntimeUiId(ModuleId::Io, 5),
+    makeRuntimeUiId(ModuleId::Io, 6),
+    makeRuntimeUiId(ModuleId::Io, 7),
+    makeRuntimeUiId(ModuleId::Io, 8),
+};
+constexpr RuntimeUiId kRuntimeUiAlarmActiveMask = makeRuntimeUiId(ModuleId::Alarm, 1);
+constexpr RuntimeUiId kRuntimeUiAlarmAckedMask = makeRuntimeUiId(ModuleId::Alarm, 2);
+constexpr RuntimeUiId kRuntimeUiAlarmConditionMask = makeRuntimeUiId(ModuleId::Alarm, 3);
+constexpr RuntimeUiId kRuntimeUiWaterCounter = makeRuntimeUiId(ModuleId::Io, 5);
+constexpr RuntimeUiId kRuntimeUiPsi = makeRuntimeUiId(ModuleId::Io, 6);
+constexpr RuntimeUiId kRuntimeUiBmp280Temp = makeRuntimeUiId(ModuleId::Io, 7);
+constexpr RuntimeUiId kRuntimeUiBme680Temp = makeRuntimeUiId(ModuleId::Io, 8);
 
 const char* opName(uint8_t op)
 {
@@ -564,12 +580,46 @@ bool I2CCfgClientModule::refreshRuntimeCacheIfNeeded_(bool force)
         runtimeStatusDomainCacheValidNext_[idx] = true;
     }
 
+    uint8_t runtimeUiPayload[I2cCfgProtocol::MaxPayload] = {0};
+    size_t runtimeUiPayloadLen = 0U;
     if (ok) {
-        memcpy(runtimeStatusDomainCache_, runtimeStatusDomainCacheNext_, sizeof(runtimeStatusDomainCache_));
-        memcpy(runtimeStatusDomainCacheValid_, runtimeStatusDomainCacheValidNext_, sizeof(runtimeStatusDomainCacheValid_));
+        if (!fetchRuntimeUiValuesUncached_(kMirrorRuntimeUiIds,
+                                           (uint8_t)(sizeof(kMirrorRuntimeUiIds) / sizeof(kMirrorRuntimeUiIds[0])),
+                                           runtimeUiPayload,
+                                           sizeof(runtimeUiPayload),
+                                           &runtimeUiPayloadLen)) {
+            ok = false;
+        }
     }
 
     if (ok) {
+        const uint8_t recordCount = (runtimeUiPayloadLen > 0U) ? runtimeUiPayload[0] : 0U;
+        size_t offset = 1U;
+        for (uint8_t i = 0; i < recordCount; ++i) {
+            RuntimeUiId runtimeId = 0U;
+            size_t recordLen = 0U;
+            if (!parseRuntimeUiRecord_(runtimeUiPayload, runtimeUiPayloadLen, offset, &runtimeId, &recordLen)) {
+                ok = false;
+                break;
+            }
+
+            RuntimeUiCacheEntry* entry = allocateRuntimeUiCacheEntry_(runtimeId);
+            if (!entry || recordLen > sizeof(entry->data)) {
+                ok = false;
+                break;
+            }
+
+            memcpy(entry->data, runtimeUiPayload + offset, recordLen);
+            entry->len = (uint8_t)recordLen;
+            entry->fetchedAtMs = lockedNow;
+            entry->valid = true;
+            offset += recordLen;
+        }
+    }
+
+    if (ok) {
+        memcpy(runtimeStatusDomainCache_, runtimeStatusDomainCacheNext_, sizeof(runtimeStatusDomainCache_));
+        memcpy(runtimeStatusDomainCacheValid_, runtimeStatusDomainCacheValidNext_, sizeof(runtimeStatusDomainCacheValid_));
         runtimeCacheValid_ = true;
         runtimeCacheFetchedAtMs_ = millis();
     }
@@ -599,6 +649,60 @@ bool I2CCfgClientModule::parseFlowRemoteSnapshotFromCache_(FlowRemoteRuntimeData
     FlowRemoteRuntimeData snapshot{};
     snapshot.ready = runtimeCacheValid_;
     StaticJsonDocument<640> doc;
+
+    auto readU32FromCache = [&](RuntimeUiId runtimeId, uint32_t& valueOut) -> bool {
+        const RuntimeUiCacheEntry* entry = findRuntimeUiCacheEntry_(runtimeId);
+        if (!entry || !entry->valid || entry->len < 3U) return false;
+
+        const RuntimeUiWireType wireType = (RuntimeUiWireType)entry->data[2];
+        if (wireType == RuntimeUiWireType::Unavailable || wireType == RuntimeUiWireType::NotFound) {
+            return false;
+        }
+        if (wireType != RuntimeUiWireType::UInt32 || entry->len < 7U) return false;
+
+        valueOut = (uint32_t)entry->data[3] |
+                   ((uint32_t)entry->data[4] << 8) |
+                   ((uint32_t)entry->data[5] << 16) |
+                   ((uint32_t)entry->data[6] << 24);
+        return true;
+    };
+
+    auto readNumberFromCache = [&](RuntimeUiId runtimeId, bool& hasValueOut, float& valueOut) -> bool {
+        hasValueOut = false;
+        const RuntimeUiCacheEntry* entry = findRuntimeUiCacheEntry_(runtimeId);
+        if (!entry || !entry->valid || entry->len < 3U) return false;
+
+        const RuntimeUiWireType wireType = (RuntimeUiWireType)entry->data[2];
+        if (wireType == RuntimeUiWireType::Unavailable || wireType == RuntimeUiWireType::NotFound) {
+            return true;
+        }
+        if (entry->len < 7U) return false;
+
+        hasValueOut = true;
+        if (wireType == RuntimeUiWireType::Float32) {
+            memcpy(&valueOut, entry->data + 3U, sizeof(valueOut));
+            return true;
+        }
+        if (wireType == RuntimeUiWireType::Int32) {
+            const int32_t raw = (int32_t)((uint32_t)entry->data[3] |
+                                          ((uint32_t)entry->data[4] << 8) |
+                                          ((uint32_t)entry->data[5] << 16) |
+                                          ((uint32_t)entry->data[6] << 24));
+            valueOut = (float)raw;
+            return true;
+        }
+        if (wireType == RuntimeUiWireType::UInt32) {
+            const uint32_t raw = (uint32_t)entry->data[3] |
+                                 ((uint32_t)entry->data[4] << 8) |
+                                 ((uint32_t)entry->data[5] << 16) |
+                                 ((uint32_t)entry->data[6] << 24);
+            valueOut = (float)raw;
+            return true;
+        }
+
+        hasValueOut = false;
+        return false;
+    };
 
     auto parseDomain = [&](FlowStatusDomain domain) -> JsonObjectConst {
         const uint8_t idx = runtimeStatusDomainCacheIndex_(domain);
@@ -709,6 +813,14 @@ bool I2CCfgClientModule::parseFlowRemoteSnapshotFromCache_(FlowRemoteRuntimeData
             }
         }
     }
+
+    (void)readNumberFromCache(kRuntimeUiWaterCounter, snapshot.hasWaterCounter, snapshot.waterCounter);
+    (void)readNumberFromCache(kRuntimeUiPsi, snapshot.hasPsi, snapshot.psi);
+    (void)readNumberFromCache(kRuntimeUiBmp280Temp, snapshot.hasBmp280Temp, snapshot.bmp280Temp);
+    (void)readNumberFromCache(kRuntimeUiBme680Temp, snapshot.hasBme680Temp, snapshot.bme680Temp);
+    (void)readU32FromCache(kRuntimeUiAlarmActiveMask, snapshot.alarmActiveMask);
+    (void)readU32FromCache(kRuntimeUiAlarmAckedMask, snapshot.alarmAckedMask);
+    (void)readU32FromCache(kRuntimeUiAlarmConditionMask, snapshot.alarmConditionMask);
 
     xSemaphoreGive(runtimeCacheMutex_);
     out = snapshot;

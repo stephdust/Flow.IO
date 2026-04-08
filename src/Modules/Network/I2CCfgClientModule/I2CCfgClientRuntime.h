@@ -43,6 +43,17 @@ constexpr DataKey DATAKEY_FLOW_REMOTE_HAS_WATER_TEMP = DataKeys::FlowRemoteHasWa
 constexpr DataKey DATAKEY_FLOW_REMOTE_WATER_TEMP = DataKeys::FlowRemoteWaterTemp;
 constexpr DataKey DATAKEY_FLOW_REMOTE_HAS_AIR_TEMP = DataKeys::FlowRemoteHasAirTemp;
 constexpr DataKey DATAKEY_FLOW_REMOTE_AIR_TEMP = DataKeys::FlowRemoteAirTemp;
+constexpr DataKey DATAKEY_FLOW_REMOTE_HAS_WATER_COUNTER = DataKeys::FlowRemoteHasWaterCounter;
+constexpr DataKey DATAKEY_FLOW_REMOTE_WATER_COUNTER = DataKeys::FlowRemoteWaterCounter;
+constexpr DataKey DATAKEY_FLOW_REMOTE_HAS_PSI = DataKeys::FlowRemoteHasPsi;
+constexpr DataKey DATAKEY_FLOW_REMOTE_PSI = DataKeys::FlowRemotePsi;
+constexpr DataKey DATAKEY_FLOW_REMOTE_HAS_BMP280_TEMP = DataKeys::FlowRemoteHasBmp280Temp;
+constexpr DataKey DATAKEY_FLOW_REMOTE_BMP280_TEMP = DataKeys::FlowRemoteBmp280Temp;
+constexpr DataKey DATAKEY_FLOW_REMOTE_HAS_BME680_TEMP = DataKeys::FlowRemoteHasBme680Temp;
+constexpr DataKey DATAKEY_FLOW_REMOTE_BME680_TEMP = DataKeys::FlowRemoteBme680Temp;
+constexpr DataKey DATAKEY_FLOW_REMOTE_ALARM_ACTIVE_MASK = DataKeys::FlowRemoteAlarmActiveMask;
+constexpr DataKey DATAKEY_FLOW_REMOTE_ALARM_ACKED_MASK = DataKeys::FlowRemoteAlarmAckedMask;
+constexpr DataKey DATAKEY_FLOW_REMOTE_ALARM_CONDITION_MASK = DataKeys::FlowRemoteAlarmConditionMask;
 
 static inline const FlowRemoteRuntimeData& flowRemoteRuntime(const DataStore& ds)
 {
@@ -318,6 +329,105 @@ static inline bool setFlowRemoteAirTemp(DataStore& ds, float v)
     return true;
 }
 
+static inline bool setFlowRemoteHasWaterCounter(DataStore& ds, bool v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (rt.flowRemote.hasWaterCounter == v) return false;
+    rt.flowRemote.hasWaterCounter = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_HAS_WATER_COUNTER);
+    return true;
+}
+
+static inline bool setFlowRemoteWaterCounter(DataStore& ds, float v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (fabsf(rt.flowRemote.waterCounter - v) <= 0.05f) return false;
+    rt.flowRemote.waterCounter = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_WATER_COUNTER);
+    return true;
+}
+
+static inline bool setFlowRemoteHasPsi(DataStore& ds, bool v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (rt.flowRemote.hasPsi == v) return false;
+    rt.flowRemote.hasPsi = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_HAS_PSI);
+    return true;
+}
+
+static inline bool setFlowRemotePsi(DataStore& ds, float v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (fabsf(rt.flowRemote.psi - v) <= 0.01f) return false;
+    rt.flowRemote.psi = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_PSI);
+    return true;
+}
+
+static inline bool setFlowRemoteHasBmp280Temp(DataStore& ds, bool v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (rt.flowRemote.hasBmp280Temp == v) return false;
+    rt.flowRemote.hasBmp280Temp = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_HAS_BMP280_TEMP);
+    return true;
+}
+
+static inline bool setFlowRemoteBmp280Temp(DataStore& ds, float v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (fabsf(rt.flowRemote.bmp280Temp - v) <= 0.05f) return false;
+    rt.flowRemote.bmp280Temp = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_BMP280_TEMP);
+    return true;
+}
+
+static inline bool setFlowRemoteHasBme680Temp(DataStore& ds, bool v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (rt.flowRemote.hasBme680Temp == v) return false;
+    rt.flowRemote.hasBme680Temp = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_HAS_BME680_TEMP);
+    return true;
+}
+
+static inline bool setFlowRemoteBme680Temp(DataStore& ds, float v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (fabsf(rt.flowRemote.bme680Temp - v) <= 0.05f) return false;
+    rt.flowRemote.bme680Temp = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_BME680_TEMP);
+    return true;
+}
+
+static inline bool setFlowRemoteAlarmActiveMask(DataStore& ds, uint32_t v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (rt.flowRemote.alarmActiveMask == v) return false;
+    rt.flowRemote.alarmActiveMask = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_ALARM_ACTIVE_MASK);
+    return true;
+}
+
+static inline bool setFlowRemoteAlarmAckedMask(DataStore& ds, uint32_t v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (rt.flowRemote.alarmAckedMask == v) return false;
+    rt.flowRemote.alarmAckedMask = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_ALARM_ACKED_MASK);
+    return true;
+}
+
+static inline bool setFlowRemoteAlarmConditionMask(DataStore& ds, uint32_t v)
+{
+    RuntimeData& rt = ds.dataMutable();
+    if (rt.flowRemote.alarmConditionMask == v) return false;
+    rt.flowRemote.alarmConditionMask = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_ALARM_CONDITION_MASK);
+    return true;
+}
+
 static inline void applyFlowRemoteRuntimeSnapshot(DataStore& ds, const FlowRemoteRuntimeData& in)
 {
     setFlowRemoteReady(ds, in.ready);
@@ -349,4 +459,15 @@ static inline void applyFlowRemoteRuntimeSnapshot(DataStore& ds, const FlowRemot
     setFlowRemoteWaterTemp(ds, in.waterTemp);
     setFlowRemoteHasAirTemp(ds, in.hasAirTemp);
     setFlowRemoteAirTemp(ds, in.airTemp);
+    setFlowRemoteHasWaterCounter(ds, in.hasWaterCounter);
+    setFlowRemoteWaterCounter(ds, in.waterCounter);
+    setFlowRemoteHasPsi(ds, in.hasPsi);
+    setFlowRemotePsi(ds, in.psi);
+    setFlowRemoteHasBmp280Temp(ds, in.hasBmp280Temp);
+    setFlowRemoteBmp280Temp(ds, in.bmp280Temp);
+    setFlowRemoteHasBme680Temp(ds, in.hasBme680Temp);
+    setFlowRemoteBme680Temp(ds, in.bme680Temp);
+    setFlowRemoteAlarmActiveMask(ds, in.alarmActiveMask);
+    setFlowRemoteAlarmAckedMask(ds, in.alarmAckedMask);
+    setFlowRemoteAlarmConditionMask(ds, in.alarmConditionMask);
 }

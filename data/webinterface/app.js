@@ -653,6 +653,7 @@
     const wifiConfigStatus = document.getElementById('wifiConfigStatus');
     const rebootSupervisorBtn = document.getElementById('rebootSupervisor');
     const rebootFlowBtn = document.getElementById('rebootFlow');
+    const rebootNextionBtn = document.getElementById('rebootNextion');
     const flowFactoryResetBtn = document.getElementById('flowFactoryReset');
     const systemStatusText = document.getElementById('systemStatusText');
     const flowStatusRefreshBtn = document.getElementById('flowStatusRefresh');
@@ -722,7 +723,7 @@
     const upgradeReconnectFetchTimeoutMs = 1400;
     const upgradeConfigFieldDefs = [
       { key: 'update_host', input: updateHost, button: applyUpdateHostBtn, successMessage: 'Serveur HTTP enregistré.' },
-      { key: 'flowio_path', input: flowPath, button: applyFlowPathBtn, successMessage: 'Chemin Flow.IO enregistré.' },
+      { key: 'flowio_path', input: flowPath, button: applyFlowPathBtn, successMessage: 'Chemin Flow.io enregistré.' },
       { key: 'nextion_path', input: nextionPath, button: applyNextionPathBtn, successMessage: 'Chemin Nextion enregistré.' },
       { key: 'supervisor_path', input: supervisorPath, button: applySupervisorPathBtn, successMessage: 'Chemin Supervisor enregistré.' },
       { key: 'spiffs_path', input: spiffsPath, button: applySpiffsPathBtn, successMessage: 'Chemin SPIFFS enregistré.' }
@@ -746,7 +747,7 @@
     const wifiScanPoller = createTimeoutRunner(() => refreshWifiScanStatus(false));
 
     function setWsStatusText(status) {
-      const sourceLabel = logSource === 'supervisor' ? 'Supervisor' : 'Flow.IO';
+      const sourceLabel = logSource === 'supervisor' ? 'Supervisor' : 'Flow.io';
       wsStatus.textContent = sourceLabel + ' : ' + status;
     }
 
@@ -953,7 +954,7 @@
 
     function upgradeTargetLabel(target) {
       const key = String(target || '').trim().toLowerCase();
-      if (key === 'flowio') return 'Flow.IO';
+      if (key === 'flowio') return 'Flow.io';
       if (key === 'supervisor') return 'Superviseur';
       if (key === 'nextion') return 'Nextion';
       if (key === 'spiffs') return 'SPIFFS';
@@ -2433,7 +2434,7 @@
         ]
       });
       appendFlowStatusCard({
-        title: 'Flow.IO',
+        title: 'Flow.io',
         icon: 'system',
         ok: systemReady,
         iconLabel: systemReady ? 'Systeme joignable' : 'Systeme indisponible',
@@ -2446,8 +2447,8 @@
       });
 
       flowStatusChip.textContent = i2cLinkOk
-        ? 'Flow.IO disponible'
-        : 'Connexion Flow.IO a verifier';
+        ? 'Flow.io disponible'
+        : 'Connexion Flow.io a verifier';
       flowStatusRaw.hidden = true;
       flowStatusRaw.classList.remove('is-skeleton');
       flowStatusRaw.innerHTML = '';
@@ -2664,6 +2665,16 @@
       if (!groupLabel) return domainLabel;
       if (groupLabel.localeCompare(domainLabel, 'fr', { sensitivity: 'base' }) === 0) return domainLabel;
       return domainLabel + ' · ' + groupLabel;
+    }
+
+    function runtimeMeasureCssSlug(value) {
+      const source = String(value || '').trim().toLowerCase();
+      if (!source) return 'default';
+      const normalized = typeof source.normalize === 'function'
+        ? source.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        : source;
+      const slug = normalized.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      return slug || 'default';
     }
 
     function formatRuntimeDurationMs(ms) {
@@ -2981,7 +2992,7 @@
         const cardTitle = formatRuntimeGroupCardTitle(domainKey, groupKey);
         let group = groupsByName.get(cardKey);
         if (!group) {
-          group = { name: cardTitle, entries: [] };
+          group = { name: cardTitle, domainKey, groupKey, entries: [] };
           groupsByName.set(cardKey, group);
           groups.push(group);
         }
@@ -2990,7 +3001,10 @@
 
       groups.forEach((group) => {
         const card = document.createElement('div');
-        card.className = 'status-card';
+        card.className =
+          'status-card status-card-runtime'
+          + ' status-card-runtime-domain-' + runtimeMeasureCssSlug(group.domainKey)
+          + ' status-card-runtime-group-' + runtimeMeasureCssSlug(group.groupKey);
 
         const heading = document.createElement('h3');
         heading.textContent = group.name;
@@ -3708,7 +3722,7 @@
       const childCount = cfgFilteredChildren(source, cleanPath).length;
       const level = cleanPath ? cleanPath.split('/').length : 0;
       const hasExact = !!(node && node.hasExact);
-      const sourceLabel = source === 'supervisor' ? 'Config Store Supervisor' : 'Config Store Flow.IO';
+      const sourceLabel = source === 'supervisor' ? 'Config Store Supervisor' : 'Config Store Flow.io';
 
       flowCfgPathLabel.textContent = cleanPath ? (sourceLabel + ' / ' + flowCfgTitreDepuisChemin(cleanPath)) : sourceLabel;
       flowCfgPathLabel.setAttribute('aria-label', cleanPath ? ('Branche ' + cleanPath) : sourceLabel);
@@ -3867,7 +3881,7 @@
       const roots = document.createElement('ul');
       roots.className = 'cfg-tree-group';
       roots.setAttribute('role', 'tree');
-      roots.appendChild(buildCfgTreeRootItem('flow', 'Config Store Flow.IO', flowCfgRootExpanded, flowChildren));
+      roots.appendChild(buildCfgTreeRootItem('flow', 'Config Store Flow.io', flowCfgRootExpanded, flowChildren));
       roots.appendChild(buildCfgTreeRootItem('supervisor', 'Config Store Supervisor', supCfgRootExpanded, supervisorChildren));
       flowCfgTree.appendChild(roots);
       flowCfgTree.scrollTop = savedScrollTop;
@@ -4776,24 +4790,95 @@
       }
     }
 
+    function markCfgSourceUnavailable(source) {
+      const emptyRootNode = {
+        prefix: '',
+        hasExact: false,
+        children: []
+      };
+      if (source === 'supervisor') {
+        supCfgChildrenCache = { [cfgCacheKey('')]: emptyRootNode };
+        supCfgExpandedNodes = new Set();
+        supCfgTreePath = '';
+        supCfgCurrentModule = '';
+        supCfgCurrentData = {};
+        return;
+      }
+      flowCfgChildrenCache = { [cfgCacheKey('')]: emptyRootNode };
+      flowCfgExpandedNodes = new Set();
+      flowCfgPath = [];
+      flowCfgCurrentModule = '';
+      flowCfgCurrentData = {};
+    }
+
+    function formatCfgLoadStatus(result, finalMessage) {
+      if (result && !result.flowLoaded && result.supervisorLoaded) {
+        return finalMessage
+          ? 'Flow.io indisponible pour le moment. Configuration Supervisor disponible. Nouvelle tentative automatique...'
+          : 'Configuration Supervisor disponible. Nouvelle tentative pour Flow.io.';
+      }
+      if (result && result.flowLoaded && !result.supervisorLoaded) {
+        return finalMessage
+          ? 'Configuration Flow.io disponible. Configuration Supervisor indisponible. Nouvelle tentative automatique...'
+          : 'Configuration Flow.io disponible. Nouvelle tentative pour Supervisor.';
+      }
+      return finalMessage
+        ? 'Flow.io indisponible pour le moment. Nouvelle tentative automatique...'
+        : 'Flow.io se prépare... nouvelle tentative.';
+    }
+
     async function chargerFlowCfgModules(forceReload) {
       const force = !!forceReload;
-      try {
-        if (force) {
-          flowCfgChildrenCache = {};
-          flowCfgExpandedNodes = new Set();
-          supCfgChildrenCache = {};
-          supCfgExpandedNodes = new Set();
-        }
-        await ensureCfgPathLoaded('flow', '', force);
-        await ensureCfgPathLoaded('supervisor', '', force);
-        const currentPath = nettoyerNomFlowCfg(currentCfgTreePath(cfgTreeSelectedSource));
-        await selectFlowCfgPath(cfgTreeSelectedSource, currentPath, force);
-        return true;
-      } catch (err) {
-        flowCfgStatus.textContent = 'Chargement des branches échoué: ' + err;
-        return false;
+      if (force) {
+        flowCfgChildrenCache = {};
+        flowCfgExpandedNodes = new Set();
+        supCfgChildrenCache = {};
+        supCfgExpandedNodes = new Set();
       }
+
+      const rootLoads = await Promise.allSettled([
+        ensureCfgPathLoaded('flow', '', force),
+        ensureCfgPathLoaded('supervisor', '', force)
+      ]);
+      const flowLoaded = rootLoads[0].status === 'fulfilled';
+      const supervisorLoaded = rootLoads[1].status === 'fulfilled';
+
+      if (!flowLoaded) {
+        markCfgSourceUnavailable('flow');
+      }
+      if (!supervisorLoaded) {
+        markCfgSourceUnavailable('supervisor');
+      }
+
+      const currentSource = cfgTreeSelectedSource === 'supervisor' ? 'supervisor' : 'flow';
+      let nextSource = currentSource;
+      if (currentSource === 'flow' && !flowLoaded && supervisorLoaded) {
+        nextSource = 'supervisor';
+      } else if (currentSource === 'supervisor' && !supervisorLoaded && flowLoaded) {
+        nextSource = 'flow';
+      }
+
+      const nextPath = nextSource === currentSource
+        ? nettoyerNomFlowCfg(currentCfgTreePath(currentSource))
+        : '';
+      const selectableSource = nextSource === 'flow'
+        ? (flowLoaded ? 'flow' : (supervisorLoaded ? 'supervisor' : ''))
+        : (supervisorLoaded ? 'supervisor' : (flowLoaded ? 'flow' : ''));
+
+      if (selectableSource) {
+        await selectFlowCfgPath(selectableSource, selectableSource === nextSource ? nextPath : '', force);
+      } else {
+        cfgTreeSelectedSource = 'flow';
+        renderFlowCfgCurrentPath('flow', '', null);
+        renderFlowCfgTree();
+        resetPrimaryCfgEditor('Aucune branche disponible.');
+      }
+
+      return {
+        ok: flowLoaded && supervisorLoaded,
+        flowLoaded,
+        supervisorLoaded
+      };
     }
 
     async function ensureFlowCfgLoaded(forceReload) {
@@ -4812,23 +4897,24 @@
 
         const wasLoaded = flowCfgLoadedOnce;
         const retryDelaysMs = (wasLoaded && !force) ? [0] : [0, 900, 2200, 3600];
+        let loadResult = { ok: false, flowLoaded: false, supervisorLoaded: false };
         for (let attempt = 0; attempt < retryDelaysMs.length; ++attempt) {
           if (retryDelaysMs[attempt] > 0) {
             await waitMs(retryDelaysMs[attempt]);
           }
-          const loaded = await chargerFlowCfgModules(force || attempt > 0);
-          if (loaded) {
+          loadResult = await chargerFlowCfgModules(force || attempt > 0);
+          if (loadResult.ok) {
             flowCfgLoadedOnce = true;
             stopFlowCfgRetry();
             return;
           }
           if (attempt + 1 < retryDelaysMs.length) {
-            flowCfgStatus.textContent = 'Flow.IO se prépare... nouvelle tentative.';
+            flowCfgStatus.textContent = formatCfgLoadStatus(loadResult, false);
           }
         }
 
         if (isPageActive('page-control')) {
-          flowCfgStatus.textContent = 'Flow.IO indisponible pour le moment. Nouvelle tentative automatique...';
+          flowCfgStatus.textContent = formatCfgLoadStatus(loadResult, true);
           scheduleFlowCfgRetry(2500);
         }
       })();
@@ -4858,7 +4944,7 @@
         return 'Patch de configuration invalide (' + (where || 'flowcfg') + ').';
       }
       if (code === 'CfgApplyFailed') {
-        return 'Flow.IO a refusé la configuration (' + (where || 'flowcfg') + ').';
+        return 'Flow.io a refusé la configuration (' + (where || 'flowcfg') + ').';
       }
       if (code) {
         return code + (where ? ' (' + where + ')' : '');
@@ -4915,7 +5001,7 @@
         if (!res.ok || !data || data.ok !== true) {
           throw new Error(formatFlowCfgApplyError(data));
         }
-        flowCfgStatus.textContent = 'Configuration appliquée sur Flow.IO.';
+        flowCfgStatus.textContent = 'Configuration appliquée sur Flow.io.';
         await chargerFlowCfgModule(flowCfgCurrentModule);
       } catch (err) {
         flowCfgStatus.textContent = 'Application cfg échouée: ' + err;
@@ -4950,13 +5036,16 @@
     async function callSystemAction(target, action) {
       let endpoint = '/api/system/reboot';
       if (target === 'flow' && action === 'reboot') endpoint = '/api/flow/system/reboot';
+      else if (target === 'nextion' && action === 'reboot') endpoint = '/api/system/nextion/reboot';
       else if (target === 'flow' && action === 'factory_reset') endpoint = '/api/flow/system/factory-reset';
       else if (target === 'supervisor' && action === 'factory_reset') endpoint = '/api/system/factory-reset';
       await fetchOkJson(endpoint, { method: 'POST' }, 'échec action', target === 'flow' ? fetchFlowRemoteQueued : fetch);
       if (target === 'flow' && action === 'factory_reset') {
-        systemStatusText.textContent = 'Reset Flow.IO en cours';
+        systemStatusText.textContent = 'Reset Flow.io en cours';
       } else if (target === 'flow' && action === 'reboot') {
-        systemStatusText.textContent = 'Redémarrage Flow.IO';
+        systemStatusText.textContent = 'Redémarrage Flow.io';
+      } else if (target === 'nextion' && action === 'reboot') {
+        systemStatusText.textContent = 'Redémarrage Nextion';
       } else if (target === 'supervisor' && action === 'factory_reset') {
         systemStatusText.textContent = 'Reset superviseur en cours';
       } else {
@@ -5093,17 +5182,25 @@
       bindClickAction(rebootFlowBtn, () => {
         startDelayedSystemAction(
           rebootFlowBtn,
-          'Reboot Flow.IO',
+          'Reboot Flow.io',
           () => callSystemAction('flow', 'reboot'),
-          'Reboot Flow.IO échoué'
+          'Reboot Flow.io échoué'
+        );
+      });
+      bindClickAction(rebootNextionBtn, () => {
+        startDelayedSystemAction(
+          rebootNextionBtn,
+          'Reboot Nextion',
+          () => callSystemAction('nextion', 'reboot'),
+          'Reboot Nextion échoué'
         );
       });
       bindClickAction(flowFactoryResetBtn, async () => {
-        if (!confirm('Confirmer la réinitialisation usine de Flow.IO ? Cette action efface la configuration distante.')) return;
+        if (!confirm('Confirmer la réinitialisation usine de Flow.io ? Cette action efface la configuration distante.')) return;
         try {
           await callSystemAction('flow', 'factory_reset');
         } catch (err) {
-          systemStatusText.textContent = 'Reset Flow.IO échoué';
+          systemStatusText.textContent = 'Reset Flow.io échoué';
         }
       });
     }

@@ -23,7 +23,7 @@ const FirmwareProfile& profile()
         &BoardCatalog::supervisorBoardRev1(),
         &DomainCatalog::supervisor(),
         {
-            "Flow.IO Supervisor",
+            "Flow.io Supervisor",
             "flow-supervisor",
             FirmwareVersion::Full,
             "rt"

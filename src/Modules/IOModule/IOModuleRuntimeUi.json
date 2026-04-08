@@ -7,7 +7,7 @@
       "label": "Temperature eau",
       "type": "float",
       "domain": "pool",
-      "group": "Sonde",
+      "group": "Dashboard",
       "display": "circ-gauge",
       "displayConfig": {
         "bands": {
@@ -29,7 +29,7 @@
       "label": "Temperature air",
       "type": "float",
       "domain": "pool",
-      "group": "Sonde",
+      "group": "Dashboard",
       "display": "circ-gauge",
       "displayConfig": {
         "bands": {
@@ -51,7 +51,7 @@
       "label": "pH",
       "type": "float",
       "domain": "pool",
-      "group": "Sonde",
+      "group": "Dashboard",
       "display": "circ-gauge",
       "displayConfig": {
         "bands": {
@@ -72,7 +72,7 @@
       "label": "ORP",
       "type": "float",
       "domain": "pool",
-      "group": "Sonde",
+      "group": "Dashboard",
       "display": "circ-gauge",
       "displayConfig": {
         "bands": {
@@ -94,11 +94,47 @@
       "label": "Volume eau",
       "type": "float",
       "domain": "pool",
-      "group": "Compteur",
+      "group": "Sondes",
       "display": "value",
       "unit": "L",
       "decimals": 1,
       "order": 50
+    },
+    {
+      "valueId": 6,
+      "key": "pool.psi",
+      "label": "Pression pompe",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "display": "value",
+      "unit": "PSI",
+      "decimals": 2,
+      "order": 60
+    },
+    {
+      "valueId": 7,
+      "key": "io.bmp280_temp",
+      "label": "Temperature BMP280",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "display": "value",
+      "unit": "\u00b0C",
+      "decimals": 1,
+      "order": 70
+    },
+    {
+      "valueId": 8,
+      "key": "io.bme680_temp",
+      "label": "Temperature BME680",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "display": "value",
+      "unit": "\u00b0C",
+      "decimals": 1,
+      "order": 80
     }
   ]
 }

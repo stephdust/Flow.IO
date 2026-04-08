@@ -260,23 +260,116 @@
       "displayConfig": null
     },
     {
-      "id": 2105,
-      "runtimeId": 2105,
+      "id": 2101,
+      "runtimeId": 2101,
       "moduleId": 21,
       "module": "io",
-      "valueId": 5,
-      "key": "pool.water_counter",
-      "label": "Volume eau",
+      "valueId": 1,
+      "key": "pool.water_temp",
+      "label": "Temperature eau",
       "type": "float",
       "domain": "pool",
-      "group": "Compteur",
-      "unit": "L",
+      "group": "Dashboard",
+      "unit": "\u00b0C",
       "decimals": 1,
-      "order": 50,
+      "order": 10,
       "enum": null,
       "flags": null,
-      "display": "value",
-      "displayConfig": null
+      "display": "circ-gauge",
+      "displayConfig": {
+        "bands": {
+          "min": 0,
+          "criticalLowEnd": 8,
+          "warningLowEnd": 14,
+          "warningHighStart": 30,
+          "criticalHighStart": 34,
+          "max": 40
+        }
+      }
+    },
+    {
+      "id": 2102,
+      "runtimeId": 2102,
+      "moduleId": 21,
+      "module": "io",
+      "valueId": 2,
+      "key": "pool.air_temp",
+      "label": "Temperature air",
+      "type": "float",
+      "domain": "pool",
+      "group": "Dashboard",
+      "unit": "\u00b0C",
+      "decimals": 1,
+      "order": 20,
+      "enum": null,
+      "flags": null,
+      "display": "circ-gauge",
+      "displayConfig": {
+        "bands": {
+          "min": -10,
+          "criticalLowEnd": 0,
+          "warningLowEnd": 8,
+          "warningHighStart": 28,
+          "criticalHighStart": 35,
+          "max": 45
+        }
+      }
+    },
+    {
+      "id": 2103,
+      "runtimeId": 2103,
+      "moduleId": 21,
+      "module": "io",
+      "valueId": 3,
+      "key": "pool.ph",
+      "label": "pH",
+      "type": "float",
+      "domain": "pool",
+      "group": "Dashboard",
+      "unit": null,
+      "decimals": 2,
+      "order": 30,
+      "enum": null,
+      "flags": null,
+      "display": "circ-gauge",
+      "displayConfig": {
+        "bands": {
+          "min": 6.4,
+          "criticalLowEnd": 6.8,
+          "warningLowEnd": 7.0,
+          "warningHighStart": 7.6,
+          "criticalHighStart": 7.8,
+          "max": 8.4
+        }
+      }
+    },
+    {
+      "id": 2104,
+      "runtimeId": 2104,
+      "moduleId": 21,
+      "module": "io",
+      "valueId": 4,
+      "key": "pool.orp",
+      "label": "ORP",
+      "type": "float",
+      "domain": "pool",
+      "group": "Dashboard",
+      "unit": "mV",
+      "decimals": 0,
+      "order": 40,
+      "enum": null,
+      "flags": null,
+      "display": "circ-gauge",
+      "displayConfig": {
+        "bands": {
+          "min": 350,
+          "criticalLowEnd": 500,
+          "warningLowEnd": 620,
+          "warningHighStart": 760,
+          "criticalHighStart": 820,
+          "max": 900
+        }
+      }
     },
     {
       "id": 2301,
@@ -446,116 +539,80 @@
       "displayConfig": null
     },
     {
-      "id": 2101,
-      "runtimeId": 2101,
+      "id": 2105,
+      "runtimeId": 2105,
       "moduleId": 21,
       "module": "io",
-      "valueId": 1,
-      "key": "pool.water_temp",
-      "label": "Temperature eau",
+      "valueId": 5,
+      "key": "pool.water_counter",
+      "label": "Volume eau",
       "type": "float",
       "domain": "pool",
-      "group": "Sonde",
-      "unit": "\u00b0C",
+      "group": "Sondes",
+      "unit": "L",
       "decimals": 1,
-      "order": 10,
+      "order": 50,
       "enum": null,
       "flags": null,
-      "display": "circ-gauge",
-      "displayConfig": {
-        "bands": {
-          "min": 0,
-          "criticalLowEnd": 8,
-          "warningLowEnd": 14,
-          "warningHighStart": 30,
-          "criticalHighStart": 34,
-          "max": 40
-        }
-      }
+      "display": "value",
+      "displayConfig": null
     },
     {
-      "id": 2102,
-      "runtimeId": 2102,
+      "id": 2106,
+      "runtimeId": 2106,
       "moduleId": 21,
       "module": "io",
-      "valueId": 2,
-      "key": "pool.air_temp",
-      "label": "Temperature air",
+      "valueId": 6,
+      "key": "pool.psi",
+      "label": "Pression pompe",
       "type": "float",
       "domain": "pool",
-      "group": "Sonde",
-      "unit": "\u00b0C",
-      "decimals": 1,
-      "order": 20,
-      "enum": null,
-      "flags": null,
-      "display": "circ-gauge",
-      "displayConfig": {
-        "bands": {
-          "min": -10,
-          "criticalLowEnd": 0,
-          "warningLowEnd": 8,
-          "warningHighStart": 28,
-          "criticalHighStart": 35,
-          "max": 45
-        }
-      }
-    },
-    {
-      "id": 2103,
-      "runtimeId": 2103,
-      "moduleId": 21,
-      "module": "io",
-      "valueId": 3,
-      "key": "pool.ph",
-      "label": "pH",
-      "type": "float",
-      "domain": "pool",
-      "group": "Sonde",
-      "unit": null,
+      "group": "Sondes",
+      "unit": "PSI",
       "decimals": 2,
-      "order": 30,
+      "order": 60,
       "enum": null,
       "flags": null,
-      "display": "circ-gauge",
-      "displayConfig": {
-        "bands": {
-          "min": 6.4,
-          "criticalLowEnd": 6.8,
-          "warningLowEnd": 7.0,
-          "warningHighStart": 7.6,
-          "criticalHighStart": 7.8,
-          "max": 8.4
-        }
-      }
+      "display": "value",
+      "displayConfig": null
     },
     {
-      "id": 2104,
-      "runtimeId": 2104,
+      "id": 2107,
+      "runtimeId": 2107,
       "moduleId": 21,
       "module": "io",
-      "valueId": 4,
-      "key": "pool.orp",
-      "label": "ORP",
+      "valueId": 7,
+      "key": "io.bmp280_temp",
+      "label": "Temperature BMP280",
       "type": "float",
       "domain": "pool",
-      "group": "Sonde",
-      "unit": "mV",
-      "decimals": 0,
-      "order": 40,
+      "group": "Sondes",
+      "unit": "\u00b0C",
+      "decimals": 1,
+      "order": 70,
       "enum": null,
       "flags": null,
-      "display": "circ-gauge",
-      "displayConfig": {
-        "bands": {
-          "min": 350,
-          "criticalLowEnd": 500,
-          "warningLowEnd": 620,
-          "warningHighStart": 760,
-          "criticalHighStart": 820,
-          "max": 900
-        }
-      }
+      "display": "value",
+      "displayConfig": null
+    },
+    {
+      "id": 2108,
+      "runtimeId": 2108,
+      "moduleId": 21,
+      "module": "io",
+      "valueId": 8,
+      "key": "io.bme680_temp",
+      "label": "Temperature BME680",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "unit": "\u00b0C",
+      "decimals": 1,
+      "order": 80,
+      "enum": null,
+      "flags": null,
+      "display": "value",
+      "displayConfig": null
     },
     {
       "id": 1701,

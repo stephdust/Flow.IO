@@ -93,8 +93,11 @@ private:
     uint32_t lastRenderKey_ = 0;
     uint32_t lastRenderedMinute_ = 0;
     uint32_t lastRenderedPageCycle_ = 0;
+    uint32_t lastWifiRssiRefreshMs_ = 0;
     bool hasLastRenderKey_ = false;
     bool lastBacklightOn_ = false;
+    bool cachedWifiHasRssi_ = false;
+    int32_t cachedWifiRssiDbm_ = -127;
 
     bool buttonPressed_ = false;
     bool buttonTriggered_ = false;

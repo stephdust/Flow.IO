@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 
 assets=(
   "data/webinterface/index.html"
+  "data/webinterface/sh.html"
   "data/webinterface/app.css"
   "data/webinterface/app.js"
   "data/webinterface/runtimeui.json"

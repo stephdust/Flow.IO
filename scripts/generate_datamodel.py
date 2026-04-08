@@ -3,13 +3,13 @@
 
 import os
 import re
+import fnmatch
 from pathlib import Path
 
-Import = type("Import", (), {})
-
 # PlatformIO provides the project directory via env
+env = None
 try:
-    Import("env")  # type: ignore
+    Import("env")  # type: ignore[name-defined]
 except Exception:
     env = None
 
@@ -29,6 +29,59 @@ def _find_module_models(modules_root: Path):
 
 def _find_module_runtimes(modules_root: Path):
     return sorted(modules_root.rglob("*Runtime.h"))
+
+
+def _get_build_src_filter():
+    if env is None:
+        return None
+    try:
+        return env.get("SRC_FILTER", None)
+    except Exception:
+        pass
+    try:
+        return env.GetProjectOption("build_src_filter", None)
+    except Exception:
+        return None
+
+
+def _parse_src_filter_rules(raw_value):
+    if not raw_value:
+        return []
+    if isinstance(raw_value, str):
+        lines = raw_value.splitlines()
+    else:
+        lines = list(raw_value)
+
+    rules = []
+    pattern = re.compile(r"^\s*([+-])<(.+)>\s*$")
+    for raw_line in lines:
+        line = str(raw_line).strip()
+        if not line:
+            continue
+        match = pattern.match(line)
+        if not match:
+            continue
+        rules.append((match.group(1) == "+", match.group(2).replace("\\", "/")))
+    return rules
+
+
+def _src_filter_matches(rel_path, pattern):
+    if pattern in ("*", "**"):
+        return True
+    if pattern.endswith("/"):
+        return rel_path.startswith(pattern)
+    return fnmatch.fnmatch(rel_path, pattern)
+
+
+def _is_included_by_src_filter(rel_path, rules):
+    if not rules:
+        return True
+
+    included = True
+    for allow, pattern in rules:
+        if _src_filter_matches(rel_path, pattern):
+            included = allow
+    return included
 
 def _parse_entry(path: Path):
     # Expect a line like: // MODULE_DATA_MODEL: TypeName memberName
@@ -101,12 +154,16 @@ def main():
 
     model_files = _find_module_models(modules_root)
     runtime_files = _find_module_runtimes(modules_root)
+    src_filter_rules = _parse_src_filter_rules(_get_build_src_filter())
 
     entries = []
     rel_includes = []
     seen_members = set()
 
     for path in model_files:
+        rel = path.relative_to(src_root).as_posix()
+        if not _is_included_by_src_filter(rel, src_filter_rules):
+            continue
         entry = _parse_entry(path)
         if not entry:
             # Skip files without a declaration marker
@@ -116,7 +173,6 @@ def main():
             raise RuntimeError(f"Duplicate RuntimeData member '{member_name}' in {path}")
         seen_members.add(member_name)
 
-        rel = path.relative_to(src_root).as_posix()
         rel_includes.append(rel)
         entries.append((type_name, member_name))
 
@@ -124,9 +180,11 @@ def main():
 
     runtime_includes = []
     for path in runtime_files:
+        rel = path.relative_to(src_root).as_posix()
+        if not _is_included_by_src_filter(rel, src_filter_rules):
+            continue
         if not _has_runtime_public_marker(path):
             continue
-        rel = path.relative_to(src_root).as_posix()
         runtime_includes.append(rel)
 
     _write_runtime_generated(out_runtime_path, runtime_includes)

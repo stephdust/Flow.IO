@@ -27,6 +27,7 @@ static constexpr uint32_t kStartupBacklightForceOnMs = 60000U;
 static constexpr uint32_t kButtonArmHighStableMs = 500U;
 static constexpr uint32_t kFactoryResetMessageDelayMs = 900U;
 static constexpr uint32_t kPageRotateMs = 10000U;
+static constexpr uint32_t kWifiRssiRefreshMs = 3000U;
 
 const SupervisorBoardSpec& supervisorBoardSpec_(const BoardSpec& board)
 {
@@ -127,6 +128,10 @@ uint32_t SupervisorHMIModule::buildRenderKey_() const
 
     mix(&view_.wifiConnected, sizeof(view_.wifiConnected));
     mix(&view_.wifiState, sizeof(view_.wifiState));
+    mix(&view_.accessMode, sizeof(view_.accessMode));
+    mix(&view_.hasRssi, sizeof(view_.hasRssi));
+    mix(&view_.rssiDbm, sizeof(view_.rssiDbm));
+    mix(&view_.pageIndex, sizeof(view_.pageIndex));
     mix(view_.ip, strnlen(view_.ip, sizeof(view_.ip)) + 1U);
     mix(&view_.flowLinkOk, sizeof(view_.flowLinkOk));
     mix(&view_.flowMqttReady, sizeof(view_.flowMqttReady));
@@ -146,6 +151,17 @@ uint32_t SupervisorHMIModule::buildRenderKey_() const
     mix(&view_.flowWaterTemp, sizeof(view_.flowWaterTemp));
     mix(&view_.flowHasAirTemp, sizeof(view_.flowHasAirTemp));
     mix(&view_.flowAirTemp, sizeof(view_.flowAirTemp));
+    mix(&view_.flowHasWaterCounter, sizeof(view_.flowHasWaterCounter));
+    mix(&view_.flowWaterCounter, sizeof(view_.flowWaterCounter));
+    mix(&view_.flowHasPsi, sizeof(view_.flowHasPsi));
+    mix(&view_.flowPsi, sizeof(view_.flowPsi));
+    mix(&view_.flowHasBmp280Temp, sizeof(view_.flowHasBmp280Temp));
+    mix(&view_.flowBmp280Temp, sizeof(view_.flowBmp280Temp));
+    mix(&view_.flowHasBme680Temp, sizeof(view_.flowHasBme680Temp));
+    mix(&view_.flowBme680Temp, sizeof(view_.flowBme680Temp));
+    mix(&view_.flowAlarmActiveMask, sizeof(view_.flowAlarmActiveMask));
+    mix(&view_.flowAlarmAckedMask, sizeof(view_.flowAlarmAckedMask));
+    mix(&view_.flowAlarmConditionMask, sizeof(view_.flowAlarmConditionMask));
     mix(&view_.flowAlarmActiveCount, sizeof(view_.flowAlarmActiveCount));
     mix(&view_.flowAlarmCodeCount, sizeof(view_.flowAlarmCodeCount));
     for (size_t i = 0; i < (sizeof(view_.flowAlarmCodes) / sizeof(view_.flowAlarmCodes[0])); i++) {
@@ -276,8 +292,18 @@ void SupervisorHMIModule::pollWifiAndNetwork_()
     }
 
     if (view_.wifiConnected && WiFi.status() == WL_CONNECTED) {
-        view_.rssiDbm = (int32_t)WiFi.RSSI();
-        view_.hasRssi = true;
+        const uint32_t now = millis();
+        const int32_t rawRssiDbm = (int32_t)WiFi.RSSI();
+        if (!cachedWifiHasRssi_ || (uint32_t)(now - lastWifiRssiRefreshMs_) >= kWifiRssiRefreshMs) {
+            cachedWifiRssiDbm_ = rawRssiDbm;
+            cachedWifiHasRssi_ = true;
+            lastWifiRssiRefreshMs_ = now;
+        }
+        view_.rssiDbm = cachedWifiRssiDbm_;
+        view_.hasRssi = cachedWifiHasRssi_;
+    } else {
+        cachedWifiHasRssi_ = false;
+        cachedWifiRssiDbm_ = -127;
     }
 }
 
@@ -335,6 +361,17 @@ void SupervisorHMIModule::refreshFlowStatusFromDataStore_()
     view_.flowWaterTemp = flow.waterTemp;
     view_.flowHasAirTemp = flow.hasAirTemp;
     view_.flowAirTemp = flow.airTemp;
+    view_.flowHasWaterCounter = flow.hasWaterCounter;
+    view_.flowWaterCounter = flow.waterCounter;
+    view_.flowHasPsi = flow.hasPsi;
+    view_.flowPsi = flow.psi;
+    view_.flowHasBmp280Temp = flow.hasBmp280Temp;
+    view_.flowBmp280Temp = flow.bmp280Temp;
+    view_.flowHasBme680Temp = flow.hasBme680Temp;
+    view_.flowBme680Temp = flow.bme680Temp;
+    view_.flowAlarmActiveMask = flow.alarmActiveMask;
+    view_.flowAlarmAckedMask = flow.alarmAckedMask;
+    view_.flowAlarmConditionMask = flow.alarmConditionMask;
 }
 
 void SupervisorHMIModule::scheduleFactoryReset_()
@@ -504,7 +541,10 @@ void SupervisorHMIModule::loop()
         hasLastRenderKey_ = false;
         lastRenderedMinute_ = 0;
         lastRenderedPageCycle_ = 0;
+        lastWifiRssiRefreshMs_ = 0;
         lastBacklightOn_ = driver_.isBacklightOn();
+        cachedWifiHasRssi_ = false;
+        cachedWifiRssiDbm_ = -127;
     }
 
     pollWifiAndNetwork_();
@@ -532,9 +572,10 @@ void SupervisorHMIModule::loop()
     }
 
     const bool backlightOn = driver_.isBacklightOn();
+    const uint32_t pageCycleKey = currentPageCycle_();
+    view_.pageIndex = (uint8_t)(pageCycleKey & 0x01U);
     const uint32_t renderKey = buildRenderKey_();
     const uint32_t minuteKey = currentClockMinute_();
-    const uint32_t pageCycleKey = currentPageCycle_();
     const bool changed = (!hasLastRenderKey_) ||
                          (renderKey != lastRenderKey_) ||
                          (minuteKey != lastRenderedMinute_) ||

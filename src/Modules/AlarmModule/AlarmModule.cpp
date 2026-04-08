@@ -663,25 +663,6 @@ void AlarmModule::registerHaEntities_(ServiceRegistry& services)
         } else {
             LOGW("HA registration failed: alm_ack_all");
         }
-
-        static constexpr HAButtonEntry kAckSlotButtons[] = {
-            {"alarms", "alm_ack_slot_0", "Acknowledge Alarm Slot 0", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":0}}", "diagnostic", "mdi:numeric-0-box-outline"},
-            {"alarms", "alm_ack_slot_1", "Acknowledge Alarm Slot 1", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":1}}", "diagnostic", "mdi:numeric-1-box-outline"},
-            {"alarms", "alm_ack_slot_2", "Acknowledge Alarm Slot 2", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":2}}", "diagnostic", "mdi:numeric-2-box-outline"},
-            {"alarms", "alm_ack_slot_3", "Acknowledge Alarm Slot 3", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":3}}", "diagnostic", "mdi:numeric-3-box-outline"},
-            {"alarms", "alm_ack_slot_4", "Acknowledge Alarm Slot 4", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":4}}", "diagnostic", "mdi:numeric-4-box-outline"},
-            {"alarms", "alm_ack_slot_5", "Acknowledge Alarm Slot 5", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":5}}", "diagnostic", "mdi:numeric-5-box-outline"},
-            {"alarms", "alm_ack_slot_6", "Acknowledge Alarm Slot 6", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":6}}", "diagnostic", "mdi:numeric-6-box-outline"},
-            {"alarms", "alm_ack_slot_7", "Acknowledge Alarm Slot 7", MqttTopics::SuffixCmd, "{\\\"cmd\\\":\\\"alarms.ack_slot\\\",\\\"args\\\":{\\\"slot\\\":7}}", "diagnostic", "mdi:numeric-7-box-outline"},
-        };
-
-        for (uint8_t i = 0; i < (uint8_t)(sizeof(kAckSlotButtons) / sizeof(kAckSlotButtons[0])); ++i) {
-            if (haSvc_->addButton(haSvc_->ctx, &kAckSlotButtons[i])) {
-                registeredAny = true;
-            } else {
-                LOGW("HA registration failed: %s", kAckSlotButtons[i].objectSuffix);
-            }
-        }
     }
 
     haEntitiesRegistered_ = registeredAny;

@@ -36,6 +36,17 @@ struct FlowRemoteRuntimeData {
     float waterTemp = 0.0f;
     bool hasAirTemp = false;
     float airTemp = 0.0f;
+    bool hasWaterCounter = false;
+    float waterCounter = 0.0f;
+    bool hasPsi = false;
+    float psi = 0.0f;
+    bool hasBmp280Temp = false;
+    float bmp280Temp = 0.0f;
+    bool hasBme680Temp = false;
+    float bme680Temp = 0.0f;
+    uint32_t alarmActiveMask = 0U;
+    uint32_t alarmAckedMask = 0U;
+    uint32_t alarmConditionMask = 0U;
 };
 
 // MODULE_DATA_MODEL: FlowRemoteRuntimeData flowRemote

@@ -76,7 +76,7 @@ private:
         NVS_KEY("up_host"), "update_host", "fwupdate",
         ConfigType::CharArray, cfgData_.updateHost, ConfigPersistence::Persistent, sizeof(cfgData_.updateHost)
     };
-    // CFGDOC: {"label":"Chemin firmware Flow.IO","help":"Chemin du binaire firmware Flow.IO sur le serveur MAJ."}
+    // CFGDOC: {"label":"Chemin firmware Flow.io","help":"Chemin du binaire firmware Flow.io sur le serveur MAJ."}
     ConfigVariable<char, 2> flowioPathVar_{
         NVS_KEY("up_flow_path"), "flowio_path", "fwupdate",
         ConfigType::CharArray, cfgData_.flowioPath, ConfigPersistence::Persistent, sizeof(cfgData_.flowioPath)
@@ -114,6 +114,7 @@ private:
     portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
     UpdateJob queuedJob_{};
     UpdateStatus status_{};
+    bool nextionRebootQueued_ = false;
     bool busy_ = false;
     uint32_t activeTotalBytes_ = 0;
     uint32_t activeSentBytes_ = 0;
@@ -122,9 +123,11 @@ private:
     static bool cmdFlowIo_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdSupervisor_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdNextion_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    static bool cmdNextionReboot_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdSpiffs_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
 
     bool startUpdate_(FirmwareUpdateTarget target, const char* url, char* errOut, size_t errOutLen);
+    bool queueNextionReboot_(char* errOut, size_t errOutLen);
     bool statusJson_(char* out, size_t outLen);
     bool configJson_(char* out, size_t outLen) const;
     bool setConfig_(const char* updateHost,
@@ -138,6 +141,7 @@ private:
     bool runFlowIoUpdate_(const char* url, char* errOut, size_t errOutLen);
     bool runSupervisorUpdate_(const char* url, char* errOut, size_t errOutLen);
     bool runNextionUpdate_(const char* url, char* errOut, size_t errOutLen);
+    bool runNextionReboot_(char* errOut, size_t errOutLen);
     bool runSpiffsUpdate_(const char* url, char* errOut, size_t errOutLen);
     bool resolveUrl_(FirmwareUpdateTarget target,
                      const char* explicitUrl,

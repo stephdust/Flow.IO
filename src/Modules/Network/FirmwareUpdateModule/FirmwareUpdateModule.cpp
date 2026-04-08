@@ -470,6 +470,26 @@ bool FirmwareUpdateModule::startUpdate_(FirmwareUpdateTarget target,
     return true;
 }
 
+bool FirmwareUpdateModule::queueNextionReboot_(char* errOut, size_t errOutLen)
+{
+    if (nextionRebootPin_ < 0) {
+        writeSimpleError_(errOut, errOutLen, "nextion reboot pin not configured");
+        return false;
+    }
+
+    portENTER_CRITICAL(&lock_);
+    if (busy_ || queuedJob_.pending || nextionRebootQueued_) {
+        portEXIT_CRITICAL(&lock_);
+        writeSimpleError_(errOut, errOutLen, "updater busy");
+        return false;
+    }
+    nextionRebootQueued_ = true;
+    portEXIT_CRITICAL(&lock_);
+
+    LOGI("Nextion reboot queued");
+    return true;
+}
+
 bool FirmwareUpdateModule::runFlowIoUpdate_(const char* url, char* errOut, size_t errOutLen)
 {
     if (flowIoBootPin_ < 0 || flowIoEnablePin_ < 0) {
@@ -731,6 +751,26 @@ bool FirmwareUpdateModule::runNextionUpdate_(const char* url, char* errOut, size
     return true;
 }
 
+bool FirmwareUpdateModule::runNextionReboot_(char* errOut, size_t errOutLen)
+{
+    if (nextionRebootPin_ < 0) {
+        writeSimpleError_(errOut, errOutLen, "nextion reboot pin not configured");
+        return false;
+    }
+
+    pinMode(nextionRebootPin_, OUTPUT);
+    digitalWrite(nextionRebootPin_, HIGH);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    digitalWrite(nextionRebootPin_, LOW);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    digitalWrite(nextionRebootPin_, HIGH);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    digitalWrite(nextionRebootPin_, LOW);
+
+    LOGI("Nextion reboot pulse sequence completed on pin=%d", (int)nextionRebootPin_);
+    return true;
+}
+
 bool FirmwareUpdateModule::runSpiffsUpdate_(const char* url, char* errOut, size_t errOutLen)
 {
     setStatus_(UpdateState::Downloading, FirmwareUpdateTarget::Spiffs, 0, "downloading");
@@ -945,6 +985,25 @@ bool FirmwareUpdateModule::cmdNextion_(void* userCtx, const CommandRequest& req,
     return true;
 }
 
+bool FirmwareUpdateModule::cmdNextionReboot_(void* userCtx, const CommandRequest&, char* reply, size_t replyLen)
+{
+    FirmwareUpdateModule* self = static_cast<FirmwareUpdateModule*>(userCtx);
+    if (!self) return false;
+
+    char err[120] = {0};
+    if (!self->queueNextionReboot_(err, sizeof(err))) {
+        sanitizeJsonString_(err);
+        const int wrote = snprintf(reply,
+                                   replyLen,
+                                   "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"fw.nextion.reboot\",\"msg\":\"%s\"}}",
+                                   err[0] ? err : "failed");
+        return wrote > 0 && (size_t)wrote < replyLen;
+    }
+
+    snprintf(reply, replyLen, "{\"ok\":true,\"queued\":true,\"target\":\"nextion_reboot\"}");
+    return true;
+}
+
 bool FirmwareUpdateModule::cmdSpiffs_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen)
 {
     FirmwareUpdateModule* self = static_cast<FirmwareUpdateModule*>(userCtx);
@@ -988,6 +1047,7 @@ void FirmwareUpdateModule::init(ConfigStore& cfg, ServiceRegistry& services)
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.update.flowio", &FirmwareUpdateModule::cmdFlowIo_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.update.supervisor", &FirmwareUpdateModule::cmdSupervisor_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.update.nextion", &FirmwareUpdateModule::cmdNextion_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.nextion.reboot", &FirmwareUpdateModule::cmdNextionReboot_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.update.spiffs", &FirmwareUpdateModule::cmdSpiffs_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.update.cfgdocs", &FirmwareUpdateModule::cmdSpiffs_, this);
     }
@@ -999,19 +1059,39 @@ void FirmwareUpdateModule::init(ConfigStore& cfg, ServiceRegistry& services)
 void FirmwareUpdateModule::loop()
 {
     UpdateJob job{};
+    bool runNextionReboot = false;
 
     portENTER_CRITICAL(&lock_);
-    if (!queuedJob_.pending || busy_) {
+    if (busy_) {
         portEXIT_CRITICAL(&lock_);
         vTaskDelay(pdMS_TO_TICKS(60));
         return;
     }
-    busy_ = true;
-    job = queuedJob_;
-    queuedJob_.pending = false;
+    if (nextionRebootQueued_) {
+        busy_ = true;
+        nextionRebootQueued_ = false;
+        runNextionReboot = true;
+    } else if (queuedJob_.pending) {
+        busy_ = true;
+        job = queuedJob_;
+        queuedJob_.pending = false;
+    } else {
+        portEXIT_CRITICAL(&lock_);
+        vTaskDelay(pdMS_TO_TICKS(60));
+        return;
+    }
     portEXIT_CRITICAL(&lock_);
 
-    runJob_(job);
+    if (runNextionReboot) {
+        char err[128] = {0};
+        if (!runNextionReboot_(err, sizeof(err))) {
+            LOGE("Nextion reboot failed reason=%s", err[0] ? err : "unknown");
+        } else {
+            LOGI("Nextion reboot done");
+        }
+    } else {
+        runJob_(job);
+    }
 
     portENTER_CRITICAL(&lock_);
     busy_ = false;

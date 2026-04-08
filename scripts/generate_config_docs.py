@@ -102,11 +102,20 @@ BOARD_IO_POINT_RE = re.compile(
     re.S,
 )
 BOARD_PIN_REF_RE = re.compile(r"BoardProfiles::kFlowIOBoardRev1IoPoints\[(?P<idx>\d+)\]\.pin")
+POOL_DEVICE_PRESET_RE = re.compile(
+    r'\{\s*DomainRole::(?P<role>[A-Za-z0-9_]+)\s*,\s*"(?P<object>[^"]+)"\s*,\s*"(?P<display>[^"]+)"\s*,\s*"(?P<icon>[^"]+)"\s*,\s*(?P<slot>\d+)\s*,',
+    re.S,
+)
+IO_BASE_RE = re.compile(r"constexpr\s+IoId\s+(?P<name>IO_ID_(?:DI|AI)_BASE)\s*=\s*(?P<value>\d+)\s*;")
+IO_COUNT_RE = re.compile(r"static\s+constexpr\s+uint8_t\s+(?P<name>MAX_(?:DIGITAL_INPUTS|ANALOG_ENDPOINTS))\s*=\s*(?P<value>\d+)\s*;")
 
 FLOWIO_BINDING_SET_ANALOG = "flowio_binding_port_analog"
 FLOWIO_BINDING_SET_DIGITAL_INPUT = "flowio_binding_port_digital_input"
 FLOWIO_BINDING_SET_DIGITAL_OUTPUT = "flowio_binding_port_digital_output"
 FLOWIO_EDGE_MODE_SET = "flowio_edge_mode"
+POOLLOGIC_DEVICE_SLOT_SET = "poollogic_device_slot"
+FLOWIO_LOGICAL_INPUT_SET_ANALOG = "flowio_logical_input_analog"
+FLOWIO_LOGICAL_INPUT_SET_DIGITAL = "flowio_logical_input_digital"
 
 
 def _io_slot_token(idx: int) -> str:
@@ -148,6 +157,30 @@ def _binding_enum_set_for_doc(module_name: str, json_name: str) -> Optional[str]
             return FLOWIO_BINDING_SET_DIGITAL_INPUT
         if module_name.startswith("io/output/d"):
             return FLOWIO_BINDING_SET_DIGITAL_OUTPUT
+    if module_name in ("poollogic", "poollogic/sensors"):
+        if json_name in (
+            "air_temp_io_id",
+            "orp_io_id",
+            "ph_io_id",
+            "psi_io_id",
+            "wat_temp_io_id",
+        ):
+            return FLOWIO_LOGICAL_INPUT_SET_ANALOG
+        if json_name in (
+            "chl_lvl_io_id",
+            "ph_lvl_io_id",
+            "pool_lvl_io_id",
+        ):
+            return FLOWIO_LOGICAL_INPUT_SET_DIGITAL
+    if module_name in ("poollogic", "poollogic/device") and json_name in (
+        "filtr_slot",
+        "swg_slot",
+        "robot_slot",
+        "fill_slot",
+        "ph_pump_slot",
+        "orp_pump_slot",
+    ):
+        return POOLLOGIC_DEVICE_SLOT_SET
     if json_name == "edge_mode" and module_name.startswith("io/input/i"):
         return FLOWIO_EDGE_MODE_SET
     return None
@@ -254,6 +287,12 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
 
     text = path.read_text(encoding="utf-8", errors="ignore")
     board_points = _load_flowio_board_points(src_root)
+    pool_domain_path = src_root / "Domain" / "Pool" / "PoolDomain.h"
+    pool_domain_text = pool_domain_path.read_text(encoding="utf-8", errors="ignore") if pool_domain_path.exists() else ""
+    io_service_path = src_root / "Core" / "Services" / "IIO.h"
+    io_service_text = io_service_path.read_text(encoding="utf-8", errors="ignore") if io_service_path.exists() else ""
+    io_module_path = src_root / "Modules" / "IOModule" / "IOModule.h"
+    io_module_text = io_module_path.read_text(encoding="utf-8", errors="ignore") if io_module_path.exists() else ""
 
     port_ids: Dict[str, int] = {}
     for m in PORT_ENUM_RE.finditer(text):
@@ -263,15 +302,26 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
     for m in DIGITAL_INPUT_ROLE_DEFAULT_RE.finditer(text):
         digital_input_mode_by_port[m.group("port").strip()] = m.group("mode").strip()
 
+    io_bases: Dict[str, int] = {}
+    for m in IO_BASE_RE.finditer(io_service_text):
+        io_bases[m.group("name").strip()] = int(m.group("value"))
+
+    io_counts: Dict[str, int] = {}
+    for m in IO_COUNT_RE.finditer(io_module_text):
+        io_counts[m.group("name").strip()] = int(m.group("value"))
+
     enum_sets: Dict[str, List[dict]] = {
         FLOWIO_BINDING_SET_ANALOG: [],
         FLOWIO_BINDING_SET_DIGITAL_INPUT: [],
         FLOWIO_BINDING_SET_DIGITAL_OUTPUT: [],
+        FLOWIO_LOGICAL_INPUT_SET_ANALOG: [],
+        FLOWIO_LOGICAL_INPUT_SET_DIGITAL: [],
         FLOWIO_EDGE_MODE_SET: [
             {"value": 0, "label": "0 | Front descendant"},
             {"value": 1, "label": "1 | Front montant"},
             {"value": 2, "label": "2 | Deux fronts"},
         ],
+        POOLLOGIC_DEVICE_SLOT_SET: [],
     }
 
     for m in BINDING_ENTRY_RE.finditer(text):
@@ -286,6 +336,34 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
             "value": port_id,
             "label": f"{port_id} | {_binding_label(kind, port_name, param0, board_points, digital_input_mode_by_port)}",
         })
+
+    for m in POOL_DEVICE_PRESET_RE.finditer(pool_domain_text):
+        slot = int(m.group("slot"))
+        display = m.group("display").strip()
+        if not display:
+            display = m.group("role").strip()
+        enum_sets[POOLLOGIC_DEVICE_SLOT_SET].append({
+            "value": slot,
+            "label": f"{slot} | {display}",
+        })
+
+    analog_base = io_bases.get("IO_ID_AI_BASE")
+    analog_count = io_counts.get("MAX_ANALOG_ENDPOINTS")
+    if analog_base is not None and analog_count is not None:
+        for idx in range(analog_count):
+            enum_sets[FLOWIO_LOGICAL_INPUT_SET_ANALOG].append({
+                "value": analog_base + idx,
+                "label": f"{analog_base + idx} | io/input/a{idx:02d}",
+            })
+
+    digital_base = io_bases.get("IO_ID_DI_BASE")
+    digital_count = io_counts.get("MAX_DIGITAL_INPUTS")
+    if digital_base is not None and digital_count is not None:
+        for idx in range(digital_count):
+            enum_sets[FLOWIO_LOGICAL_INPUT_SET_DIGITAL].append({
+                "value": digital_base + idx,
+                "label": f"{digital_base + idx} | io/input/i{idx:02d}",
+            })
 
     for key in list(enum_sets.keys()):
         enum_sets[key] = sorted(enum_sets[key], key=lambda item: int(item["value"]))
@@ -424,11 +502,11 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
 
     if module_name == "elink/client":
         mapping = {
-            "enabled": ("Client eLink actif", "Active le client eLink côté Supervisor pour dialoguer avec Flow.IO.", None),
-            "sda": ("GPIO SDA eLink", "GPIO utilisé pour la ligne SDA du bus eLink Supervisor -> Flow.IO.", None),
-            "scl": ("GPIO SCL eLink", "GPIO utilisé pour la ligne SCL du bus eLink Supervisor -> Flow.IO.", None),
+            "enabled": ("Client eLink actif", "Active le client eLink côté Supervisor pour dialoguer avec Flow.io.", None),
+            "sda": ("GPIO SDA eLink", "GPIO utilisé pour la ligne SDA du bus eLink Supervisor -> Flow.io.", None),
+            "scl": ("GPIO SCL eLink", "GPIO utilisé pour la ligne SCL du bus eLink Supervisor -> Flow.io.", None),
             "freq_hz": ("Fréquence eLink", "Fréquence du bus eLink en hertz.", "Hz"),
-            "target_addr": ("Adresse cible Flow.IO", "Adresse I2C du serveur eLink sur Flow.IO.", None),
+            "target_addr": ("Adresse cible Flow.io", "Adresse I2C du serveur eLink sur Flow.io.", None),
         }
         hit = mapping.get(json_name)
         if hit:
@@ -439,11 +517,11 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
 
     if module_name == "elink/server":
         mapping = {
-            "enabled": ("Serveur eLink actif", "Active le serveur eLink côté Flow.IO.", None),
-            "sda": ("GPIO SDA eLink", "GPIO utilisé pour la ligne SDA du bus eLink Flow.IO <-> Supervisor.", None),
-            "scl": ("GPIO SCL eLink", "GPIO utilisé pour la ligne SCL du bus eLink Flow.IO <-> Supervisor.", None),
+            "enabled": ("Serveur eLink actif", "Active le serveur eLink côté Flow.io.", None),
+            "sda": ("GPIO SDA eLink", "GPIO utilisé pour la ligne SDA du bus eLink Flow.io <-> Supervisor.", None),
+            "scl": ("GPIO SCL eLink", "GPIO utilisé pour la ligne SCL du bus eLink Flow.io <-> Supervisor.", None),
             "freq_hz": ("Fréquence eLink", "Fréquence du bus eLink en hertz.", "Hz"),
-            "address": ("Adresse locale Flow.IO", "Adresse I2C locale du serveur eLink sur Flow.IO.", None),
+            "address": ("Adresse locale Flow.io", "Adresse I2C locale du serveur eLink sur Flow.io.", None),
         }
         hit = mapping.get(json_name)
         if hit:

@@ -46,14 +46,14 @@ private:
     static constexpr uint8_t MAX_HA_SWITCHES = 14;
     static constexpr uint8_t MAX_HA_NUMBERS = 14;
     static constexpr uint8_t MAX_HA_BUTTONS = 12;
-    static constexpr uint8_t MAX_HA_DISCOVERY_CLEANUPS = 1;
+    static constexpr uint8_t MAX_HA_DISCOVERY_CLEANUPS = 9;
     static constexpr uint16_t MAX_HA_ENTITIES =
         MAX_HA_SENSORS + MAX_HA_BINARY_SENSORS + MAX_HA_SWITCHES + MAX_HA_NUMBERS + MAX_HA_BUTTONS;
     static constexpr uint16_t MAX_HA_MESSAGES = MAX_HA_ENTITIES + MAX_HA_DISCOVERY_CLEANUPS;
 
     struct HAConfig {
         bool enabled = true;
-        char vendor[32] = "Flow.IO";
+        char vendor[32] = "Flow.io";
         char deviceId[32] = "";
         char discoveryPrefix[32] = "homeassistant";
         char model[40] = "Flow Controller";

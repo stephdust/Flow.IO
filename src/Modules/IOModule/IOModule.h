@@ -104,6 +104,9 @@ private:
         RuntimeUiPh = 3,
         RuntimeUiOrp = 4,
         RuntimeUiWaterCounter = 5,
+        RuntimeUiPsi = 6,
+        RuntimeUiBmp280Temp = 7,
+        RuntimeUiBme680Temp = 8,
     };
 
     static bool tickFastAds_(void* ctx, uint32_t nowMs);
@@ -143,6 +146,7 @@ private:
     bool buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uint32_t& maxTsOut, bool invalidAsUndefined = false) const;
     bool buildGroupSnapshot_(char* out, size_t len, bool inputGroup, uint32_t& maxTsOut) const;
     const IOAnalogProvider* analogProviderForSource_(uint8_t source) const;
+    bool writeAnalogProviderRuntimeValue_(RuntimeUiId runtimeId, uint8_t source, uint8_t channel, IRuntimeUiWriter& writer) const;
     bool resolveConfiguredAnalogSource_(uint8_t idx, uint8_t& sourceOut) const;
     bool analogSourceRequiresDriverEnable_(uint8_t source) const;
     bool analogSourceDriverEnabled_(uint8_t source) const;

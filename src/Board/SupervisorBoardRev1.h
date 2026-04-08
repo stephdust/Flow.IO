@@ -47,7 +47,7 @@ inline constexpr SupervisorInputSpec kSupervisorBoardRev1Inputs{
 inline constexpr SupervisorUpdateSpec kSupervisorBoardRev1Update{
     25,
     26,
-    13,
+    12,
     kSupervisorBoardRev1UartBaud
 };
 

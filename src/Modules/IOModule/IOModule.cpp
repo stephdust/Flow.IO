@@ -479,6 +479,23 @@ bool IOModule::buildOutputSnapshot(char* out, size_t len, uint32_t& maxTsOut) co
     return buildGroupSnapshot_(out, len, false, maxTsOut);
 }
 
+bool IOModule::writeAnalogProviderRuntimeValue_(RuntimeUiId runtimeId,
+                                                uint8_t source,
+                                                uint8_t channel,
+                                                IRuntimeUiWriter& writer) const
+{
+    const IOAnalogProvider* provider = analogProviderForSource_(source);
+    if (!provider || !provider->isBound()) {
+        return writer.writeUnavailable(runtimeId);
+    }
+
+    IOAnalogSample sample{};
+    if (!provider->readSample(channel, sample)) {
+        return writer.writeUnavailable(runtimeId);
+    }
+    return writer.writeF32(runtimeId, sample.value);
+}
+
 bool IOModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) const
 {
     const RuntimeUiId runtimeId = makeRuntimeUiId(moduleId(), valueId);
@@ -498,6 +515,13 @@ bool IOModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) co
             if (value.type == IO_VAL_INT32) return writer.writeI32(runtimeId, value.v.i32);
             return writer.writeUnavailable(runtimeId);
         }
+        case RuntimeUiPsi:
+            runtimeIndex = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPsi].runtimeIndex;
+            break;
+        case RuntimeUiBmp280Temp:
+            return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_BMP280, 0U, writer);
+        case RuntimeUiBme680Temp:
+            return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_BME680, 0U, writer);
         case RuntimeUiWaterTemp:
             runtimeIndex = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterTemp].runtimeIndex;
             break;

@@ -21,7 +21,21 @@
 
 namespace {
 static constexpr uint8_t kHaCfgBranch = 1;
-static constexpr char kLegacyUptimeSecondsObjectSuffix[] = "sys_upt_s";
+struct HaDiscoveryCleanupEntry {
+    const char* component;
+    const char* objectSuffix;
+};
+static constexpr HaDiscoveryCleanupEntry kLegacyDiscoveryCleanupEntries[] = {
+    {"sensor", "sys_upt_s"},
+    {"button", "alm_ack_slot_0"},
+    {"button", "alm_ack_slot_1"},
+    {"button", "alm_ack_slot_2"},
+    {"button", "alm_ack_slot_3"},
+    {"button", "alm_ack_slot_4"},
+    {"button", "alm_ack_slot_5"},
+    {"button", "alm_ack_slot_6"},
+    {"button", "alm_ack_slot_7"},
+};
 static constexpr MqttConfigRouteProducer::Route kHaCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::Ha, kHaCfgBranch}, "ha", "ha", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
@@ -442,7 +456,7 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
     if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
              "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
              "\"stat_t\":\"%s\",\"val_tpl\":\"%s\"%s%s%s%s%s%s,"
-             "\"o\":{\"name\":\"Flow.IO\"},"
+             "\"o\":{\"name\":\"Flow.io\"},"
              "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
              "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
              name, objectId, defaultEntityId, uniqueId,
@@ -489,7 +503,7 @@ bool HAModule::publishBinarySensor(const char* objectId, const char* name,
              "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
              "\"stat_t\":\"%s\",\"val_tpl\":\"%s\",\"pl_on\":\"True\",\"pl_off\":\"False\","
              "\"has_entity_name\":false%s%s%s%s,"
-             "\"o\":{\"name\":\"Flow.IO\"},"
+             "\"o\":{\"name\":\"Flow.io\"},"
              "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
              "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
              name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
@@ -530,7 +544,7 @@ bool HAModule::publishSwitch(const char* objectId, const char* name,
                  "\"val_tpl\":\"%s\",\"stat_on\":\"ON\",\"stat_off\":\"OFF\","
                  "\"cmd_t\":\"%s\",\"pl_on\":\"%s\",\"pl_off\":\"%s\","
                  "\"ic\":\"%s\"%s%s,"
-                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"o\":{\"name\":\"Flow.io\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
@@ -545,7 +559,7 @@ bool HAModule::publishSwitch(const char* objectId, const char* name,
                  "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\",\"stat_t\":\"%s\","
                  "\"val_tpl\":\"%s\",\"stat_on\":\"ON\",\"stat_off\":\"OFF\","
                  "\"cmd_t\":\"%s\",\"pl_on\":\"%s\",\"pl_off\":\"%s\"%s%s,"
-                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"o\":{\"name\":\"Flow.io\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
@@ -594,7 +608,7 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
                  "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\",\"stat_t\":\"%s\","
                  "\"val_tpl\":\"%s\",\"cmd_t\":\"%s\",\"cmd_tpl\":\"%s\","
                  "%s,\"mode\":\"%s\",\"ic\":\"%s\"%s%s%s,"
-                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"o\":{\"name\":\"Flow.io\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
@@ -608,7 +622,7 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
                  "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\",\"stat_t\":\"%s\","
                  "\"val_tpl\":\"%s\",\"cmd_t\":\"%s\",\"cmd_tpl\":\"%s\","
                  "%s,\"mode\":\"%s\"%s%s%s,"
-                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"o\":{\"name\":\"Flow.io\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
@@ -644,7 +658,7 @@ bool HAModule::publishButton(const char* objectId, const char* name,
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
                  "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
                  "\"cmd_t\":\"%s\",\"pl_prs\":\"%s\",\"ic\":\"%s\"%s%s,"
-                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"o\":{\"name\":\"Flow.io\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId,
@@ -658,7 +672,7 @@ bool HAModule::publishButton(const char* objectId, const char* name,
         if (!formatChecked(buildCtx.payload, buildCtx.payloadCapacity,
                  "{\"name\":\"%s\",\"obj_id\":\"%s\",\"def_ent_id\":\"%s\",\"uniq_id\":\"%s\","
                  "\"cmd_t\":\"%s\",\"pl_prs\":\"%s\"%s%s,"
-                 "\"o\":{\"name\":\"Flow.IO\"},"
+                 "\"o\":{\"name\":\"Flow.io\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId,
@@ -871,9 +885,12 @@ bool HAModule::buildEntityMessage_(uint16_t messageId, MqttBuildContext& buildCt
 
 bool HAModule::buildLegacyCleanupMessage_(uint16_t cleanupId, MqttBuildContext& buildCtx)
 {
-    if (cleanupId != 0U) return false;
-    if (!buildObjectId(kLegacyUptimeSecondsObjectSuffix, objectIdBuf_, sizeof(objectIdBuf_))) return false;
-    if (!publishDiscovery("sensor", objectIdBuf_, buildCtx)) return false;
+    if (cleanupId >= (uint16_t)(sizeof(kLegacyDiscoveryCleanupEntries) / sizeof(kLegacyDiscoveryCleanupEntries[0]))) {
+        return false;
+    }
+    const HaDiscoveryCleanupEntry& cleanup = kLegacyDiscoveryCleanupEntries[cleanupId];
+    if (!buildObjectId(cleanup.objectSuffix, objectIdBuf_, sizeof(objectIdBuf_))) return false;
+    if (!publishDiscovery(cleanup.component, objectIdBuf_, buildCtx)) return false;
     if (buildCtx.payload && buildCtx.payloadCapacity > 0U) {
         buildCtx.payload[0] = '\0';
     }

@@ -12,7 +12,7 @@
 #include "Core/Services/INetworkAccess.h"
 #include "Core/Services/IWifi.h"
 
-constexpr uint8_t kSupervisorAlarmSlotCount = 4;
+constexpr uint8_t kSupervisorAlarmSlotCount = 6;
 
 class SupervisorSt7789 : public Adafruit_ST7789 {
 public:
@@ -34,6 +34,7 @@ struct SupervisorHmiViewModel {
     char ip[20]{};
     int32_t rssiDbm = -127;
     bool hasRssi = false;
+    uint8_t pageIndex = 0U;
 
     bool flowCfgReady = false;
     bool flowLinkOk = false;
@@ -64,6 +65,17 @@ struct SupervisorHmiViewModel {
     float flowWaterTemp = 0.0f;
     bool flowHasAirTemp = false;
     float flowAirTemp = 0.0f;
+    bool flowHasWaterCounter = false;
+    float flowWaterCounter = 0.0f;
+    bool flowHasPsi = false;
+    float flowPsi = 0.0f;
+    bool flowHasBmp280Temp = false;
+    float flowBmp280Temp = 0.0f;
+    bool flowHasBme680Temp = false;
+    float flowBme680Temp = 0.0f;
+    uint32_t flowAlarmActiveMask = 0U;
+    uint32_t flowAlarmAckedMask = 0U;
+    uint32_t flowAlarmConditionMask = 0U;
     uint8_t flowAlarmActiveCount = 0;
     uint8_t flowAlarmCodeCount = 0;
     char flowAlarmCodes[10][24]{};
@@ -71,6 +83,8 @@ struct SupervisorHmiViewModel {
     uint8_t flowAlarmAckCount = 0;
     uint8_t flowAlarmClrCount = kSupervisorAlarmSlotCount;
     SupervisorAlarmState flowAlarmStates[kSupervisorAlarmSlotCount]{
+        SupervisorAlarmState::Clear,
+        SupervisorAlarmState::Clear,
         SupervisorAlarmState::Clear,
         SupervisorAlarmState::Clear,
         SupervisorAlarmState::Clear,
@@ -130,31 +144,9 @@ private:
     bool started_ = false;
     bool layoutDrawn_ = false;
     bool backlightOn_ = false;
+    bool haveLastVm_ = false;
     uint32_t lastRenderMs_ = 0;
     uint8_t lastPage_ = 0xFFU;
     char lastTime_[16]{};
-    char lastDate_[20]{};
-    char lastIp_[20]{};
-    bool lastHasRssi_ = false;
-    int32_t lastRssiDbm_ = -127;
-    bool lastMqttReady_ = false;
-    uint8_t lastSystemState_ = 0xFFU;
-    bool lastRows_[7]{};
-    bool lastHasPh_ = false;
-    float lastPhValue_ = 0.0f;
-    bool lastHasOrp_ = false;
-    float lastOrpValue_ = 0.0f;
-    bool lastHasWaterTemp_ = false;
-    float lastWaterTemp_ = 0.0f;
-    bool lastHasAirTemp_ = false;
-    float lastAirTemp_ = 0.0f;
-    uint8_t lastAlarmActCount_ = 0xFFU;
-    uint8_t lastAlarmAckCount_ = 0xFFU;
-    uint8_t lastAlarmClrCount_ = 0xFFU;
-    SupervisorAlarmState lastAlarmStates_[kSupervisorAlarmSlotCount]{
-        SupervisorAlarmState::Clear,
-        SupervisorAlarmState::Clear,
-        SupervisorAlarmState::Clear,
-        SupervisorAlarmState::Clear,
-    };
+    SupervisorHmiViewModel lastVm_{};
 };

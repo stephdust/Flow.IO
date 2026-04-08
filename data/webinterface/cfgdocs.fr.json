@@ -176,6 +176,90 @@
           "label": "406 | PortPcf0Bit6 | sortie PCF8574 | bit 6"
         }
       ],
+      "flowio_logical_input_analog": [
+        {
+          "value": 192,
+          "label": "192 | io/input/a00"
+        },
+        {
+          "value": 193,
+          "label": "193 | io/input/a01"
+        },
+        {
+          "value": 194,
+          "label": "194 | io/input/a02"
+        },
+        {
+          "value": 195,
+          "label": "195 | io/input/a03"
+        },
+        {
+          "value": 196,
+          "label": "196 | io/input/a04"
+        },
+        {
+          "value": 197,
+          "label": "197 | io/input/a05"
+        },
+        {
+          "value": 198,
+          "label": "198 | io/input/a06"
+        },
+        {
+          "value": 199,
+          "label": "199 | io/input/a07"
+        },
+        {
+          "value": 200,
+          "label": "200 | io/input/a08"
+        },
+        {
+          "value": 201,
+          "label": "201 | io/input/a09"
+        },
+        {
+          "value": 202,
+          "label": "202 | io/input/a10"
+        },
+        {
+          "value": 203,
+          "label": "203 | io/input/a11"
+        },
+        {
+          "value": 204,
+          "label": "204 | io/input/a12"
+        },
+        {
+          "value": 205,
+          "label": "205 | io/input/a13"
+        },
+        {
+          "value": 206,
+          "label": "206 | io/input/a14"
+        }
+      ],
+      "flowio_logical_input_digital": [
+        {
+          "value": 64,
+          "label": "64 | io/input/i00"
+        },
+        {
+          "value": 65,
+          "label": "65 | io/input/i01"
+        },
+        {
+          "value": 66,
+          "label": "66 | io/input/i02"
+        },
+        {
+          "value": 67,
+          "label": "67 | io/input/i03"
+        },
+        {
+          "value": 68,
+          "label": "68 | io/input/i04"
+        }
+      ],
       "flowio_edge_mode": [
         {
           "value": 0,
@@ -188,6 +272,40 @@
         {
           "value": 2,
           "label": "2 | Deux fronts"
+        }
+      ],
+      "poollogic_device_slot": [
+        {
+          "value": 0,
+          "label": "0 | Filtration Pump"
+        },
+        {
+          "value": 1,
+          "label": "1 | pH Pump"
+        },
+        {
+          "value": 2,
+          "label": "2 | Chlorine Pump"
+        },
+        {
+          "value": 3,
+          "label": "3 | Robot"
+        },
+        {
+          "value": 4,
+          "label": "4 | Fill Pump"
+        },
+        {
+          "value": 5,
+          "label": "5 | Chlorine Generator"
+        },
+        {
+          "value": 6,
+          "label": "6 | Lights"
+        },
+        {
+          "value": 7,
+          "label": "7 | Water Heater"
         }
       ]
     }
@@ -284,7 +402,7 @@
       "name": "enabled",
       "type": "Bool",
       "label": "Client eLink actif",
-      "help": "Active le client eLink cote Supervisor pour dialoguer avec Flow.IO.",
+      "help": "Active le client eLink cote Supervisor pour dialoguer avec Flow.io.",
       "var": "enabledVar_",
       "source": "cfgdoc"
     },
@@ -303,7 +421,7 @@
       "name": "scl",
       "type": "Int32",
       "label": "GPIO SCL interlink",
-      "help": "GPIO utilise pour la ligne SCL du bus interlink Supervisor -> Flow.IO.",
+      "help": "GPIO utilise pour la ligne SCL du bus interlink Supervisor -> Flow.io.",
       "var": "sclVar_",
       "source": "cfgdoc"
     },
@@ -312,7 +430,7 @@
       "name": "sda",
       "type": "Int32",
       "label": "GPIO SDA interlink",
-      "help": "GPIO utilise pour la ligne SDA du bus interlink Supervisor -> Flow.IO.",
+      "help": "GPIO utilise pour la ligne SDA du bus interlink Supervisor -> Flow.io.",
       "var": "sdaVar_",
       "source": "cfgdoc"
     },
@@ -320,8 +438,8 @@
       "module": "elink/client",
       "name": "target_addr",
       "type": "UInt8",
-      "label": "Adresse cible Flow.IO",
-      "help": "Adresse I2C du serveur de configuration sur Flow.IO (mode esclave).",
+      "label": "Adresse cible Flow.io",
+      "help": "Adresse I2C du serveur de configuration sur Flow.io (mode esclave).",
       "var": "addrVar_",
       "source": "cfgdoc",
       "display_format": "hex"
@@ -330,8 +448,8 @@
       "module": "elink/server",
       "name": "address",
       "type": "UInt8",
-      "label": "Adresse locale Flow.IO",
-      "help": "Adresse I2C locale du serveur de configuration Flow.IO (mode esclave).",
+      "label": "Adresse locale Flow.io",
+      "help": "Adresse I2C locale du serveur de configuration Flow.io (mode esclave).",
       "var": "addrVar_",
       "source": "cfgdoc",
       "display_format": "hex"
@@ -341,7 +459,7 @@
       "name": "enabled",
       "type": "Bool",
       "label": "Serveur eLink actif",
-      "help": "Active le serveur eLink cote Flow.IO pour repondre au Supervisor.",
+      "help": "Active le serveur eLink cote Flow.io pour repondre au Supervisor.",
       "var": "enabledVar_",
       "source": "cfgdoc"
     },
@@ -360,7 +478,7 @@
       "name": "scl",
       "type": "Int32",
       "label": "GPIO SCL interlink",
-      "help": "GPIO utilise pour la ligne SCL du bus interlink Flow.IO <-> Supervisor.",
+      "help": "GPIO utilise pour la ligne SCL du bus interlink Flow.io <-> Supervisor.",
       "var": "sclVar_",
       "source": "cfgdoc"
     },
@@ -369,7 +487,7 @@
       "name": "sda",
       "type": "Int32",
       "label": "GPIO SDA interlink",
-      "help": "GPIO utilise pour la ligne SDA du bus interlink Flow.IO <-> Supervisor.",
+      "help": "GPIO utilise pour la ligne SDA du bus interlink Flow.io <-> Supervisor.",
       "var": "sdaVar_",
       "source": "cfgdoc"
     },
@@ -386,8 +504,8 @@
       "module": "fwupdate",
       "name": "flowio_path",
       "type": "CharArray",
-      "label": "Chemin firmware Flow.IO",
-      "help": "Chemin du binaire firmware Flow.IO sur le serveur MAJ.",
+      "label": "Chemin firmware Flow.io",
+      "help": "Chemin du binaire firmware Flow.io sur le serveur MAJ.",
       "var": "flowioPathVar_",
       "source": "cfgdoc"
     },
@@ -2869,7 +2987,8 @@
       "label": "IO température air",
       "help": "Identifiant IO de la sonde température air.",
       "var": "airTempIdVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/auto_mode": {
       "module": "poollogic",
@@ -2887,7 +3006,8 @@
       "label": "IO niveau cuve chlore",
       "help": "Identifiant IO de l'entrée digitale niveau bas cuve chlore.",
       "var": "chlorineLevelIdVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "flowio_logical_input_digital"
     },
     "poollogic/delay/dly_electro_min": {
       "module": "poollogic/delay",
@@ -2956,7 +3076,8 @@
       "label": "Slot remplissage",
       "help": "Numéro de slot PDM associé au remplissage.",
       "var": "fillingDeviceVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/device/filtr_slot": {
       "module": "poollogic/device",
@@ -2965,7 +3086,8 @@
       "label": "Slot filtration",
       "help": "Numéro de slot PDM pilote pour la filtration.",
       "var": "filtrationDeviceVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/device/orp_pump_slot": {
       "module": "poollogic/device",
@@ -2974,7 +3096,8 @@
       "label": "Slot pompe chlore liquide",
       "help": "Numéro de slot PDM associé à la pompe ORP/chlore liquide.",
       "var": "orpPumpDeviceVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/device/ph_pump_slot": {
       "module": "poollogic/device",
@@ -2983,7 +3106,8 @@
       "label": "Slot pompe pH",
       "help": "Numéro de slot PDM associé à la pompe pH.",
       "var": "phPumpDeviceVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/device/robot_slot": {
       "module": "poollogic/device",
@@ -2992,7 +3116,8 @@
       "label": "Slot robot",
       "help": "Numéro de slot PDM associé au robot.",
       "var": "robotDeviceVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/device/swg_slot": {
       "module": "poollogic/device",
@@ -3001,7 +3126,8 @@
       "label": "Slot electrolyse",
       "help": "Numéro de slot PDM associé à l'electrolyseur.",
       "var": "swgDeviceVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/dly_electro_min": {
       "module": "poollogic",
@@ -3067,7 +3193,8 @@
       "label": "Slot remplissage",
       "help": "Numéro de slot PDM associé au remplissage.",
       "var": "fillingDeviceVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/filtr_slot": {
       "module": "poollogic",
@@ -3076,7 +3203,8 @@
       "label": "Slot filtration",
       "help": "Numéro de slot PDM pilote pour la filtration.",
       "var": "filtrationDeviceVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/filtr_start_clc": {
       "module": "poollogic",
@@ -3268,7 +3396,8 @@
       "label": "IO capteur ORP",
       "help": "Identifiant IO de la mesure ORP.",
       "var": "orpIdVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/orp_kd": {
       "module": "poollogic",
@@ -3304,7 +3433,8 @@
       "label": "Slot pompe chlore liquide",
       "help": "Numéro de slot PDM associé à la pompe ORP/chlore liquide.",
       "var": "orpPumpDeviceVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/orp_setpoint": {
       "module": "poollogic",
@@ -3351,7 +3481,8 @@
       "label": "IO capteur pH",
       "help": "Identifiant IO de la mesure pH.",
       "var": "phIdVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/ph_kd": {
       "module": "poollogic",
@@ -3387,7 +3518,8 @@
       "label": "IO niveau cuve pH",
       "help": "Identifiant IO de l'entrée digitale niveau bas cuve pH.",
       "var": "phLevelIdVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "flowio_logical_input_digital"
     },
     "poollogic/ph_pump_slot": {
       "module": "poollogic",
@@ -3396,7 +3528,8 @@
       "label": "Slot pompe pH",
       "help": "Numéro de slot PDM associé à la pompe pH.",
       "var": "phPumpDeviceVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/ph_setpoint": {
       "module": "poollogic",
@@ -3607,7 +3740,8 @@
       "label": "IO niveau bassin",
       "help": "Identifiant IO de la mesure de niveau bassin.",
       "var": "levelIdVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "flowio_logical_input_digital"
     },
     "poollogic/psi_high_th": {
       "module": "poollogic",
@@ -3626,7 +3760,8 @@
       "label": "IO pression",
       "help": "Identifiant IO du capteur de pression.",
       "var": "psiIdVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/psi_low_th": {
       "module": "poollogic",
@@ -3675,7 +3810,8 @@
       "label": "Slot robot",
       "help": "Numéro de slot PDM associé au robot.",
       "var": "robotDeviceVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/secure_elec_t": {
       "module": "poollogic",
@@ -3694,7 +3830,8 @@
       "label": "IO température air",
       "help": "Identifiant IO de la sonde température air.",
       "var": "airTempIdVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/sensors/chl_lvl_io_id": {
       "module": "poollogic/sensors",
@@ -3703,7 +3840,8 @@
       "label": "IO niveau cuve chlore",
       "help": "Identifiant IO de l'entrée digitale niveau bas cuve chlore.",
       "var": "chlorineLevelIdVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "flowio_logical_input_digital"
     },
     "poollogic/sensors/orp_io_id": {
       "module": "poollogic/sensors",
@@ -3712,7 +3850,8 @@
       "label": "IO capteur ORP",
       "help": "Identifiant IO de la mesure ORP.",
       "var": "orpIdVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/sensors/ph_io_id": {
       "module": "poollogic/sensors",
@@ -3721,7 +3860,8 @@
       "label": "IO capteur pH",
       "help": "Identifiant IO de la mesure pH.",
       "var": "phIdVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/sensors/ph_lvl_io_id": {
       "module": "poollogic/sensors",
@@ -3730,7 +3870,8 @@
       "label": "IO niveau cuve pH",
       "help": "Identifiant IO de l'entrée digitale niveau bas cuve pH.",
       "var": "phLevelIdVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "flowio_logical_input_digital"
     },
     "poollogic/sensors/pool_lvl_io_id": {
       "module": "poollogic/sensors",
@@ -3739,7 +3880,8 @@
       "label": "IO niveau bassin",
       "help": "Identifiant IO de la mesure de niveau bassin.",
       "var": "levelIdVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "flowio_logical_input_digital"
     },
     "poollogic/sensors/psi_io_id": {
       "module": "poollogic/sensors",
@@ -3748,7 +3890,8 @@
       "label": "IO pression",
       "help": "Identifiant IO du capteur de pression.",
       "var": "psiIdVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/sensors/wat_temp_io_id": {
       "module": "poollogic/sensors",
@@ -3757,7 +3900,8 @@
       "label": "IO température eau",
       "help": "Identifiant IO de la sonde température eau.",
       "var": "waterTempIdVar_",
-      "source": "cfgdoc-alias"
+      "source": "cfgdoc-alias",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/swg_slot": {
       "module": "poollogic",
@@ -3766,7 +3910,8 @@
       "label": "Slot electrolyse",
       "help": "Numéro de slot PDM associé à l'electrolyseur.",
       "var": "swgDeviceVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/wat_temp_io_id": {
       "module": "poollogic",
@@ -3775,7 +3920,8 @@
       "label": "IO température eau",
       "help": "Identifiant IO de la sonde température eau.",
       "var": "waterTempIdVar_",
-      "source": "cfgdoc"
+      "source": "cfgdoc",
+      "enum_set": "flowio_logical_input_analog"
     },
     "poollogic/wat_temp_lo_th": {
       "module": "poollogic",

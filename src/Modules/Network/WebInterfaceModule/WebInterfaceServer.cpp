@@ -934,9 +934,9 @@ const UartSpec& webBridgeUartSpec_(const BoardSpec& board)
 static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Superviseur Flow.IO</title></head>
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Superviseur Flow.io</title></head>
 <body style="font-family:Arial,sans-serif;background:#0B1F3A;color:#FFFFFF;padding:16px;">
-<h1>Superviseur Flow.IO</h1>
+<h1>Superviseur Flow.io</h1>
 <p>Interface web indisponible (fichiers SPIFFS manquants).</p>
 <p>Veuillez charger SPIFFS puis recharger cette page.</p>
 </body></html>
@@ -1598,9 +1598,9 @@ void WebInterfaceModule::startServer_()
         }
 
         if (flowSyncAttempted && flowSyncOk) {
-            LOGI("WiFi config synced to Flow.IO");
+            LOGI("WiFi config synced to Flow.io");
         } else {
-            LOGW("WiFi config sync to Flow.IO skipped/failed attempted=%d err=%s",
+            LOGW("WiFi config sync to Flow.io skipped/failed attempted=%d err=%s",
                  (int)flowSyncAttempted,
                  flowSyncErr[0] ? flowSyncErr : "none");
         }
@@ -2238,6 +2238,30 @@ void WebInterfaceModule::startServer_()
                           (reply[0] != '\0')
                               ? reply
                               : "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"system.factory_reset\"}}");
+            return;
+        }
+        request->send(200, "application/json", (reply[0] != '\0') ? reply : "{\"ok\":true}");
+    });
+
+    server_.on("/api/system/nextion/reboot", HTTP_POST, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/system/nextion/reboot");
+        if (!cmdSvc_ && services_) {
+            cmdSvc_ = services_->get<CommandService>(ServiceId::Command);
+        }
+        if (!cmdSvc_ || !cmdSvc_->execute) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"fw.nextion.reboot\"}}");
+            return;
+        }
+
+        char reply[220] = {0};
+        const bool ok = cmdSvc_->execute(cmdSvc_->ctx, "fw.nextion.reboot", "{}", nullptr, reply, sizeof(reply));
+        if (!ok) {
+            request->send(500,
+                          "application/json",
+                          (reply[0] != '\0')
+                              ? reply
+                              : "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"fw.nextion.reboot\"}}");
             return;
         }
         request->send(200, "application/json", (reply[0] != '\0') ? reply : "{\"ok\":true}");

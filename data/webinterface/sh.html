@@ -3,9 +3,9 @@
     <aside id="drawer" class="drawer collapsed">
       <div class="drawer-header">
         <button id="menuToggle" class="menu-btn" data-menu-toggle aria-label="Toggle menu">≡</button>
-        <div class="drawer-user" aria-label="Flow.IO">
+        <div class="drawer-user" aria-label="Flow.io">
           <span class="brand-wordmark" aria-hidden="true">
-            <span class="brand-flow">Flow</span><span class="brand-io">.IO</span>
+            <span class="brand-flow">Flow</span><span class="brand-io">.io</span>
           </span>
         </div>
       </div>
@@ -28,9 +28,9 @@
     <main class="content">
       <div class="mobile-topbar">
         <button class="menu-btn" data-menu-toggle aria-label="Open menu">≡</button>
-        <div class="mobile-title" aria-label="Flow.IO">
+        <div class="mobile-title" aria-label="Flow.io">
           <span class="mobile-wordmark" aria-hidden="true">
-            <span class="brand-flow">Flow</span><span class="brand-io">.IO</span>
+            <span class="brand-flow">Flow</span><span class="brand-io">.io</span>
           </span>
         </div>
       </div>
@@ -58,7 +58,7 @@
           <h1>Journaux</h1>
           <div class="topbar-actions">
             <select id="logSourceSelect" class="log-source-select" aria-label="Source des journaux" title="Source des journaux affichés">
-              <option value="flow">Flow.IO (distant)</option>
+              <option value="flow">Flow.io (distant)</option>
               <option value="supervisor">Supervisor (local)</option>
             </select>
             <span id="wsStatus" class="status-chip">inactif</span>
@@ -102,11 +102,11 @@
                   </div>
                 </div>
                 <div class="field full">
-                  <label for="flowPath">Chemin image Flow.IO</label>
+                  <label for="flowPath">Chemin image Flow.io</label>
                   <div class="field-upgrade-row">
                     <div class="field-inline-entry">
                       <input id="flowPath" placeholder="/build/FlowIO.bin" />
-                      <button id="applyFlowPath" type="button" class="control-field-apply" aria-label="Appliquer le chemin Flow.IO" title="Aucun changement a appliquer">✓</button>
+                      <button id="applyFlowPath" type="button" class="control-field-apply" aria-label="Appliquer le chemin Flow.io" title="Aucun changement a appliquer">✓</button>
                     </div>
                     <button id="upFlow" class="btn-primary">Go</button>
                   </div>
@@ -176,15 +176,22 @@
                   </div>
                 </div>
                 <div class="system-action">
-                  <h3>Redémarrer Flow.IO</h3>
-                  <p>Redémarre Flow.IO proprement via le lien I2C.</p>
+                  <h3>Redémarrer Flow.io</h3>
+                  <p>Redémarre Flow.io proprement via le lien I2C.</p>
                   <div class="btn-row system-action-actions">
                     <button id="rebootFlow" class="btn-tonal system-reboot-btn">Redémarrer</button>
                   </div>
                 </div>
                 <div class="system-action">
+                  <h3>Redémarrer Nextion</h3>
+                  <p>Relance uniquement l'écran Nextion via la séquence matérielle dédiée.</p>
+                  <div class="btn-row system-action-actions">
+                    <button id="rebootNextion" class="btn-tonal system-reboot-btn">Redémarrer</button>
+                  </div>
+                </div>
+                <div class="system-action">
                   <h3>Réinitialisation</h3>
-                  <p>Efface la configuration de Flow.IO puis redémarre l’équipement.</p>
+                  <p>Efface la configuration de Flow.io puis redémarre l’équipement.</p>
                   <div class="btn-row system-action-actions">
                     <button id="flowFactoryReset" class="btn-primary">Réinitialiser</button>
                   </div>
@@ -253,7 +260,7 @@
           <div class="control-shell control-shell-tree">
             <div class="control-layout">
               <aside class="cfg-pane cfg-tree-pane">
-                <div id="flowCfgTree" class="cfg-tree" role="tree" aria-label="Arbre de configuration Flow.IO"></div>
+                <div id="flowCfgTree" class="cfg-tree" role="tree" aria-label="Arbre de configuration Flow.io"></div>
               </aside>
               <section class="cfg-pane cfg-detail-pane">
                 <div class="control-section-title">Branche</div>

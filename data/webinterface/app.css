@@ -708,6 +708,12 @@
       gap: 8px;
       width: 100%;
     }
+    .status-card-runtime-group-mode > h3 + .status-state-grid,
+    .status-card-runtime-group-sondes > h3 + .status-kv,
+    .status-card-runtime-group-alarmes > h3 + .status-flag-table,
+    .status-card-runtime-group-systeme > h3 + .status-kv {
+      margin-top: 14px;
+    }
     .status-flag-table {
       width: 100%;
       margin-top: 6px;
