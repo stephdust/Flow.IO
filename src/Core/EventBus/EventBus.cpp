@@ -244,7 +244,7 @@ void EventBus::dispatch(uint16_t maxEvents) {
                 ++subSchedulerTriggered;
             } else if (id == EventId::AlarmRaised ||
                        id == EventId::AlarmCleared ||
-                       id == EventId::AlarmAcked ||
+                       id == EventId::AlarmReset ||
                        id == EventId::AlarmSilenceChanged ||
                        id == EventId::AlarmConditionChanged) {
                 ++subAlarmEvents;

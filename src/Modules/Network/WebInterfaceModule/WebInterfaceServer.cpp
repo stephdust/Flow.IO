@@ -10,6 +10,7 @@
 #include "Core/Generated/RuntimeUiManifest_Generated.h"
 #include "Core/I2cCfgProtocol.h"
 #include "Core/SystemLimits.h"
+#include "Modules/Network/I2CCfgClientModule/I2CCfgClientRuntime.h"
 
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::WebInterfaceModule)
 #include "Core/ModuleLog.h"
@@ -866,6 +867,97 @@ void sendRuntimeUiValuesResponse_(AsyncWebServerRequest* request,
 
     response->print("]}");
     request->send(response);
+}
+
+bool dashboardSlotDegreeCUnit_(const char* unit)
+{
+    if (!unit || unit[0] == '\0') return false;
+    if ((uint8_t)unit[0] == 0xB0 && unit[1] == 'C' && unit[2] == '\0') return true;
+    return (uint8_t)unit[0] == 0xC2 && (uint8_t)unit[1] == 0xB0 && unit[2] == 'C' && unit[3] == '\0';
+}
+
+uint8_t dashboardSlotDecimals_(const FlowRemoteDashboardSlotRuntime& slot)
+{
+    if ((RuntimeUiWireType)slot.wireType != RuntimeUiWireType::Float32) return 0U;
+    if (slot.runtimeUiId == makeRuntimeUiId(ModuleId::Io, 3)) return 2U;
+    if (slot.runtimeUiId == makeRuntimeUiId(ModuleId::Io, 6)) return 2U;
+    const RuntimeUiManifestItem* item = findRuntimeUiManifestItem(slot.runtimeUiId);
+    const char* unit = (item && item->unit) ? item->unit : "";
+    if (unit && strcmp(unit, "mV") == 0) return 0U;
+    return 1U;
+}
+
+void trimDashboardSlotFloat_(char* text)
+{
+    if (!text) return;
+    char* dot = strchr(text, '.');
+    if (!dot) return;
+    char* end = text + strlen(text);
+    while (end > dot && end[-1] == '0') --end;
+    if (end > dot && end[-1] == '.') --end;
+    *end = '\0';
+    if (strcmp(text, "-0") == 0) snprintf(text, 4, "0");
+}
+
+void formatDashboardSlotValueText_(const FlowRemoteDashboardSlotRuntime& slot, char* out, size_t outLen)
+{
+    if (!out || outLen == 0U) return;
+    if (!slot.enabled || !slot.available) {
+        snprintf(out, outLen, "Indisponible");
+        return;
+    }
+
+    const RuntimeUiManifestItem* item = findRuntimeUiManifestItem(slot.runtimeUiId);
+    const char* unit = (item && item->unit) ? item->unit : "";
+
+    switch ((RuntimeUiWireType)slot.wireType) {
+        case RuntimeUiWireType::Bool:
+            snprintf(out, outLen, "%s", slot.boolValue ? "Actif" : "Arret");
+            return;
+        case RuntimeUiWireType::Enum:
+            snprintf(out, outLen, "%u", (unsigned)slot.enumValue);
+            return;
+        case RuntimeUiWireType::Int32:
+            if (unit && unit[0] != '\0') {
+                snprintf(out, outLen, "%ld %s", (long)slot.i32Value, unit);
+            } else {
+                snprintf(out, outLen, "%ld", (long)slot.i32Value);
+            }
+            return;
+        case RuntimeUiWireType::UInt32:
+            if (unit && unit[0] != '\0') {
+                snprintf(out, outLen, "%lu %s", (unsigned long)slot.u32Value, unit);
+            } else {
+                snprintf(out, outLen, "%lu", (unsigned long)slot.u32Value);
+            }
+            return;
+        case RuntimeUiWireType::Float32: {
+            char numberBuf[24] = {0};
+            const uint8_t decimals = dashboardSlotDecimals_(slot);
+            if (decimals > 0U) {
+                snprintf(numberBuf, sizeof(numberBuf), "%.*f", (int)decimals, (double)slot.f32Value);
+                trimDashboardSlotFloat_(numberBuf);
+            } else {
+                snprintf(numberBuf, sizeof(numberBuf), "%ld", lroundf(slot.f32Value));
+            }
+            if (unit && unit[0] != '\0') {
+                if (dashboardSlotDegreeCUnit_(unit)) {
+                    snprintf(out, outLen, "%s %s", numberBuf, "\xC2\xB0""C");
+                } else {
+                    snprintf(out, outLen, "%s %s", numberBuf, unit);
+                }
+            } else {
+                snprintf(out, outLen, "%s", numberBuf);
+            }
+            return;
+        }
+        case RuntimeUiWireType::NotFound:
+        case RuntimeUiWireType::Unavailable:
+        case RuntimeUiWireType::String:
+        default:
+            snprintf(out, outLen, "Indisponible");
+            return;
+    }
 }
 
 struct HttpLatencyScope {
@@ -1755,6 +1847,37 @@ void WebInterfaceModule::startServer_()
                                  kHttpLatencyFlowCfgWarnMs);
         request->send(503, "application/json",
                       "{\"ok\":false,\"err\":{\"code\":\"Disabled\",\"where\":\"runtime.alarms.disabled\"}}");
+    });
+
+    server_.on("/api/runtime/dashboard_slots", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/runtime/dashboard_slots");
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        addNoCacheHeaders_(response);
+        response->print("{\"ok\":true,\"slots\":[");
+        bool first = true;
+        if (dataStore_) {
+            const FlowRemoteRuntimeData& flow = flowRemoteRuntime(*dataStore_);
+            for (uint8_t i = 0U; i < kFlowRemoteDashboardSlotCount; ++i) {
+                const FlowRemoteDashboardSlotRuntime& slot = flow.dashboardSlots[i];
+                if (!slot.enabled) continue;
+
+                char valueBuf[40] = {0};
+                formatDashboardSlotValueText_(slot, valueBuf, sizeof(valueBuf));
+                if (!first) response->print(',');
+                response->print("{\"slot\":");
+                response->print((unsigned)i);
+                response->print(",\"label\":");
+                printJsonEscaped_(*response, slot.label[0] != '\0' ? slot.label : "Mesure");
+                response->print(",\"value\":");
+                printJsonEscaped_(*response, valueBuf);
+                response->print(",\"available\":");
+                response->print(slot.available ? "true" : "false");
+                response->print("}");
+                first = false;
+            }
+        }
+        response->print("]}");
+        request->send(response);
     });
 
     server_.on("/api/runtime/values", HTTP_GET, [this](AsyncWebServerRequest* request) {

@@ -1,4 +1,4 @@
-<svg width="1200" height="520" viewBox="0 0 1200 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow.IO alarms dense MD3 mockup">
+<svg width="1200" height="520" viewBox="0 0 1200 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow.io alarms dense MD3 mockup">
   <defs>
     <style>
       .title { font: 700 24px 'Segoe UI', Roboto, Arial, sans-serif; fill: #1f1f1f; }
@@ -14,7 +14,7 @@
   </defs>
 
   <rect width="1200" height="520" fill="#f5f7fa"/>
-  <text x="40" y="46" class="title">Flow.IO - Variante Dense (MD3)</text>
+  <text x="40" y="46" class="title">Flow.io - Variante Dense (MD3)</text>
   <text x="40" y="70" class="sub">Format compact pour afficher 8 alarmes avec action ack au tap.</text>
 
   <!-- Dense card size: 170x92, gap 16, grid 4x2 -->

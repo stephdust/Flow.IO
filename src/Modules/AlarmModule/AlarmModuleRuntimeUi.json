@@ -25,8 +25,8 @@
     },
     {
       "valueId": 2,
-      "key": "alarms.acked_mask",
-      "label": "Alarmes acquittees",
+      "key": "alarms.resettable_mask",
+      "label": "Alarmes rearmables",
       "type": "uint32",
       "domain": "alarm",
       "group": "Alarmes",
@@ -40,8 +40,8 @@
         { "mask": 32, "label": "Max Uptime atteint Pompe Orp" }
       ],
       "displayConfig": {
-        "flagRole": "acked",
-        "columnLabel": "Ack"
+        "flagRole": "resettable",
+        "columnLabel": "Reset"
       },
       "order": 20
     },

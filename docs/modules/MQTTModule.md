@@ -136,7 +136,7 @@ Note:
 Abonnements:
 - `DataChanged`
 - `ConfigChanged`
-- `AlarmRaised`, `AlarmCleared`, `AlarmAcked`, `AlarmSilenceChanged`, `AlarmConditionChanged`
+- `AlarmRaised`, `AlarmCleared`, `AlarmReset`, `AlarmSilenceChanged`, `AlarmConditionChanged`
 
 Effets:
 - `DataChanged(DATAKEY_WIFI_READY)`: gating connexion MQTT

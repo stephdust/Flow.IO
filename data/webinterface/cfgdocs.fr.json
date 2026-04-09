@@ -1,10 +1,10 @@
 {
   "_meta": {
     "generated": true,
-    "total": 397,
-    "decl_total": 211,
+    "total": 429,
+    "decl_total": 215,
     "decl_with_cfgdoc": 116,
-    "missing_cfgdoc_count": 95,
+    "missing_cfgdoc_count": 99,
     "manual_overrides_total": 23,
     "manual_overrides_applied": 5
   },
@@ -260,6 +260,147 @@
           "label": "68 | io/input/i04"
         }
       ],
+      "elink_dashboard_runtime_ui": [
+        {
+          "value": 2101,
+          "label": "2101 | Temperature eau | pool.water_temp"
+        },
+        {
+          "value": 2102,
+          "label": "2102 | Temperature air | pool.air_temp"
+        },
+        {
+          "value": 2103,
+          "label": "2103 | pH | pool.ph"
+        },
+        {
+          "value": 2104,
+          "label": "2104 | ORP | pool.orp"
+        },
+        {
+          "value": 2105,
+          "label": "2105 | Volume eau | pool.water_counter"
+        },
+        {
+          "value": 2106,
+          "label": "2106 | Pression pompe | pool.psi"
+        },
+        {
+          "value": 2107,
+          "label": "2107 | Temperature BMP280 | io.bmp280_temp"
+        },
+        {
+          "value": 2108,
+          "label": "2108 | Temperature BME680 | io.bme680_temp"
+        }
+      ],
+      "elink_dashboard_color": [
+        {
+          "value": 0,
+          "label": "#4A90E2",
+          "color": "#4A90E2"
+        },
+        {
+          "value": 1,
+          "label": "#20C5D8",
+          "color": "#20C5D8"
+        },
+        {
+          "value": 2,
+          "label": "#54C27A",
+          "color": "#54C27A"
+        },
+        {
+          "value": 3,
+          "label": "#A97CF4",
+          "color": "#A97CF4"
+        },
+        {
+          "value": 4,
+          "label": "#27B7C8",
+          "color": "#27B7C8"
+        },
+        {
+          "value": 5,
+          "label": "#39B8F2",
+          "color": "#39B8F2"
+        },
+        {
+          "value": 6,
+          "label": "#79C7F2",
+          "color": "#79C7F2"
+        },
+        {
+          "value": 7,
+          "label": "#F29B6B",
+          "color": "#F29B6B"
+        },
+        {
+          "value": 8,
+          "label": "#E96AAE",
+          "color": "#E96AAE"
+        },
+        {
+          "value": 9,
+          "label": "#F3A65A",
+          "color": "#F3A65A"
+        },
+        {
+          "value": 10,
+          "label": "#E9CF54",
+          "color": "#E9CF54"
+        },
+        {
+          "value": 11,
+          "label": "#7BC47F",
+          "color": "#7BC47F"
+        },
+        {
+          "value": 12,
+          "label": "#9CCC4A",
+          "color": "#9CCC4A"
+        },
+        {
+          "value": 13,
+          "label": "#B388FF",
+          "color": "#B388FF"
+        },
+        {
+          "value": 14,
+          "label": "#8C9EFF",
+          "color": "#8C9EFF"
+        },
+        {
+          "value": 15,
+          "label": "#6EC6FF",
+          "color": "#6EC6FF"
+        },
+        {
+          "value": 16,
+          "label": "#B7D64A",
+          "color": "#B7D64A"
+        },
+        {
+          "value": 17,
+          "label": "#F28B82",
+          "color": "#F28B82"
+        },
+        {
+          "value": 18,
+          "label": "#D7A184",
+          "color": "#D7A184"
+        },
+        {
+          "value": 19,
+          "label": "#A8B2BF",
+          "color": "#A8B2BF"
+        },
+        {
+          "value": 20,
+          "label": "#FFFFFF",
+          "color": "#FFFFFF"
+        }
+      ],
       "flowio_edge_mode": [
         {
           "value": 0,
@@ -443,6 +584,310 @@
       "var": "addrVar_",
       "source": "cfgdoc",
       "display_format": "hex"
+    },
+    "elink/lcd/sondes/slot00/color_id": {
+      "module": "elink/lcd/sondes/slot00",
+      "name": "color_id",
+      "type": "UInt8",
+      "label": "Couleur de fond",
+      "help": "Palette pastel utilisee comme fond de carte sur le TFT.",
+      "var": "dashboard_slot_00",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot00/enabled": {
+      "module": "elink/lcd/sondes/slot00",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Slot dashboard actif",
+      "help": "Active ou masque ce slot sur le TFT et sur la carte web Sondes.",
+      "var": "dashboard_slot_00",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot00/label": {
+      "module": "elink/lcd/sondes/slot00",
+      "name": "label",
+      "type": "CharArray",
+      "label": "Nom affiche",
+      "help": "Libelle local affiche sur le TFT et dans la carte web.",
+      "var": "dashboard_slot_00",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot00/runtime_ui_id": {
+      "module": "elink/lcd/sondes/slot00",
+      "name": "runtime_ui_id",
+      "type": "UInt16",
+      "label": "Valeur distante",
+      "help": "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.",
+      "var": "dashboard_slot_00",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot01/color_id": {
+      "module": "elink/lcd/sondes/slot01",
+      "name": "color_id",
+      "type": "UInt8",
+      "label": "Couleur de fond",
+      "help": "Palette pastel utilisee comme fond de carte sur le TFT.",
+      "var": "dashboard_slot_01",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot01/enabled": {
+      "module": "elink/lcd/sondes/slot01",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Slot dashboard actif",
+      "help": "Active ou masque ce slot sur le TFT et sur la carte web Sondes.",
+      "var": "dashboard_slot_01",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot01/label": {
+      "module": "elink/lcd/sondes/slot01",
+      "name": "label",
+      "type": "CharArray",
+      "label": "Nom affiche",
+      "help": "Libelle local affiche sur le TFT et dans la carte web.",
+      "var": "dashboard_slot_01",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot01/runtime_ui_id": {
+      "module": "elink/lcd/sondes/slot01",
+      "name": "runtime_ui_id",
+      "type": "UInt16",
+      "label": "Valeur distante",
+      "help": "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.",
+      "var": "dashboard_slot_01",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot02/color_id": {
+      "module": "elink/lcd/sondes/slot02",
+      "name": "color_id",
+      "type": "UInt8",
+      "label": "Couleur de fond",
+      "help": "Palette pastel utilisee comme fond de carte sur le TFT.",
+      "var": "dashboard_slot_02",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot02/enabled": {
+      "module": "elink/lcd/sondes/slot02",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Slot dashboard actif",
+      "help": "Active ou masque ce slot sur le TFT et sur la carte web Sondes.",
+      "var": "dashboard_slot_02",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot02/label": {
+      "module": "elink/lcd/sondes/slot02",
+      "name": "label",
+      "type": "CharArray",
+      "label": "Nom affiche",
+      "help": "Libelle local affiche sur le TFT et dans la carte web.",
+      "var": "dashboard_slot_02",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot02/runtime_ui_id": {
+      "module": "elink/lcd/sondes/slot02",
+      "name": "runtime_ui_id",
+      "type": "UInt16",
+      "label": "Valeur distante",
+      "help": "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.",
+      "var": "dashboard_slot_02",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot03/color_id": {
+      "module": "elink/lcd/sondes/slot03",
+      "name": "color_id",
+      "type": "UInt8",
+      "label": "Couleur de fond",
+      "help": "Palette pastel utilisee comme fond de carte sur le TFT.",
+      "var": "dashboard_slot_03",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot03/enabled": {
+      "module": "elink/lcd/sondes/slot03",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Slot dashboard actif",
+      "help": "Active ou masque ce slot sur le TFT et sur la carte web Sondes.",
+      "var": "dashboard_slot_03",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot03/label": {
+      "module": "elink/lcd/sondes/slot03",
+      "name": "label",
+      "type": "CharArray",
+      "label": "Nom affiche",
+      "help": "Libelle local affiche sur le TFT et dans la carte web.",
+      "var": "dashboard_slot_03",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot03/runtime_ui_id": {
+      "module": "elink/lcd/sondes/slot03",
+      "name": "runtime_ui_id",
+      "type": "UInt16",
+      "label": "Valeur distante",
+      "help": "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.",
+      "var": "dashboard_slot_03",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot04/color_id": {
+      "module": "elink/lcd/sondes/slot04",
+      "name": "color_id",
+      "type": "UInt8",
+      "label": "Couleur de fond",
+      "help": "Palette pastel utilisee comme fond de carte sur le TFT.",
+      "var": "dashboard_slot_04",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot04/enabled": {
+      "module": "elink/lcd/sondes/slot04",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Slot dashboard actif",
+      "help": "Active ou masque ce slot sur le TFT et sur la carte web Sondes.",
+      "var": "dashboard_slot_04",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot04/label": {
+      "module": "elink/lcd/sondes/slot04",
+      "name": "label",
+      "type": "CharArray",
+      "label": "Nom affiche",
+      "help": "Libelle local affiche sur le TFT et dans la carte web.",
+      "var": "dashboard_slot_04",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot04/runtime_ui_id": {
+      "module": "elink/lcd/sondes/slot04",
+      "name": "runtime_ui_id",
+      "type": "UInt16",
+      "label": "Valeur distante",
+      "help": "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.",
+      "var": "dashboard_slot_04",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot05/color_id": {
+      "module": "elink/lcd/sondes/slot05",
+      "name": "color_id",
+      "type": "UInt8",
+      "label": "Couleur de fond",
+      "help": "Palette pastel utilisee comme fond de carte sur le TFT.",
+      "var": "dashboard_slot_05",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot05/enabled": {
+      "module": "elink/lcd/sondes/slot05",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Slot dashboard actif",
+      "help": "Active ou masque ce slot sur le TFT et sur la carte web Sondes.",
+      "var": "dashboard_slot_05",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot05/label": {
+      "module": "elink/lcd/sondes/slot05",
+      "name": "label",
+      "type": "CharArray",
+      "label": "Nom affiche",
+      "help": "Libelle local affiche sur le TFT et dans la carte web.",
+      "var": "dashboard_slot_05",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot05/runtime_ui_id": {
+      "module": "elink/lcd/sondes/slot05",
+      "name": "runtime_ui_id",
+      "type": "UInt16",
+      "label": "Valeur distante",
+      "help": "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.",
+      "var": "dashboard_slot_05",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot06/color_id": {
+      "module": "elink/lcd/sondes/slot06",
+      "name": "color_id",
+      "type": "UInt8",
+      "label": "Couleur de fond",
+      "help": "Palette pastel utilisee comme fond de carte sur le TFT.",
+      "var": "dashboard_slot_06",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot06/enabled": {
+      "module": "elink/lcd/sondes/slot06",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Slot dashboard actif",
+      "help": "Active ou masque ce slot sur le TFT et sur la carte web Sondes.",
+      "var": "dashboard_slot_06",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot06/label": {
+      "module": "elink/lcd/sondes/slot06",
+      "name": "label",
+      "type": "CharArray",
+      "label": "Nom affiche",
+      "help": "Libelle local affiche sur le TFT et dans la carte web.",
+      "var": "dashboard_slot_06",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot06/runtime_ui_id": {
+      "module": "elink/lcd/sondes/slot06",
+      "name": "runtime_ui_id",
+      "type": "UInt16",
+      "label": "Valeur distante",
+      "help": "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.",
+      "var": "dashboard_slot_06",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot07/color_id": {
+      "module": "elink/lcd/sondes/slot07",
+      "name": "color_id",
+      "type": "UInt8",
+      "label": "Couleur de fond",
+      "help": "Palette pastel utilisee comme fond de carte sur le TFT.",
+      "var": "dashboard_slot_07",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot07/enabled": {
+      "module": "elink/lcd/sondes/slot07",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Slot dashboard actif",
+      "help": "Active ou masque ce slot sur le TFT et sur la carte web Sondes.",
+      "var": "dashboard_slot_07",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot07/label": {
+      "module": "elink/lcd/sondes/slot07",
+      "name": "label",
+      "type": "CharArray",
+      "label": "Nom affiche",
+      "help": "Libelle local affiche sur le TFT et dans la carte web.",
+      "var": "dashboard_slot_07",
+      "source": "synthetic-dashboard"
+    },
+    "elink/lcd/sondes/slot07/runtime_ui_id": {
+      "module": "elink/lcd/sondes/slot07",
+      "name": "runtime_ui_id",
+      "type": "UInt16",
+      "label": "Valeur distante",
+      "help": "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.",
+      "var": "dashboard_slot_07",
+      "source": "synthetic-dashboard",
+      "enum_set": "elink_dashboard_runtime_ui"
     },
     "elink/server/address": {
       "module": "elink/server",

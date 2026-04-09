@@ -5,11 +5,13 @@
 
 #include "I2CCfgClientModule.h"
 #include "Core/ErrorCodes.h"
+#include "Core/Generated/RuntimeUiManifest_Generated.h"
 #include "Modules/Network/I2CCfgClientModule/I2CCfgClientRuntime.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::I2cCfgClientModule)
 #include "Core/ModuleLog.h"
 
 #include <ArduinoJson.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,29 +19,155 @@ namespace {
 constexpr uint8_t kInterlinkBus = 1;  // Interlink is fixed on I2C controller 1 (Wire1 on ESP32).
 constexpr uint8_t kI2cClientCfgProducerId = 51;
 constexpr uint8_t kI2cClientCfgBranch = 2;
+constexpr uint8_t kI2cDashboardCfgBranchBase = 10;
 constexpr size_t kRuntimeStatusDomainBufSize = 640;
 constexpr uint32_t kRuntimeCacheTtlMs = 5000U;
 constexpr uint32_t kRemoteRetryCooldownMs = 3000U;
 constexpr uint32_t kPriorityI2cHoldMs = 1500U;
+constexpr uint16_t kCfgMsgDashboardSlotBase = 16U;
+constexpr uint16_t rgb565_(uint8_t r, uint8_t g, uint8_t b)
+{
+    return (uint16_t)(((r & 0xF8U) << 8) | ((g & 0xFCU) << 3) | (b >> 3));
+}
+constexpr uint8_t dashboardCfgBranchId_(uint8_t slot)
+{
+    return (slot < kFlowRemoteDashboardSlotCount) ? (uint8_t)(kI2cDashboardCfgBranchBase + slot) : 0U;
+}
 static constexpr MqttConfigRouteProducer::Route kI2cClientCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::I2cCfg, kI2cClientCfgBranch}, "elink/client", "elink/client", (uint8_t)MqttPublishPriority::Normal, nullptr},
-};
-constexpr RuntimeUiId kMirrorRuntimeUiIds[] = {
-    makeRuntimeUiId(ModuleId::Alarm, 1),
-    makeRuntimeUiId(ModuleId::Alarm, 2),
-    makeRuntimeUiId(ModuleId::Alarm, 3),
-    makeRuntimeUiId(ModuleId::Io, 5),
-    makeRuntimeUiId(ModuleId::Io, 6),
-    makeRuntimeUiId(ModuleId::Io, 7),
-    makeRuntimeUiId(ModuleId::Io, 8),
+    {kCfgMsgDashboardSlotBase + 0U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(0U)}, "elink/lcd/sondes/slot00", "elink/lcd/sondes/slot00", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {kCfgMsgDashboardSlotBase + 1U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(1U)}, "elink/lcd/sondes/slot01", "elink/lcd/sondes/slot01", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {kCfgMsgDashboardSlotBase + 2U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(2U)}, "elink/lcd/sondes/slot02", "elink/lcd/sondes/slot02", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {kCfgMsgDashboardSlotBase + 3U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(3U)}, "elink/lcd/sondes/slot03", "elink/lcd/sondes/slot03", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {kCfgMsgDashboardSlotBase + 4U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(4U)}, "elink/lcd/sondes/slot04", "elink/lcd/sondes/slot04", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {kCfgMsgDashboardSlotBase + 5U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(5U)}, "elink/lcd/sondes/slot05", "elink/lcd/sondes/slot05", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {kCfgMsgDashboardSlotBase + 6U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(6U)}, "elink/lcd/sondes/slot06", "elink/lcd/sondes/slot06", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {kCfgMsgDashboardSlotBase + 7U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(7U)}, "elink/lcd/sondes/slot07", "elink/lcd/sondes/slot07", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
 constexpr RuntimeUiId kRuntimeUiAlarmActiveMask = makeRuntimeUiId(ModuleId::Alarm, 1);
-constexpr RuntimeUiId kRuntimeUiAlarmAckedMask = makeRuntimeUiId(ModuleId::Alarm, 2);
+constexpr RuntimeUiId kRuntimeUiAlarmResettableMask = makeRuntimeUiId(ModuleId::Alarm, 2);
 constexpr RuntimeUiId kRuntimeUiAlarmConditionMask = makeRuntimeUiId(ModuleId::Alarm, 3);
-constexpr RuntimeUiId kRuntimeUiWaterCounter = makeRuntimeUiId(ModuleId::Io, 5);
-constexpr RuntimeUiId kRuntimeUiPsi = makeRuntimeUiId(ModuleId::Io, 6);
-constexpr RuntimeUiId kRuntimeUiBmp280Temp = makeRuntimeUiId(ModuleId::Io, 7);
-constexpr RuntimeUiId kRuntimeUiBme680Temp = makeRuntimeUiId(ModuleId::Io, 8);
+struct DashboardColorPreset {
+    uint8_t id;
+    const char* name;
+    const char* hex;
+    uint16_t rgb565;
+};
+constexpr RuntimeUiId kDashboardDefaultRuntimeUiIds[kFlowRemoteDashboardSlotCount] = {
+    makeRuntimeUiId(ModuleId::Io, 1),
+    makeRuntimeUiId(ModuleId::Io, 2),
+    makeRuntimeUiId(ModuleId::Io, 3),
+    makeRuntimeUiId(ModuleId::Io, 4),
+    makeRuntimeUiId(ModuleId::Io, 5),
+    makeRuntimeUiId(ModuleId::Io, 8),
+    makeRuntimeUiId(ModuleId::Io, 7),
+    makeRuntimeUiId(ModuleId::Io, 6),
+};
+constexpr const char* kDashboardDefaultLabels[kFlowRemoteDashboardSlotCount] = {
+    "Eau",
+    "Air",
+    "pH",
+    "ORP",
+    "Compteur",
+    "BME680",
+    "BMP280",
+    "PSI",
+};
+constexpr DashboardColorPreset kDashboardColorPresets[] = {
+    {0U, "Bleu eau", "#E6EFFF", rgb565_(230, 239, 255)},
+    {1U, "Aqua brume", "#E5F8FC", rgb565_(229, 248, 252)},
+    {2U, "Menthe claire", "#E8FAEF", rgb565_(232, 250, 239)},
+    {3U, "Lavande douce", "#F0EAFE", rgb565_(240, 234, 254)},
+    {4U, "Turquoise pale", "#E4F6FA", rgb565_(228, 246, 250)},
+    {5U, "Bleu glacier", "#E3F7FE", rgb565_(227, 247, 254)},
+    {6U, "Ciel pastel", "#EAF8FD", rgb565_(234, 248, 253)},
+    {7U, "Peche tendre", "#FEF0E8", rgb565_(254, 240, 232)},
+    {8U, "Rose poudre", "#FCE7EF", rgb565_(252, 231, 239)},
+    {9U, "Abricot creme", "#FFF0E1", rgb565_(255, 240, 225)},
+    {10U, "Vanille douce", "#FFF7D9", rgb565_(255, 247, 217)},
+    {11U, "Sauge claire", "#EDF8E7", rgb565_(237, 248, 231)},
+    {12U, "Pistache pale", "#F0FAE6", rgb565_(240, 250, 230)},
+    {13U, "Lilas brume", "#F5EEFF", rgb565_(245, 238, 255)},
+    {14U, "Pervenche pale", "#EBEEFF", rgb565_(235, 238, 255)},
+    {15U, "Bleu coton", "#EEF7FF", rgb565_(238, 247, 255)},
+    {16U, "The vert", "#F4FADE", rgb565_(244, 250, 222)},
+    {17U, "Corail lait", "#FFE9E4", rgb565_(255, 233, 228)},
+    {18U, "Sable rose", "#F9EEE8", rgb565_(249, 238, 232)},
+    {19U, "Gris perle", "#F1F4F8", rgb565_(241, 244, 248)},
+    {20U, "Blanc", "#FFFFFF", rgb565_(255, 255, 255)},
+};
+constexpr uint8_t kDashboardDefaultColorIds[kFlowRemoteDashboardSlotCount] = {
+    0U,
+    1U,
+    2U,
+    3U,
+    4U,
+    5U,
+    6U,
+    7U,
+};
+
+const DashboardColorPreset* dashboardColorPreset_(uint8_t colorId)
+{
+    for (size_t i = 0; i < (sizeof(kDashboardColorPresets) / sizeof(kDashboardColorPresets[0])); ++i) {
+        if (kDashboardColorPresets[i].id == colorId) return &kDashboardColorPresets[i];
+    }
+    return nullptr;
+}
+
+uint16_t dashboardColor565_(uint8_t colorId, uint8_t slotIndex)
+{
+    const DashboardColorPreset* preset = dashboardColorPreset_(colorId);
+    if (preset) return preset->rgb565;
+    if (slotIndex < kFlowRemoteDashboardSlotCount) {
+        preset = dashboardColorPreset_(kDashboardDefaultColorIds[slotIndex]);
+        if (preset) return preset->rgb565;
+    }
+    return rgb565_(238, 247, 255);
+}
+
+bool dashboardRuntimeUiAllowed_(RuntimeUiId id)
+{
+    if (!isValidRuntimeUiId(id)) return false;
+    if (runtimeUiModuleId(id) != moduleIdIndex(ModuleId::Io)) return false;
+    const RuntimeUiManifestItem* item = findRuntimeUiManifestItem(id);
+    if (!item || !item->type) return false;
+    return strcmp(item->type, "string") != 0;
+}
+
+const char* runtimeUiKey_(RuntimeUiId id)
+{
+    const RuntimeUiManifestItem* item = findRuntimeUiManifestItem(id);
+    return (item && item->key) ? item->key : "";
+}
+
+void fallbackDashboardLabel_(RuntimeUiId id, char* out, size_t outLen)
+{
+    if (!out || outLen == 0U) return;
+    out[0] = '\0';
+    const char* key = runtimeUiKey_(id);
+    if (!key || key[0] == '\0') {
+        snprintf(out, outLen, "ID %u", (unsigned)id);
+        return;
+    }
+
+    const char* src = strrchr(key, '.');
+    src = src ? (src + 1) : key;
+    bool upperNext = true;
+    size_t j = 0U;
+    for (size_t i = 0U; src[i] != '\0' && (j + 1U) < outLen; ++i) {
+        char ch = src[i];
+        if (ch == '_' || ch == '-') {
+            out[j++] = ' ';
+            upperNext = true;
+            continue;
+        }
+        if (upperNext && ch >= 'a' && ch <= 'z') ch = (char)(ch - ('a' - 'A'));
+        out[j++] = ch;
+        upperNext = false;
+    }
+    out[j] = '\0';
+}
 
 const char* opName(uint8_t op)
 {
@@ -199,6 +327,55 @@ void I2CCfgClientModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(sclVar_, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(freqVar_, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(addrVar_, kCfgModuleId, kCfgBranchId);
+    for (uint8_t i = 0; i < kDashboardSlotCount; ++i) {
+        DashboardSlotConfig& slotCfg = dashboardCfg_[i];
+        slotCfg.enabled = true;
+        slotCfg.runtimeUiId = kDashboardDefaultRuntimeUiIds[i];
+        snprintf(slotCfg.label, sizeof(slotCfg.label), "%s", kDashboardDefaultLabels[i]);
+        slotCfg.colorId = kDashboardDefaultColorIds[i];
+
+        snprintf(dashboardModuleNames_[i], sizeof(dashboardModuleNames_[i]), "elink/lcd/sondes/slot%02u", (unsigned)i);
+        snprintf(dashboardEnabledKeys_[i], sizeof(dashboardEnabledKeys_[i]), NvsKeys::I2cCfg::DashboardEnabledFmt, (unsigned)i);
+        snprintf(dashboardRuntimeIdKeys_[i], sizeof(dashboardRuntimeIdKeys_[i]), NvsKeys::I2cCfg::DashboardRuntimeIdFmt, (unsigned)i);
+        snprintf(dashboardLabelKeys_[i], sizeof(dashboardLabelKeys_[i]), NvsKeys::I2cCfg::DashboardLabelFmt, (unsigned)i);
+        snprintf(dashboardColorIdKeys_[i], sizeof(dashboardColorIdKeys_[i]), NvsKeys::I2cCfg::DashboardColorIdFmt, (unsigned)i);
+
+        dashboardEnabledVars_[i].nvsKey = dashboardEnabledKeys_[i];
+        dashboardEnabledVars_[i].jsonName = "enabled";
+        dashboardEnabledVars_[i].moduleName = dashboardModuleNames_[i];
+        dashboardEnabledVars_[i].type = ConfigType::Bool;
+        dashboardEnabledVars_[i].value = &slotCfg.enabled;
+        dashboardEnabledVars_[i].persistence = ConfigPersistence::Persistent;
+        dashboardEnabledVars_[i].size = 0U;
+        cfg.registerVar(dashboardEnabledVars_[i], kCfgModuleId, dashboardCfgBranchId_(i));
+
+        dashboardRuntimeIdVars_[i].nvsKey = dashboardRuntimeIdKeys_[i];
+        dashboardRuntimeIdVars_[i].jsonName = "runtime_ui_id";
+        dashboardRuntimeIdVars_[i].moduleName = dashboardModuleNames_[i];
+        dashboardRuntimeIdVars_[i].type = ConfigType::UInt16;
+        dashboardRuntimeIdVars_[i].value = &slotCfg.runtimeUiId;
+        dashboardRuntimeIdVars_[i].persistence = ConfigPersistence::Persistent;
+        dashboardRuntimeIdVars_[i].size = 0U;
+        cfg.registerVar(dashboardRuntimeIdVars_[i], kCfgModuleId, dashboardCfgBranchId_(i));
+
+        dashboardLabelVars_[i].nvsKey = dashboardLabelKeys_[i];
+        dashboardLabelVars_[i].jsonName = "label";
+        dashboardLabelVars_[i].moduleName = dashboardModuleNames_[i];
+        dashboardLabelVars_[i].type = ConfigType::CharArray;
+        dashboardLabelVars_[i].value = slotCfg.label;
+        dashboardLabelVars_[i].persistence = ConfigPersistence::Persistent;
+        dashboardLabelVars_[i].size = sizeof(slotCfg.label);
+        cfg.registerVar(dashboardLabelVars_[i], kCfgModuleId, dashboardCfgBranchId_(i));
+
+        dashboardColorIdVars_[i].nvsKey = dashboardColorIdKeys_[i];
+        dashboardColorIdVars_[i].jsonName = "color_id";
+        dashboardColorIdVars_[i].moduleName = dashboardModuleNames_[i];
+        dashboardColorIdVars_[i].type = ConfigType::UInt8;
+        dashboardColorIdVars_[i].value = &slotCfg.colorId;
+        dashboardColorIdVars_[i].persistence = ConfigPersistence::Persistent;
+        dashboardColorIdVars_[i].size = 0U;
+        cfg.registerVar(dashboardColorIdVars_[i], kCfgModuleId, dashboardCfgBranchId_(i));
+    }
 
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);
     cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
@@ -582,9 +759,12 @@ bool I2CCfgClientModule::refreshRuntimeCacheIfNeeded_(bool force)
 
     uint8_t runtimeUiPayload[I2cCfgProtocol::MaxPayload] = {0};
     size_t runtimeUiPayloadLen = 0U;
+    RuntimeUiId runtimeMirrorIds[3U + kDashboardSlotCount] = {};
+    const uint8_t runtimeMirrorCount = buildRuntimeMirrorIdList_(runtimeMirrorIds,
+                                                                 (uint8_t)(sizeof(runtimeMirrorIds) / sizeof(runtimeMirrorIds[0])));
     if (ok) {
-        if (!fetchRuntimeUiValuesUncached_(kMirrorRuntimeUiIds,
-                                           (uint8_t)(sizeof(kMirrorRuntimeUiIds) / sizeof(kMirrorRuntimeUiIds[0])),
+        if (!fetchRuntimeUiValuesUncached_(runtimeMirrorIds,
+                                           runtimeMirrorCount,
                                            runtimeUiPayload,
                                            sizeof(runtimeUiPayload),
                                            &runtimeUiPayloadLen)) {
@@ -641,6 +821,33 @@ void I2CCfgClientModule::publishFlowRemoteReady_(bool ready)
     }
 }
 
+uint8_t I2CCfgClientModule::buildRuntimeMirrorIdList_(RuntimeUiId* idsOut, uint8_t maxCount) const
+{
+    if (!idsOut || maxCount == 0U) return 0U;
+    uint8_t count = 0U;
+
+    auto appendId = [&](RuntimeUiId id) {
+        if (id == 0U || count >= maxCount) return;
+        for (uint8_t i = 0U; i < count; ++i) {
+            if (idsOut[i] == id) return;
+        }
+        idsOut[count++] = id;
+    };
+
+    appendId(kRuntimeUiAlarmActiveMask);
+    appendId(kRuntimeUiAlarmResettableMask);
+    appendId(kRuntimeUiAlarmConditionMask);
+
+    for (uint8_t i = 0U; i < kDashboardSlotCount; ++i) {
+        const DashboardSlotConfig& slot = dashboardCfg_[i];
+        if (!slot.enabled || slot.runtimeUiId == 0U) continue;
+        if (!dashboardRuntimeUiAllowed_(slot.runtimeUiId)) continue;
+        appendId(slot.runtimeUiId);
+    }
+
+    return count;
+}
+
 bool I2CCfgClientModule::parseFlowRemoteSnapshotFromCache_(FlowRemoteRuntimeData& out)
 {
     if (!runtimeCacheMutex_) return false;
@@ -667,41 +874,56 @@ bool I2CCfgClientModule::parseFlowRemoteSnapshotFromCache_(FlowRemoteRuntimeData
         return true;
     };
 
-    auto readNumberFromCache = [&](RuntimeUiId runtimeId, bool& hasValueOut, float& valueOut) -> bool {
-        hasValueOut = false;
+    auto readDashboardSlotFromCache = [&](RuntimeUiId runtimeId, FlowRemoteDashboardSlotRuntime& slotOut) -> bool {
+        slotOut.available = false;
+        slotOut.wireType = (uint8_t)RuntimeUiWireType::NotFound;
         const RuntimeUiCacheEntry* entry = findRuntimeUiCacheEntry_(runtimeId);
         if (!entry || !entry->valid || entry->len < 3U) return false;
 
         const RuntimeUiWireType wireType = (RuntimeUiWireType)entry->data[2];
+        slotOut.wireType = (uint8_t)wireType;
         if (wireType == RuntimeUiWireType::Unavailable || wireType == RuntimeUiWireType::NotFound) {
             return true;
         }
-        if (entry->len < 7U) return false;
 
-        hasValueOut = true;
-        if (wireType == RuntimeUiWireType::Float32) {
-            memcpy(&valueOut, entry->data + 3U, sizeof(valueOut));
-            return true;
+        switch (wireType) {
+            case RuntimeUiWireType::Bool:
+                if (entry->len < 4U) return false;
+                slotOut.available = true;
+                slotOut.boolValue = entry->data[3] != 0U;
+                return true;
+            case RuntimeUiWireType::Enum:
+                if (entry->len < 4U) return false;
+                slotOut.available = true;
+                slotOut.enumValue = entry->data[3];
+                return true;
+            case RuntimeUiWireType::Int32:
+                if (entry->len < 7U) return false;
+                slotOut.available = true;
+                slotOut.i32Value = (int32_t)((uint32_t)entry->data[3] |
+                                             ((uint32_t)entry->data[4] << 8) |
+                                             ((uint32_t)entry->data[5] << 16) |
+                                             ((uint32_t)entry->data[6] << 24));
+                return true;
+            case RuntimeUiWireType::UInt32:
+                if (entry->len < 7U) return false;
+                slotOut.available = true;
+                slotOut.u32Value = (uint32_t)entry->data[3] |
+                                   ((uint32_t)entry->data[4] << 8) |
+                                   ((uint32_t)entry->data[5] << 16) |
+                                   ((uint32_t)entry->data[6] << 24);
+                return true;
+            case RuntimeUiWireType::Float32:
+                if (entry->len < 7U) return false;
+                slotOut.available = true;
+                memcpy(&slotOut.f32Value, entry->data + 3U, sizeof(slotOut.f32Value));
+                return true;
+            case RuntimeUiWireType::String:
+            case RuntimeUiWireType::Unavailable:
+            case RuntimeUiWireType::NotFound:
+            default:
+                return false;
         }
-        if (wireType == RuntimeUiWireType::Int32) {
-            const int32_t raw = (int32_t)((uint32_t)entry->data[3] |
-                                          ((uint32_t)entry->data[4] << 8) |
-                                          ((uint32_t)entry->data[5] << 16) |
-                                          ((uint32_t)entry->data[6] << 24));
-            valueOut = (float)raw;
-            return true;
-        }
-        if (wireType == RuntimeUiWireType::UInt32) {
-            const uint32_t raw = (uint32_t)entry->data[3] |
-                                 ((uint32_t)entry->data[4] << 8) |
-                                 ((uint32_t)entry->data[5] << 16) |
-                                 ((uint32_t)entry->data[6] << 24);
-            valueOut = (float)raw;
-            return true;
-        }
-
-        hasValueOut = false;
-        return false;
     };
 
     auto parseDomain = [&](FlowStatusDomain domain) -> JsonObjectConst {
@@ -814,13 +1036,27 @@ bool I2CCfgClientModule::parseFlowRemoteSnapshotFromCache_(FlowRemoteRuntimeData
         }
     }
 
-    (void)readNumberFromCache(kRuntimeUiWaterCounter, snapshot.hasWaterCounter, snapshot.waterCounter);
-    (void)readNumberFromCache(kRuntimeUiPsi, snapshot.hasPsi, snapshot.psi);
-    (void)readNumberFromCache(kRuntimeUiBmp280Temp, snapshot.hasBmp280Temp, snapshot.bmp280Temp);
-    (void)readNumberFromCache(kRuntimeUiBme680Temp, snapshot.hasBme680Temp, snapshot.bme680Temp);
     (void)readU32FromCache(kRuntimeUiAlarmActiveMask, snapshot.alarmActiveMask);
-    (void)readU32FromCache(kRuntimeUiAlarmAckedMask, snapshot.alarmAckedMask);
+    (void)readU32FromCache(kRuntimeUiAlarmResettableMask, snapshot.alarmResettableMask);
     (void)readU32FromCache(kRuntimeUiAlarmConditionMask, snapshot.alarmConditionMask);
+    for (uint8_t i = 0U; i < kDashboardSlotCount; ++i) {
+        FlowRemoteDashboardSlotRuntime& slot = snapshot.dashboardSlots[i];
+        const DashboardSlotConfig& cfgSlot = dashboardCfg_[i];
+        slot.enabled = cfgSlot.enabled;
+        slot.runtimeUiId = cfgSlot.runtimeUiId;
+        if (cfgSlot.label[0] != '\0') {
+            snprintf(slot.label, sizeof(slot.label), "%s", cfgSlot.label);
+        } else {
+            fallbackDashboardLabel_(cfgSlot.runtimeUiId, slot.label, sizeof(slot.label));
+        }
+        slot.bgColor565 = dashboardColor565_(cfgSlot.colorId, i);
+        if (!slot.enabled || slot.runtimeUiId == 0U || !dashboardRuntimeUiAllowed_(slot.runtimeUiId)) {
+            slot.available = false;
+            slot.wireType = (uint8_t)RuntimeUiWireType::NotFound;
+            continue;
+        }
+        (void)readDashboardSlotFromCache(slot.runtimeUiId, slot);
+    }
 
     xSemaphoreGive(runtimeCacheMutex_);
     out = snapshot;

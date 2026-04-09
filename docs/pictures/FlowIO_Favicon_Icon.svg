@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">Flow.IO Favicon Icon</title>
-  <desc id="desc">Standalone Flow.IO favicon icon with drop and waves.</desc>
+  <title id="title">Flow.io Favicon Icon</title>
+  <desc id="desc">Standalone Flow.io favicon icon with drop and waves.</desc>
   <defs>
     <linearGradient id="dropGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#21C7FF"/>

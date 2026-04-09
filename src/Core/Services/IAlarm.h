@@ -35,10 +35,10 @@ struct AlarmRegistration {
 /** Service contract exposed by AlarmModule. */
 struct AlarmService {
     bool (*registerAlarm)(void* ctx, const AlarmRegistration* def, AlarmCondFn condFn, void* condCtx);
-    bool (*ack)(void* ctx, AlarmId id);
-    uint8_t (*ackAll)(void* ctx);
+    bool (*reset)(void* ctx, AlarmId id);
+    uint8_t (*resetAll)(void* ctx);
     bool (*isActive)(void* ctx, AlarmId id);
-    bool (*isAcked)(void* ctx, AlarmId id);
+    bool (*isResettable)(void* ctx, AlarmId id);
     uint8_t (*activeCount)(void* ctx);
     AlarmSeverity (*highestSeverity)(void* ctx);
     bool (*buildSnapshot)(void* ctx, char* out, size_t len);

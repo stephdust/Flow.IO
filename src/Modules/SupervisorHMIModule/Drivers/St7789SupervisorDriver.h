@@ -11,8 +11,24 @@
 
 #include "Core/Services/INetworkAccess.h"
 #include "Core/Services/IWifi.h"
+#include "Modules/Network/I2CCfgClientModule/I2CCfgClientModuleDataModel.h"
 
 constexpr uint8_t kSupervisorAlarmSlotCount = 6;
+constexpr uint8_t kSupervisorDashboardSlotCount = kFlowRemoteDashboardSlotCount;
+
+struct SupervisorDashboardSlotViewModel {
+    bool enabled = false;
+    RuntimeUiId runtimeUiId = 0U;
+    char label[24]{};
+    uint16_t bgColor565 = 0U;
+    bool available = false;
+    uint8_t wireType = (uint8_t)RuntimeUiWireType::NotFound;
+    bool boolValue = false;
+    int32_t i32Value = 0;
+    uint32_t u32Value = 0U;
+    float f32Value = 0.0f;
+    uint8_t enumValue = 0U;
+};
 
 class SupervisorSt7789 : public Adafruit_ST7789 {
 public:
@@ -23,7 +39,7 @@ public:
 enum class SupervisorAlarmState : uint8_t {
     Clear = 0,
     Active = 1,
-    Acked = 2,
+    Resettable = 2,
 };
 
 struct SupervisorHmiViewModel {
@@ -74,13 +90,14 @@ struct SupervisorHmiViewModel {
     bool flowHasBme680Temp = false;
     float flowBme680Temp = 0.0f;
     uint32_t flowAlarmActiveMask = 0U;
-    uint32_t flowAlarmAckedMask = 0U;
+    uint32_t flowAlarmResettableMask = 0U;
     uint32_t flowAlarmConditionMask = 0U;
+    SupervisorDashboardSlotViewModel flowDashboardSlots[kSupervisorDashboardSlotCount]{};
     uint8_t flowAlarmActiveCount = 0;
     uint8_t flowAlarmCodeCount = 0;
     char flowAlarmCodes[10][24]{};
     uint8_t flowAlarmActCount = 0;
-    uint8_t flowAlarmAckCount = 0;
+    uint8_t flowAlarmResettableCount = 0;
     uint8_t flowAlarmClrCount = kSupervisorAlarmSlotCount;
     SupervisorAlarmState flowAlarmStates[kSupervisorAlarmSlotCount]{
         SupervisorAlarmState::Clear,

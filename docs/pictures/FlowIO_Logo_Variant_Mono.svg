@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
-  <title id="title">Flow.IO Logo Monochrome Variant</title>
-  <desc id="desc">Monochrome Flow.IO logo for print and PCB documentation.</desc>
+  <title id="title">Flow.io Logo Monochrome Variant</title>
+  <desc id="desc">Monochrome Flow.io logo for print and PCB documentation.</desc>
 
   <rect width="1200" height="360" fill="#FFFFFF"/>
 
@@ -16,7 +16,7 @@
   </g>
 
   <g transform="translate(334,104)" fill="#0B1F2D">
-    <text x="0" y="94" font-family="Montserrat, Avenir Next, Segoe UI, Arial, sans-serif" font-size="122" font-weight="800" letter-spacing="2">FLOW.IO</text>
+    <text x="0" y="94" font-family="Montserrat, Avenir Next, Segoe UI, Arial, sans-serif" font-size="122" font-weight="800" letter-spacing="2">Flow.io</text>
     <text x="2" y="138" font-family="Montserrat, Avenir Next, Segoe UI, Arial, sans-serif" font-size="30" font-weight="600" letter-spacing="5">WATER QUALITY CONTROL</text>
   </g>
 </svg>

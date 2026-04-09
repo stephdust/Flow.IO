@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
-  <title id="title">Flow.IO Logo Badge Variant</title>
-  <desc id="desc">Badge style Flow.IO logo for dark backgrounds with drop and waves.</desc>
+  <title id="title">Flow.io Logo Badge Variant</title>
+  <desc id="desc">Badge style Flow.io logo for dark backgrounds with drop and waves.</desc>
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#06243A"/>

@@ -33,6 +33,7 @@
     let menuAssetsActivated = false;
     let deferredMenuAssetsArmed = false;
     const pendingSystemActionCountdowns = new Map();
+    let activeColorPickerPopover = null;
 
     function applyMenuIconPreference(hidden) {
       hideMenuSvg = !!hidden;
@@ -713,11 +714,11 @@
     let runtimeManifestDomainCache = null;
     let runtimeManifestDomainLoadPromise = null;
     const poolMeasureDomainState = {
-      pool: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 },
-      mqtt: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 },
-      system: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 },
-      wifi: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 },
-      alarm: { active: false, loading: false, entries: [], values: [], error: '', requestSeq: 0 }
+      pool: { active: false, loading: false, entries: [], values: [], dashboardSlots: [], error: '', requestSeq: 0 },
+      mqtt: { active: false, loading: false, entries: [], values: [], dashboardSlots: [], error: '', requestSeq: 0 },
+      system: { active: false, loading: false, entries: [], values: [], dashboardSlots: [], error: '', requestSeq: 0 },
+      wifi: { active: false, loading: false, entries: [], values: [], dashboardSlots: [], error: '', requestSeq: 0 },
+      alarm: { active: false, loading: false, entries: [], values: [], dashboardSlots: [], error: '', requestSeq: 0 }
     };
     const poolMeasureDomainAnimations = {};
     const upgradeReconnectFetchTimeoutMs = 1400;
@@ -2713,6 +2714,48 @@
       return data.values;
     }
 
+    async function fetchPoolDashboardSlots() {
+      const data = await fetchOkJson(
+        '/api/runtime/dashboard_slots',
+        { cache: 'no-store' },
+        'lecture sondes supervisor indisponible'
+      );
+      return Array.isArray(data.slots) ? data.slots : [];
+    }
+
+    function isPoolDashboardSondesEntry(entry) {
+      if (!entry || String(entry.domain || '').trim().toLowerCase() !== 'pool') return false;
+      return String(entry.group || '').trim().localeCompare('Sondes', 'fr', { sensitivity: 'base' }) === 0;
+    }
+
+    function buildPoolDashboardSlotsCard(slots) {
+      const cleanSlots = Array.isArray(slots) ? slots : [];
+      if (!cleanSlots.length) return null;
+
+      const card = document.createElement('div');
+      card.className = 'status-card status-card-runtime status-card-runtime-domain-pool status-card-runtime-group-sondes';
+
+      const heading = document.createElement('h3');
+      heading.textContent = formatRuntimeGroupCardTitle('pool', 'Sondes');
+      card.appendChild(heading);
+
+      const kv = document.createElement('div');
+      kv.className = 'status-kv';
+      cleanSlots.forEach((slot) => {
+        const label = (slot && typeof slot.label === 'string') ? slot.label.trim() : '';
+        const value = (slot && typeof slot.value === 'string') ? slot.value.trim() : '';
+        if (!label && !value) return;
+        appendFlowStatusRow(
+          kv,
+          label,
+          value
+        );
+      });
+      if (!kv.childNodes.length) return null;
+      card.appendChild(kv);
+      return card;
+    }
+
     function runtimeMeasureDisplayLabel(entry) {
       return entry.label || entry.key || String(entry.id);
     }
@@ -2860,7 +2903,7 @@
     function runtimeMeasureFlagRole(entry) {
       const displayConfig = runtimeMeasureDisplayConfig(entry);
       const role = String(displayConfig.flagRole || '').trim().toLowerCase();
-      if (role === 'active' || role === 'acked' || role === 'condition') return role;
+      if (role === 'active' || role === 'resettable' || role === 'condition') return role;
       return '';
     }
 
@@ -2870,7 +2913,7 @@
       if (explicit) return explicit;
       const role = runtimeMeasureFlagRole(entry);
       if (role === 'active') return 'Act.';
-      if (role === 'acked') return 'Ack';
+      if (role === 'resettable') return 'Reset';
       if (role === 'condition') return 'Cond.';
       return runtimeMeasureDisplayLabel(entry);
     }
@@ -2929,7 +2972,7 @@
 
       if (!flagDefs.length || columnsByRole.size === 0) return null;
 
-      const orderedColumns = ['active', 'acked', 'condition']
+      const orderedColumns = ['active', 'condition']
         .map((role) => ({ role, entry: columnsByRole.get(role) || null }))
         .filter((column) => !!column.entry);
       if (!orderedColumns.length) return null;
@@ -3187,6 +3230,7 @@
       let renderedCardCount = 0;
       activeDomains.forEach((domainKey) => {
         const state = poolMeasureDomainState[domainKey];
+        const hasDashboardSlots = cleanDomainName => cleanDomainName === 'pool' && Array.isArray(state.dashboardSlots) && state.dashboardSlots.length > 0;
         if (state.loading) {
           const card = document.createElement('div');
           card.className = 'status-card';
@@ -3215,7 +3259,7 @@
           renderedCardCount += 1;
           return;
         }
-        if (!state.entries.length) {
+        if (!state.entries.length && !hasDashboardSlots(domainKey)) {
           const card = document.createElement('div');
           card.className = 'status-card';
           const heading = document.createElement('h3');
@@ -3228,6 +3272,13 @@
           poolMeasuresGrid.appendChild(card);
           renderedCardCount += 1;
           return;
+        }
+        if (hasDashboardSlots(domainKey)) {
+          const dashboardCard = buildPoolDashboardSlotsCard(state.dashboardSlots);
+          if (dashboardCard) {
+            poolMeasuresGrid.appendChild(dashboardCard);
+            renderedCardCount += 1;
+          }
         }
         const cards = buildPoolMeasureCards(state.entries, state.values);
         renderedCardCount += cards.childNodes.length;
@@ -3259,6 +3310,9 @@
         if (state.loading) loadingCount += 1;
         if (state.error) errorCount += 1;
         valueCount += state.entries.length;
+        if (domainKey === 'pool' && Array.isArray(state.dashboardSlots)) {
+          valueCount += state.dashboardSlots.length;
+        }
       });
 
       if (loadingCount > 0) {
@@ -3294,17 +3348,25 @@
       refreshPoolMeasuresView();
 
       try {
-        const entries = await runtimeMeasureEntriesForDomain(cleanDomain, !!forceRefresh);
+        const allEntries = await runtimeMeasureEntriesForDomain(cleanDomain, !!forceRefresh);
+        const entries = cleanDomain === 'pool'
+          ? allEntries.filter((entry) => !isPoolDashboardSondesEntry(entry))
+          : allEntries;
         const ids = entries.map((entry) => Number(entry.id)).filter((id) => Number.isFinite(id));
         const values = ids.length ? await fetchRuntimeValues(ids) : [];
+        const dashboardSlots = cleanDomain === 'pool'
+          ? await fetchPoolDashboardSlots().catch(() => [])
+          : [];
         if (state.requestSeq !== requestSeq) return;
         state.entries = entries;
         state.values = values;
+        state.dashboardSlots = dashboardSlots;
         state.error = '';
       } catch (err) {
         if (state.requestSeq !== requestSeq) return;
         state.entries = [];
         state.values = [];
+        state.dashboardSlots = [];
         state.error = 'Chargement ' + formatRuntimeDomainLabel(cleanDomain) + ' echoue: ' + err;
       } finally {
         if (state.requestSeq === requestSeq) {
@@ -3334,6 +3396,7 @@
         state.active = false;
         state.loading = false;
         state.error = '';
+        state.dashboardSlots = [];
         state.requestSeq += 1;
         refreshPoolMeasuresView();
         return;
@@ -4195,6 +4258,149 @@
       return resolved;
     }
 
+    function closeColorPickerPopover() {
+      if (!activeColorPickerPopover) return;
+      const state = activeColorPickerPopover;
+      activeColorPickerPopover = null;
+      if (state.outsideHandler) {
+        document.removeEventListener('mousedown', state.outsideHandler, true);
+      }
+      if (state.keyHandler) {
+        document.removeEventListener('keydown', state.keyHandler, true);
+      }
+      if (state.repositionHandler) {
+        window.removeEventListener('resize', state.repositionHandler, true);
+        window.removeEventListener('scroll', state.repositionHandler, true);
+      }
+      if (state.popover && state.popover.parentNode) {
+        state.popover.parentNode.removeChild(state.popover);
+      }
+    }
+
+    function enumOptionColor(enumOptions, value) {
+      if (!Array.isArray(enumOptions)) return '';
+      const currentValue = String(value ?? '');
+      for (const opt of enumOptions) {
+        if (!opt || typeof opt !== 'object') continue;
+        if (String(opt.value) !== currentValue) continue;
+        return (typeof opt.color === 'string') ? opt.color.trim() : '';
+      }
+      return '';
+    }
+
+    function positionColorPickerPopover(popover, anchorEl) {
+      if (!popover || !anchorEl) return;
+      const anchorRect = anchorEl.getBoundingClientRect();
+      const popRect = popover.getBoundingClientRect();
+      const margin = 12;
+      let left = anchorRect.left + (anchorRect.width / 2) - (popRect.width / 2);
+      let top = anchorRect.bottom + 10;
+      left = Math.max(margin, Math.min(left, window.innerWidth - popRect.width - margin));
+      if (top + popRect.height > window.innerHeight - margin) {
+        top = Math.max(margin, anchorRect.top - popRect.height - 10);
+      }
+      popover.style.left = Math.round(left) + 'px';
+      popover.style.top = Math.round(top) + 'px';
+    }
+
+    function updateColorTriggerVisual(trigger, enumOptions, value) {
+      if (!trigger) return;
+      const color = enumOptionColor(enumOptions, value) || '#FFFFFF';
+      trigger.style.background = color;
+      trigger.dataset.color = color;
+      trigger.setAttribute('aria-label', 'Couleur ' + color);
+      trigger.title = color;
+    }
+
+    function openColorPickerPopover(trigger, inputEl, enumOptions) {
+      if (!trigger || !inputEl || !Array.isArray(enumOptions) || !enumOptions.length) return;
+      closeColorPickerPopover();
+
+      const popover = document.createElement('div');
+      popover.className = 'color-picker-popover';
+      popover.setAttribute('role', 'dialog');
+      popover.setAttribute('aria-modal', 'false');
+
+      const grid = document.createElement('div');
+      grid.className = 'color-picker-grid';
+      const currentValue = String(inputEl.value ?? '');
+      enumOptions.forEach((opt) => {
+        if (!opt || typeof opt !== 'object') return;
+        const color = (typeof opt.color === 'string') ? opt.color.trim() : '';
+        if (!color) return;
+        const swatch = document.createElement('button');
+        swatch.type = 'button';
+        swatch.className = 'color-picker-swatch';
+        swatch.style.background = color;
+        swatch.dataset.color = color;
+        swatch.setAttribute('aria-label', color);
+        swatch.title = color;
+        if (String(opt.value) === currentValue) {
+          swatch.classList.add('is-selected');
+        }
+        swatch.addEventListener('click', () => {
+          inputEl.value = String(opt.value);
+          updateColorTriggerVisual(trigger, enumOptions, inputEl.value);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+          closeColorPickerPopover();
+        });
+        grid.appendChild(swatch);
+      });
+      popover.appendChild(grid);
+      document.body.appendChild(popover);
+      positionColorPickerPopover(popover, trigger);
+
+      const outsideHandler = (event) => {
+        const target = event && event.target;
+        if (popover.contains(target) || trigger.contains(target)) return;
+        closeColorPickerPopover();
+      };
+      const keyHandler = (event) => {
+        if (event && event.key === 'Escape') {
+          closeColorPickerPopover();
+        }
+      };
+      const repositionHandler = () => {
+        if (!activeColorPickerPopover || activeColorPickerPopover.popover !== popover) return;
+        positionColorPickerPopover(popover, trigger);
+      };
+
+      document.addEventListener('mousedown', outsideHandler, true);
+      document.addEventListener('keydown', keyHandler, true);
+      window.addEventListener('resize', repositionHandler, true);
+      window.addEventListener('scroll', repositionHandler, true);
+      activeColorPickerPopover = { popover, trigger, outsideHandler, keyHandler, repositionHandler };
+    }
+
+    function createColorPickerControl(doc, key, value, enumOptions) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.className = 'control-color-input';
+      input.dataset.key = key;
+      input.dataset.kind = configNumericKind(doc, value);
+      input.dataset.label = (doc && typeof doc.label === 'string' && doc.label.length > 0) ? doc.label : key;
+      input.value = String(value ?? '');
+      storeConfigFieldInitialValue(input, value);
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'control-color-trigger';
+      trigger.setAttribute('aria-haspopup', 'dialog');
+      updateColorTriggerVisual(trigger, enumOptions, input.value);
+      trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (activeColorPickerPopover && activeColorPickerPopover.trigger === trigger) {
+          closeColorPickerPopover();
+          return;
+        }
+        openColorPickerPopover(trigger, input, enumOptions);
+      });
+
+      return { input, trigger };
+    }
+
     function formatConfigValueForDisplay(value, displayFormat) {
       if (displayFormat === 'hex' && typeof value === 'number' && Number.isFinite(value)) {
         const raw = Math.max(0, Math.trunc(value));
@@ -4496,6 +4702,7 @@
 
     function renderConfigFields(containerEl, moduleName, dataObj, options) {
       const opts = options || {};
+      closeColorPickerPopover();
       containerEl.innerHTML = '';
       const data = (dataObj && typeof dataObj === 'object') ? dataObj : {};
       const perFieldApply = !!opts.perFieldApply;
@@ -4567,6 +4774,12 @@
           inputEl = input;
           valueWrap.classList.add('control-value-wrap-bool');
           valueWrap.appendChild(sw);
+        } else if (enumOptions && enumOptions.length > 0 && enumOptions.some((opt) => opt && typeof opt.color === 'string' && opt.color.trim().length > 0)) {
+          const colorControl = createColorPickerControl(doc, key, value, enumOptions);
+          inputEl = colorControl.input;
+          valueWrap.classList.add('control-value-wrap-color');
+          valueWrap.appendChild(colorControl.input);
+          valueWrap.appendChild(colorControl.trigger);
         } else if (enumOptions && enumOptions.length > 0) {
           const select = document.createElement('select');
           select.className = 'control-input';
@@ -4576,6 +4789,7 @@
             select.dataset.format = doc.display_format;
           }
           const currentValue = String(value);
+          let hasSelectedOption = false;
           enumOptions.forEach((opt) => {
             if (!opt || typeof opt !== 'object') return;
             const optionEl = document.createElement('option');
@@ -4583,11 +4797,22 @@
             optionEl.textContent = (typeof opt.label === 'string' && opt.label.length > 0)
               ? opt.label
               : String(opt.value);
+            if (typeof opt.color === 'string' && opt.color.trim().length > 0) {
+              optionEl.dataset.color = opt.color.trim();
+            }
             if (optionEl.value === currentValue) {
               optionEl.selected = true;
+              hasSelectedOption = true;
             }
             select.appendChild(optionEl);
           });
+          if (!hasSelectedOption && currentValue.length > 0) {
+            const placeholder = document.createElement('option');
+            placeholder.value = currentValue;
+            placeholder.textContent = 'Valeur non definie';
+            placeholder.selected = true;
+            select.insertBefore(placeholder, select.firstChild);
+          }
           storeConfigFieldInitialValue(select, value);
           inputEl = select;
           valueWrap.appendChild(select);

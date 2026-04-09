@@ -33,7 +33,7 @@ Aucun direct.
 Le `CommandModule` n'ajoute pas de commande métier lui-même; il sert d'infrastructure.
 Commandes enregistrées par d'autres modules:
 - `system.ping`, `system.reboot`, `system.factory_reset`
-- `alarms.list`, `alarms.ack`, `alarms.ack_all`
+- `alarms.list`, `alarms.reset`, `alarms.reset_all`
 - `time.resync`, `ntp.resync`
 - `time.scheduler.info/get/set/clear/clear_all`
 - `poollogic.filtration.write`, `poollogic.filtration.recalc`, `poollogic.auto_mode.set`

@@ -1,4 +1,4 @@
-# Empreinte memoire Flow.IO
+# Empreinte memoire Flow.io
 
 Cette note documente l'occupation memoire du firmware `FlowIO` sur ESP32, avec deux angles:
 

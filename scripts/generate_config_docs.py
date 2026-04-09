@@ -116,6 +116,8 @@ FLOWIO_EDGE_MODE_SET = "flowio_edge_mode"
 POOLLOGIC_DEVICE_SLOT_SET = "poollogic_device_slot"
 FLOWIO_LOGICAL_INPUT_SET_ANALOG = "flowio_logical_input_analog"
 FLOWIO_LOGICAL_INPUT_SET_DIGITAL = "flowio_logical_input_digital"
+ELINK_DASHBOARD_RUNTIME_UI_SET = "elink_dashboard_runtime_ui"
+ELINK_DASHBOARD_COLOR_SET = "elink_dashboard_color"
 
 
 def _io_slot_token(idx: int) -> str:
@@ -150,6 +152,11 @@ def _default_series_help(var_name: str, json_name: str, type_name: str) -> str:
 
 
 def _binding_enum_set_for_doc(module_name: str, json_name: str) -> Optional[str]:
+    if module_name.startswith("elink/lcd/sondes/slot"):
+        if json_name == "runtime_ui_id":
+            return ELINK_DASHBOARD_RUNTIME_UI_SET
+        if json_name == "color_id":
+            return ELINK_DASHBOARD_COLOR_SET
     if json_name == "binding_port":
         if module_name.startswith("io/input/a"):
             return FLOWIO_BINDING_SET_ANALOG
@@ -293,6 +300,7 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
     io_service_text = io_service_path.read_text(encoding="utf-8", errors="ignore") if io_service_path.exists() else ""
     io_module_path = src_root / "Modules" / "IOModule" / "IOModule.h"
     io_module_text = io_module_path.read_text(encoding="utf-8", errors="ignore") if io_module_path.exists() else ""
+    runtime_ui_path = src_root.parent / "data" / "webinterface" / "runtimeui.json"
 
     port_ids: Dict[str, int] = {}
     for m in PORT_ENUM_RE.finditer(text):
@@ -316,6 +324,30 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
         FLOWIO_BINDING_SET_DIGITAL_OUTPUT: [],
         FLOWIO_LOGICAL_INPUT_SET_ANALOG: [],
         FLOWIO_LOGICAL_INPUT_SET_DIGITAL: [],
+        ELINK_DASHBOARD_RUNTIME_UI_SET: [],
+        ELINK_DASHBOARD_COLOR_SET: [
+            {"value": 0, "label": "#4A90E2", "color": "#4A90E2"},
+            {"value": 1, "label": "#20C5D8", "color": "#20C5D8"},
+            {"value": 2, "label": "#54C27A", "color": "#54C27A"},
+            {"value": 3, "label": "#A97CF4", "color": "#A97CF4"},
+            {"value": 4, "label": "#27B7C8", "color": "#27B7C8"},
+            {"value": 5, "label": "#39B8F2", "color": "#39B8F2"},
+            {"value": 6, "label": "#79C7F2", "color": "#79C7F2"},
+            {"value": 7, "label": "#F29B6B", "color": "#F29B6B"},
+            {"value": 8, "label": "#E96AAE", "color": "#E96AAE"},
+            {"value": 9, "label": "#F3A65A", "color": "#F3A65A"},
+            {"value": 10, "label": "#E9CF54", "color": "#E9CF54"},
+            {"value": 11, "label": "#7BC47F", "color": "#7BC47F"},
+            {"value": 12, "label": "#9CCC4A", "color": "#9CCC4A"},
+            {"value": 13, "label": "#B388FF", "color": "#B388FF"},
+            {"value": 14, "label": "#8C9EFF", "color": "#8C9EFF"},
+            {"value": 15, "label": "#6EC6FF", "color": "#6EC6FF"},
+            {"value": 16, "label": "#B7D64A", "color": "#B7D64A"},
+            {"value": 17, "label": "#F28B82", "color": "#F28B82"},
+            {"value": 18, "label": "#D7A184", "color": "#D7A184"},
+            {"value": 19, "label": "#A8B2BF", "color": "#A8B2BF"},
+            {"value": 20, "label": "#FFFFFF", "color": "#FFFFFF"},
+        ],
         FLOWIO_EDGE_MODE_SET: [
             {"value": 0, "label": "0 | Front descendant"},
             {"value": 1, "label": "1 | Front montant"},
@@ -365,6 +397,31 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
                 "label": f"{digital_base + idx} | io/input/i{idx:02d}",
             })
 
+    if runtime_ui_path.exists():
+        runtime_payload = json.loads(runtime_ui_path.read_text(encoding="utf-8", errors="ignore"))
+        values = runtime_payload.get("values") if isinstance(runtime_payload, dict) else None
+        if isinstance(values, list):
+            for entry in values:
+                if not isinstance(entry, dict):
+                    continue
+                if entry.get("module") != "io":
+                    continue
+                if entry.get("type") == "string":
+                    continue
+                runtime_id = entry.get("runtimeId")
+                if not isinstance(runtime_id, int):
+                    continue
+                label = str(entry.get("label") or entry.get("key") or f"Runtime {runtime_id}").strip()
+                key = str(entry.get("key") or "").strip()
+                if key:
+                    label = f"{runtime_id} | {label} | {key}"
+                else:
+                    label = f"{runtime_id} | {label}"
+                enum_sets[ELINK_DASHBOARD_RUNTIME_UI_SET].append({
+                    "value": runtime_id,
+                    "label": label,
+                })
+
     for key in list(enum_sets.keys()):
         enum_sets[key] = sorted(enum_sets[key], key=lambda item: int(item["value"]))
     return enum_sets
@@ -373,6 +430,17 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
 def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
     module_name = module_name.strip("/")
     json_name = json_name.strip()
+
+    if module_name.startswith("elink/lcd/sondes/slot"):
+        mapping = {
+            "enabled": ("Slot dashboard actif", "Active ou masque ce slot sur le TFT et sur la carte web Sondes.", None),
+            "runtime_ui_id": ("Valeur distante", "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.", None),
+            "label": ("Nom affiche", "Libelle local affiche sur le TFT et dans la carte web.", None),
+            "color_id": ("Couleur de fond", "Palette pastel utilisee comme fond de carte sur le TFT.", None),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
 
     if module_name == "io":
         mapping = {
@@ -1020,6 +1088,32 @@ def _build_entries(src_root: Path) -> Tuple[Dict[str, dict], dict]:
                 "help": auto_doc.get("help") if auto_doc else _default_help(module_name, json_name, type_name),
                 "var": f"a{slot}",
                 "source": "synthetic-analog",
+            }
+            if auto_doc and auto_doc.get("unit"):
+                item["unit"] = auto_doc["unit"]
+            if auto_doc and auto_doc.get("display_format"):
+                item["display_format"] = auto_doc["display_format"]
+            _apply_doc_extras(item, module_name, json_name)
+            _upsert_entry(entries, f"{module_name}/{json_name}", item, 10)
+
+    dashboard_fields = (
+        ("enabled", "Bool"),
+        ("runtime_ui_id", "UInt16"),
+        ("label", "CharArray"),
+        ("color_id", "UInt8"),
+    )
+    for idx in range(8):
+        module_name = f"elink/lcd/sondes/slot{idx:02d}"
+        for json_name, type_name in dashboard_fields:
+            auto_doc = _auto_doc_hint(module_name, json_name)
+            item = {
+                "module": module_name,
+                "name": json_name,
+                "type": type_name,
+                "label": auto_doc.get("label") if auto_doc else _humanize_json_name(json_name),
+                "help": auto_doc.get("help") if auto_doc else _default_help(module_name, json_name, type_name),
+                "var": f"dashboard_slot_{idx:02d}",
+                "source": "synthetic-dashboard",
             }
             if auto_doc and auto_doc.get("unit"):
                 item["unit"] = auto_doc["unit"]

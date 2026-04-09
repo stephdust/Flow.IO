@@ -52,12 +52,20 @@ constexpr DataKey DATAKEY_FLOW_REMOTE_BMP280_TEMP = DataKeys::FlowRemoteBmp280Te
 constexpr DataKey DATAKEY_FLOW_REMOTE_HAS_BME680_TEMP = DataKeys::FlowRemoteHasBme680Temp;
 constexpr DataKey DATAKEY_FLOW_REMOTE_BME680_TEMP = DataKeys::FlowRemoteBme680Temp;
 constexpr DataKey DATAKEY_FLOW_REMOTE_ALARM_ACTIVE_MASK = DataKeys::FlowRemoteAlarmActiveMask;
-constexpr DataKey DATAKEY_FLOW_REMOTE_ALARM_ACKED_MASK = DataKeys::FlowRemoteAlarmAckedMask;
+constexpr DataKey DATAKEY_FLOW_REMOTE_ALARM_RESETTABLE_MASK = DataKeys::FlowRemoteAlarmResettableMask;
 constexpr DataKey DATAKEY_FLOW_REMOTE_ALARM_CONDITION_MASK = DataKeys::FlowRemoteAlarmConditionMask;
+constexpr DataKey DATAKEY_FLOW_REMOTE_DASHBOARD_SLOT_BASE = DataKeys::FlowRemoteDashboardSlotBase;
 
 static inline const FlowRemoteRuntimeData& flowRemoteRuntime(const DataStore& ds)
 {
     return ds.data().flowRemote;
+}
+
+static inline bool flowRemoteDashboardSlotRuntime(const DataStore& ds, uint8_t idx, FlowRemoteDashboardSlotRuntime& out)
+{
+    if (idx >= kFlowRemoteDashboardSlotCount) return false;
+    out = ds.data().flowRemote.dashboardSlots[idx];
+    return true;
 }
 
 static inline bool flowRemoteCopyText_(char* out, size_t outLen, const char* in)
@@ -410,12 +418,12 @@ static inline bool setFlowRemoteAlarmActiveMask(DataStore& ds, uint32_t v)
     return true;
 }
 
-static inline bool setFlowRemoteAlarmAckedMask(DataStore& ds, uint32_t v)
+static inline bool setFlowRemoteAlarmResettableMask(DataStore& ds, uint32_t v)
 {
     RuntimeData& rt = ds.dataMutable();
-    if (rt.flowRemote.alarmAckedMask == v) return false;
-    rt.flowRemote.alarmAckedMask = v;
-    ds.notifyChanged(DATAKEY_FLOW_REMOTE_ALARM_ACKED_MASK);
+    if (rt.flowRemote.alarmResettableMask == v) return false;
+    rt.flowRemote.alarmResettableMask = v;
+    ds.notifyChanged(DATAKEY_FLOW_REMOTE_ALARM_RESETTABLE_MASK);
     return true;
 }
 
@@ -425,6 +433,34 @@ static inline bool setFlowRemoteAlarmConditionMask(DataStore& ds, uint32_t v)
     if (rt.flowRemote.alarmConditionMask == v) return false;
     rt.flowRemote.alarmConditionMask = v;
     ds.notifyChanged(DATAKEY_FLOW_REMOTE_ALARM_CONDITION_MASK);
+    return true;
+}
+
+static inline bool flowRemoteDashboardSlotEquals_(const FlowRemoteDashboardSlotRuntime& lhs,
+                                                  const FlowRemoteDashboardSlotRuntime& rhs)
+{
+    if (lhs.enabled != rhs.enabled) return false;
+    if (lhs.runtimeUiId != rhs.runtimeUiId) return false;
+    if (strncmp(lhs.label, rhs.label, sizeof(lhs.label)) != 0) return false;
+    if (lhs.bgColor565 != rhs.bgColor565) return false;
+    if (lhs.available != rhs.available) return false;
+    if (lhs.wireType != rhs.wireType) return false;
+    if (lhs.boolValue != rhs.boolValue) return false;
+    if (lhs.i32Value != rhs.i32Value) return false;
+    if (lhs.u32Value != rhs.u32Value) return false;
+    if (fabsf(lhs.f32Value - rhs.f32Value) > 0.005f) return false;
+    if (lhs.enumValue != rhs.enumValue) return false;
+    return true;
+}
+
+static inline bool setFlowRemoteDashboardSlot(DataStore& ds, uint8_t idx, const FlowRemoteDashboardSlotRuntime& in)
+{
+    if (idx >= kFlowRemoteDashboardSlotCount) return false;
+    RuntimeData& rt = ds.dataMutable();
+    FlowRemoteDashboardSlotRuntime& cur = rt.flowRemote.dashboardSlots[idx];
+    if (flowRemoteDashboardSlotEquals_(cur, in)) return false;
+    cur = in;
+    ds.notifyChanged((DataKey)(DATAKEY_FLOW_REMOTE_DASHBOARD_SLOT_BASE + idx));
     return true;
 }
 
@@ -468,6 +504,9 @@ static inline void applyFlowRemoteRuntimeSnapshot(DataStore& ds, const FlowRemot
     setFlowRemoteHasBme680Temp(ds, in.hasBme680Temp);
     setFlowRemoteBme680Temp(ds, in.bme680Temp);
     setFlowRemoteAlarmActiveMask(ds, in.alarmActiveMask);
-    setFlowRemoteAlarmAckedMask(ds, in.alarmAckedMask);
+    setFlowRemoteAlarmResettableMask(ds, in.alarmResettableMask);
     setFlowRemoteAlarmConditionMask(ds, in.alarmConditionMask);
+    for (uint8_t i = 0; i < kFlowRemoteDashboardSlotCount; ++i) {
+        setFlowRemoteDashboardSlot(ds, i, in.dashboardSlots[i]);
+    }
 }

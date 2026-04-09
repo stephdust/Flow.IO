@@ -25,6 +25,7 @@ class I2CCfgClientModule : public ModulePassive {
 public:
     ModuleId moduleId() const override { return ModuleId::I2cCfgClient; }
     const char* taskName() const override { return "i2c_cfg_client"; }
+    uint16_t taskStackSize() const override { return 5120; }
     uint8_t taskCount() const override { return 1; }
     const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
 
@@ -42,6 +43,7 @@ public:
     void loop() override;
 
 private:
+    static constexpr uint8_t kDashboardSlotCount = kFlowRemoteDashboardSlotCount;
     static constexpr size_t kRuntimeStatusDomainCacheCount = (size_t)FlowStatusDomain::Pool;
     static constexpr size_t kRuntimeUiMirrorMaxEntries = 64U;
     struct RuntimeUiCacheEntry {
@@ -58,6 +60,12 @@ private:
         int32_t freqHz = 100000;
         uint8_t targetAddr = 0x42;
     } cfgData_{};
+    struct DashboardSlotConfig {
+        bool enabled = true;
+        uint16_t runtimeUiId = 0U;
+        char label[24]{};
+        uint8_t colorId = 0U;
+    };
 
     // CFGDOC: {"label":"Client eLink actif", "help":"Active le client eLink cote Supervisor pour dialoguer avec Flow.io."}
     ConfigVariable<bool, 0> enabledVar_{
@@ -84,6 +92,16 @@ private:
         NVS_KEY(NvsKeys::I2cCfg::ClientAddr), "target_addr", "elink/client",
         ConfigType::UInt8, &cfgData_.targetAddr, ConfigPersistence::Persistent, 0
     };
+    DashboardSlotConfig dashboardCfg_[kDashboardSlotCount]{};
+    ConfigVariable<bool, 0> dashboardEnabledVars_[kDashboardSlotCount]{};
+    ConfigVariable<uint16_t, 0> dashboardRuntimeIdVars_[kDashboardSlotCount]{};
+    ConfigVariable<char, 0> dashboardLabelVars_[kDashboardSlotCount]{};
+    ConfigVariable<uint8_t, 0> dashboardColorIdVars_[kDashboardSlotCount]{};
+    char dashboardModuleNames_[kDashboardSlotCount][28]{};
+    char dashboardEnabledKeys_[kDashboardSlotCount][16]{};
+    char dashboardRuntimeIdKeys_[kDashboardSlotCount][16]{};
+    char dashboardLabelKeys_[kDashboardSlotCount][16]{};
+    char dashboardColorIdKeys_[kDashboardSlotCount][16]{};
 
     const LogHubService* logHub_ = nullptr;
     const ConfigStoreService* cfgSvc_ = nullptr;
@@ -148,6 +166,7 @@ private:
     void publishFlowRemoteReady_(bool ready);
     bool parseFlowRemoteSnapshotFromCache_(FlowRemoteRuntimeData& out);
     void publishFlowRemoteSnapshotFromCache_();
+    uint8_t buildRuntimeMirrorIdList_(RuntimeUiId* idsOut, uint8_t maxCount) const;
     bool fetchRuntimeStatusDomainUncached_(FlowStatusDomain domain, char* out, size_t outLen);
     bool fetchRuntimeUiValuesUncached_(const RuntimeUiId* ids, uint8_t count, uint8_t* out, size_t outLen, size_t* writtenOut);
     bool composeRuntimeUiValuesFromCache_(const RuntimeUiId* ids, uint8_t count, uint8_t* out, size_t outLen, bool allowStale, bool* allFreshOut);

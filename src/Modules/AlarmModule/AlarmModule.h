@@ -40,7 +40,7 @@ public:
 private:
     enum RuntimeUiValueId : uint8_t {
         RuntimeUiActiveMask = 1,
-        RuntimeUiAckedMask = 2,
+        RuntimeUiResettableMask = 2,
         RuntimeUiConditionMask = 3,
     };
 
@@ -52,7 +52,6 @@ private:
         void* condCtx = nullptr;
 
         bool active = false;
-        bool acked = false;
         AlarmCondState lastCond = AlarmCondState::Unknown;
         uint32_t onSinceMs = 0;
         uint32_t offSinceMs = 0;
@@ -63,24 +62,24 @@ private:
     };
 
     static bool cmdList_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
-    static bool cmdAck_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
-    static bool cmdAckSlot_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
-    static bool cmdAckAll_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    static bool cmdReset_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    static bool cmdResetSlot_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    static bool cmdResetAll_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
 
     bool registerAlarmSvc_(const AlarmRegistration* def, AlarmCondFn condFn, void* condCtx);
     bool registerAlarm_(const AlarmRegistration& def, AlarmCondFn condFn, void* condCtx);
-    bool ack_(AlarmId id);
-    uint8_t ackAll_();
+    bool reset_(AlarmId id);
+    uint8_t resetAll_();
     bool isActive_(AlarmId id) const;
-    bool isAcked_(AlarmId id) const;
+    bool isResettable_(AlarmId id) const;
     uint8_t activeCount_() const;
     AlarmSeverity highestSeverity_() const;
     bool buildSnapshot_(char* out, size_t len) const;
     uint8_t listIds_(AlarmId* out, uint8_t max) const;
     bool buildAlarmState_(AlarmId id, char* out, size_t len) const;
     bool buildPacked_(char* out, size_t len, uint8_t slotCount) const;
-    bool handleCmdAck_(const CommandRequest& req, char* reply, size_t replyLen);
-    bool handleCmdAckSlot_(const CommandRequest& req, char* reply, size_t replyLen);
+    bool handleCmdReset_(const CommandRequest& req, char* reply, size_t replyLen);
+    bool handleCmdResetSlot_(const CommandRequest& req, char* reply, size_t replyLen);
     bool slotAlarmId_(uint8_t slot, AlarmId& outId) const;
     void evaluateOnce_(uint32_t nowMs);
     uint32_t buildRuntimeMask_(RuntimeUiValueId valueId) const;
@@ -96,10 +95,10 @@ private:
 
     AlarmService alarmSvc_{
         ServiceBinding::bind<&AlarmModule::registerAlarmSvc_>,
-        ServiceBinding::bind<&AlarmModule::ack_>,
-        ServiceBinding::bind<&AlarmModule::ackAll_>,
+        ServiceBinding::bind<&AlarmModule::reset_>,
+        ServiceBinding::bind<&AlarmModule::resetAll_>,
         ServiceBinding::bind<&AlarmModule::isActive_>,
-        ServiceBinding::bind<&AlarmModule::isAcked_>,
+        ServiceBinding::bind<&AlarmModule::isResettable_>,
         ServiceBinding::bind<&AlarmModule::activeCount_>,
         ServiceBinding::bind_or<&AlarmModule::highestSeverity_, AlarmSeverity::Info>,
         ServiceBinding::bind<&AlarmModule::buildSnapshot_>,

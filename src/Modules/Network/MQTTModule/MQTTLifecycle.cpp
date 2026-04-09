@@ -206,7 +206,7 @@ void MQTTModule::onEvent_(const Event& e)
 
     if (e.id == EventId::AlarmRaised ||
         e.id == EventId::AlarmCleared ||
-        e.id == EventId::AlarmAcked ||
+        e.id == EventId::AlarmReset ||
         e.id == EventId::AlarmSilenceChanged ||
         e.id == EventId::AlarmConditionChanged) {
         const AlarmPayload* p = (const AlarmPayload*)e.payload;
@@ -317,7 +317,7 @@ void MQTTModule::init(ConfigStore& cfg, ServiceRegistry& services)
         eventBus_->subscribe(EventId::ConfigChanged, &MQTTModule::onEventStatic_, this);
         eventBus_->subscribe(EventId::AlarmRaised, &MQTTModule::onEventStatic_, this);
         eventBus_->subscribe(EventId::AlarmCleared, &MQTTModule::onEventStatic_, this);
-        eventBus_->subscribe(EventId::AlarmAcked, &MQTTModule::onEventStatic_, this);
+        eventBus_->subscribe(EventId::AlarmReset, &MQTTModule::onEventStatic_, this);
         eventBus_->subscribe(EventId::AlarmSilenceChanged, &MQTTModule::onEventStatic_, this);
         eventBus_->subscribe(EventId::AlarmConditionChanged, &MQTTModule::onEventStatic_, this);
     }

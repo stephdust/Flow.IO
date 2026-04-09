@@ -1132,21 +1132,6 @@ void IOModule::traceDigitalCounters_(uint32_t nowMs)
         IODigitalCounterDebugStats stats{};
         if (!counterDriver->readDebugStats(stats)) continue;
 
-        const uint32_t ageMs = (stats.lastPulseUs == 0U) ? 0U : ((uint32_t)(micros() - stats.lastPulseUs) / 1000U);
-
-        LOGI("Ctr %s p=%u st=%s e=%s irq=%lu tr=%lu ss=%lu cnt=%ld re=%lu rd=%lu db=%lu lp=%lu",
-             slot.endpointId,
-             (unsigned)stats.pin,
-             stats.logicalState ? "ON" : "OFF",
-             ioEdgeModeLabelLocal(stats.edgeMode),
-             (unsigned long)stats.irqCalls,
-             (unsigned long)stats.transitions,
-             (unsigned long)stats.ignoredSameState,
-             (long)stats.pulseCount,
-             (unsigned long)stats.ignoredWrongEdge,
-             (unsigned long)stats.ignoredDebounce,
-             (unsigned long)slot.inDef.counterDebounceUs,
-             (unsigned long)ageMs);
     }
 }
 

@@ -160,15 +160,29 @@ uint32_t SupervisorHMIModule::buildRenderKey_() const
     mix(&view_.flowHasBme680Temp, sizeof(view_.flowHasBme680Temp));
     mix(&view_.flowBme680Temp, sizeof(view_.flowBme680Temp));
     mix(&view_.flowAlarmActiveMask, sizeof(view_.flowAlarmActiveMask));
-    mix(&view_.flowAlarmAckedMask, sizeof(view_.flowAlarmAckedMask));
+    mix(&view_.flowAlarmResettableMask, sizeof(view_.flowAlarmResettableMask));
     mix(&view_.flowAlarmConditionMask, sizeof(view_.flowAlarmConditionMask));
+    for (uint8_t i = 0U; i < kSupervisorDashboardSlotCount; ++i) {
+        const SupervisorDashboardSlotViewModel& slot = view_.flowDashboardSlots[i];
+        mix(&slot.enabled, sizeof(slot.enabled));
+        mix(&slot.runtimeUiId, sizeof(slot.runtimeUiId));
+        mix(slot.label, strnlen(slot.label, sizeof(slot.label)) + 1U);
+        mix(&slot.bgColor565, sizeof(slot.bgColor565));
+        mix(&slot.available, sizeof(slot.available));
+        mix(&slot.wireType, sizeof(slot.wireType));
+        mix(&slot.boolValue, sizeof(slot.boolValue));
+        mix(&slot.i32Value, sizeof(slot.i32Value));
+        mix(&slot.u32Value, sizeof(slot.u32Value));
+        mix(&slot.f32Value, sizeof(slot.f32Value));
+        mix(&slot.enumValue, sizeof(slot.enumValue));
+    }
     mix(&view_.flowAlarmActiveCount, sizeof(view_.flowAlarmActiveCount));
     mix(&view_.flowAlarmCodeCount, sizeof(view_.flowAlarmCodeCount));
     for (size_t i = 0; i < (sizeof(view_.flowAlarmCodes) / sizeof(view_.flowAlarmCodes[0])); i++) {
         mix(view_.flowAlarmCodes[i], strnlen(view_.flowAlarmCodes[i], sizeof(view_.flowAlarmCodes[i])) + 1U);
     }
     mix(&view_.flowAlarmActCount, sizeof(view_.flowAlarmActCount));
-    mix(&view_.flowAlarmAckCount, sizeof(view_.flowAlarmAckCount));
+    mix(&view_.flowAlarmResettableCount, sizeof(view_.flowAlarmResettableCount));
     mix(&view_.flowAlarmClrCount, sizeof(view_.flowAlarmClrCount));
     mix(view_.flowAlarmStates, sizeof(view_.flowAlarmStates));
     mix(&view_.factoryResetPending, sizeof(view_.factoryResetPending));
@@ -370,8 +384,41 @@ void SupervisorHMIModule::refreshFlowStatusFromDataStore_()
     view_.flowHasBme680Temp = flow.hasBme680Temp;
     view_.flowBme680Temp = flow.bme680Temp;
     view_.flowAlarmActiveMask = flow.alarmActiveMask;
-    view_.flowAlarmAckedMask = flow.alarmAckedMask;
+    view_.flowAlarmResettableMask = flow.alarmResettableMask;
     view_.flowAlarmConditionMask = flow.alarmConditionMask;
+    for (uint8_t i = 0U; i < kSupervisorDashboardSlotCount; ++i) {
+        const FlowRemoteDashboardSlotRuntime& src = flow.dashboardSlots[i];
+        SupervisorDashboardSlotViewModel& dst = view_.flowDashboardSlots[i];
+        dst.enabled = src.enabled;
+        dst.runtimeUiId = src.runtimeUiId;
+        snprintf(dst.label, sizeof(dst.label), "%s", src.label);
+        dst.bgColor565 = src.bgColor565;
+        dst.available = src.available;
+        dst.wireType = src.wireType;
+        dst.boolValue = src.boolValue;
+        dst.i32Value = src.i32Value;
+        dst.u32Value = src.u32Value;
+        dst.f32Value = src.f32Value;
+        dst.enumValue = src.enumValue;
+    }
+    view_.flowAlarmActCount = 0U;
+    view_.flowAlarmResettableCount = 0U;
+    view_.flowAlarmClrCount = 0U;
+    for (uint8_t i = 0; i < kSupervisorAlarmSlotCount; ++i) {
+        const uint32_t mask = (1UL << i);
+        const bool active = (view_.flowAlarmActiveMask & mask) != 0U;
+        const bool resettable = (view_.flowAlarmResettableMask & mask) != 0U;
+        if (resettable) {
+            view_.flowAlarmStates[i] = SupervisorAlarmState::Resettable;
+            ++view_.flowAlarmResettableCount;
+        } else if (active) {
+            view_.flowAlarmStates[i] = SupervisorAlarmState::Active;
+            ++view_.flowAlarmActCount;
+        } else {
+            view_.flowAlarmStates[i] = SupervisorAlarmState::Clear;
+            ++view_.flowAlarmClrCount;
+        }
+    }
 }
 
 void SupervisorHMIModule::scheduleFactoryReset_()

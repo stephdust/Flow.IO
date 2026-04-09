@@ -1,4 +1,4 @@
-# Protocole Flow.IO <-> Supervisor
+# Protocole Flow.io <-> Supervisor
 
 Cette page documente le protocole d'échange utilisé entre le firmware `FlowIO` et le firmware `Supervisor` pour la configuration distante, la lecture d'état runtime et les actions système.
 
@@ -16,26 +16,26 @@ Deux familles de lecture runtime coexistent:
 
 Rôles:
 - `Supervisor` porte le module [`i2ccfg.client`](../../src/Modules/Network/I2CCfgClientModule/I2CCfgClientModule.h)
-- `Flow.IO` porte le module [`i2ccfg.server`](../../src/Modules/Network/I2CCfgServerModule/I2CCfgServerModule.h)
+- `Flow.io` porte le module [`i2ccfg.server`](../../src/Modules/Network/I2CCfgServerModule/I2CCfgServerModule.h)
 
 Rôles I2C:
 - `Supervisor`: maître I2C
-- `Flow.IO`: esclave I2C
+- `Flow.io`: esclave I2C
 
 Bus utilisé:
 - contrôleur I2C `1` des deux côtés (`Wire1` sur ESP32)
 
 Configuration par défaut:
-- adresse I2C serveur Flow.IO: `0x42`
+- adresse I2C serveur Flow.io: `0x42`
 - fréquence: `100000 Hz`
-- GPIO par défaut Flow.IO: SDA `12`, SCL `14`
+- GPIO par défaut Flow.io: SDA `12`, SCL `14`
 - GPIO par défaut Supervisor: SDA `21`, SCL `22`
 
 Références source:
 - framing et opcodes: [`include/Core/I2cCfgProtocol.h`](../../include/Core/I2cCfgProtocol.h)
 - transport I2C: [`src/Core/I2cLink.cpp`](../../src/Core/I2cLink.cpp)
 - client Supervisor: [`src/Modules/Network/I2CCfgClientModule/I2CCfgClientModule.cpp`](../../src/Modules/Network/I2CCfgClientModule/I2CCfgClientModule.cpp)
-- serveur Flow.IO: [`src/Modules/Network/I2CCfgServerModule/I2CCfgServerModule.cpp`](../../src/Modules/Network/I2CCfgServerModule/I2CCfgServerModule.cpp)
+- serveur Flow.io: [`src/Modules/Network/I2CCfgServerModule/I2CCfgServerModule.cpp`](../../src/Modules/Network/I2CCfgServerModule/I2CCfgServerModule.cpp)
 
 ## Principe d'échange
 
@@ -117,7 +117,7 @@ Valeurs définies dans [`include/Core/I2cCfgProtocol.h`](../../include/Core/I2cC
 |---|---|---|
 | `0` | `StatusOk` | opération acceptée et réponse valide |
 | `1` | `StatusBadRequest` | payload invalide, opcode mal formé, domaine/action inconnus |
-| `2` | `StatusNotReady` | service Flow.IO indisponible |
+| `2` | `StatusNotReady` | service Flow.io indisponible |
 | `3` | `StatusRange` | index, offset ou module hors plage |
 | `4` | `StatusOverflow` | tampon patch trop grand |
 | `5` | `StatusFailed` | échec interne côté serveur |
@@ -161,7 +161,7 @@ Exemple:
 ### `OpListCount` (`0x10`)
 
 But:
-- connaître le nombre total de modules de configuration exposés par Flow.IO
+- connaître le nombre total de modules de configuration exposés par Flow.io
 
 Payload requête:
 - aucun
@@ -234,7 +234,7 @@ But:
 Payload requête:
 - nom ASCII du module
 
-Traitement côté Flow.IO:
+Traitement côté Flow.io:
 - sérialisation dans `moduleJson_`
 - tampon serveur de taille `Limits::JsonCfgBuf` soit actuellement `1024` octets
 - cas particulier: `wifi` peut exporter le mot de passe en clair pour le chemin de synchronisation/debug utilisé ici
@@ -285,11 +285,11 @@ Domaine disponibles:
 | `1` | `system` | firmware, uptime, heap |
 | `2` | `wifi` | état Wi-Fi, IP, RSSI |
 | `3` | `mqtt` | état MQTT, compteurs d'erreurs |
-| `4` | `i2c` | état du lien Supervisor/Flow.IO |
+| `4` | `i2c` | état du lien Supervisor/Flow.io |
 | `5` | `pool` | drapeaux de mode piscine |
 | `6` | `alarm` | alarmes actives |
 
-Traitement côté Flow.IO:
+Traitement côté Flow.io:
 - construction dans `statusJson_`
 - tampon serveur de taille fixe `448` octets
 
@@ -315,7 +315,7 @@ Payload réponse:
 - sous-chaîne brute du JSON du domaine
 
 Important:
-- depuis la refactorisation par domaine, on ne construit plus un unique gros JSON status côté Flow.IO
+- depuis la refactorisation par domaine, on ne construit plus un unique gros JSON status côté Flow.io
 - l'agrégation multi-domaines se fait désormais côté Supervisor si besoin
 
 ### `OpGetRuntimeUiValues` (`0x24`)
@@ -323,7 +323,7 @@ Important:
 But:
 - lire un batch ciblé de valeurs runtime exposées au `Supervisor`
 - éviter le JSON sur le lien I2C
-- router par `moduleId -> provider` avec un coût mémoire minimal côté `Flow.IO`
+- router par `moduleId -> provider` avec un coût mémoire minimal côté `Flow.io`
 
 Identité:
 - `runtimeId = moduleId * 100 + valueId`
@@ -360,7 +360,7 @@ Types supportés:
 - `string`
 
 Notes d'implémentation:
-- pas de manifeste JSON conservé en RAM côté `Flow.IO`
+- pas de manifeste JSON conservé en RAM côté `Flow.io`
 - pas de cache runtime dédié
 - sérialisation directe dans le buffer de réponse I2C existant
 - le manifeste textuel complet reste côté `Supervisor` / UI
@@ -412,7 +412,7 @@ Préconditions:
 - un `PatchBegin` valide a été reçu
 - tous les octets ont été envoyés
 
-Traitement côté Flow.IO:
+Traitement côté Flow.io:
 - terminaison `\0` du buffer patch
 - appel à `cfgSvc_->applyJson(...)`
 
@@ -432,7 +432,7 @@ ou en erreur:
 ### `OpSystemAction` (`0x40`)
 
 But:
-- demander une action système distante sur Flow.IO
+- demander une action système distante sur Flow.io
 
 Payload requête:
 
@@ -569,7 +569,7 @@ Champs:
 
 1. le `Supervisor` choisit une petite liste de `runtimeId`
 2. il envoie `OpGetRuntimeUiValues(count, ids...)`
-3. `Flow.IO` extrait `moduleId` et `valueId`
+3. `Flow.io` extrait `moduleId` et `valueId`
 4. le registre runtime résout le provider du module
 5. le module écrit la valeur typée dans le writer binaire
 6. le `Supervisor` convertit la réponse en JSON homogène pour l'UI
@@ -584,7 +584,7 @@ Champs:
 
 1. `OpSystemAction(actionId)`
 2. réception d'un accusé "queued"
-3. exécution différée côté Flow.IO
+3. exécution différée côté Flow.io
 
 ## Gestion mémoire et découpage par domaine
 
@@ -597,7 +597,7 @@ Le protocole a été ajusté pour limiter l'empreinte RAM sur les ESP32:
 Objectif:
 - éviter un gros buffer status monolithique permanent
 - rendre l'ajout futur de nouveaux champs plus sûr
-- garder un coût RAM borné sur Flow.IO
+- garder un coût RAM borné sur Flow.io
 
 ## Consommateurs actuels du protocole
 
@@ -622,7 +622,7 @@ Règles implicites de compatibilité:
 - le protocole n'inclut ni CRC applicatif ni authentification
 - la robustesse repose sur I2C local, `magic`, `version`, `seq`, `op`, et la validation des longueurs
 - un seul échange est actif à la fois par lien I2C
-- les buffers JSON côté Flow.IO sont temporaires et invalidés après le dernier chunk servi
+- les buffers JSON côté Flow.io sont temporaires et invalidés après le dernier chunk servi
 - le module `wifi` peut exposer des secrets en clair via l'export module dans ce chemin de synchronisation
 
 ## Résumé opérationnel

@@ -262,6 +262,10 @@ constexpr char ClientSda[] = "ic_cli_sda"; // I2C cfg client SDA pin.
 constexpr char ClientScl[] = "ic_cli_scl"; // I2C cfg client SCL pin.
 constexpr char ClientFreq[] = "ic_cli_frq"; // I2C cfg client bus frequency.
 constexpr char ClientAddr[] = "ic_cli_adr"; // I2C cfg client target slave address.
+constexpr char DashboardEnabledFmt[] = "ic_d%u_en"; // I2C cfg dashboard slot enabled.
+constexpr char DashboardRuntimeIdFmt[] = "ic_d%u_rt"; // I2C cfg dashboard slot runtime UI id.
+constexpr char DashboardLabelFmt[] = "ic_d%u_lb"; // I2C cfg dashboard slot label.
+constexpr char DashboardColorIdFmt[] = "ic_d%u_ci"; // I2C cfg dashboard slot color preset id.
 
 constexpr char ServerEnabled[] = "ic_srv_en"; // I2C cfg server enabled.
 constexpr char ServerSda[] = "ic_srv_sda"; // I2C cfg server SDA pin.

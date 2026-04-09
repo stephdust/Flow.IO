@@ -95,9 +95,11 @@ constexpr DataKey FlowRemoteBmp280Temp = FlowRemoteBase + 34;
 constexpr DataKey FlowRemoteHasBme680Temp = FlowRemoteBase + 35;
 constexpr DataKey FlowRemoteBme680Temp = FlowRemoteBase + 36;
 constexpr DataKey FlowRemoteAlarmActiveMask = FlowRemoteBase + 37;
-constexpr DataKey FlowRemoteAlarmAckedMask = FlowRemoteBase + 38;
+constexpr DataKey FlowRemoteAlarmResettableMask = FlowRemoteBase + 38;
 constexpr DataKey FlowRemoteAlarmConditionMask = FlowRemoteBase + 39;
-constexpr uint8_t FlowRemoteReservedCount = 40;
+constexpr DataKey FlowRemoteDashboardSlotBase = FlowRemoteBase + 40;
+constexpr uint8_t FlowRemoteDashboardSlotReservedCount = 8;
+constexpr uint8_t FlowRemoteReservedCount = 48;
 constexpr DataKey FlowRemoteEndExclusive = FlowRemoteBase + FlowRemoteReservedCount;
 
 /** @brief Upper bound for currently reserved keys. */

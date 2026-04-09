@@ -22,6 +22,16 @@ static constexpr uint8_t kAlarmCfgBranch = 1;
 static constexpr MqttConfigRouteProducer::Route kAlarmCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::Alarms, kAlarmCfgBranch}, "alarms", "alarms", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
+static constexpr HAButtonEntry kAlarmResetSlotButtons[] = {
+    {"alarms", "alm_reset_slot_0", "Reset Alarm Slot 0", MqttTopics::SuffixCmd, "{\"cmd\":\"alarms.reset_slot\",\"args\":{\"slot\":0}}", "diagnostic", "mdi:numeric-0-box-outline"},
+    {"alarms", "alm_reset_slot_1", "Reset Alarm Slot 1", MqttTopics::SuffixCmd, "{\"cmd\":\"alarms.reset_slot\",\"args\":{\"slot\":1}}", "diagnostic", "mdi:numeric-1-box-outline"},
+    {"alarms", "alm_reset_slot_2", "Reset Alarm Slot 2", MqttTopics::SuffixCmd, "{\"cmd\":\"alarms.reset_slot\",\"args\":{\"slot\":2}}", "diagnostic", "mdi:numeric-2-box-outline"},
+    {"alarms", "alm_reset_slot_3", "Reset Alarm Slot 3", MqttTopics::SuffixCmd, "{\"cmd\":\"alarms.reset_slot\",\"args\":{\"slot\":3}}", "diagnostic", "mdi:numeric-3-box-outline"},
+    {"alarms", "alm_reset_slot_4", "Reset Alarm Slot 4", MqttTopics::SuffixCmd, "{\"cmd\":\"alarms.reset_slot\",\"args\":{\"slot\":4}}", "diagnostic", "mdi:numeric-4-box-outline"},
+    {"alarms", "alm_reset_slot_5", "Reset Alarm Slot 5", MqttTopics::SuffixCmd, "{\"cmd\":\"alarms.reset_slot\",\"args\":{\"slot\":5}}", "diagnostic", "mdi:numeric-5-box-outline"},
+    {"alarms", "alm_reset_slot_6", "Reset Alarm Slot 6", MqttTopics::SuffixCmd, "{\"cmd\":\"alarms.reset_slot\",\"args\":{\"slot\":6}}", "diagnostic", "mdi:numeric-6-box-outline"},
+    {"alarms", "alm_reset_slot_7", "Reset Alarm Slot 7", MqttTopics::SuffixCmd, "{\"cmd\":\"alarms.reset_slot\",\"args\":{\"slot\":7}}", "diagnostic", "mdi:numeric-7-box-outline"},
+};
 }
 
 static uint32_t clampEvalPeriodMs_(int32_t inMs)
@@ -190,53 +200,61 @@ bool AlarmModule::registerAlarm_(const AlarmRegistration& def, AlarmCondFn condF
     return ok;
 }
 
-bool AlarmModule::ack_(AlarmId id)
+bool AlarmModule::reset_(AlarmId id)
 {
-    bool postAck = false;
-    bool postClear = false;
+    bool postReset = false;
+    bool warnConditionTrue = false;
+    bool warnNotActive = false;
+    bool warnNotLatched = false;
     char alarmCode[sizeof(slots_[0].def.code)] = {0};
-    AlarmCondState ackCond = AlarmCondState::Unknown;
+    AlarmCondState resetCond = AlarmCondState::Unknown;
     uint32_t nowMs = millis();
 
     portENTER_CRITICAL(&slotsMux_);
     const int16_t idx = findSlotById_(id);
     if (idx >= 0) {
         AlarmSlot& s = slots_[(uint16_t)idx];
-        if (s.active && s.def.latched && !s.acked) {
-            strncpy(alarmCode, s.def.code, sizeof(alarmCode) - 1);
-            alarmCode[sizeof(alarmCode) - 1] = '\0';
-            s.acked = true;
-            ackCond = s.lastCond;
+        strncpy(alarmCode, s.def.code, sizeof(alarmCode) - 1);
+        alarmCode[sizeof(alarmCode) - 1] = '\0';
+        if (s.active && s.def.latched && s.lastCond == AlarmCondState::False) {
+            resetCond = s.lastCond;
+            s.active = false;
+            s.offSinceMs = 0U;
             s.lastChangeMs = nowMs;
-            postAck = true;
-
-            if (s.lastCond == AlarmCondState::False && s.def.offDelayMs == 0U) {
-                s.active = false;
-                s.acked = false;
-                s.offSinceMs = 0U;
-                s.lastChangeMs = nowMs;
-                postClear = true;
-            }
+            postReset = true;
+        } else {
+            resetCond = s.lastCond;
+            warnConditionTrue = s.active && s.def.latched && s.lastCond == AlarmCondState::True;
+            warnNotActive = !s.active;
+            warnNotLatched = !s.def.latched;
         }
     }
     portEXIT_CRITICAL(&slotsMux_);
 
-    if (postAck) {
-        LOGD("Alarm ack request accepted id=%u code=%s cond=%s",
+    if (postReset) {
+        LOGD("Alarm reset request accepted id=%u code=%s cond=%s",
              (unsigned)id,
              alarmCode[0] ? alarmCode : "?",
-             condStateStr_(ackCond));
-        LOGI("Alarm acked id=%u code=%s", (unsigned)id, alarmCode[0] ? alarmCode : "?");
-        emitAlarmEvent_(EventId::AlarmAcked, id);
-    }
-    if (postClear) {
-        LOGI("Alarm cleared id=%u code=%s (ack path)", (unsigned)id, alarmCode[0] ? alarmCode : "?");
+             condStateStr_(resetCond));
+        LOGI("Alarm reset id=%u code=%s", (unsigned)id, alarmCode[0] ? alarmCode : "?");
+        emitAlarmEvent_(EventId::AlarmReset, id);
         emitAlarmEvent_(EventId::AlarmCleared, id);
+    } else if (warnConditionTrue) {
+        LOGW("Alarm reset denied id=%u code=%s cond=true active=1 latched=1",
+             (unsigned)id,
+             alarmCode[0] ? alarmCode : "?");
+    } else if (warnNotActive || warnNotLatched) {
+        LOGW("Alarm reset denied id=%u code=%s active=%u latched=%u cond=%s",
+             (unsigned)id,
+             alarmCode[0] ? alarmCode : "?",
+             warnNotActive ? 0U : 1U,
+             warnNotLatched ? 0U : 1U,
+             condStateStr_(resetCond));
     }
-    return postAck || postClear;
+    return postReset;
 }
 
-uint8_t AlarmModule::ackAll_()
+uint8_t AlarmModule::resetAll_()
 {
     AlarmId pending[Limits::Alarm::MaxAlarms]{};
     uint8_t pendingCount = 0;
@@ -244,18 +262,18 @@ uint8_t AlarmModule::ackAll_()
     portENTER_CRITICAL(&slotsMux_);
     for (uint16_t i = 0; i < Limits::Alarm::MaxAlarms; ++i) {
         const AlarmSlot& s = slots_[i];
-        if (!s.used || !s.active || !s.def.latched || s.acked) continue;
+        if (!s.used || !s.active || !s.def.latched || s.lastCond != AlarmCondState::False) continue;
         if (pendingCount < Limits::Alarm::MaxAlarms) {
             pending[pendingCount++] = s.id;
         }
     }
     portEXIT_CRITICAL(&slotsMux_);
 
-    uint8_t acked = 0;
+    uint8_t resetCount = 0;
     for (uint8_t i = 0; i < pendingCount; ++i) {
-        if (ack_(pending[i])) ++acked;
+        if (reset_(pending[i])) ++resetCount;
     }
-    return acked;
+    return resetCount;
 }
 
 bool AlarmModule::isActive_(AlarmId id) const
@@ -268,12 +286,15 @@ bool AlarmModule::isActive_(AlarmId id) const
     return out;
 }
 
-bool AlarmModule::isAcked_(AlarmId id) const
+bool AlarmModule::isResettable_(AlarmId id) const
 {
     bool out = false;
     portENTER_CRITICAL(&slotsMux_);
     const int16_t idx = findSlotById_(id);
-    if (idx >= 0) out = slots_[(uint16_t)idx].acked;
+    if (idx >= 0) {
+        const AlarmSlot& slot = slots_[(uint16_t)idx];
+        out = slot.active && slot.def.latched && slot.lastCond == AlarmCondState::False;
+    }
     portEXIT_CRITICAL(&slotsMux_);
     return out;
 }
@@ -331,12 +352,12 @@ bool AlarmModule::buildSnapshot_(char* out, size_t len) const
         wrote = snprintf(
             out + pos,
             len - pos,
-            "%s{\"id\":%u,\"code\":\"%s\",\"title\":\"%s\",\"active\":true,\"acked\":%s,\"severity\":%u}",
+            "%s{\"id\":%u,\"code\":\"%s\",\"title\":\"%s\",\"active\":true,\"resettable\":%s,\"severity\":%u}",
             first ? "" : ",",
             (unsigned)s.id,
             s.def.code,
             s.def.title,
-            s.acked ? "true" : "false",
+            (s.def.latched && s.lastCond == AlarmCondState::False) ? "true" : "false",
             (unsigned)((uint8_t)s.def.severity));
         if (wrote <= 0 || (size_t)wrote >= (len - pos)) return false;
         pos += (size_t)wrote;
@@ -383,11 +404,11 @@ bool AlarmModule::buildAlarmState_(AlarmId id, char* out, size_t len) const
     const int wrote = snprintf(
         out,
         len,
-        "{\"id\":%u,\"slot\":%u,\"a\":%u,\"k\":%u,\"c\":%u,\"s\":%u,\"lc\":%lu}",
+        "{\"id\":%u,\"slot\":%u,\"a\":%u,\"r\":%u,\"c\":%u,\"s\":%u,\"lc\":%lu}",
         (unsigned)snap.id,
         (unsigned)slotIndex,
         snap.active ? 1u : 0u,
-        snap.acked ? 1u : 0u,
+        (snap.active && snap.def.latched && snap.lastCond == AlarmCondState::False) ? 1u : 0u,
         (unsigned)((uint8_t)snap.lastCond),
         (unsigned)((uint8_t)snap.def.severity),
         (unsigned long)snap.lastChangeMs);
@@ -410,7 +431,7 @@ bool AlarmModule::buildPacked_(char* out, size_t len, uint8_t slotCount) const
         uint8_t bits = 0;
         if (s.used) {
             if (s.active) bits |= 0x01U;
-            if (s.acked) bits |= 0x02U;
+            if (s.active && s.def.latched && s.lastCond == AlarmCondState::False) bits |= 0x02U;
             if (s.lastCond == AlarmCondState::True) bits |= 0x04U;
             bits |= (uint8_t)(((uint8_t)s.def.severity & 0x03U) << 3);
         }
@@ -421,7 +442,7 @@ bool AlarmModule::buildPacked_(char* out, size_t len, uint8_t slotCount) const
     const int wrote = snprintf(
         out,
         len,
-        "{\"v\":1,\"slots\":%u,\"p\":%llu,\"h\":\"%010llX\",\"ts\":%lu}",
+        "{\"v\":2,\"slots\":%u,\"p\":%llu,\"h\":\"%010llX\",\"ts\":%lu}",
         (unsigned)n,
         (unsigned long long)pack,
         (unsigned long long)pack,
@@ -440,8 +461,8 @@ uint32_t AlarmModule::buildRuntimeMask_(RuntimeUiValueId valueId) const
         bool setBit = false;
         if (valueId == RuntimeUiActiveMask) {
             setBit = slot.active;
-        } else if (valueId == RuntimeUiAckedMask) {
-            setBit = slot.acked;
+        } else if (valueId == RuntimeUiResettableMask) {
+            setBit = slot.active && slot.def.latched && slot.lastCond == AlarmCondState::False;
         } else if (valueId == RuntimeUiConditionMask) {
             setBit = slot.lastCond == AlarmCondState::True;
         }
@@ -456,7 +477,7 @@ bool AlarmModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer)
 {
     const RuntimeUiId runtimeId = makeRuntimeUiId(moduleId(), valueId);
     if (valueId == RuntimeUiActiveMask ||
-        valueId == RuntimeUiAckedMask ||
+        valueId == RuntimeUiResettableMask ||
         valueId == RuntimeUiConditionMask) {
         return writer.writeU32(runtimeId, buildRuntimeMask_((RuntimeUiValueId)valueId));
     }
@@ -482,23 +503,23 @@ bool AlarmModule::cmdList_(void* userCtx, const CommandRequest&, char* reply, si
     return true;
 }
 
-bool AlarmModule::handleCmdAck_(const CommandRequest& req, char* reply, size_t replyLen)
+bool AlarmModule::handleCmdReset_(const CommandRequest& req, char* reply, size_t replyLen)
 {
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, args)) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::MissingArgs, "alarms.ack")) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::MissingArgs, "alarms.reset")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
     }
     if (!args.containsKey("id")) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::MissingValue, "alarms.ack.id")) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::MissingValue, "alarms.reset.id")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
     }
     if (!args["id"].is<uint16_t>() && !args["id"].is<uint32_t>() && !args["id"].is<int32_t>()) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::InvalidEventId, "alarms.ack.id")) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::InvalidEventId, "alarms.reset.id")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
@@ -506,8 +527,8 @@ bool AlarmModule::handleCmdAck_(const CommandRequest& req, char* reply, size_t r
 
     const uint32_t idRaw = args["id"].as<uint32_t>();
     const AlarmId id = (AlarmId)((uint16_t)idRaw);
-    if (!ack_(id)) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::Failed, "alarms.ack")) {
+    if (!reset_(id)) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::Failed, "alarms.reset")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
@@ -517,24 +538,24 @@ bool AlarmModule::handleCmdAck_(const CommandRequest& req, char* reply, size_t r
     return true;
 }
 
-bool AlarmModule::handleCmdAckSlot_(const CommandRequest& req, char* reply, size_t replyLen)
+bool AlarmModule::handleCmdResetSlot_(const CommandRequest& req, char* reply, size_t replyLen)
 {
     JsonObjectConst args;
     if (!parseCmdArgsObject_(req, args)) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::MissingArgs, "alarms.ack_slot")) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::MissingArgs, "alarms.reset_slot")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
     }
     if (!args.containsKey("slot")) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::MissingSlot, "alarms.ack_slot.slot")) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::MissingSlot, "alarms.reset_slot.slot")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
     }
     if (!args["slot"].is<uint8_t>() && !args["slot"].is<uint16_t>() &&
         !args["slot"].is<uint32_t>() && !args["slot"].is<int32_t>()) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::InvalidSlot, "alarms.ack_slot.slot")) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::InvalidSlot, "alarms.reset_slot.slot")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
@@ -542,7 +563,7 @@ bool AlarmModule::handleCmdAckSlot_(const CommandRequest& req, char* reply, size
 
     const uint32_t slotRaw = args["slot"].as<uint32_t>();
     if (slotRaw >= 8U || slotRaw >= (uint32_t)Limits::Alarm::MaxAlarms) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::InvalidSlot, "alarms.ack_slot.slot")) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::InvalidSlot, "alarms.reset_slot.slot")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
@@ -551,14 +572,14 @@ bool AlarmModule::handleCmdAckSlot_(const CommandRequest& req, char* reply, size
 
     AlarmId id = AlarmId::None;
     if (!slotAlarmId_(slot, id)) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::UnusedSlot, "alarms.ack_slot.slot")) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::UnusedSlot, "alarms.reset_slot.slot")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
     }
 
-    if (!ack_(id)) {
-        if (!writeErrorJson(reply, replyLen, ErrorCode::Failed, "alarms.ack_slot")) {
+    if (!reset_(id)) {
+        if (!writeErrorJson(reply, replyLen, ErrorCode::Failed, "alarms.reset_slot")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
@@ -569,26 +590,26 @@ bool AlarmModule::handleCmdAckSlot_(const CommandRequest& req, char* reply, size
     return true;
 }
 
-bool AlarmModule::cmdAck_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen)
+bool AlarmModule::cmdReset_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen)
 {
     AlarmModule* self = static_cast<AlarmModule*>(userCtx);
     if (!self) return false;
-    return self->handleCmdAck_(req, reply, replyLen);
+    return self->handleCmdReset_(req, reply, replyLen);
 }
 
-bool AlarmModule::cmdAckSlot_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen)
+bool AlarmModule::cmdResetSlot_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen)
 {
     AlarmModule* self = static_cast<AlarmModule*>(userCtx);
     if (!self) return false;
-    return self->handleCmdAckSlot_(req, reply, replyLen);
+    return self->handleCmdResetSlot_(req, reply, replyLen);
 }
 
-bool AlarmModule::cmdAckAll_(void* userCtx, const CommandRequest&, char* reply, size_t replyLen)
+bool AlarmModule::cmdResetAll_(void* userCtx, const CommandRequest&, char* reply, size_t replyLen)
 {
     AlarmModule* self = static_cast<AlarmModule*>(userCtx);
     if (!self) return false;
-    const uint8_t acked = self->ackAll_();
-    snprintf(reply, replyLen, "{\"ok\":true,\"acked\":%u}", (unsigned)acked);
+    const uint8_t resetCount = self->resetAll_();
+    snprintf(reply, replyLen, "{\"ok\":true,\"reset\":%u}", (unsigned)resetCount);
     return true;
 }
 
@@ -611,9 +632,9 @@ void AlarmModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
     if (cmdSvc_ && cmdSvc_->registerHandler) {
         cmdSvc_->registerHandler(cmdSvc_->ctx, "alarms.list", &AlarmModule::cmdList_, this);
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "alarms.ack", &AlarmModule::cmdAck_, this);
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "alarms.ack_slot", &AlarmModule::cmdAckSlot_, this);
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "alarms.ack_all", &AlarmModule::cmdAckAll_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "alarms.reset", &AlarmModule::cmdReset_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "alarms.reset_slot", &AlarmModule::cmdResetSlot_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "alarms.reset_all", &AlarmModule::cmdResetAll_, this);
     }
 
     LOGI("Alarm service registered");
@@ -649,19 +670,27 @@ void AlarmModule::registerHaEntities_(ServiceRegistry& services)
     }
 
     if (haSvc_->addButton) {
-        const HAButtonEntry ackAll{
+        const HAButtonEntry resetAll{
             "alarms",
-            "alm_ack_all",
-            "Acknowledge Active Alarms",
+            "alm_reset_all",
+            "Reset Cleared Latched Alarms",
             MqttTopics::SuffixCmd,
-            "{\\\"cmd\\\":\\\"alarms.ack_all\\\"}",
+            "{\\\"cmd\\\":\\\"alarms.reset_all\\\"}",
             "diagnostic",
-            "mdi:alarm-check"
+            "mdi:alarm-off"
         };
-        if (haSvc_->addButton(haSvc_->ctx, &ackAll)) {
+        if (haSvc_->addButton(haSvc_->ctx, &resetAll)) {
             registeredAny = true;
         } else {
-            LOGW("HA registration failed: alm_ack_all");
+            LOGW("HA registration failed: alm_reset_all");
+        }
+
+        for (uint8_t i = 0; i < (uint8_t)(sizeof(kAlarmResetSlotButtons) / sizeof(kAlarmResetSlotButtons[0])); ++i) {
+            if (haSvc_->addButton(haSvc_->ctx, &kAlarmResetSlotButtons[i])) {
+                registeredAny = true;
+            } else {
+                LOGW("HA registration failed: %s", kAlarmResetSlotButtons[i].objectSuffix);
+            }
         }
     }
 
@@ -739,7 +768,6 @@ void AlarmModule::evaluateOnce_(uint32_t nowMs)
                     if (s.onSinceMs == 0U) s.onSinceMs = nowMs;
                     if (delayReached_(s.onSinceMs, s.def.onDelayMs, nowMs)) {
                         s.active = true;
-                        s.acked = false;
                         s.activeSinceMs = nowMs;
                         s.lastChangeMs = nowMs;
                         s.onSinceMs = 0U;
@@ -753,12 +781,10 @@ void AlarmModule::evaluateOnce_(uint32_t nowMs)
             } else if (cond == AlarmCondState::False) {
                 s.onSinceMs = 0U;
                 if (s.active) {
-                    const bool canClear = (!s.def.latched) || s.acked;
-                    if (canClear) {
+                    if (!s.def.latched) {
                         if (s.offSinceMs == 0U) s.offSinceMs = nowMs;
                         if (delayReached_(s.offSinceMs, s.def.offDelayMs, nowMs)) {
                             s.active = false;
-                            s.acked = false;
                             s.offSinceMs = 0U;
                             s.lastChangeMs = nowMs;
                             postCleared = true;

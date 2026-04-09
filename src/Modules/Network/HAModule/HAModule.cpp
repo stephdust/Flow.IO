@@ -27,6 +27,7 @@ struct HaDiscoveryCleanupEntry {
 };
 static constexpr HaDiscoveryCleanupEntry kLegacyDiscoveryCleanupEntries[] = {
     {"sensor", "sys_upt_s"},
+    {"button", "alm_ack_all"},
     {"button", "alm_ack_slot_0"},
     {"button", "alm_ack_slot_1"},
     {"button", "alm_ack_slot_2"},

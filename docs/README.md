@@ -1,4 +1,4 @@
-# Documentation Flow.IO
+# Documentation Flow.io
 
 Cette documentation est organisée pour deux usages distincts:
 
@@ -64,7 +64,7 @@ Le projet compile aujourd'hui deux firmwares ESP32:
 
 Les tableaux ci-dessous décrivent le câblage actuellement reflété par les sources du dépôt.
 
-### Flow.IO
+### Flow.io
 
 Références principales:
 

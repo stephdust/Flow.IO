@@ -5,7 +5,7 @@
 Moteur d'alarmes central:
 - enregistrement des définitions d'alarmes (`AlarmRegistration`)
 - évaluation cyclique de conditions (`AlarmCondFn`)
-- latching, ack, délais ON/OFF, snapshots
+- latching, reset manuel, délais ON/OFF, snapshots
 - émission d'événements de cycle de vie d'alarme
 
 Type: module actif.
@@ -25,8 +25,8 @@ Type: module actif.
 ## Services exposés
 
 - `alarms` -> `AlarmService`
-  - `registerAlarm`, `ack`, `ackAll`
-  - `isActive`, `isAcked`, `activeCount`, `highestSeverity`
+  - `registerAlarm`, `reset`, `resetAll`
+  - `isActive`, `isResettable`, `activeCount`, `highestSeverity`
   - `buildSnapshot`, `listIds`, `buildAlarmState`, `buildPacked`
 
 ## Services consommés
@@ -43,36 +43,34 @@ Module config `alarms` (`moduleId = ConfigModuleId::Alarms`, branche locale `1`)
 ## Commandes
 
 - `alarms.list`
-- `alarms.ack` (args `{id}`)
-- `alarms.ack_slot` (args `{slot}` -> résolution `slot -> id`)
-- `alarms.ack_all`
+- `alarms.reset` (args `{id}`)
+- `alarms.reset_slot` (args `{slot}` -> résolution `slot -> id`)
+- `alarms.reset_all`
 
 ## Modèle d'état d'une alarme
 
 Chaque slot garde notamment:
 - `lastCond`: `False` / `True` / `Unknown`
 - `active`: état d'alarme actif
-- `acked`: acquittement utilisateur (utile si `latched=true`)
 - timers `onSinceMs` / `offSinceMs`
 
 Transitions:
 - `cond=True` pendant `onDelayMs` -> `active=true`
 - `cond=False`:
   - si non latched -> clear après `offDelayMs`
-  - si latched et non acked -> reste active
-  - si latched et acked -> clear après `offDelayMs`
+  - si latched -> reste active jusqu'à commande `reset`
 - `cond=Unknown` -> pas de transition (timers annulés, état conservé)
 
-## Sémantique latch / ack
+## Sémantique latch / reset
 
 - `latched=false`: clear automatique quand la condition retombe
-- `latched=true`: clear nécessite un acquittement (`ack`) puis condition false
-- `ack` ne force pas un clear immédiat si `offDelayMs > 0`
-- `ack_all` ne touche que les alarmes latched actives non encore ackées
+- `latched=true`: clear nécessite `condition=false` puis une commande `reset`
+- `reset` n'est accepté que si l'alarme est encore active et que sa condition est déjà redevenue fausse
+- `reset_all` ne touche que les alarmes latched actives actuellement réarmables
 
 Conséquence opérationnelle importante:
-- une alarme latched peut rester `active=true` même si la condition est redevenue fausse (tant qu'elle n'est pas ackée)
-- c'est voulu pour garder la trace d'un défaut de sécurité jusqu'à intervention
+- une alarme latched peut rester `active=true` même si la condition est redevenue fausse (tant qu'elle n'est pas reset)
+- c'est voulu pour garder la trace d'un défaut de sécurité jusqu'à réarmement manuel
 
 ## EventBus
 
@@ -80,7 +78,7 @@ Conséquence opérationnelle importante:
 - `AlarmConditionChanged`
 - `AlarmRaised`
 - `AlarmCleared`
-- `AlarmAcked`
+- `AlarmReset`
 
 Abonnements:
 - aucun

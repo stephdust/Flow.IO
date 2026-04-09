@@ -219,11 +219,11 @@ Logique principale:
   - délai ON `500 ms`, OFF `1000 ms`, répétition `60000 ms`
   - condition: entrée digitale `chl_lvl_io_id == true`
 
-### Réarmement / acquittement PSI
+### Réarmement PSI
 
 - source de vérité en nominal: `alarmSvc->isActive(PoolPsiLow|PoolPsiHigh)`
 - tant qu'une alarme PSI latched reste `active`, `psiError_` reste vrai et la filtration est bloquée
-- si l'alarme est acquittée alors que la condition est redevenue fausse, elle se clear après `offDelayMs`
+- si la condition est redevenue fausse, un `reset` manuel est alors autorisé pour clear l'alarme
 - si la filtration est redémarrée alors que la pression reste anormale:
   - `psi_high` peut reraiser immédiatement
   - `psi_low` reraisera après `psi_start_dly_s` (délai de démarrage)

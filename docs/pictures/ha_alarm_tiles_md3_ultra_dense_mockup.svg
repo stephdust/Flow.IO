@@ -1,4 +1,4 @@
-<svg width="1200" height="420" viewBox="0 0 1200 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow.IO ultra dense alarm tiles">
+<svg width="1200" height="420" viewBox="0 0 1200 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow.io ultra dense alarm tiles">
   <defs>
     <style>
       .title { font: 700 22px 'Segoe UI', Roboto, Arial, sans-serif; fill:#1f1f1f; }
@@ -12,7 +12,7 @@
   </defs>
 
   <rect width="1200" height="420" fill="#f5f7fa"/>
-  <text x="36" y="42" class="title">Flow.IO - Ultra Dense Alarm Tiles (MD3)</text>
+  <text x="36" y="42" class="title">Flow.io - Ultra Dense Alarm Tiles (MD3)</text>
   <text x="36" y="64" class="sub">Tuile 132x68 | tap = ack | hold = details</text>
 
   <!-- 4x2 grid, card = 132x68, gap 12 -->
