@@ -218,7 +218,7 @@ bool PcntCounterDriver::readDebugStats(IODigitalCounterDebugStats& out) const
     out.logicalState = logicalState;
     out.pulseCount = state_.pulseCount;
     out.irqCalls = state_.rawPulseCount;
-    out.transitions = state_.rawPulseCount;
+    out.transitions = state_.sampleCount;
     out.ignoredSameState = 0;
     out.ignoredWrongEdge = 0;
     out.ignoredDebounce = state_.ignoredDebounceCount;

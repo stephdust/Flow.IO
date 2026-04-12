@@ -1068,7 +1068,6 @@ bool IOModule::processDigitalInputDefinition_(uint8_t slotIdx, uint32_t nowMs)
         if (delta > 0) {
             slot.counterScaledTotal += ((float)delta * c0);
             slot.counterLastRawCount = rawCount;
-            (void)persistCounterTotalIfNeeded_(slot, rawCount, nowMs);
             if (cfgData_.traceEnabled) {
                 const float tracedScaledValue = ioRoundToPrecision(slot.counterScaledTotal, precision);
                 LOGI("Counter pulse i%02u io=%u raw=%ld delta=%ld total=%.3f",
@@ -1089,6 +1088,7 @@ bool IOModule::processDigitalInputDefinition_(uint8_t slotIdx, uint32_t nowMs)
             slot.counterLastRawCount = rawCount;
             slot.counterLastFlushedRawCount = rawCount;
         }
+        (void)persistCounterTotalIfNeeded_(slot, rawCount, nowMs);
 
         const float scaledValue = ioRoundToPrecision(slot.counterScaledTotal, precision);
 
@@ -1158,14 +1158,12 @@ void IOModule::traceDigitalCounters_(uint32_t nowMs)
 
         IODigitalCounterDebugStats stats{};
         if (!counterDriver->readDebugStats(stats)) continue;
-        LOGI("Counter dbg i%02u pin=%u raw=%ld irq=%lu trans=%lu same=%lu edge=%lu db=%lu active_high=%u edge_mode=%u",
+        LOGI("Counter dbg i%02u pin=%u accepted=%ld raw_hw=%lu polls=%lu dropped_db=%lu active_high=%u edge_mode=%u",
              (unsigned)slot.logicalIdx,
              (unsigned)stats.pin,
              (long)stats.pulseCount,
              (unsigned long)stats.irqCalls,
              (unsigned long)stats.transitions,
-             (unsigned long)stats.ignoredSameState,
-             (unsigned long)stats.ignoredWrongEdge,
              (unsigned long)stats.ignoredDebounce,
              (unsigned)stats.activeHigh,
              (unsigned)stats.edgeMode);
