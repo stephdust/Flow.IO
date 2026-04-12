@@ -1158,7 +1158,7 @@ void IOModule::traceDigitalCounters_(uint32_t nowMs)
 
         IODigitalCounterDebugStats stats{};
         if (!counterDriver->readDebugStats(stats)) continue;
-        LOGI("Counter dbg i%02u pin=%u accepted=%ld raw_hw=%lu polls=%lu dropped_db=%lu active_high=%u edge_mode=%u",
+        LOGD("Counter dbg i%02u pin=%u accepted=%ld raw_hw=%lu polls=%lu dropped_db=%lu active_high=%u edge_mode=%u",
              (unsigned)slot.logicalIdx,
              (unsigned)stats.pin,
              (long)stats.pulseCount,

@@ -147,6 +147,8 @@ bool PcntCounterDriver::syncCounter_(uint32_t nowMs) const
 
     int16_t hwCount = 0;
     if (pcnt_get_counter_value(unit_, &hwCount) != ESP_OK) return false;
+    bool logicalOn = false;
+    (void)read(logicalOn);
 
     const bool needFold = (hwCount >= kFoldThreshold) || (hwCount <= -kFoldThreshold);
     if (needFold) {
@@ -162,23 +164,32 @@ bool PcntCounterDriver::syncCounter_(uint32_t nowMs) const
     const int32_t delta = static_cast<int32_t>(hwCount) - static_cast<int32_t>(s.lastHardwareCount);
     s.sampleCount++;
     s.lastSampleMs = nowMs;
+    const uint32_t debounceMs = debounceWindowMs_();
+    if (!logicalOn) {
+        if (s.idleSinceMs == 0U) s.idleSinceMs = nowMs;
+        if (!s.gateArmed && (debounceMs == 0U || (uint32_t)(nowMs - s.idleSinceMs) >= debounceMs)) {
+            s.gateArmed = true;
+        }
+    } else {
+        s.idleSinceMs = 0U;
+    }
     if (delta > 0) {
         s.rawPulseCount += delta;
-        const uint32_t debounceMs = debounceWindowMs_();
         if (debounceMs == 0U) {
             s.pulseCount += delta;
             s.lastAcceptedMs = nowMs;
         } else {
-            int32_t accepted = 0;
-            for (int32_t i = 0; i < delta; ++i) {
-                if (s.lastAcceptedMs == 0U || (uint32_t)(nowMs - s.lastAcceptedMs) >= debounceMs) {
-                    ++accepted;
-                    s.lastAcceptedMs = nowMs;
-                } else {
-                    ++s.ignoredDebounceCount;
+            if (s.gateArmed) {
+                ++s.pulseCount;
+                s.lastAcceptedMs = nowMs;
+                s.gateArmed = false;
+                s.idleSinceMs = 0U;
+                if (delta > 1) {
+                    s.ignoredDebounceCount += static_cast<uint32_t>(delta - 1);
                 }
+            } else {
+                s.ignoredDebounceCount += static_cast<uint32_t>(delta);
             }
-            s.pulseCount += accepted;
         }
     }
     s.lastHardwareCount = hwCount;

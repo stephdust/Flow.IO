@@ -38,6 +38,8 @@ private:
         uint32_t foldCount = 0;
         uint32_t lastAcceptedMs = 0;
         uint32_t lastSampleMs = 0;
+        uint32_t idleSinceMs = 0;
+        bool gateArmed = true;
         bool started = false;
     };
 
