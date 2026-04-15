@@ -21,6 +21,7 @@ vers un récepteur TFA Venice compatible.
 - `io`
 - `alarms`
 - `command`
+- `time`
 
 ## Service exposé
 

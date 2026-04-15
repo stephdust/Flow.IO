@@ -32,20 +32,26 @@ Objets texte :
 - `tAirTemp.txt`
 - `tpH.txt`
 - `tORP.txt`
+- `tTime.txt`
+- `tDate.txt`
 
 Objets numériques :
 - `vapHPercent.val`
 - `vaOrpPercent.val`
 - `globals.vaStates.val`
+- `globals.vaAlarms.val`
 
 Sémantique :
 - `tWaterTemp.txt` : exemple `27.4°C`
 - `tAirTemp.txt` : exemple `21.8°C`
 - `tpH.txt` : exemple `7.18`
 - `tORP.txt` : exemple `650`
+- `tTime.txt` : heure locale au format `HH:MM`, exemple `14:37`
+- `tDate.txt` : date locale au format `jour Mois`, exemple `15 Avril`
 - `vapHPercent.val` : jauge `0..280`, `140` à la consigne pH
 - `vaOrpPercent.val` : jauge `0..280`, `140` à la consigne ORP
 - `globals.vaStates.val` : bitmap d'état compact
+- `globals.vaAlarms.val` : bitmap d'alarmes compact
 
 ### Bitmap `globals.vaStates`
 
@@ -59,12 +65,20 @@ Bits actuellement utilisés :
 - bit `6` : mode hiver
 - bit `7` : WiFi connecté
 - bit `8` : MQTT connecté
-- bit `9` : niveau eau bas
-- bit `10` : bidon pH bas
-- bit `11` : bidon chlore bas
-- bit `12` : alarme temps max pompe pH
-- bit `13` : alarme temps max pompe ORP
-- bit `14` : alarme PSI
+- bit `9` : robot ON
+- bit `10` : éclairage ON
+- bit `11` : chauffage ON
+- bit `12` : remplissage ON
+
+### Bitmap `globals.vaAlarms`
+
+Bits actuellement utilisés :
+- bit `0` : niveau eau bas
+- bit `1` : bidon pH bas
+- bit `2` : bidon chlore bas
+- bit `3` : alarme temps max pompe pH
+- bit `4` : alarme temps max pompe ORP
+- bit `5` : alarme PSI
 
 ### Page de configuration
 
@@ -90,6 +104,53 @@ Sémantique :
 - `bRx` : zone tactile de ligne
 
 ## Protocole Nextion -> ESP
+
+## RTC Nextion
+
+L'écran Nextion expose une RTC locale utilisée comme source de secours pour
+FlowIO lorsque l'heure NTP n'est pas disponible au boot.
+
+Registres RTC Nextion utilisés :
+- `rtc0` : année, par exemple `2026`
+- `rtc1` : mois `1..12`
+- `rtc2` : jour `1..31`
+- `rtc3` : heure `0..23`
+- `rtc4` : minute `0..59`
+- `rtc5` : seconde `0..59`
+
+Séquence au boot côté ESP :
+- si l'heure ESP est déjà synchronisée NTP, l'ESP ne lit pas la RTC Nextion ;
+- si WiFi ou NTP est désactivé, l'ESP lit immédiatement `rtc0..rtc5` ;
+- si WiFi et NTP sont actifs mais que l'heure n'est toujours pas synchronisée
+  après `30s`, l'ESP lit `rtc0..rtc5` ;
+- si la lecture RTC est valide, `TimeService` est réglé depuis cette heure et
+  les fonctions métier peuvent utiliser le scheduler normalement ;
+- tant que l'heure provient de la RTC Nextion, elle est marquée comme source
+  externe et n'est pas utilisée pour réécrire immédiatement la RTC Nextion.
+
+Synchronisation ESP -> Nextion :
+- dès que l'ESP obtient une vraie synchronisation NTP, il écrit `rtc0..rtc5`
+  pour remettre la RTC Nextion à l'heure ;
+- ensuite, tant que l'heure ESP reste synchronisée NTP, l'ESP réécrit la RTC
+  Nextion une fois par jour local ;
+- les valeurs écrites sont en heure locale, pas en UTC.
+
+Commandes Nextion utilisées par l'ESP :
+
+```text
+get rtc0
+get rtc1
+get rtc2
+get rtc3
+get rtc4
+get rtc5
+rtc0=<year>
+rtc1=<month>
+rtc2=<day>
+rtc3=<hour>
+rtc4=<minute>
+rtc5=<second>
+```
 
 ## Format binaire
 
@@ -273,6 +334,27 @@ Le retour attendu est le rafraîchissement de l'état réel après exécution.
 En plus du protocole binaire ci-dessus, `NextionDriver` accepte encore les
 événements touch Nextion standard `0x65`.
 
+Format Nextion `Send Component ID` :
+
+```text
+65 <page_id> <component_id> <event>
+```
+
+Le driver ne traite que l'événement `press` (`event=01`) pour éviter un double
+toggle si le composant émet aussi le release.
+
+Sur la page config (`page_id=0A`), les component IDs restent réservés à la
+navigation menu existante. Sur les autres pages, les IDs suivants sont traités
+comme des toggles Home :
+
+- component ID `16` : toggle mode auto global
+- component ID `18` : toggle ORP auto
+- component ID `19` : toggle pH auto
+- component ID `20` : toggle robot
+- component ID `21` : toggle hivernage
+- component ID `22` : toggle éclairage
+- component ID `39` : toggle pompe filtration
+
 ## Pages et identifiants recommandés
 
 Identifiants recommandés côté Nextion :
@@ -329,5 +411,5 @@ Exemples :
 
 - Pas de handshake de version d'affichage encore implémenté.
 - Pas d'ACK binaire structuré renvoyé vers Nextion.
-- `globals.vaStates` est un contrat de firmware : toute modification d'ordre de
-  bits doit être synchronisée entre ESP et Nextion.
+- `globals.vaStates` et `globals.vaAlarms` sont des contrats de firmware : toute
+  modification d'ordre de bits doit être synchronisée entre ESP et Nextion.
