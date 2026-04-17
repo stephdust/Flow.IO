@@ -7,6 +7,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <ArduinoJson.h>
+
 #include "Core/SystemLimits.h"
 #include "Core/Services/IConfig.h"
 
@@ -23,6 +25,11 @@ enum class ConfigMenuValueType : uint8_t {
     Int = 2,
     Float = 3,
     Text = 4
+};
+
+enum class ConfigMenuMode : uint8_t {
+    Browse = 0,
+    Edit = 1
 };
 
 struct ConfigMenuConstraints {
@@ -42,8 +49,11 @@ struct ConfigMenuHint {
 
 struct ConfigMenuRowView {
     bool visible = false;
+    bool valueVisible = false;
     bool editable = false;
     bool dirty = false;
+    bool canEnter = false;
+    bool canEdit = false;
     ConfigMenuWidget widget = ConfigMenuWidget::Text;
     char key[28]{};
     char label[28]{};
@@ -55,6 +65,7 @@ struct ConfigMenuView {
     uint8_t pageIndex = 0;
     uint8_t pageCount = 1;
     uint8_t rowCountOnPage = 0;
+    ConfigMenuMode mode = ConfigMenuMode::Browse;
     ConfigMenuRowView rows[6]{};
 
     bool canHome = true;
@@ -66,7 +77,7 @@ struct ConfigMenuView {
 class ConfigMenuModel {
 public:
     static constexpr uint8_t RowsPerPage = 6;
-    static constexpr uint8_t MaxRows = 72;
+    static constexpr uint8_t MaxRows = 24;
     static constexpr uint8_t MaxModules = Limits::Config::Capacity::ModuleListMax;
 
     bool begin(const ConfigStoreService* cfgSvc);
@@ -77,6 +88,7 @@ public:
     bool openModule(const char* module);
     bool refreshCurrent();
     bool enterRow(uint8_t rowOnPage);
+    bool editRow(uint8_t rowOnPage);
 
     bool nextPage();
     bool prevPage();
@@ -90,20 +102,15 @@ public:
     void buildView(ConfigMenuView& out) const;
 
     bool isHome() const { return currentModule_[0] == '\0'; }
+    bool isEditing() const { return mode_ == ConfigMenuMode::Edit; }
+    ConfigMenuMode mode() const { return mode_; }
     const char* currentModule() const { return currentModule_; }
     uint8_t pageIndex() const { return pageIndex_; }
     uint8_t pageCount() const;
 
 private:
-    enum class RowKind : uint8_t {
-        Module = 0,
-        Config = 1
-    };
-
     struct Row {
-        RowKind kind = RowKind::Config;
         bool editable = false;
-        bool dirty = false;
         bool hexDisplay = false;
         ConfigMenuWidget widget = ConfigMenuWidget::Text;
         ConfigMenuValueType type = ConfigMenuValueType::Unknown;
@@ -114,47 +121,55 @@ private:
         char value[40]{};
 
         bool boolCur = false;
-        bool boolOrig = false;
 
         int32_t intCur = 0;
-        int32_t intOrig = 0;
 
         float floatCur = 0.0f;
-        float floatOrig = 0.0f;
 
         char textCur[40]{};
-        char textOrig[40]{};
 
         float sliderMin = 0.0f;
         float sliderMax = 100.0f;
         float sliderStep = 1.0f;
 
         uint8_t optionCount = 0;
-        char options[6][16]{};
+        const char* optionsCsv = nullptr;
     };
 
     const ConfigStoreService* cfgSvc_ = nullptr;
     const ConfigMenuHint* hints_ = nullptr;
     uint8_t hintCount_ = 0;
 
-    Row* rows_ = nullptr;
-    uint8_t rowCount_ = 0;
+    ConfigMenuMode mode_ = ConfigMenuMode::Browse;
     uint8_t pageIndex_ = 0;
-
-    char (*moduleList_)[28] = nullptr;
-    uint8_t moduleCount_ = 0;
 
     char currentModule_[28]{};
     char previousModule_[28]{};
 
-    bool loadHome_();
-    bool loadModule_(const char* module);
-    bool resolvePageRow_(uint8_t rowOnPage, uint8_t& absoluteIdx) const;
-    bool recomputeDirty_(Row& row);
-    void formatValueText_(Row& row);
-    void applyHints_(Row& row);
+    uint8_t listSortedModules_(const char** modules, uint8_t max) const;
+    uint8_t currentRowCount_() const;
+    uint8_t branchRowCount_(const char* branch) const;
+    uint8_t moduleRowCount_(const char* module) const;
+    bool branchRowAt_(const char* branch,
+                      uint8_t index,
+                      char* fullPath,
+                      size_t fullPathLen,
+                      char* label,
+                      size_t labelLen,
+                      bool& hasChildren,
+                      bool& hasModule,
+                      bool& hasAttributes) const;
+    bool moduleExists_(const char* module) const;
+    bool moduleHasChildren_(const char* module) const;
+    bool configRowAt_(const char* module, uint8_t index, Row& out) const;
+    bool fillRowFromJson_(const char* module, const char* key, JsonVariantConst value, Row& row) const;
+    bool applySingleRow_(const Row& row) const;
+    bool setRowValueFromText_(Row& row, const char* value) const;
+    void buildHomeView_(ConfigMenuView& out) const;
+    void buildModuleView_(ConfigMenuView& out) const;
+    void formatValueText_(Row& row) const;
+    void applyHints_(Row& row) const;
     const ConfigMenuHint* findHint_(const char* module, const char* key) const;
-    bool parseOptions_(Row& row, const char* csv);
     void buildBreadcrumb_(char* out, size_t outLen) const;
     bool appendText_(char* out, size_t outLen, size_t& pos, const char* text) const;
 };

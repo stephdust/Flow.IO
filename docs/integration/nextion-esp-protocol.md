@@ -8,7 +8,6 @@ par `HMIModule` / `NextionDriver`.
 Le protocole est volontairement mixte :
 - `ESP -> Nextion` : commandes Nextion natives (`.txt`, `.val`, `page ...`)
 - `Nextion -> ESP` : protocole binaire compact `# <len> <opcode> <payload...>`
-- compatibilité conservée : événements touch Nextion (`0x65`)
 
 Le port série utilisé côté FlowIO est `Serial2` sur `RX16 / TX17` à `115200`.
 
@@ -308,6 +307,17 @@ Actions supportées :
 - `0x02` : `AUTO_MODE_SET`
 - `0x03` : `SYNC_REQUEST`
 - `0x04` : `CONFIG_OPEN` (compatibilite no-op cote FlowIO; ne change pas la page Nextion)
+- `0x05` : `PH_PUMP_SET`
+- `0x06` : `ORP_PUMP_SET`
+- `0x07` : `PH_PUMP_TOGGLE`
+- `0x08` : `ORP_PUMP_TOGGLE`
+- `0x09` : `FILTRATION_TOGGLE`
+- `0x0A` : `AUTO_MODE_TOGGLE`
+- `0x0B` : `ORP_AUTO_MODE_TOGGLE`
+- `0x0C` : `PH_AUTO_MODE_TOGGLE`
+- `0x0D` : `WINTER_MODE_TOGGLE`
+- `0x0E` : `LIGHTS_TOGGLE`
+- `0x0F` : `ROBOT_TOGGLE`
 
 Valeur :
 - `0x00` : faux / OFF
@@ -347,6 +357,45 @@ Nextion puis d'envoyer `PAGE=0x0A` depuis `pageCfgMenu`.
 printh 23 03 60 04 01
 ```
 
+Forçage pompe pH ON :
+
+```text
+printh 23 03 60 05 01
+```
+
+Forçage pompe chlore (ORP) ON :
+
+```text
+printh 23 03 60 06 01
+```
+
+Toggle pompe pH :
+
+```text
+printh 23 03 60 07 01
+```
+
+Toggle pompe chlore (ORP) :
+
+```text
+printh 23 03 60 08 01
+```
+
+### Commandes toggle recommandées sur la page Home
+
+Les toggles utilisent `HOME_ACTION` (`0x60`) avec `value=01` (valeur ignorée
+pour les toggles, conservée pour homogénéité de trame).
+
+- Filtration toggle : `printh 23 03 60 09 01`
+- Auto global toggle : `printh 23 03 60 0A 01`
+- ORP auto toggle : `printh 23 03 60 0B 01`
+- pH auto toggle : `printh 23 03 60 0C 01`
+- Hivernage toggle : `printh 23 03 60 0D 01`
+- Eclairage toggle : `printh 23 03 60 0E 01`
+- Robot toggle : `printh 23 03 60 0F 01`
+- Pompe pH toggle : `printh 23 03 60 07 01`
+- Pompe chlore toggle : `printh 23 03 60 08 01`
+
 ## Mapping vers les commandes ESP
 
 Les actions Home sont routées via `CommandService` :
@@ -375,35 +424,40 @@ Les actions Home sont routées via `CommandService` :
   - compatibilité uniquement; FlowIO ne change plus la page Nextion
   - le rendu du menu démarre uniquement lorsque `pageCfgMenu` envoie
     `printh 23 02 50 0A`
+- `PH_PUMP_SET`
+  - `value=1` : désactive `ph_auto_mode` puis force l'état de la pompe pH (`pooldevice.write`)
+  - `value=0` : repasse la pompe pH OFF (`pooldevice.write`) sans réactiver l'auto
+- `ORP_PUMP_SET`
+  - `value=1` : désactive `orp_auto_mode` puis force l'état de la pompe ORP (`pooldevice.write`)
+  - `value=0` : repasse la pompe ORP OFF (`pooldevice.write`) sans réactiver l'auto
+- `PH_PUMP_TOGGLE`
+  - inverse l'état réel de la pompe pH
+  - si la cible est `ON`, désactive d'abord `ph_auto_mode`, puis force la pompe
+- `ORP_PUMP_TOGGLE`
+  - inverse l'état réel de la pompe ORP
+  - si la cible est `ON`, désactive d'abord `orp_auto_mode`, puis force la pompe
+- `FILTRATION_TOGGLE`
+  - inverse l'état réel de filtration (`poollogic.filtration.write`)
+- `AUTO_MODE_TOGGLE`
+  - inverse le mode auto global (`poollogic.auto_mode.set`)
+- `ORP_AUTO_MODE_TOGGLE`
+  - inverse `orp_auto_mode`
+- `PH_AUTO_MODE_TOGGLE`
+  - inverse `ph_auto_mode`
+- `WINTER_MODE_TOGGLE`
+  - inverse `winter_mode`
+- `LIGHTS_TOGGLE`
+  - inverse l'état runtime du device éclairage (`pooldevice.write`)
+- `ROBOT_TOGGLE`
+  - inverse l'état runtime du device robot (`pooldevice.write`)
 
 Il n'y a pas d'ACK synchrone formel vers Nextion dans cette V1.
 Le retour attendu est le rafraîchissement de l'état réel après exécution.
 
-## Compatibilité conservée
+## Événements Touch Standard
 
-En plus du protocole binaire ci-dessus, `NextionDriver` accepte encore les
-événements touch Nextion standard `0x65`.
-
-Format Nextion `Send Component ID` :
-
-```text
-65 <page_id> <component_id> <event>
-```
-
-Le driver ne traite que l'événement `press` (`event=01`) pour éviter un double
-toggle si le composant émet aussi le release.
-
-Sur la page config (`page_id=0A`), les component IDs restent réservés à la
-navigation menu existante. Sur les autres pages, les IDs suivants sont traités
-comme des toggles Home :
-
-- component ID `16` : toggle mode auto global
-- component ID `18` : toggle ORP auto
-- component ID `19` : toggle pH auto
-- component ID `20` : toggle robot
-- component ID `21` : toggle hivernage
-- component ID `22` : toggle éclairage
-- component ID `39` : toggle pompe filtration
+Les événements Nextion `Send Component ID` (`0x65`) ne sont plus interprétés
+par `FlowIO`. Utiliser uniquement les trames `printh 23 ...` de ce document.
 
 ## Pages et identifiants recommandés
 

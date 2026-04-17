@@ -9,6 +9,7 @@
 #include "Core/ServiceBinding.h"
 #include "Core/EventBus/EventBus.h"
 #include "Core/Services/Services.h"
+#include "Domain/Pool/PoolBindings.h"
 #include "Modules/HMIModule/ConfigMenuModel.h"
 #include "Modules/HMIModule/Drivers/HmiDriverTypes.h"
 #include "Modules/HMIModule/Drivers/NextionDriver.h"
@@ -22,8 +23,9 @@ public:
     uint16_t taskStackSize() const override { return 4096; }
     uint8_t taskCount() const override { return 1; }
     const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
+    uint32_t startDelayMs() const override { return 5000U; }
 
-    uint8_t dependencyCount() const override { return 6; }
+    uint8_t dependencyCount() const override { return 9; }
     ModuleId dependency(uint8_t i) const override {
         if (i == 0) return ModuleId::LogHub;
         if (i == 1) return ModuleId::ConfigStore;
@@ -31,6 +33,9 @@ public:
         if (i == 3) return ModuleId::DataStore;
         if (i == 4) return ModuleId::Io;
         if (i == 5) return ModuleId::Alarm;
+        if (i == 6) return ModuleId::Command;
+        if (i == 7) return ModuleId::Time;
+        if (i == 8) return ModuleId::Wifi;
         return ModuleId::Unknown;
     }
 
@@ -71,6 +76,9 @@ private:
     const DataStoreService* dsSvc_ = nullptr;
     const AlarmService* alarmSvc_ = nullptr;
     const IOServiceV2* ioSvc_ = nullptr;
+    const CommandService* cmdSvc_ = nullptr;
+    const TimeService* timeSvc_ = nullptr;
+    const WifiService* wifiSvc_ = nullptr;
     const StatusLedsService* statusLedsSvc_ = nullptr;
     EventBus* eventBus_ = nullptr;
 
@@ -81,29 +89,43 @@ private:
 
     bool driverReady_ = false;
     bool viewDirty_ = true;
+    bool configMenuReady_ = false;
+    bool configMenuActive_ = false;
     uint32_t lastRenderMs_ = 0;
+    uint32_t lastConfigValueRefreshMs_ = 0;
     uint8_t ledPage_ = 1;
     uint8_t ledMaskLast_ = 0;
     bool ledMaskValid_ = false;
-    bool wifiReady_ = false;
-    bool mqttReady_ = false;
-    bool autoRegEnabled_ = false;
-    bool winterMode_ = false;
-    bool phPidEnabled_ = false;
-    bool chlorinePidEnabled_ = false;
-    bool phTankLowAlarm_ = false;
-    bool chlorineTankLowAlarm_ = false;
-    bool phPumpRuntimeAlarm_ = false;
-    bool chlorinePumpRuntimeAlarm_ = false;
-    bool psiAlarm_ = false;
-    bool waterLevelLow_ = false;
     bool wifiBlinkOn_ = false;
-    IoId poolLevelIoId_ = IO_ID_INVALID;
-    IoId waterTempIoId_ = IO_ID_INVALID;
-    char poollogicCfgJson_[768]{};
+    uint32_t homePublishMask_ = 0U;
+    portMUX_TYPE homePublishMux_ = portMUX_INITIALIZER_UNLOCKED;
+    IoId phIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPh].ioId;
+    IoId orpIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotOrp].ioId;
+    IoId airTempIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotAirTemp].ioId;
+    IoId poolLevelIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPoolLevel].ioId;
+    IoId waterTempIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterTemp].ioId;
+    uint8_t filtrationDeviceSlot_ = PoolBinding::kDeviceSlotFiltrationPump;
+    uint8_t phPumpDeviceSlot_ = PoolBinding::kDeviceSlotPhPump;
+    uint8_t orpPumpDeviceSlot_ = PoolBinding::kDeviceSlotChlorinePump;
+    uint8_t robotDeviceSlot_ = PoolBinding::kDeviceSlotRobot;
+    uint8_t lightsDeviceSlot_ = PoolBinding::kDeviceSlotLights;
+    uint8_t heaterDeviceSlot_ = PoolBinding::kDeviceSlotWaterHeater;
+    uint8_t fillingDeviceSlot_ = PoolBinding::kDeviceSlotFillPump;
+    uint8_t phRuntimeIndex_ = 0xFFU;
+    uint8_t orpRuntimeIndex_ = 0xFFU;
+    uint8_t waterTempRuntimeIndex_ = 0xFFU;
+    uint8_t airTempRuntimeIndex_ = 0xFFU;
+    uint8_t poolLevelRuntimeIndex_ = 0xFFU;
     uint32_t lastLedApplyTryMs_ = 0;
     uint32_t lastLedPageToggleMs_ = 0;
     uint32_t lastWifiBlinkToggleMs_ = 0;
+    uint32_t lastClockCheckMs_ = 0;
+    uint32_t lastClockMinuteStamp_ = 0xFFFFFFFFUL;
+    uint32_t lastClockDayStamp_ = 0xFFFFFFFFUL;
+    uint32_t lastRtcFallbackAttemptMs_ = 0;
+    uint32_t lastRtcPushAttemptMs_ = 0;
+    uint32_t lastRtcPushDayStamp_ = 0xFFFFFFFFUL;
+    bool rtcFallbackCompleted_ = false;
 
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
@@ -115,11 +137,32 @@ private:
     uint8_t getLedPage_() const;
     bool refreshCurrentModule_();
     bool render_();
-    bool buildMenuJson_(char* out, size_t outLen) const;
-    void refreshPoolLogicFlags_();
-    void refreshRuntimeFlags_();
-    void refreshAlarmFlags_();
-    void refreshWaterLevelFlag_();
+    bool refreshConfigMenuValues_();
+    bool buildMenuJson_(char* out, size_t outLen);
+    bool ensureConfigMenuReady_();
+    void refreshHomeBindings_();
+    bool resolveIoRuntimeIndex_(IoId ioId, uint8_t& outIndex) const;
+    bool readPoolLogicModeFlags_(bool& autoMode, bool& winterMode, bool& phAutoMode, bool& orpAutoMode) const;
+    bool readPidSetpoints_(float& phSetpoint, float& orpSetpoint) const;
+    bool readPoolDeviceActualOn_(uint8_t slot, bool& on) const;
+    bool isAlarmActive_(AlarmId id) const;
+    bool isWaterLevelLow_() const;
+    uint32_t buildHomeStateBits_() const;
+    uint32_t buildHomeAlarmBits_() const;
+    bool publishHomeText_(HmiHomeTextField field);
+    bool publishHomeGaugePercent_(HmiHomeGaugeField field);
+    bool publishHomeStateBits_();
+    bool publishHomeAlarmBits_();
+    void serviceRtcBridge_(uint32_t nowMs);
+    bool readNextionRtcAndSetTime_();
+    bool pushEspTimeToNextionRtc_();
+    void queueClockPublishIfDue_(uint32_t nowMs);
+    void queueHomePublish_(uint32_t mask);
+    void flushHomePublish_();
+    bool executeHmiCommand_(HmiCommandId command, uint8_t value);
+    bool executeCommandBool_(const char* cmdName, bool value);
+    bool executePoolDeviceWrite_(uint8_t slot, bool value);
+    bool executePoolLogicModePatch_(const char* key, bool value);
     void applyOutputConfig_();
     void applyLedMask_(bool force = false);
 

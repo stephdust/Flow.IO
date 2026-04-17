@@ -82,7 +82,6 @@ Des hints peuvent forcer le widget et les contraintes (bornes/options).
   - `nPage`, `nPages`
 - Entrées:
   - protocole binaire custom `# <len> <opcode> <payload...>`
-  - événements touch Nextion standard (`0x65`)
 - Ouverture menu:
   - bouton paramètres côté Home: `page pageCfgMenu`
   - `Preinitialize Event` de `pageCfgMenu`: `printh 23 02 50 0A`

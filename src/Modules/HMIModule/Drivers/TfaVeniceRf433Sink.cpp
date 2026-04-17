@@ -104,6 +104,12 @@ bool TfaVeniceRf433Sink::ensureReady_()
         return false;
     }
 
+    LOGI("Venice RF433 started gpio=%d period_ms=%lu channel=%u sensor_id=0x%02X",
+         (int)cfg_.txPin,
+         (unsigned long)sanitizePeriodMs_(cfg_.periodMs),
+         (unsigned)cfg_.channel,
+         (unsigned)cfg_.sensorId);
+
     started_ = true;
     configDirty_ = false;
     return true;

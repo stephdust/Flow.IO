@@ -17,6 +17,8 @@
 
 namespace {
 
+static constexpr size_t kMenuJsonDocCapacity = Limits::Mqtt::Buffers::StateCfg + 512U;
+
 static void copyStr_(char* dst, size_t cap, const char* src)
 {
     if (!dst || cap == 0) return;
@@ -52,11 +54,6 @@ static void trimFloat_(char* s)
         --end;
     }
     if (end == dot) *end = '\0';
-}
-
-static bool sameFloat_(float a, float b)
-{
-    return fabsf(a - b) <= 0.0001f;
 }
 
 static bool isHexDisplayField_(const char* module, const char* key)
@@ -97,33 +94,161 @@ static void formatHexInt_(char* out, size_t outLen, int32_t value)
     else snprintf(out, outLen, "0x%lX", (unsigned long)raw);
 }
 
+static bool jsonEscape_(char* out, size_t outLen, const char* in)
+{
+    if (!out || outLen == 0) return false;
+    if (!in) in = "";
+
+    size_t pos = 0;
+    for (size_t i = 0; in[i] != '\0'; ++i) {
+        const unsigned char uc = (unsigned char)in[i];
+        const char c = (char)uc;
+        if (c == '"' || c == '\\') {
+            if (pos + 2 >= outLen) return false;
+            out[pos++] = '\\';
+            out[pos++] = c;
+        } else if (uc < 32U) {
+            if (pos + 6 >= outLen) return false;
+            const int n = snprintf(out + pos, outLen - pos, "\\u%04X", (unsigned)uc);
+            if (n != 6) return false;
+            pos += 6U;
+        } else {
+            if (pos + 1 >= outLen) return false;
+            out[pos++] = c;
+        }
+    }
+    out[pos] = '\0';
+    return true;
+}
+
+static uint8_t countCsvOptions_(const char* csv)
+{
+    if (!csv || csv[0] == '\0') return 0;
+
+    uint8_t count = 0;
+    const char* p = csv;
+    while (*p != '\0') {
+        bool hasToken = false;
+        while (*p != '\0' && *p != '|') {
+            hasToken = true;
+            ++p;
+        }
+        if (hasToken && count < 0xFFU) ++count;
+        if (*p == '|') ++p;
+    }
+    return count;
+}
+
+static bool csvOptionAt_(const char* csv, uint8_t wanted, char* out, size_t outLen)
+{
+    if (!out || outLen == 0) return false;
+    out[0] = '\0';
+    if (!csv || csv[0] == '\0') return false;
+
+    uint8_t index = 0;
+    const char* p = csv;
+    while (*p != '\0') {
+        char token[48]{};
+        uint8_t n = 0;
+        while (*p != '\0' && *p != '|') {
+            if (n < (uint8_t)(sizeof(token) - 1U)) token[n++] = *p;
+            ++p;
+        }
+        token[n] = '\0';
+        if (n > 0) {
+            if (index == wanted) {
+                copyStr_(out, outLen, token);
+                return true;
+            }
+            ++index;
+        }
+        if (*p == '|') ++p;
+    }
+    return false;
+}
+
+static bool csvOptionIndex_(const char* csv, const char* value, uint8_t& out)
+{
+    if (!csv || !value) return false;
+
+    uint8_t index = 0;
+    const char* p = csv;
+    while (*p != '\0') {
+        char token[48]{};
+        uint8_t n = 0;
+        while (*p != '\0' && *p != '|') {
+            if (n < (uint8_t)(sizeof(token) - 1U)) token[n++] = *p;
+            ++p;
+        }
+        token[n] = '\0';
+        if (n > 0) {
+            if (strcmp(token, value) == 0) {
+                out = index;
+                return true;
+            }
+            ++index;
+        }
+        if (*p == '|') ++p;
+    }
+    return false;
+}
+
+static bool startsWithBranch_(const char* module, const char* branch)
+{
+    if (!module) return false;
+    if (!branch || branch[0] == '\0') return true;
+    const size_t len = strlen(branch);
+    return strncmp(module, branch, len) == 0 && module[len] == '/';
+}
+
+static bool immediateChildForBranch_(const char* module,
+                                     const char* branch,
+                                     char* child,
+                                     size_t childLen,
+                                     char* fullPath,
+                                     size_t fullPathLen)
+{
+    if (!module || !child || childLen == 0 || !fullPath || fullPathLen == 0) return false;
+    child[0] = '\0';
+    fullPath[0] = '\0';
+
+    const char* rel = module;
+    if (branch && branch[0] != '\0') {
+        if (!startsWithBranch_(module, branch)) return false;
+        rel = module + strlen(branch) + 1U;
+    }
+    if (!rel || rel[0] == '\0') return false;
+
+    uint8_t n = 0;
+    while (rel[n] != '\0' && rel[n] != '/' && n + 1U < childLen) {
+        child[n] = rel[n];
+        ++n;
+    }
+    child[n] = '\0';
+    if (child[0] == '\0') return false;
+
+    if (branch && branch[0] != '\0') {
+        const int written = snprintf(fullPath, fullPathLen, "%s/%s", branch, child);
+        return written > 0 && (size_t)written < fullPathLen;
+    }
+
+    copyStr_(fullPath, fullPathLen, child);
+    return fullPath[0] != '\0';
+}
+
 } // namespace
 
 bool ConfigMenuModel::begin(const ConfigStoreService* cfgSvc)
 {
-    if (!rows_) {
-        rows_ = (Row*)calloc(MaxRows, sizeof(Row));
-    }
-    if (!moduleList_) {
-        moduleList_ = (char(*)[28])calloc(MaxModules, sizeof(*moduleList_));
-    }
-    if (!rows_ || !moduleList_) return false;
-    BufferUsageTracker::note(TrackedBufferId::ConfigMenuHeap,
-                             0U,
-                             (size_t)MaxRows * sizeof(Row) + (size_t)MaxModules * sizeof(*moduleList_),
-                             "begin",
-                             nullptr);
-
     cfgSvc_ = cfgSvc;
     hints_ = nullptr;
     hintCount_ = 0;
-    rowCount_ = 0;
+    mode_ = ConfigMenuMode::Browse;
     pageIndex_ = 0;
-    moduleCount_ = 0;
     currentModule_[0] = '\0';
     previousModule_[0] = '\0';
-    if (!cfgSvc_) return false;
-    return loadHome_();
+    BufferUsageTracker::note(TrackedBufferId::ConfigMenuHeap, 0U, 0U, "stateless", nullptr);
+    return cfgSvc_ != nullptr;
 }
 
 void ConfigMenuModel::setHints(const ConfigMenuHint* hints, uint8_t count)
@@ -135,51 +260,116 @@ void ConfigMenuModel::setHints(const ConfigMenuHint* hints, uint8_t count)
 bool ConfigMenuModel::home()
 {
     if (!isHome()) copyStr_(previousModule_, sizeof(previousModule_), currentModule_);
-    return loadHome_();
+    mode_ = ConfigMenuMode::Browse;
+    currentModule_[0] = '\0';
+    pageIndex_ = 0;
+    return cfgSvc_ && cfgSvc_->listModules;
 }
 
 bool ConfigMenuModel::back()
 {
-    if (isHome()) return false;
-    if (previousModule_[0] != '\0') {
-        char target[sizeof(previousModule_)]{};
-        copyStr_(target, sizeof(target), previousModule_);
+    if (mode_ == ConfigMenuMode::Edit) {
+        mode_ = ConfigMenuMode::Browse;
+        copyStr_(currentModule_, sizeof(currentModule_), previousModule_);
         previousModule_[0] = '\0';
-        return loadModule_(target);
+        pageIndex_ = 0;
+        return true;
     }
-    return loadHome_();
+
+    if (isHome()) return false;
+    char* slash = strrchr(currentModule_, '/');
+    if (!slash) {
+        currentModule_[0] = '\0';
+    } else {
+        *slash = '\0';
+    }
+    pageIndex_ = 0;
+    return true;
 }
 
 bool ConfigMenuModel::openModule(const char* module)
 {
     if (!module || module[0] == '\0') return false;
+    if (!cfgSvc_ || !cfgSvc_->toJsonModule) return false;
+    if (!moduleExists_(module)) return false;
+
     if (!isHome()) copyStr_(previousModule_, sizeof(previousModule_), currentModule_);
     else previousModule_[0] = '\0';
-    return loadModule_(module);
+
+    copyStr_(currentModule_, sizeof(currentModule_), module);
+    mode_ = ConfigMenuMode::Edit;
+    pageIndex_ = 0;
+    return true;
 }
 
 bool ConfigMenuModel::refreshCurrent()
 {
-    if (isHome()) return loadHome_();
-
-    char current[sizeof(currentModule_)]{};
-    copyStr_(current, sizeof(current), currentModule_);
-    return loadModule_(current);
+    return cfgSvc_ != nullptr;
 }
 
 bool ConfigMenuModel::enterRow(uint8_t rowOnPage)
 {
-    uint8_t idx = 0;
-    if (!resolvePageRow_(rowOnPage, idx)) return false;
-    const Row& r = rows_[idx];
-    if (r.kind != RowKind::Module) return false;
-    return openModule(r.module);
+    if (mode_ != ConfigMenuMode::Browse) return false;
+    if (rowOnPage >= RowsPerPage) return false;
+
+    const uint8_t idx = (uint8_t)((uint16_t)pageIndex_ * RowsPerPage + rowOnPage);
+
+    char fullPath[28]{};
+    char label[28]{};
+    bool hasChildren = false;
+    bool hasModule = false;
+    bool hasAttributes = false;
+    if (!branchRowAt_(currentModule_,
+                      idx,
+                      fullPath,
+                      sizeof(fullPath),
+                      label,
+                      sizeof(label),
+                      hasChildren,
+                      hasModule,
+                      hasAttributes)) {
+        return false;
+    }
+    if (!hasChildren) return false;
+
+    copyStr_(previousModule_, sizeof(previousModule_), currentModule_);
+    copyStr_(currentModule_, sizeof(currentModule_), fullPath);
+    pageIndex_ = 0;
+    return true;
+}
+
+bool ConfigMenuModel::editRow(uint8_t rowOnPage)
+{
+    if (mode_ != ConfigMenuMode::Browse) return false;
+    if (rowOnPage >= RowsPerPage) return false;
+
+    const uint8_t idx = (uint8_t)((uint16_t)pageIndex_ * RowsPerPage + rowOnPage);
+
+    char fullPath[28]{};
+    char label[28]{};
+    bool hasChildren = false;
+    bool hasModule = false;
+    bool hasAttributes = false;
+    if (!branchRowAt_(currentModule_,
+                      idx,
+                      fullPath,
+                      sizeof(fullPath),
+                      label,
+                      sizeof(label),
+                      hasChildren,
+                      hasModule,
+                      hasAttributes)) {
+        return false;
+    }
+    if (!hasModule || !hasAttributes) return false;
+    return openModule(fullPath);
 }
 
 uint8_t ConfigMenuModel::pageCount() const
 {
-    if (rowCount_ == 0) return 1;
-    return (uint8_t)((rowCount_ + RowsPerPage - 1U) / RowsPerPage);
+    const uint8_t rows = currentRowCount_();
+    if (rows == 0) return 1;
+    return (uint8_t)((rows + RowsPerPage - 1U) / RowsPerPage);
 }
 
 bool ConfigMenuModel::nextPage()
@@ -197,170 +387,348 @@ bool ConfigMenuModel::prevPage()
     return true;
 }
 
-bool ConfigMenuModel::resolvePageRow_(uint8_t rowOnPage, uint8_t& absoluteIdx) const
+uint8_t ConfigMenuModel::listSortedModules_(const char** modules, uint8_t max) const
 {
-    if (rowOnPage >= RowsPerPage) return false;
-    const uint16_t idx = (uint16_t)pageIndex_ * RowsPerPage + rowOnPage;
-    if (idx >= rowCount_) return false;
-    absoluteIdx = (uint8_t)idx;
+    if (!modules || max == 0 || !cfgSvc_ || !cfgSvc_->listModules) return 0;
+    uint8_t count = cfgSvc_->listModules(cfgSvc_->ctx, modules, max);
+    if (count > max) count = max;
+
+    for (uint8_t i = 0; i < count; ++i) {
+        if (!modules[i]) modules[i] = "";
+    }
+    for (uint8_t i = 0; i < count; ++i) {
+        for (uint8_t j = (uint8_t)(i + 1U); j < count; ++j) {
+            if (strcmp(modules[i], modules[j]) > 0) {
+                const char* tmp = modules[i];
+                modules[i] = modules[j];
+                modules[j] = tmp;
+            }
+        }
+    }
+    return count;
+}
+
+uint8_t ConfigMenuModel::currentRowCount_() const
+{
+    if (mode_ == ConfigMenuMode::Browse) return branchRowCount_(currentModule_);
+    return moduleRowCount_(currentModule_);
+}
+
+uint8_t ConfigMenuModel::branchRowCount_(const char* branch) const
+{
+    const char* modules[MaxModules]{};
+    const uint8_t moduleCount = listSortedModules_(modules, MaxModules);
+
+    uint8_t count = 0;
+    char lastFullPath[28]{};
+    for (uint8_t i = 0; i < moduleCount; ++i) {
+        char child[28]{};
+        char fullPath[28]{};
+        if (!immediateChildForBranch_(modules[i],
+                                      branch,
+                                      child,
+                                      sizeof(child),
+                                      fullPath,
+                                      sizeof(fullPath))) {
+            continue;
+        }
+        if (lastFullPath[0] != '\0' && strcmp(lastFullPath, fullPath) == 0) continue;
+        copyStr_(lastFullPath, sizeof(lastFullPath), fullPath);
+        if (count < MaxRows) ++count;
+    }
+    return count;
+}
+
+uint8_t ConfigMenuModel::moduleRowCount_(const char* module) const
+{
+    if (!cfgSvc_ || !cfgSvc_->toJsonModule || !module || module[0] == '\0') return 0;
+
+    char* jsonBuf = (char*)malloc(Limits::Mqtt::Buffers::StateCfg);
+    if (!jsonBuf) return 0;
+    jsonBuf[0] = '\0';
+
+    bool truncated = false;
+    const bool ok = cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                                          module,
+                                          jsonBuf,
+                                          Limits::Mqtt::Buffers::StateCfg,
+                                          &truncated);
+    if (!ok || truncated) {
+        free(jsonBuf);
+        return 0;
+    }
+
+    DynamicJsonDocument doc(kMenuJsonDocCapacity);
+    const DeserializationError err = deserializeJson(doc, jsonBuf);
+    free(jsonBuf);
+    if (err || !doc.is<JsonObjectConst>()) return 0;
+
+    uint8_t count = 0;
+    JsonObjectConst obj = doc.as<JsonObjectConst>();
+    for (JsonPairConst kv : obj) {
+        if (count >= MaxRows) break;
+        Row row{};
+        if (fillRowFromJson_(module, kv.key().c_str(), kv.value(), row)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+bool ConfigMenuModel::branchRowAt_(const char* branch,
+                                   uint8_t index,
+                                   char* fullPath,
+                                   size_t fullPathLen,
+                                   char* label,
+                                   size_t labelLen,
+                                   bool& hasChildren,
+                                   bool& hasModule,
+                                   bool& hasAttributes) const
+{
+    if (!fullPath || fullPathLen == 0 || !label || labelLen == 0) return false;
+    fullPath[0] = '\0';
+    label[0] = '\0';
+    hasChildren = false;
+    hasModule = false;
+    hasAttributes = false;
+
+    const char* modules[MaxModules]{};
+    const uint8_t moduleCount = listSortedModules_(modules, MaxModules);
+
+    uint8_t current = 0;
+    char lastFullPath[28]{};
+    for (uint8_t i = 0; i < moduleCount; ++i) {
+        char child[28]{};
+        char path[28]{};
+        if (!immediateChildForBranch_(modules[i],
+                                      branch,
+                                      child,
+                                      sizeof(child),
+                                      path,
+                                      sizeof(path))) {
+            continue;
+        }
+        if (lastFullPath[0] != '\0' && strcmp(lastFullPath, path) == 0) continue;
+        copyStr_(lastFullPath, sizeof(lastFullPath), path);
+        if (current != index) {
+            if (current < MaxRows) ++current;
+            continue;
+        }
+
+        copyStr_(fullPath, fullPathLen, path);
+        copyStr_(label, labelLen, child);
+        hasModule = moduleExists_(path);
+        hasChildren = moduleHasChildren_(path);
+        hasAttributes = hasModule && moduleRowCount_(path) > 0;
+        return fullPath[0] != '\0' && label[0] != '\0';
+    }
+    return false;
+}
+
+bool ConfigMenuModel::moduleExists_(const char* module) const
+{
+    if (!module || module[0] == '\0') return false;
+    const char* modules[MaxModules]{};
+    const uint8_t moduleCount = listSortedModules_(modules, MaxModules);
+    for (uint8_t i = 0; i < moduleCount; ++i) {
+        if (strcmp(modules[i], module) == 0) return true;
+    }
+    return false;
+}
+
+bool ConfigMenuModel::moduleHasChildren_(const char* module) const
+{
+    if (!module || module[0] == '\0') return false;
+    const char* modules[MaxModules]{};
+    const uint8_t moduleCount = listSortedModules_(modules, MaxModules);
+    for (uint8_t i = 0; i < moduleCount; ++i) {
+        if (startsWithBranch_(modules[i], module)) return true;
+    }
+    return false;
+}
+
+bool ConfigMenuModel::configRowAt_(const char* module, uint8_t index, Row& out) const
+{
+    out = Row{};
+    if (!cfgSvc_ || !cfgSvc_->toJsonModule || !module || module[0] == '\0') return false;
+
+    char* jsonBuf = (char*)malloc(Limits::Mqtt::Buffers::StateCfg);
+    if (!jsonBuf) return false;
+    jsonBuf[0] = '\0';
+
+    bool truncated = false;
+    const bool ok = cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                                          module,
+                                          jsonBuf,
+                                          Limits::Mqtt::Buffers::StateCfg,
+                                          &truncated);
+    if (!ok || truncated) {
+        free(jsonBuf);
+        return false;
+    }
+
+    DynamicJsonDocument doc(kMenuJsonDocCapacity);
+    const DeserializationError err = deserializeJson(doc, jsonBuf);
+    free(jsonBuf);
+    if (err || !doc.is<JsonObjectConst>()) return false;
+
+    uint8_t current = 0;
+    JsonObjectConst obj = doc.as<JsonObjectConst>();
+    for (JsonPairConst kv : obj) {
+        if (current >= MaxRows) break;
+        Row row{};
+        if (!fillRowFromJson_(module, kv.key().c_str(), kv.value(), row)) continue;
+        if (current == index) {
+            out = row;
+            return true;
+        }
+        ++current;
+    }
+    return false;
+}
+
+bool ConfigMenuModel::fillRowFromJson_(const char* module, const char* key, JsonVariantConst value, Row& row) const
+{
+    row = Row{};
+    if (!module || !key || key[0] == '\0') return false;
+
+    row.editable = true;
+    row.widget = ConfigMenuWidget::Text;
+    copyStr_(row.module, sizeof(row.module), module);
+    copyStr_(row.key, sizeof(row.key), key);
+    copyStr_(row.label, sizeof(row.label), key);
+    row.hexDisplay = isHexDisplayField_(module, key);
+
+    if (value.is<bool>()) {
+        row.type = ConfigMenuValueType::Bool;
+        row.boolCur = value.as<bool>();
+        row.widget = ConfigMenuWidget::Switch;
+    } else if (value.is<int32_t>() || value.is<uint32_t>()) {
+        row.type = ConfigMenuValueType::Int;
+        row.intCur = value.as<int32_t>();
+    } else if (value.is<float>() || value.is<double>()) {
+        row.type = ConfigMenuValueType::Float;
+        row.floatCur = value.as<float>();
+    } else if (value.is<const char*>()) {
+        row.type = ConfigMenuValueType::Text;
+        copyStr_(row.textCur, sizeof(row.textCur), value.as<const char*>());
+    } else {
+        return false;
+    }
+
+    applyHints_(row);
+    formatValueText_(row);
     return true;
 }
 
-bool ConfigMenuModel::setText(uint8_t rowOnPage, const char* value)
+bool ConfigMenuModel::setRowValueFromText_(Row& row, const char* value) const
 {
-    uint8_t idx = 0;
-    if (!resolvePageRow_(rowOnPage, idx)) return false;
-    Row& r = rows_[idx];
-    if (r.kind != RowKind::Config || !r.editable) return false;
     if (!value) value = "";
 
-    switch (r.type) {
+    switch (row.type) {
         case ConfigMenuValueType::Bool: {
             bool b = false;
             if (!parseBoolText_(value, b)) return false;
-            r.boolCur = b;
-            break;
+            row.boolCur = b;
+            return true;
         }
-        case ConfigMenuValueType::Int: {
-            if (!parseIntText_(value, r.hexDisplay, r.intCur)) return false;
-            break;
-        }
+        case ConfigMenuValueType::Int:
+            return parseIntText_(value, row.hexDisplay, row.intCur);
         case ConfigMenuValueType::Float: {
             char* end = nullptr;
             const float v = strtof(value, &end);
             if (!end || *end != '\0') return false;
-            r.floatCur = v;
-            break;
+            row.floatCur = v;
+            return true;
         }
         case ConfigMenuValueType::Text:
-            copyStr_(r.textCur, sizeof(r.textCur), value);
-            break;
+            copyStr_(row.textCur, sizeof(row.textCur), value);
+            return true;
         default:
             return false;
     }
+}
 
-    recomputeDirty_(r);
-    formatValueText_(r);
-    return true;
+bool ConfigMenuModel::setText(uint8_t rowOnPage, const char* value)
+{
+    if (mode_ != ConfigMenuMode::Edit) return false;
+    if (rowOnPage >= RowsPerPage) return false;
+
+    Row row{};
+    const uint8_t idx = (uint8_t)((uint16_t)pageIndex_ * RowsPerPage + rowOnPage);
+    if (!configRowAt_(currentModule_, idx, row)) return false;
+    if (!row.editable) return false;
+    if (!setRowValueFromText_(row, value)) return false;
+
+    return applySingleRow_(row);
 }
 
 bool ConfigMenuModel::toggleSwitch(uint8_t rowOnPage)
 {
-    uint8_t idx = 0;
-    if (!resolvePageRow_(rowOnPage, idx)) return false;
-    Row& r = rows_[idx];
-    if (r.kind != RowKind::Config || !r.editable) return false;
-    if (r.type != ConfigMenuValueType::Bool) return false;
-    r.boolCur = !r.boolCur;
-    recomputeDirty_(r);
-    formatValueText_(r);
-    return true;
+    if (mode_ != ConfigMenuMode::Edit) return false;
+    if (rowOnPage >= RowsPerPage) return false;
+
+    Row row{};
+    const uint8_t idx = (uint8_t)((uint16_t)pageIndex_ * RowsPerPage + rowOnPage);
+    if (!configRowAt_(currentModule_, idx, row)) return false;
+    if (!row.editable) return false;
+    if (row.type != ConfigMenuValueType::Bool) return false;
+    row.boolCur = !row.boolCur;
+    return applySingleRow_(row);
 }
 
 bool ConfigMenuModel::cycleSelect(uint8_t rowOnPage, int8_t direction)
 {
-    uint8_t idx = 0;
-    if (!resolvePageRow_(rowOnPage, idx)) return false;
-    Row& r = rows_[idx];
-    if (r.kind != RowKind::Config || !r.editable) return false;
-    if (r.widget != ConfigMenuWidget::Select || r.optionCount == 0) return false;
+    if (mode_ != ConfigMenuMode::Edit) return false;
+    if (rowOnPage >= RowsPerPage) return false;
 
-    int16_t cur = 0;
-    bool found = false;
-    for (uint8_t i = 0; i < r.optionCount; ++i) {
-        if (strcmp(r.value, r.options[i]) == 0) {
-            cur = i;
-            found = true;
-            break;
-        }
-    }
-    if (!found) cur = 0;
+    Row row{};
+    const uint8_t idx = (uint8_t)((uint16_t)pageIndex_ * RowsPerPage + rowOnPage);
+    if (!configRowAt_(currentModule_, idx, row)) return false;
+    if (!row.editable) return false;
+    if (row.widget != ConfigMenuWidget::Select || row.optionCount == 0 || !row.optionsCsv) return false;
 
-    int16_t next = cur + direction;
-    while (next < 0) next += r.optionCount;
-    while (next >= r.optionCount) next -= r.optionCount;
-    return setText(rowOnPage, r.options[next]);
+    uint8_t cur = 0;
+    if (!csvOptionIndex_(row.optionsCsv, row.value, cur)) cur = 0;
+
+    int16_t next = (int16_t)cur + direction;
+    while (next < 0) next += row.optionCount;
+    while (next >= row.optionCount) next -= row.optionCount;
+
+    char nextValue[48]{};
+    if (!csvOptionAt_(row.optionsCsv, (uint8_t)next, nextValue, sizeof(nextValue))) return false;
+    if (!setRowValueFromText_(row, nextValue)) return false;
+    return applySingleRow_(row);
 }
 
 bool ConfigMenuModel::setSlider(uint8_t rowOnPage, float value)
 {
-    uint8_t idx = 0;
-    if (!resolvePageRow_(rowOnPage, idx)) return false;
-    Row& r = rows_[idx];
-    if (r.kind != RowKind::Config || !r.editable) return false;
-    if (r.widget != ConfigMenuWidget::Slider) return false;
-    if (r.type != ConfigMenuValueType::Int && r.type != ConfigMenuValueType::Float) return false;
+    if (mode_ != ConfigMenuMode::Edit) return false;
+    if (rowOnPage >= RowsPerPage) return false;
+
+    Row row{};
+    const uint8_t idx = (uint8_t)((uint16_t)pageIndex_ * RowsPerPage + rowOnPage);
+    if (!configRowAt_(currentModule_, idx, row)) return false;
+    if (!row.editable) return false;
+    if (row.widget != ConfigMenuWidget::Slider) return false;
+    if (row.type != ConfigMenuValueType::Int && row.type != ConfigMenuValueType::Float) return false;
 
     float v = value;
-    if (v < r.sliderMin) v = r.sliderMin;
-    if (v > r.sliderMax) v = r.sliderMax;
-    if (r.sliderStep > 0.0f) {
-        const float k = roundf((v - r.sliderMin) / r.sliderStep);
-        v = r.sliderMin + (k * r.sliderStep);
+    if (v < row.sliderMin) v = row.sliderMin;
+    if (v > row.sliderMax) v = row.sliderMax;
+    if (row.sliderStep > 0.0f) {
+        const float k = roundf((v - row.sliderMin) / row.sliderStep);
+        v = row.sliderMin + (k * row.sliderStep);
     }
 
-    if (r.type == ConfigMenuValueType::Int) r.intCur = (int32_t)lroundf(v);
-    else r.floatCur = v;
-
-    recomputeDirty_(r);
-    formatValueText_(r);
-    return true;
+    if (row.type == ConfigMenuValueType::Int) row.intCur = (int32_t)lroundf(v);
+    else row.floatCur = v;
+    return applySingleRow_(row);
 }
 
 bool ConfigMenuModel::validate(char* ack, size_t ackLen)
 {
-    if (!cfgSvc_ || !cfgSvc_->applyJson || isHome()) return false;
-
-    uint8_t dirtyCount = 0;
-    for (uint8_t i = 0; i < rowCount_; ++i) {
-        if (rows_[i].kind == RowKind::Config && rows_[i].dirty) ++dirtyCount;
-    }
-
-    if (dirtyCount == 0) {
-        if (ack && ackLen > 0) snprintf(ack, ackLen, "{\"ok\":true,\"applied\":0}");
-        return true;
-    }
-
-    DynamicJsonDocument patchDoc(Limits::JsonConfigApplyBuf);
-    JsonObject root = patchDoc.to<JsonObject>();
-    JsonObject moduleObj = root.createNestedObject(currentModule_);
-
-    for (uint8_t i = 0; i < rowCount_; ++i) {
-        const Row& r = rows_[i];
-        if (r.kind != RowKind::Config || !r.dirty) continue;
-
-        switch (r.type) {
-            case ConfigMenuValueType::Bool: moduleObj[r.key] = r.boolCur; break;
-            case ConfigMenuValueType::Int: moduleObj[r.key] = r.intCur; break;
-            case ConfigMenuValueType::Float: moduleObj[r.key] = r.floatCur; break;
-            case ConfigMenuValueType::Text: moduleObj[r.key] = r.textCur; break;
-            default: break;
-        }
-    }
-
-    char* payload = (char*)malloc(Limits::JsonConfigApplyBuf);
-    if (!payload) return false;
-    payload[0] = '\0';
-    const size_t written = serializeJson(root, payload, Limits::JsonConfigApplyBuf);
-    if (written == 0 || written >= Limits::JsonConfigApplyBuf) {
-        free(payload);
-        return false;
-    }
-    const bool ok = cfgSvc_->applyJson(cfgSvc_->ctx, payload);
-    free(payload);
-    if (!ok) {
-        if (ack && ackLen > 0) snprintf(ack, ackLen, "{\"ok\":false,\"err\":\"apply\"}");
-        return false;
-    }
-
-    char module[sizeof(currentModule_)]{};
-    copyStr_(module, sizeof(module), currentModule_);
-    if (!loadModule_(module)) {
-        if (ack && ackLen > 0) snprintf(ack, ackLen, "{\"ok\":false,\"err\":\"reload\"}");
-        return false;
-    }
-
-    if (ack && ackLen > 0) snprintf(ack, ackLen, "{\"ok\":true,\"applied\":%u}", (unsigned)dirtyCount);
+    if (ack && ackLen > 0) snprintf(ack, ackLen, "{\"ok\":true,\"applied\":0}");
     return true;
 }
 
@@ -370,167 +738,155 @@ void ConfigMenuModel::buildView(ConfigMenuView& out) const
 
     buildBreadcrumb_(out.breadcrumb, sizeof(out.breadcrumb));
     out.pageIndex = pageIndex_;
-    out.pageCount = pageCount();
+    out.pageCount = 1;
     out.canHome = true;
-    out.canBack = !isHome();
+    out.canBack = (mode_ == ConfigMenuMode::Edit) || !isHome();
     out.canValidate = false;
-    out.isHome = isHome();
+    out.isHome = (mode_ == ConfigMenuMode::Browse && isHome());
+    out.mode = mode_;
+
+    if (mode_ == ConfigMenuMode::Browse) buildHomeView_(out);
+    else buildModuleView_(out);
+}
+
+void ConfigMenuModel::buildHomeView_(ConfigMenuView& out) const
+{
+    const uint8_t count = branchRowCount_(currentModule_);
+    out.pageCount = count == 0 ? 1 : (uint8_t)((count + RowsPerPage - 1U) / RowsPerPage);
 
     uint8_t visible = 0;
+    const uint8_t first = (uint8_t)((uint16_t)pageIndex_ * RowsPerPage);
     for (uint8_t i = 0; i < RowsPerPage; ++i) {
-        uint8_t idx = 0;
-        if (!resolvePageRow_(i, idx)) break;
-        const Row& r = rows_[idx];
+        const uint8_t idx = (uint8_t)(first + i);
+        if (idx >= count) break;
+
+        char fullPath[28]{};
+        char label[28]{};
+        bool hasChildren = false;
+        bool hasModule = false;
+        bool hasAttributes = false;
+        if (!branchRowAt_(currentModule_,
+                          idx,
+                          fullPath,
+                          sizeof(fullPath),
+                          label,
+                          sizeof(label),
+                          hasChildren,
+                          hasModule,
+                          hasAttributes)) {
+            break;
+        }
+
         ConfigMenuRowView& vr = out.rows[i];
         vr.visible = true;
-        vr.editable = r.editable;
-        vr.dirty = r.dirty;
-        vr.widget = r.widget;
-        copyStr_(vr.key, sizeof(vr.key), r.key);
-        copyStr_(vr.label, sizeof(vr.label), r.label);
-        copyStr_(vr.value, sizeof(vr.value), r.value);
+        vr.valueVisible = false;
+        vr.editable = hasAttributes;
+        vr.canEnter = hasChildren;
+        vr.canEdit = hasAttributes;
+        vr.widget = ConfigMenuWidget::Text;
+        copyStr_(vr.key, sizeof(vr.key), fullPath);
+        if (hasChildren) snprintf(vr.label, sizeof(vr.label), "%s/", label);
+        else copyStr_(vr.label, sizeof(vr.label), label);
+        vr.value[0] = '\0';
         ++visible;
     }
     out.rowCountOnPage = visible;
-
-    if (!isHome()) {
-        for (uint8_t i = 0; i < rowCount_; ++i) {
-            if (rows_[i].kind == RowKind::Config && rows_[i].dirty) {
-                out.canValidate = true;
-                break;
-            }
-        }
-    }
 }
 
-bool ConfigMenuModel::loadHome_()
+void ConfigMenuModel::buildModuleView_(ConfigMenuView& out) const
 {
-    if (!cfgSvc_ || !cfgSvc_->listModules || !rows_ || !moduleList_) return false;
+    if (!cfgSvc_ || !cfgSvc_->toJsonModule || currentModule_[0] == '\0') return;
 
-    const char* modulesRaw[MaxModules]{};
-    moduleCount_ = cfgSvc_->listModules(cfgSvc_->ctx, modulesRaw, MaxModules);
-    if (moduleCount_ > MaxModules) moduleCount_ = MaxModules;
+    char* jsonBuf = (char*)malloc(Limits::Mqtt::Buffers::StateCfg);
+    if (!jsonBuf) return;
+    jsonBuf[0] = '\0';
 
-    for (uint8_t i = 0; i < moduleCount_; ++i) {
-        copyStr_(moduleList_[i], sizeof(moduleList_[i]), modulesRaw[i]);
-    }
-
-    for (uint8_t i = 0; i < moduleCount_; ++i) {
-        for (uint8_t j = (uint8_t)(i + 1U); j < moduleCount_; ++j) {
-            if (strcmp(moduleList_[i], moduleList_[j]) > 0) {
-                char tmp[sizeof(moduleList_[i])]{};
-                copyStr_(tmp, sizeof(tmp), moduleList_[i]);
-                copyStr_(moduleList_[i], sizeof(moduleList_[i]), moduleList_[j]);
-                copyStr_(moduleList_[j], sizeof(moduleList_[j]), tmp);
-            }
-        }
-    }
-
-    rowCount_ = 0;
-    for (uint8_t i = 0; i < moduleCount_ && rowCount_ < MaxRows; ++i) {
-        Row& r = rows_[rowCount_++];
-        r = Row{};
-        r.kind = RowKind::Module;
-        r.editable = true;
-        r.widget = ConfigMenuWidget::Text;
-        copyStr_(r.module, sizeof(r.module), moduleList_[i]);
-        copyStr_(r.key, sizeof(r.key), moduleList_[i]);
-        copyStr_(r.label, sizeof(r.label), moduleList_[i]);
-        copyStr_(r.value, sizeof(r.value), "open");
-    }
-
-    currentModule_[0] = '\0';
-    pageIndex_ = 0;
-    BufferUsageTracker::note(TrackedBufferId::ConfigMenuHeap,
-                             (size_t)rowCount_ * sizeof(Row) + (size_t)moduleCount_ * sizeof(*moduleList_),
-                             (size_t)MaxRows * sizeof(Row) + (size_t)MaxModules * sizeof(*moduleList_),
-                             "home",
-                             nullptr);
-    return true;
-}
-
-bool ConfigMenuModel::loadModule_(const char* module)
-{
-    if (!cfgSvc_ || !cfgSvc_->toJsonModule || !rows_) return false;
-    if (!module || module[0] == '\0') return false;
-
-    char jsonBuf[Limits::Mqtt::Buffers::StateCfg]{};
     bool truncated = false;
-    const bool hasAny = cfgSvc_->toJsonModule(cfgSvc_->ctx, module, jsonBuf, sizeof(jsonBuf), &truncated);
-    if (!hasAny || truncated) return false;
+    const bool ok = cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                                          currentModule_,
+                                          jsonBuf,
+                                          Limits::Mqtt::Buffers::StateCfg,
+                                          &truncated);
+    if (!ok || truncated) {
+        free(jsonBuf);
+        return;
+    }
 
-    DynamicJsonDocument doc(Limits::JsonConfigApplyBuf);
+    DynamicJsonDocument doc(kMenuJsonDocCapacity);
     const DeserializationError err = deserializeJson(doc, jsonBuf);
-    if (err || !doc.is<JsonObjectConst>()) return false;
+    free(jsonBuf);
+    if (err || !doc.is<JsonObjectConst>()) return;
 
+    const uint8_t first = (uint8_t)((uint16_t)pageIndex_ * RowsPerPage);
+    uint8_t total = 0;
+    uint8_t visible = 0;
     JsonObjectConst obj = doc.as<JsonObjectConst>();
-
-    rowCount_ = 0;
     for (JsonPairConst kv : obj) {
-        if (rowCount_ >= MaxRows) break;
-        const char* key = kv.key().c_str();
-        JsonVariantConst value = kv.value();
-        if (!key || key[0] == '\0') continue;
+        if (total >= MaxRows) break;
 
         Row row{};
-        row.kind = RowKind::Config;
-        row.editable = true;
-        row.widget = ConfigMenuWidget::Text;
-        copyStr_(row.module, sizeof(row.module), module);
-        copyStr_(row.key, sizeof(row.key), key);
-        copyStr_(row.label, sizeof(row.label), key);
-        row.hexDisplay = isHexDisplayField_(module, key);
+        if (!fillRowFromJson_(currentModule_, kv.key().c_str(), kv.value(), row)) continue;
 
-        if (value.is<bool>()) {
-            row.type = ConfigMenuValueType::Bool;
-            row.boolCur = value.as<bool>();
-            row.boolOrig = row.boolCur;
-            row.widget = ConfigMenuWidget::Switch;
-        } else if (value.is<int32_t>() || value.is<uint32_t>()) {
-            row.type = ConfigMenuValueType::Int;
-            row.intCur = value.as<int32_t>();
-            row.intOrig = row.intCur;
-        } else if (value.is<float>() || value.is<double>()) {
-            row.type = ConfigMenuValueType::Float;
-            row.floatCur = value.as<float>();
-            row.floatOrig = row.floatCur;
-        } else if (value.is<const char*>()) {
-            row.type = ConfigMenuValueType::Text;
-            copyStr_(row.textCur, sizeof(row.textCur), value.as<const char*>());
-            copyStr_(row.textOrig, sizeof(row.textOrig), row.textCur);
-        } else {
-            continue;
+        if (total >= first && visible < RowsPerPage) {
+            ConfigMenuRowView& vr = out.rows[visible];
+            vr.visible = true;
+            vr.valueVisible = true;
+            vr.editable = row.editable;
+            vr.dirty = false;
+            vr.canEnter = false;
+            vr.canEdit = false;
+            vr.widget = row.widget;
+            copyStr_(vr.key, sizeof(vr.key), row.key);
+            copyStr_(vr.label, sizeof(vr.label), row.label);
+            copyStr_(vr.value, sizeof(vr.value), row.value);
+            ++visible;
         }
-
-        applyHints_(row);
-        recomputeDirty_(row);
-        formatValueText_(row);
-        rows_[rowCount_++] = row;
+        ++total;
     }
 
-    copyStr_(currentModule_, sizeof(currentModule_), module);
-    pageIndex_ = 0;
-    BufferUsageTracker::note(TrackedBufferId::ConfigMenuHeap,
-                             (size_t)rowCount_ * sizeof(Row) + (size_t)moduleCount_ * sizeof(*moduleList_),
-                             (size_t)MaxRows * sizeof(Row) + (size_t)MaxModules * sizeof(*moduleList_),
-                             module,
-                             nullptr);
-    return true;
+    out.pageCount = total == 0 ? 1 : (uint8_t)((total + RowsPerPage - 1U) / RowsPerPage);
+    out.rowCountOnPage = visible;
 }
 
-bool ConfigMenuModel::recomputeDirty_(Row& row)
+bool ConfigMenuModel::applySingleRow_(const Row& row) const
 {
+    if (!cfgSvc_ || !cfgSvc_->applyJson) return false;
+    if (row.module[0] == '\0' || row.key[0] == '\0') return false;
+
+    char value[112]{};
     switch (row.type) {
-        case ConfigMenuValueType::Bool: row.dirty = (row.boolCur != row.boolOrig); break;
-        case ConfigMenuValueType::Int: row.dirty = (row.intCur != row.intOrig); break;
-        case ConfigMenuValueType::Float: row.dirty = !sameFloat_(row.floatCur, row.floatOrig); break;
-        case ConfigMenuValueType::Text: row.dirty = (strcmp(row.textCur, row.textOrig) != 0); break;
-        default: row.dirty = false; break;
+        case ConfigMenuValueType::Bool:
+            copyStr_(value, sizeof(value), row.boolCur ? "true" : "false");
+            break;
+        case ConfigMenuValueType::Int:
+            snprintf(value, sizeof(value), "%ld", (long)row.intCur);
+            break;
+        case ConfigMenuValueType::Float:
+            snprintf(value, sizeof(value), "%.6g", (double)row.floatCur);
+            break;
+        case ConfigMenuValueType::Text: {
+            char escaped[96]{};
+            if (!jsonEscape_(escaped, sizeof(escaped), row.textCur)) return false;
+            const int n = snprintf(value, sizeof(value), "\"%s\"", escaped);
+            if (n <= 0 || (size_t)n >= sizeof(value)) return false;
+            break;
+        }
+        default:
+            return false;
     }
-    return row.dirty;
+
+    char payload[256]{};
+    const int n = snprintf(payload,
+                           sizeof(payload),
+                           "{\"%s\":{\"%s\":%s}}",
+                           row.module,
+                           row.key,
+                           value);
+    if (n <= 0 || (size_t)n >= sizeof(payload)) return false;
+    return cfgSvc_->applyJson(cfgSvc_->ctx, payload);
 }
 
-void ConfigMenuModel::formatValueText_(Row& row)
+void ConfigMenuModel::formatValueText_(Row& row) const
 {
     switch (row.type) {
         case ConfigMenuValueType::Bool:
@@ -541,7 +897,7 @@ void ConfigMenuModel::formatValueText_(Row& row)
             else snprintf(row.value, sizeof(row.value), "%ld", (long)row.intCur);
             break;
         case ConfigMenuValueType::Float:
-            snprintf(row.value, sizeof(row.value), "%.3f", row.floatCur);
+            snprintf(row.value, sizeof(row.value), "%.3f", (double)row.floatCur);
             trimFloat_(row.value);
             break;
         case ConfigMenuValueType::Text:
@@ -566,29 +922,7 @@ const ConfigMenuHint* ConfigMenuModel::findHint_(const char* module, const char*
     return nullptr;
 }
 
-bool ConfigMenuModel::parseOptions_(Row& row, const char* csv)
-{
-    row.optionCount = 0;
-    if (!csv || csv[0] == '\0') return false;
-
-    const char* p = csv;
-    while (*p != '\0' && row.optionCount < (uint8_t)(sizeof(row.options) / sizeof(row.options[0]))) {
-        char token[16]{};
-        uint8_t n = 0;
-        while (*p != '\0' && *p != '|' && n < (uint8_t)(sizeof(token) - 1U)) {
-            token[n++] = *p++;
-        }
-        token[n] = '\0';
-        if (n > 0) {
-            copyStr_(row.options[row.optionCount], sizeof(row.options[row.optionCount]), token);
-            ++row.optionCount;
-        }
-        if (*p == '|') ++p;
-    }
-    return row.optionCount > 0;
-}
-
-void ConfigMenuModel::applyHints_(Row& row)
+void ConfigMenuModel::applyHints_(Row& row) const
 {
     const ConfigMenuHint* hint = findHint_(row.module, row.key);
     if (!hint) return;
@@ -597,7 +931,10 @@ void ConfigMenuModel::applyHints_(Row& row)
     row.editable = hint->constraints.editable;
 
     if (row.widget == ConfigMenuWidget::Select) {
-        if (!parseOptions_(row, hint->constraints.optionsCsv)) {
+        row.optionsCsv = hint->constraints.optionsCsv;
+        row.optionCount = countCsvOptions_(row.optionsCsv);
+        if (row.optionCount == 0) {
+            row.optionsCsv = nullptr;
             row.widget = ConfigMenuWidget::Text;
         }
     }
@@ -633,7 +970,7 @@ void ConfigMenuModel::buildBreadcrumb_(char* out, size_t outLen) const
     out[0] = '\0';
     size_t pos = 0;
 
-    if (!appendText_(out, outLen, pos, "flow > cfg")) return;
+    if (!appendText_(out, outLen, pos, "config")) return;
     if (isHome()) return;
     if (!appendText_(out, outLen, pos, " > ")) return;
 

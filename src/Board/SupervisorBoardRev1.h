@@ -14,7 +14,7 @@ inline constexpr UartSpec kSupervisorBoardRev1Uarts[] = {
 };
 
 inline constexpr I2cBusSpec kSupervisorBoardRev1I2c[] = {
-    {"interlink", 27, 13, kSupervisorBoardRev1InterlinkI2cHz},
+    {"interlink", 5, 15, kSupervisorBoardRev1InterlinkI2cHz},
 };
 
 inline constexpr St7789DisplaySpec kSupervisorBoardRev1Display{

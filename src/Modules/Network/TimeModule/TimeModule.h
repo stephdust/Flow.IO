@@ -134,8 +134,10 @@ private:
 
     TimeSyncState stateSvc_() const;
     bool isSynced_() const;
+    bool isExternalRtc_() const;
     uint64_t epoch_() const;
     bool formatLocalTime_(char* out, size_t len) const;
+    bool setExternalEpoch_(uint64_t epochSec);
 
     bool setSlotSvc_(const TimeSchedulerSlot* slotDef);
     bool getSlotSvc_(uint8_t slot, TimeSchedulerSlot* outDef) const;
@@ -173,6 +175,7 @@ private:
     // ---- retry backoff ----
     uint8_t _retryCount = 0;
     uint32_t _retryDelayMs = 2000; // 2s start
+    bool syncedFromExternalRtc_ = false;
 
     // ---- time scheduler ----
     mutable portMUX_TYPE schedMux_ = portMUX_INITIALIZER_UNLOCKED;
@@ -188,7 +191,9 @@ private:
         ServiceBinding::bind<&TimeModule::isSynced_>,
         ServiceBinding::bind<&TimeModule::epoch_>,
         ServiceBinding::bind<&TimeModule::formatLocalTime_>,
-        this
+        this,
+        ServiceBinding::bind<&TimeModule::setExternalEpoch_>,
+        ServiceBinding::bind<&TimeModule::isExternalRtc_>
     };
     TimeSchedulerService schedSvc_{
         ServiceBinding::bind<&TimeModule::setSlotSvc_>,

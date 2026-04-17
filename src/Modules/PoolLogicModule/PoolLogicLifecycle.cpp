@@ -734,11 +734,26 @@ void PoolLogicModule::onEvent_(const Event& e)
         }
         if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic &&
             p->localBranchId == kCfgBranchMode &&
-            strcmp(p->nvsKey, NvsKeys::PoolLogic::AutoMode) == 0 &&
-            autoMode_) {
-            portENTER_CRITICAL(&pendingMux_);
-            pendingFiltrationReconcile_ = true;
-            portEXIT_CRITICAL(&pendingMux_);
+            p->nvsKey) {
+            if (strcmp(p->nvsKey, NvsKeys::PoolLogic::AutoMode) == 0 && autoMode_) {
+                portENTER_CRITICAL(&pendingMux_);
+                pendingFiltrationReconcile_ = true;
+                portEXIT_CRITICAL(&pendingMux_);
+            } else if (strcmp(p->nvsKey, NvsKeys::PoolLogic::PhAutoMode) == 0 && phAutoMode_) {
+                // Global business rule: entering pH auto starts from a safe stopped pump.
+                if (!writeDeviceDesired_(phPumpDeviceSlot_, false)) {
+                    LOGW("PoolLogic failed to stop pH pump on ph_auto_mode enable (slot=%u)",
+                         (unsigned)phPumpDeviceSlot_);
+                }
+                resetTemporalPidState_(phPidState_, millis());
+            } else if (strcmp(p->nvsKey, NvsKeys::PoolLogic::OrpAutoMode) == 0 && orpAutoMode_) {
+                // Global business rule: entering ORP auto starts from a safe stopped pump.
+                if (!writeDeviceDesired_(orpPumpDeviceSlot_, false)) {
+                    LOGW("PoolLogic failed to stop ORP pump on orp_auto_mode enable (slot=%u)",
+                         (unsigned)orpPumpDeviceSlot_);
+                }
+                resetTemporalPidState_(orpPidState_, millis());
+            }
         }
         return;
     }

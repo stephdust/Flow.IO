@@ -13,22 +13,37 @@
 namespace {
 
 static constexpr uint8_t NEXTION_FF = 0xFF;
-static constexpr uint8_t NEXTION_EVT_TOUCH = 0x65;
-static constexpr uint8_t NEXTION_EVT_STR = 0x70;
+static constexpr uint8_t NEXTION_RSP_NUMBER = 0x71;
+static constexpr uint8_t NEXTION_CUSTOM_START = '#';
+static constexpr uint8_t NEXTION_CMD_PAGE = 0x50;
+static constexpr uint8_t NEXTION_CMD_NAV = 0x51;
+static constexpr uint8_t NEXTION_CMD_ROW_ACTIVATE = 0x52;
+static constexpr uint8_t NEXTION_CMD_ROW_TOGGLE = 0x53;
+static constexpr uint8_t NEXTION_CMD_ROW_CYCLE = 0x54;
+static constexpr uint8_t NEXTION_CMD_ROW_EDIT = 0x55;
+static constexpr uint8_t NEXTION_CMD_HOME_ACTION = 0x60;
 
-static constexpr uint8_t CMP_HOME = 10;
-static constexpr uint8_t CMP_BACK = 11;
-static constexpr uint8_t CMP_VALIDATE = 12;
-static constexpr uint8_t CMP_PREV_PAGE = 13;
-static constexpr uint8_t CMP_NEXT_PAGE = 14;
-static constexpr uint8_t CMP_ROW_BASE = 20;
-static constexpr uint8_t CMP_ROW_LAST = CMP_ROW_BASE + 5;
-
-static bool startsWith_(const char* s, const char* prefix)
-{
-    if (!s || !prefix) return false;
-    return strncmp(s, prefix, strlen(prefix)) == 0;
-}
+static constexpr uint8_t NAV_HOME = 1;
+static constexpr uint8_t NAV_BACK = 2;
+static constexpr uint8_t NAV_VALIDATE = 3;
+static constexpr uint8_t NAV_NEXT = 4;
+static constexpr uint8_t NAV_PREV = 5;
+static constexpr uint8_t NAV_CONFIG_EXIT = 6;
+static constexpr uint8_t HOME_ACTION_FILTRATION = 1;
+static constexpr uint8_t HOME_ACTION_AUTO_MODE = 2;
+static constexpr uint8_t HOME_ACTION_SYNC = 3;
+static constexpr uint8_t HOME_ACTION_CONFIG_OPEN = 4;
+static constexpr uint8_t HOME_ACTION_PH_PUMP = 5;
+static constexpr uint8_t HOME_ACTION_ORP_PUMP = 6;
+static constexpr uint8_t HOME_ACTION_PH_PUMP_TOGGLE = 7;
+static constexpr uint8_t HOME_ACTION_ORP_PUMP_TOGGLE = 8;
+static constexpr uint8_t HOME_ACTION_FILTRATION_TOGGLE = 9;
+static constexpr uint8_t HOME_ACTION_AUTO_MODE_TOGGLE = 10;
+static constexpr uint8_t HOME_ACTION_ORP_AUTO_MODE_TOGGLE = 11;
+static constexpr uint8_t HOME_ACTION_PH_AUTO_MODE_TOGGLE = 12;
+static constexpr uint8_t HOME_ACTION_WINTER_MODE_TOGGLE = 13;
+static constexpr uint8_t HOME_ACTION_LIGHTS_TOGGLE = 14;
+static constexpr uint8_t HOME_ACTION_ROBOT_TOGGLE = 15;
 
 } // namespace
 
@@ -46,8 +61,9 @@ bool NextionDriver::begin()
     started_ = true;
     pageReady_ = false;
     lastRenderMs_ = 0;
-    rxLen_ = 0;
-    ffCount_ = 0;
+    customFrameActive_ = false;
+    customExpectedLen_ = 0;
+    customLen_ = 0;
     return true;
 }
 
@@ -68,13 +84,19 @@ bool NextionDriver::sendCmd_(const char* cmd)
 bool NextionDriver::sendCmdFmt_(const char* fmt, ...)
 {
     if (!fmt) return false;
-    char cmd[160]{};
+    char cmd[TxBufSize]{};
     va_list ap;
     va_start(ap, fmt);
     const int n = vsnprintf(cmd, sizeof(cmd), fmt, ap);
     va_end(ap);
     if (n <= 0 || (size_t)n >= sizeof(cmd)) return false;
     return sendCmd_(cmd);
+}
+
+bool NextionDriver::sendNum_(const char* objectName, uint32_t value)
+{
+    if (!objectName || objectName[0] == '\0') return false;
+    return sendCmdFmt_("%s.val=%lu", objectName, (unsigned long)value);
 }
 
 void NextionDriver::sanitizeText_(char* out, size_t outLen, const char* in) const
@@ -84,8 +106,9 @@ void NextionDriver::sanitizeText_(char* out, size_t outLen, const char* in) cons
 
     size_t pos = 0;
     for (size_t i = 0; in[i] != '\0' && pos + 1 < outLen; ++i) {
-        const char c = in[i];
-        if ((unsigned char)c < 32 || (unsigned char)c > 126) continue;
+        const unsigned char uc = (unsigned char)in[i];
+        if (uc < 32U) continue;
+        const char c = (char)uc;
         if (c == '"' || c == '\\') {
             if (pos + 2 >= outLen) break;
             out[pos++] = '\\';
@@ -101,8 +124,183 @@ bool NextionDriver::sendText_(const char* objectName, const char* value)
 {
     if (!objectName || objectName[0] == '\0') return false;
     char safe[96]{};
+    char cmd[TxBufSize]{};
     sanitizeText_(safe, sizeof(safe), value);
-    return sendCmdFmt_("%s.txt=\"%s\"", objectName, safe);
+
+    const size_t nameLen = strlen(objectName);
+    const size_t safeLen = strlen(safe);
+    if (nameLen + safeLen + 8U >= sizeof(cmd)) return false;
+
+    size_t pos = 0U;
+    memcpy(cmd + pos, objectName, nameLen);
+    pos += nameLen;
+    cmd[pos++] = '.';
+    cmd[pos++] = 't';
+    cmd[pos++] = 'x';
+    cmd[pos++] = 't';
+    cmd[pos++] = '=';
+    cmd[pos++] = '"';
+    memcpy(cmd + pos, safe, safeLen);
+    pos += safeLen;
+    cmd[pos++] = '"';
+    cmd[pos] = '\0';
+    return sendCmd_(cmd);
+}
+
+const char* NextionDriver::homeTextObjectName_(HmiHomeTextField field) const
+{
+    switch (field) {
+        case HmiHomeTextField::WaterTemp:
+            return cfg_.waterTempTextObject;
+        case HmiHomeTextField::AirTemp:
+            return cfg_.airTempTextObject;
+        case HmiHomeTextField::Ph:
+            return cfg_.phTextObject;
+        case HmiHomeTextField::Orp:
+            return cfg_.orpTextObject;
+        case HmiHomeTextField::Time:
+            return cfg_.timeTextObject;
+        case HmiHomeTextField::Date:
+            return cfg_.dateTextObject;
+        default:
+            return nullptr;
+    }
+}
+
+const char* NextionDriver::homeGaugeObjectName_(HmiHomeGaugeField field) const
+{
+    switch (field) {
+        case HmiHomeGaugeField::PhPercent:
+            return cfg_.phGaugePercentObject;
+        case HmiHomeGaugeField::OrpPercent:
+            return cfg_.orpGaugePercentObject;
+        default:
+            return nullptr;
+    }
+}
+
+bool NextionDriver::publishHomeText(HmiHomeTextField field, const char* text)
+{
+    if (!started_) return false;
+    return sendText_(homeTextObjectName_(field), text);
+}
+
+bool NextionDriver::publishHomeGaugePercent(HmiHomeGaugeField field, uint16_t percent)
+{
+    if (!started_) return false;
+    return sendNum_(homeGaugeObjectName_(field), percent);
+}
+
+bool NextionDriver::publishHomeStateBits(uint32_t stateBits)
+{
+    if (!started_) return false;
+    return sendNum_(cfg_.stateBitsObject, stateBits);
+}
+
+bool NextionDriver::publishHomeAlarmBits(uint32_t alarmBits)
+{
+    if (!started_) return false;
+    return sendNum_(cfg_.alarmBitsObject, alarmBits);
+}
+
+bool NextionDriver::readNumberResponse_(uint32_t& value, uint16_t timeoutMs)
+{
+    value = 0U;
+    if (!started_ || !cfg_.serial) return false;
+
+    uint8_t frame[12]{};
+    uint8_t len = 0U;
+    uint8_t ffCount = 0U;
+    const uint32_t start = millis();
+
+    while ((uint32_t)(millis() - start) < (uint32_t)timeoutMs) {
+        while (cfg_.serial->available() > 0) {
+            const int rb = cfg_.serial->read();
+            if (rb < 0) break;
+            const uint8_t b = (uint8_t)rb;
+
+            if (b == NEXTION_FF) {
+                ++ffCount;
+                if (ffCount >= 3U) {
+                    if (len >= 5U && frame[0] == NEXTION_RSP_NUMBER) {
+                        value = (uint32_t)frame[1] |
+                                ((uint32_t)frame[2] << 8) |
+                                ((uint32_t)frame[3] << 16) |
+                                ((uint32_t)frame[4] << 24);
+                        return true;
+                    }
+                    len = 0U;
+                    ffCount = 0U;
+                }
+                continue;
+            }
+
+            while (ffCount > 0U) {
+                if (len < sizeof(frame)) frame[len++] = NEXTION_FF;
+                --ffCount;
+            }
+
+            if (len < sizeof(frame)) {
+                frame[len++] = b;
+            } else {
+                len = 0U;
+                ffCount = 0U;
+            }
+        }
+        delay(1);
+    }
+
+    return false;
+}
+
+bool NextionDriver::readNumber_(const char* expr, uint32_t& value, uint16_t timeoutMs)
+{
+    if (!started_ || !cfg_.serial || !expr || expr[0] == '\0') return false;
+
+    while (cfg_.serial->available() > 0) {
+        (void)cfg_.serial->read();
+    }
+    customFrameActive_ = false;
+    customExpectedLen_ = 0U;
+    customLen_ = 0U;
+
+    if (!sendCmdFmt_("get %s", expr)) return false;
+    return readNumberResponse_(value, timeoutMs);
+}
+
+bool NextionDriver::readRtc(HmiRtcDateTime& out, uint16_t timeoutMs)
+{
+    out = HmiRtcDateTime{};
+    if (!started_) return false;
+
+    uint32_t v = 0U;
+    if (!readNumber_("rtc0", v, timeoutMs)) return false;
+    out.year = (uint16_t)v;
+    if (!readNumber_("rtc1", v, timeoutMs)) return false;
+    out.month = (uint8_t)v;
+    if (!readNumber_("rtc2", v, timeoutMs)) return false;
+    out.day = (uint8_t)v;
+    if (!readNumber_("rtc3", v, timeoutMs)) return false;
+    out.hour = (uint8_t)v;
+    if (!readNumber_("rtc4", v, timeoutMs)) return false;
+    out.minute = (uint8_t)v;
+    if (!readNumber_("rtc5", v, timeoutMs)) return false;
+    out.second = (uint8_t)v;
+    return true;
+}
+
+bool NextionDriver::writeRtc(const HmiRtcDateTime& value)
+{
+    if (!started_) return false;
+
+    bool ok = true;
+    ok = sendCmdFmt_("rtc0=%u", (unsigned)value.year) && ok;
+    ok = sendCmdFmt_("rtc1=%u", (unsigned)value.month) && ok;
+    ok = sendCmdFmt_("rtc2=%u", (unsigned)value.day) && ok;
+    ok = sendCmdFmt_("rtc3=%u", (unsigned)value.hour) && ok;
+    ok = sendCmdFmt_("rtc4=%u", (unsigned)value.minute) && ok;
+    ok = sendCmdFmt_("rtc5=%u", (unsigned)value.second) && ok;
+    return ok;
 }
 
 bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
@@ -113,10 +311,7 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
         return true;
     }
 
-    if (!pageReady_) {
-        (void)sendCmd_("page pageCfgMenu");
-        pageReady_ = true;
-    }
+    if (!pageReady_) return false;
 
     (void)sendText_("tPath", view.breadcrumb);
     (void)sendCmdFmt_("vis bHome,%u", view.canHome ? 1U : 0U);
@@ -130,149 +325,218 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
     for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
         char leftObj[8]{};
         char rightObj[8]{};
-        char touchObj[8]{};
+        char rowButtonObj[8]{};
         snprintf(leftObj, sizeof(leftObj), "tL%u", (unsigned)i);
         snprintf(rightObj, sizeof(rightObj), "tV%u", (unsigned)i);
-        snprintf(touchObj, sizeof(touchObj), "bR%u", (unsigned)i);
+        snprintf(rowButtonObj, sizeof(rowButtonObj), "bR%u", (unsigned)i);
 
         const ConfigMenuRowView& row = view.rows[i];
-        (void)sendCmdFmt_("vis %s,%u", leftObj, row.visible ? 1U : 0U);
-        (void)sendCmdFmt_("vis %s,%u", rightObj, row.visible ? 1U : 0U);
-        (void)sendCmdFmt_("vis %s,%u", touchObj, row.visible ? 1U : 0U);
-        if (!row.visible) continue;
+        const bool showSwitch = row.visible &&
+                                row.valueVisible &&
+                                row.widget == ConfigMenuWidget::Switch;
+        const bool showValue = row.visible && row.valueVisible;
+        const bool showRowButton = row.visible &&
+                                   view.mode == ConfigMenuMode::Browse &&
+                                   row.canEdit;
+        const bool leftTouchable = row.visible && view.mode == ConfigMenuMode::Browse;
 
-        (void)sendText_(leftObj, row.label);
+        (void)sendCmdFmt_("vis %s,%u", leftObj, row.visible ? 1U : 0U);
+        (void)sendCmdFmt_("tsw %s,%u", leftObj, leftTouchable ? 1U : 0U);
+        (void)sendCmdFmt_("vis %s,%u", rightObj, showValue ? 1U : 0U);
+        (void)sendCmdFmt_("vis %s,%u", rowButtonObj, showRowButton ? 1U : 0U);
+        if (!showValue) {
+            (void)sendCmdFmt_("tsw %s,0", rightObj);
+            (void)sendCmdFmt_("%s.val=0", rightObj);
+        }
+        if (!row.visible) {
+            continue;
+        }
+
+        char paddedLabel[64]{};
+        snprintf(paddedLabel, sizeof(paddedLabel), " %s", row.label);
+        (void)sendText_(leftObj, paddedLabel);
+        if (!row.valueVisible) continue;
+
+        if (showSwitch) {
+            const bool on = (strcmp(row.value, "ON") == 0);
+            (void)sendCmdFmt_("tsw %s,1", rightObj);
+            (void)sendCmdFmt_("%s.val=%u", rightObj, on ? 1U : 0U);
+            (void)sendText_(rightObj, on ? " ON" : " OFF");
+            continue;
+        }
 
         char displayVal[64]{};
-        snprintf(displayVal, sizeof(displayVal), "%s%s", row.value, row.dirty ? " *" : "");
+        snprintf(displayVal, sizeof(displayVal), " %s%s", row.value, row.dirty ? " *" : "");
+        (void)sendCmdFmt_("tsw %s,0", rightObj);
+        (void)sendCmdFmt_("%s.val=0", rightObj);
         (void)sendText_(rightObj, displayVal);
-
-        uint32_t color = 65535U;
-        if (row.widget == ConfigMenuWidget::Switch) color = 2047U;
-        else if (row.widget == ConfigMenuWidget::Slider) color = 65504U;
-        else if (row.widget == ConfigMenuWidget::Select) color = 2016U;
-        if (!row.editable) color = 33840U;
-        if (row.dirty) color = 64800U;
-        (void)sendCmdFmt_("%s.pco=%lu", rightObj, (unsigned long)color);
     }
 
     lastRenderMs_ = now;
     return true;
 }
 
-bool NextionDriver::parseTouchEvent_(const uint8_t* frame, uint8_t len, HmiEvent& out)
+bool NextionDriver::refreshConfigMenuValues(const ConfigMenuView& view)
 {
-    if (!frame || len < 4 || frame[0] != NEXTION_EVT_TOUCH) return false;
-    const uint8_t cmp = frame[2];
-    const uint8_t state = frame[3];
-    if (state == 0) return false; // handle press only
+    if (!started_ || !pageReady_) return false;
 
-    if (cmp == CMP_HOME) { out.type = HmiEventType::Home; return true; }
-    if (cmp == CMP_BACK) { out.type = HmiEventType::Back; return true; }
-    if (cmp == CMP_VALIDATE) { out.type = HmiEventType::Validate; return true; }
-    if (cmp == CMP_NEXT_PAGE) { out.type = HmiEventType::NextPage; return true; }
-    if (cmp == CMP_PREV_PAGE) { out.type = HmiEventType::PrevPage; return true; }
-    if (cmp >= CMP_ROW_BASE && cmp <= CMP_ROW_LAST) {
-        out.type = HmiEventType::RowActivate;
-        out.row = (uint8_t)(cmp - CMP_ROW_BASE);
-        return true;
+    for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
+        const ConfigMenuRowView& row = view.rows[i];
+        if (!row.visible || !row.valueVisible) continue;
+
+        char rightObj[8]{};
+        snprintf(rightObj, sizeof(rightObj), "tV%u", (unsigned)i);
+
+        if (row.widget == ConfigMenuWidget::Switch) {
+            const bool on = (strcmp(row.value, "ON") == 0);
+            (void)sendCmdFmt_("tsw %s,1", rightObj);
+            (void)sendCmdFmt_("%s.val=%u", rightObj, on ? 1U : 0U);
+            (void)sendText_(rightObj, on ? " ON" : " OFF");
+            continue;
+        }
+
+        char displayVal[64]{};
+        snprintf(displayVal, sizeof(displayVal), " %s%s", row.value, row.dirty ? " *" : "");
+        (void)sendCmdFmt_("tsw %s,0", rightObj);
+        (void)sendCmdFmt_("%s.val=0", rightObj);
+        (void)sendText_(rightObj, displayVal);
     }
-    return false;
+
+    return true;
 }
 
-bool NextionDriver::parseAsciiEvent_(const char* text, HmiEvent& out)
-{
-    if (!text || text[0] == '\0') return false;
-    if (!startsWith_(text, "EV:")) return false;
-
-    if (strcmp(text, "EV:HOME") == 0) { out.type = HmiEventType::Home; return true; }
-    if (strcmp(text, "EV:BACK") == 0) { out.type = HmiEventType::Back; return true; }
-    if (strcmp(text, "EV:VAL") == 0) { out.type = HmiEventType::Validate; return true; }
-    if (strcmp(text, "EV:NEXT") == 0) { out.type = HmiEventType::NextPage; return true; }
-    if (strcmp(text, "EV:PREV") == 0) { out.type = HmiEventType::PrevPage; return true; }
-
-    if (startsWith_(text, "EV:ROW:")) {
-        const int row = atoi(text + 7);
-        if (row < 0 || row >= (int)ConfigMenuModel::RowsPerPage) return false;
-        out.type = HmiEventType::RowActivate;
-        out.row = (uint8_t)row;
-        return true;
-    }
-
-    if (startsWith_(text, "EV:TOG:")) {
-        const int row = atoi(text + 7);
-        if (row < 0 || row >= (int)ConfigMenuModel::RowsPerPage) return false;
-        out.type = HmiEventType::RowToggle;
-        out.row = (uint8_t)row;
-        return true;
-    }
-
-    if (startsWith_(text, "EV:CYC:")) {
-        // EV:CYC:<row>:<dir>
-        const char* p = text + 7;
-        const int row = atoi(p);
-        const char* sep = strchr(p, ':');
-        if (!sep) return false;
-        const int dir = atoi(sep + 1);
-        if (row < 0 || row >= (int)ConfigMenuModel::RowsPerPage) return false;
-        out.type = HmiEventType::RowCycle;
-        out.row = (uint8_t)row;
-        out.direction = (dir < 0) ? -1 : 1;
-        return true;
-    }
-
-    if (startsWith_(text, "EV:SLD:")) {
-        // EV:SLD:<row>:<value>
-        const char* p = text + 7;
-        const int row = atoi(p);
-        const char* sep = strchr(p, ':');
-        if (!sep) return false;
-        if (row < 0 || row >= (int)ConfigMenuModel::RowsPerPage) return false;
-        out.type = HmiEventType::RowSetSlider;
-        out.row = (uint8_t)row;
-        out.sliderValue = strtof(sep + 1, nullptr);
-        return true;
-    }
-
-    if (startsWith_(text, "EV:TXT:")) {
-        // EV:TXT:<row>:<value>
-        const char* p = text + 7;
-        const int row = atoi(p);
-        const char* sep = strchr(p, ':');
-        if (!sep) return false;
-        if (row < 0 || row >= (int)ConfigMenuModel::RowsPerPage) return false;
-        out.type = HmiEventType::RowSetText;
-        out.row = (uint8_t)row;
-        snprintf(out.text, sizeof(out.text), "%s", sep + 1);
-        return true;
-    }
-
-    return false;
-}
-
-bool NextionDriver::parseFrame_(const uint8_t* frame, uint8_t len, HmiEvent& out)
+bool NextionDriver::parseCustomFrame_(const uint8_t* frame, uint8_t len, HmiEvent& out)
 {
     if (!frame || len == 0) return false;
 
-    if (parseTouchEvent_(frame, len, out)) return true;
+    const uint8_t opcode = frame[0];
+    const uint8_t* payload = frame + 1;
+    const uint8_t payloadLen = (len > 0U) ? (uint8_t)(len - 1U) : 0U;
 
-    if (frame[0] == NEXTION_EVT_STR && len > 1) {
-        char tmp[96]{};
-        const uint8_t copyLen = (len - 1U < sizeof(tmp) - 1U) ? (len - 1U) : (sizeof(tmp) - 1U);
-        memcpy(tmp, frame + 1, copyLen);
-        tmp[copyLen] = '\0';
-        return parseAsciiEvent_(tmp, out);
+    switch (opcode) {
+        case NEXTION_CMD_PAGE: {
+            if (payloadLen < 1U) return false;
+            const bool wasConfigPage = pageReady_;
+            pageReady_ = (payload[0] == cfg_.configPageId);
+            if (pageReady_) {
+                out.type = HmiEventType::ConfigEnter;
+                return true;
+            }
+            if (wasConfigPage) {
+                out.type = HmiEventType::ConfigExit;
+                return true;
+            }
+            return false;
+        }
+
+        case NEXTION_CMD_NAV:
+            if (payloadLen < 1U) return false;
+            switch (payload[0]) {
+                case NAV_HOME:
+                    out.type = HmiEventType::Home;
+                    return true;
+                case NAV_BACK:
+                    out.type = HmiEventType::Back;
+                    return true;
+                case NAV_VALIDATE:
+                    out.type = HmiEventType::Validate;
+                    return true;
+                case NAV_NEXT:
+                    out.type = HmiEventType::NextPage;
+                    return true;
+                case NAV_PREV:
+                    out.type = HmiEventType::PrevPage;
+                    return true;
+                case NAV_CONFIG_EXIT:
+                    pageReady_ = false;
+                    out.type = HmiEventType::ConfigExit;
+                    return true;
+                default:
+                    return false;
+            }
+
+        case NEXTION_CMD_ROW_ACTIVATE:
+            if (payloadLen < 1U || payload[0] >= ConfigMenuModel::RowsPerPage) return false;
+            out.type = HmiEventType::RowActivate;
+            out.row = payload[0];
+            return true;
+
+        case NEXTION_CMD_ROW_TOGGLE:
+            if (payloadLen < 1U || payload[0] >= ConfigMenuModel::RowsPerPage) return false;
+            out.type = HmiEventType::RowToggle;
+            out.row = payload[0];
+            return true;
+
+        case NEXTION_CMD_ROW_CYCLE:
+            if (payloadLen < 2U || payload[0] >= ConfigMenuModel::RowsPerPage) return false;
+            out.type = HmiEventType::RowCycle;
+            out.row = payload[0];
+            out.direction = (payload[1] == 0U || payload[1] == 0xFFU) ? -1 : 1;
+            return true;
+
+        case NEXTION_CMD_ROW_EDIT:
+            if (payloadLen < 1U || payload[0] >= ConfigMenuModel::RowsPerPage) return false;
+            out.type = HmiEventType::RowEdit;
+            out.row = payload[0];
+            return true;
+
+        case NEXTION_CMD_HOME_ACTION:
+            if (payloadLen < 2U) return false;
+            out.type = HmiEventType::Command;
+            out.value = payload[1];
+            switch (payload[0]) {
+                case HOME_ACTION_FILTRATION:
+                    out.command = HmiCommandId::HomeFiltrationSet;
+                    return true;
+                case HOME_ACTION_AUTO_MODE:
+                    out.command = HmiCommandId::HomeAutoModeSet;
+                    return true;
+                case HOME_ACTION_SYNC:
+                    out.command = HmiCommandId::HomeSyncRequest;
+                    return true;
+                case HOME_ACTION_CONFIG_OPEN:
+                    out.command = HmiCommandId::HomeConfigOpen;
+                    return true;
+                case HOME_ACTION_PH_PUMP:
+                    out.command = HmiCommandId::HomePhPumpSet;
+                    return true;
+                case HOME_ACTION_ORP_PUMP:
+                    out.command = HmiCommandId::HomeOrpPumpSet;
+                    return true;
+                case HOME_ACTION_PH_PUMP_TOGGLE:
+                    out.command = HmiCommandId::HomePhPumpToggle;
+                    return true;
+                case HOME_ACTION_ORP_PUMP_TOGGLE:
+                    out.command = HmiCommandId::HomeOrpPumpToggle;
+                    return true;
+                case HOME_ACTION_FILTRATION_TOGGLE:
+                    out.command = HmiCommandId::HomeFiltrationToggle;
+                    return true;
+                case HOME_ACTION_AUTO_MODE_TOGGLE:
+                    out.command = HmiCommandId::HomeAutoModeToggle;
+                    return true;
+                case HOME_ACTION_ORP_AUTO_MODE_TOGGLE:
+                    out.command = HmiCommandId::HomeOrpAutoModeToggle;
+                    return true;
+                case HOME_ACTION_PH_AUTO_MODE_TOGGLE:
+                    out.command = HmiCommandId::HomePhAutoModeToggle;
+                    return true;
+                case HOME_ACTION_WINTER_MODE_TOGGLE:
+                    out.command = HmiCommandId::HomeWinterModeToggle;
+                    return true;
+                case HOME_ACTION_LIGHTS_TOGGLE:
+                    out.command = HmiCommandId::HomeLightsToggle;
+                    return true;
+                case HOME_ACTION_ROBOT_TOGGLE:
+                    out.command = HmiCommandId::HomeRobotToggle;
+                    return true;
+                default:
+                    return false;
+            }
+
+        default:
+            return false;
     }
-
-    if (frame[0] >= 32 && frame[0] <= 126) {
-        char tmp[96]{};
-        const uint8_t copyLen = (len < sizeof(tmp) - 1U) ? len : (sizeof(tmp) - 1U);
-        memcpy(tmp, frame, copyLen);
-        tmp[copyLen] = '\0';
-        return parseAsciiEvent_(tmp, out);
-    }
-
-    return false;
 }
 
 bool NextionDriver::pollEvent(HmiEvent& out)
@@ -285,27 +549,35 @@ bool NextionDriver::pollEvent(HmiEvent& out)
         if (rb < 0) break;
         const uint8_t b = (uint8_t)rb;
 
-        if (b == NEXTION_FF) {
-            ++ffCount_;
-            if (ffCount_ >= 3) {
-                const bool parsed = parseFrame_(rxBuf_, rxLen_, out);
-                rxLen_ = 0;
-                ffCount_ = 0;
+        if (customFrameActive_) {
+            if (customExpectedLen_ == 0U) {
+                if (b == 0U || b > CustomRxBufSize) {
+                    customFrameActive_ = false;
+                    customExpectedLen_ = 0U;
+                    customLen_ = 0U;
+                    continue;
+                }
+                customExpectedLen_ = b;
+                customLen_ = 0U;
+                continue;
+            }
+
+            customBuf_[customLen_++] = b;
+            if (customLen_ >= customExpectedLen_) {
+                const bool parsed = parseCustomFrame_(customBuf_, customExpectedLen_, out);
+                customFrameActive_ = false;
+                customExpectedLen_ = 0U;
+                customLen_ = 0U;
                 if (parsed) return true;
             }
             continue;
         }
 
-        while (ffCount_ > 0) {
-            if (rxLen_ < RxBufSize) rxBuf_[rxLen_++] = NEXTION_FF;
-            --ffCount_;
-        }
-
-        if (rxLen_ < RxBufSize) {
-            rxBuf_[rxLen_++] = b;
-        } else {
-            rxLen_ = 0;
-            ffCount_ = 0;
+        if (b == NEXTION_CUSTOM_START) {
+            customFrameActive_ = true;
+            customExpectedLen_ = 0U;
+            customLen_ = 0U;
+            continue;
         }
     }
 

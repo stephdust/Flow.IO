@@ -19,4 +19,6 @@ struct TimeService {
     uint64_t (*epoch)(void* ctx);
     bool (*formatLocalTime)(void* ctx, char* out, size_t len);
     void* ctx;
+    bool (*setExternalEpoch)(void* ctx, uint64_t epochSec);
+    bool (*isExternalRtc)(void* ctx);
 };

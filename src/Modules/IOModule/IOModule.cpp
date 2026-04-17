@@ -994,7 +994,7 @@ bool IOModule::processAnalogDefinition_(uint8_t idx, uint32_t nowMs)
         if (lastMs == 0U || (uint32_t)(nowMs - lastMs) >= periodMs) {
             const char* sensor = (idx == 0) ? "ORP" : ((idx == 1) ? "pH" : "PSI");
             const char sourceMark = (slot.source == IO_SRC_ADS_INTERNAL_SINGLE) ? 'I' : 'E';
-            LOGI("Calc %c %-3s raw_bin=%7d raw_V=%10.6f median_V=%10.6f coeff=%9.3f rounded=%9.3f",
+            LOGD("Calc %c %-3s raw_bin=%7d raw_V=%10.6f median_V=%10.6f coeff=%9.3f rounded=%9.3f",
                  sourceMark,
                  sensor,
                  (int)rawBinary,
@@ -1197,6 +1197,17 @@ void IOModule::forceAnalogSnapshotPublish_(uint8_t analogIdx, uint32_t nowMs)
 void IOModule::refreshAnalogConfigState_()
 {
     if (!ensureAnalogPrecisionState_()) return;
+
+    // `c0/c1` live in the logical slot, not in the shared provider. Keeping them
+    // synced here makes the next acquired sample use the new calibration without reboot.
+    if (runtimeReady_) {
+        for (uint8_t i = 0; i < ANALOG_CFG_SLOTS; ++i) {
+            if (!analogSlots_[i].used) continue;
+            analogSlots_[i].def.c0 = analogCfg_[i].c0;
+            analogSlots_[i].def.c1 = analogCfg_[i].c1;
+        }
+    }
+
     if (!analogPrecisionLastInit_) {
         for (uint8_t i = 0; i < ANALOG_CFG_SLOTS; ++i) {
             int32_t p = sanitizeAnalogPrecision_(analogCfg_[i].precision);

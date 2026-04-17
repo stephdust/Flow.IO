@@ -34,7 +34,7 @@ constexpr size_t MaxNvsKeyLen = 15;
 constexpr uint8_t LogQueueLen = 64;
 /** @brief FreeRTOS event queue length used by `EventBus` (`EventBus::QUEUE_LENGTH`).
  *  Sized to absorb startup bursts while limiting DRAM usage. */
-constexpr uint8_t EventQueueLen = 32;
+constexpr uint8_t EventQueueLen = 40;
 /** @brief Maximum number of EventBus subscribers (`EventBus::MAX_SUBSCRIBERS`). */
 constexpr uint8_t EventSubscribersMax = 50;
 

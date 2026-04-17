@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cctype>
 #include <new>
+#include <sys/time.h>
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::TimeModule)
 #include "Core/ModuleLog.h"
 
@@ -26,6 +27,8 @@ static constexpr MqttConfigRouteProducer::Route kTimeCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::Time, kTimeCfgBranch}, "time", "time", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {2, {(uint8_t)ConfigModuleId::Time, kTimeSchedulerCfgBranch}, "time/scheduler", "time/scheduler", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
+static constexpr uint64_t kMinExternalRtcEpochSec = 1609459200ULL; // 2021-01-01
+static constexpr uint32_t kExternalRtcNtpRetryMs = 60000UL;
 }
 
 // Fast-clock test mode:
@@ -225,6 +228,10 @@ bool TimeModule::isSynced_() const {
     return state == TimeSyncState::Synced;
 }
 
+bool TimeModule::isExternalRtc_() const {
+    return state == TimeSyncState::Synced && syncedFromExternalRtc_;
+}
+
 uint64_t TimeModule::epoch_() const {
     return (uint64_t)nowEpoch_();
 }
@@ -236,6 +243,28 @@ bool TimeModule::formatLocalTime_(char* out, size_t len) const {
     snprintf(out, len, "%04d-%02d-%02d %02d:%02d:%02d",
              t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
              t.tm_hour, t.tm_min, t.tm_sec);
+    return true;
+}
+
+bool TimeModule::setExternalEpoch_(uint64_t epochSec)
+{
+    if (epochSec < kMinExternalRtcEpochSec) return false;
+
+    setenv("TZ", cfgData.tz, 1);
+    tzset();
+
+    struct timeval tv{};
+    tv.tv_sec = (time_t)epochSec;
+    tv.tv_usec = 0;
+    if (settimeofday(&tv, nullptr) != 0) {
+        return false;
+    }
+
+    _retryCount = 0;
+    _retryDelayMs = 2000;
+    syncedFromExternalRtc_ = true;
+    setState(TimeSyncState::Synced);
+    LOGI("Time set from external RTC epoch=%llu", (unsigned long long)epochSec);
     return true;
 }
 
@@ -373,6 +402,7 @@ void TimeModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     _netReadyTs = 0;
     _retryCount = 0;
     _retryDelayMs = 2000;
+    syncedFromExternalRtc_ = false;
 #ifdef TIME_TEST_FAST_CLOCK
     simBootMs_ = millis();
     setenv("TZ", cfgData.tz, 1);
@@ -388,6 +418,9 @@ void TimeModule::init(ConfigStore& cfg, ServiceRegistry& services) {
 
 void TimeModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
 {
+    setenv("TZ", cfgData.tz, 1);
+    tzset();
+
     if (!cfgMqttPub_) {
         cfgMqttPub_ = new (std::nothrow) MqttConfigRouteProducer();
     }
@@ -421,7 +454,10 @@ void TimeModule::loop() {
 #endif
 
     if (!cfgData.enabled) {
-        if (state != TimeSyncState::Disabled) setState(TimeSyncState::Disabled);
+        if (state != TimeSyncState::Synced && state != TimeSyncState::Disabled) {
+            setState(TimeSyncState::Disabled);
+        }
+        tickScheduler_();
         vTaskDelay(pdMS_TO_TICKS(2000));
         return;
     }
@@ -452,11 +488,17 @@ void TimeModule::loop() {
 
             _retryCount = 0;
             _retryDelayMs = 2000;
+            syncedFromExternalRtc_ = false;
 
             setState(TimeSyncState::Synced);
         } else {
             LOGW("Sync failed -> retry in %lu ms", (unsigned long)_retryDelayMs);
-            setState(TimeSyncState::ErrorWait);
+            if (syncedFromExternalRtc_) {
+                LOGW("Keeping external RTC time after NTP failure");
+                setState(TimeSyncState::Synced);
+            } else {
+                setState(TimeSyncState::ErrorWait);
+            }
         }
         break;
     }
@@ -483,13 +525,17 @@ void TimeModule::loop() {
         break;
 
     case TimeSyncState::Synced:
-        if (_netReady && (millis() - stateTs > 6UL * 3600UL * 1000UL)) {
+        if (_netReady &&
+            syncedFromExternalRtc_ &&
+            (uint32_t)(millis() - stateTs) > kExternalRtcNtpRetryMs) {
+            setState(TimeSyncState::Syncing);
+        } else if (_netReady && (millis() - stateTs > 6UL * 3600UL * 1000UL)) {
             setState(TimeSyncState::Syncing);
         }
         break;
 
     case TimeSyncState::Disabled:
-        setState(TimeSyncState::WaitingNetwork);
+        if (cfgData.enabled) setState(TimeSyncState::WaitingNetwork);
         break;
     }
 
@@ -847,6 +893,7 @@ void TimeModule::onEvent(const Event& e)
             setState(TimeSyncState::WaitingNetwork);
         } else {
             LOGI("DataStore networkReady=false -> stop and wait");
+            if (state == TimeSyncState::Synced) return;
             setState(TimeSyncState::WaitingNetwork);
         }
         return;
@@ -858,6 +905,10 @@ void TimeModule::onEvent(const Event& e)
         if (p->moduleId == (uint8_t)ConfigModuleId::Time &&
             (p->localBranchId == kTimeSchedulerCfgBranch || p->localBranchId == kTimeCfgBranch)) {
             schedNeedsReload_ = true;
+            if (p->localBranchId == kTimeCfgBranch) {
+                setenv("TZ", cfgData.tz, 1);
+                tzset();
+            }
         }
         return;
     }

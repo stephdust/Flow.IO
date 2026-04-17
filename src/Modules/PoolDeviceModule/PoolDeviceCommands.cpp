@@ -5,6 +5,7 @@
 
 #include "PoolDeviceModule.h"
 #include "Core/ErrorCodes.h"
+#include "Domain/Pool/PoolBindings.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
 #include "Core/ModuleLog.h"
 #include <ArduinoJson.h>
@@ -125,6 +126,50 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
         else if (st == POOLDEV_SVC_ERR_IO) code = ErrorCode::IoError;
         writeCmdErrorSlot_(reply, replyLen, "pooldevice.write", code, slot);
         return false;
+    }
+
+    // Global business rule for manual starts:
+    // if a dosing pump is manually forced ON, disable the corresponding auto mode
+    // regardless of the command source (HMI, MQTT, Web, ...).
+    if (requested && cfgStore_) {
+        uint8_t phPumpSlot = PoolBinding::kDeviceSlotPhPump;
+        uint8_t orpPumpSlot = PoolBinding::kDeviceSlotChlorinePump;
+
+        char modeJson[160]{};
+        bool truncated = false;
+        if (cfgStore_->toJsonModule("poollogic/device", modeJson, sizeof(modeJson), &truncated) && !truncated) {
+            StaticJsonDocument<192> modeDoc;
+            const DeserializationError modeErr = deserializeJson(modeDoc, modeJson);
+            if (!modeErr && modeDoc.is<JsonObjectConst>()) {
+                const JsonObjectConst obj = modeDoc.as<JsonObjectConst>();
+                if (obj["ph_pump_slot"].is<uint16_t>()) {
+                    const uint16_t v = obj["ph_pump_slot"].as<uint16_t>();
+                    if (v < POOL_DEVICE_MAX) phPumpSlot = (uint8_t)v;
+                }
+                if (obj["orp_pump_slot"].is<uint16_t>()) {
+                    const uint16_t v = obj["orp_pump_slot"].as<uint16_t>();
+                    if (v < POOL_DEVICE_MAX) orpPumpSlot = (uint8_t)v;
+                }
+            }
+        }
+
+        const char* modeKey = nullptr;
+        if (slot == phPumpSlot) modeKey = "ph_auto_mode";
+        else if (slot == orpPumpSlot) modeKey = "orp_auto_mode";
+
+        if (modeKey) {
+            char patch[96]{};
+            snprintf(patch, sizeof(patch), "{\"poollogic/mode\":{\"%s\":false}}", modeKey);
+            if (!cfgStore_->applyJson(patch)) {
+                LOGW("Manual pump start slot=%u failed to clear %s",
+                     (unsigned)slot,
+                     modeKey);
+            } else {
+                LOGI("Manual pump start slot=%u -> %s=false",
+                     (unsigned)slot,
+                     modeKey);
+            }
+        }
     }
 
     const char* label = deviceLabel(slot);

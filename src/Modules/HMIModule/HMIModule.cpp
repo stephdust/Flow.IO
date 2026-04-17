@@ -6,25 +6,39 @@
 #include "Modules/HMIModule/HMIModule.h"
 
 #include "Board/BoardSerialMap.h"
+#include "Core/ConfigStore.h"
 #include "Core/EventBus/EventPayloads.h"
 #include "Core/AlarmIds.h"
 #include "Domain/Pool/PoolBindings.h"
 #include "Modules/IOModule/IORuntime.h"
 #include "Modules/Network/MQTTModule/MQTTRuntime.h"
+#include "Modules/Network/TimeModule/TimeRuntime.h"
 #include "Modules/Network/WifiModule/WifiRuntime.h"
 #include <ArduinoJson.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::HMIModule)
 #include "Core/ModuleLog.h"
+#include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
 
 namespace {
 
 #ifndef FLOW_HMI_CONFIG_MENU_ENABLED
-#define FLOW_HMI_CONFIG_MENU_ENABLED 0
+#define FLOW_HMI_CONFIG_MENU_ENABLED 1
 #endif
 static constexpr bool kConfigMenuEnabled = (FLOW_HMI_CONFIG_MENU_ENABLED != 0);
 static constexpr const char* kHmiModulePrefix = "hmi/";
+static constexpr const char* kPoolLogicSensorsModule = "poollogic/sensors";
+static constexpr const char* kPoolLogicDeviceModule = "poollogic/device";
+static constexpr const char* kPoolLogicModeModule = "poollogic/mode";
+static constexpr const char* kPoolLogicLegacyModule = "poollogic";
+static constexpr const char* kPoolLogicPidModule = "poollogic/pid";
+static constexpr size_t kPoolLogicSensorsJsonBufSize = 320U;
+static constexpr size_t kPoolLogicDeviceJsonBufSize = 192U;
+static constexpr size_t kPoolLogicModeJsonBufSize = 256U;
+static constexpr size_t kPoolLogicPidJsonBufSize = 512U;
 static constexpr uint8_t kLedBitMqttConnected = 0;
 static constexpr uint8_t kLedBitPageSelect = 1;
 static constexpr uint8_t kLedBitModeA = 2;
@@ -35,10 +49,136 @@ static constexpr uint8_t kLedBitAlarmC = 6;
 static constexpr uint8_t kLedBitAlarmD = 7;
 static constexpr uint32_t kLedPageTogglePeriodMs = 2000U;
 static constexpr uint32_t kWifiBlinkPeriodMs = 125U;
+static constexpr uint8_t kInvalidRuntimeIndex = 0xFFU;
+static constexpr uint32_t kHomePublishWaterTemp = 1UL << 0;
+static constexpr uint32_t kHomePublishAirTemp = 1UL << 1;
+static constexpr uint32_t kHomePublishPh = 1UL << 2;
+static constexpr uint32_t kHomePublishOrp = 1UL << 3;
+static constexpr uint32_t kHomePublishPhGauge = 1UL << 4;
+static constexpr uint32_t kHomePublishOrpGauge = 1UL << 5;
+static constexpr uint32_t kHomePublishStateBits = 1UL << 6;
+static constexpr uint32_t kHomePublishTime = 1UL << 7;
+static constexpr uint32_t kHomePublishDate = 1UL << 8;
+static constexpr uint32_t kHomePublishAlarmBits = 1UL << 9;
+static constexpr uint32_t kHomePublishAll = kHomePublishWaterTemp |
+                                            kHomePublishAirTemp |
+                                            kHomePublishPh |
+                                            kHomePublishOrp |
+                                            kHomePublishPhGauge |
+                                            kHomePublishOrpGauge |
+                                            kHomePublishStateBits |
+                                            kHomePublishTime |
+                                            kHomePublishDate |
+                                            kHomePublishAlarmBits;
+static constexpr uint32_t kClockPublishCheckMs = 1000U;
+static constexpr uint32_t kInvalidClockStamp = 0xFFFFFFFFUL;
+static constexpr uint32_t kRtcFallbackDelayMs = 30000U;
+static constexpr uint32_t kRtcFallbackRetryMs = 10000U;
+static constexpr uint32_t kRtcPushRetryMs = 60000U;
+static constexpr uint16_t kNextionRtcReadTimeoutMs = 180U;
+
+static const char* const kMonthNamesFr[] = {
+    "Janvier",
+    "F\xE9""vrier",
+    "Mars",
+    "Avril",
+    "Mai",
+    "Juin",
+    "Juillet",
+    "Ao\xFB""t",
+    "Septembre",
+    "Octobre",
+    "Novembre",
+    "D\xE9""cembre",
+};
+
+struct PoolLogicModeFlags {
+    bool autoMode = false;
+    bool winterMode = false;
+    bool phAutoMode = false;
+    bool orpAutoMode = false;
+};
+
+static uint16_t gaugePercentFromSetpoint_(float value, float setpoint)
+{
+    const float span = fabsf(setpoint) * 0.30f;
+    if (span <= 0.0001f) return 140U;
+
+    const float low = setpoint - span;
+    const float high = setpoint + span;
+    const float normalized = ((value - low) / (high - low)) * 280.0f;
+    if (normalized <= 0.0f) return 0U;
+    if (normalized >= 280.0f) return 280U;
+    return (uint16_t)lroundf(normalized);
+}
 
 static inline uint8_t normalizeLedPage_(uint8_t page)
 {
     return (page == 2U) ? 2U : 1U;
+}
+
+static bool isRtcDateTimeValid_(const HmiRtcDateTime& rtc)
+{
+    return rtc.year >= 2021U &&
+           rtc.year <= 2099U &&
+           rtc.month >= 1U &&
+           rtc.month <= 12U &&
+           rtc.day >= 1U &&
+           rtc.day <= 31U &&
+           rtc.hour <= 23U &&
+           rtc.minute <= 59U &&
+           rtc.second <= 59U;
+}
+
+static bool rtcDateTimeToEpoch_(const HmiRtcDateTime& rtc, uint64_t& epoch)
+{
+    epoch = 0ULL;
+    if (!isRtcDateTimeValid_(rtc)) return false;
+
+    struct tm local{};
+    local.tm_year = (int)rtc.year - 1900;
+    local.tm_mon = (int)rtc.month - 1;
+    local.tm_mday = (int)rtc.day;
+    local.tm_hour = (int)rtc.hour;
+    local.tm_min = (int)rtc.minute;
+    local.tm_sec = (int)rtc.second;
+    local.tm_isdst = -1;
+
+    const time_t converted = mktime(&local);
+    if (converted < (time_t)1609459200) return false;
+    if ((uint16_t)(local.tm_year + 1900) != rtc.year ||
+        (uint8_t)(local.tm_mon + 1) != rtc.month ||
+        (uint8_t)local.tm_mday != rtc.day ||
+        (uint8_t)local.tm_hour != rtc.hour ||
+        (uint8_t)local.tm_min != rtc.minute) {
+        return false;
+    }
+
+    epoch = (uint64_t)converted;
+    return true;
+}
+
+static bool epochToRtcDateTime_(uint64_t epoch, HmiRtcDateTime& out)
+{
+    out = HmiRtcDateTime{};
+    const time_t t = (time_t)epoch;
+    struct tm local{};
+    if (!localtime_r(&t, &local)) return false;
+    out.year = (uint16_t)(local.tm_year + 1900);
+    out.month = (uint8_t)(local.tm_mon + 1);
+    out.day = (uint8_t)local.tm_mday;
+    out.hour = (uint8_t)local.tm_hour;
+    out.minute = (uint8_t)local.tm_min;
+    out.second = (uint8_t)local.tm_sec;
+    return isRtcDateTimeValid_(out);
+}
+
+static uint32_t rtcDayStamp_(uint64_t epoch)
+{
+    const time_t t = (time_t)epoch;
+    struct tm local{};
+    if (!localtime_r(&t, &local)) return kInvalidClockStamp;
+    return ((uint32_t)(local.tm_year + 1900) * 1000UL) + (uint32_t)local.tm_yday;
 }
 
 static bool findJsonBool_(const char* json, const char* key, bool& out)
@@ -84,6 +224,31 @@ static bool findJsonUInt16_(const char* json, const char* key, uint16_t& out)
     return true;
 }
 
+static bool findJsonFloat_(const char* json, const char* key, float& out)
+{
+    if (!json || !key || key[0] == '\0') return false;
+    char needle[48]{};
+    const int nn = snprintf(needle, sizeof(needle), "\"%s\":", key);
+    if (nn <= 0 || (size_t)nn >= sizeof(needle)) return false;
+    const char* p = strstr(json, needle);
+    if (!p) return false;
+    p += nn;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') ++p;
+
+    char* end = nullptr;
+    const float value = strtof(p, &end);
+    if (end == p) return false;
+    out = value;
+    return true;
+}
+
+static bool isPoolLogicModuleName_(const char* moduleName)
+{
+    if (!moduleName || moduleName[0] == '\0') return false;
+    if (strcmp(moduleName, kPoolLogicLegacyModule) == 0) return true;
+    return strncmp(moduleName, "poollogic/", 10) == 0;
+}
+
 #if FLOW_HMI_CONFIG_MENU_ENABLED
 static const ConfigMenuHint kHints[] = {
     {"poollogic", "filtr_start_min", {ConfigMenuWidget::Slider, true, 0.0f, 23.0f, 1.0f, nullptr}},
@@ -103,6 +268,7 @@ void HMIModule::applyOutputConfig_()
     if (driver_ != wantedDriver) {
         driver_ = wantedDriver;
         driverReady_ = false;
+        if (!driver_) configMenuActive_ = false;
         if (driver_) viewDirty_ = true;
     }
 
@@ -120,15 +286,19 @@ void HMIModule::applyOutputConfig_()
 
 bool HMIModule::requestRefresh_()
 {
-    viewDirty_ = true;
+    if (configMenuActive_) viewDirty_ = true;
     return true;
 }
 
 bool HMIModule::openConfigHome_()
 {
 #if FLOW_HMI_CONFIG_MENU_ENABLED
+    if (!ensureConfigMenuReady_()) return false;
     const bool ok = menu_.home();
-    if (ok) viewDirty_ = true;
+    if (ok) {
+        configMenuActive_ = true;
+        viewDirty_ = true;
+    }
     return ok;
 #else
     return false;
@@ -138,8 +308,12 @@ bool HMIModule::openConfigHome_()
 bool HMIModule::openConfigModule_(const char* module)
 {
 #if FLOW_HMI_CONFIG_MENU_ENABLED
+    if (!ensureConfigMenuReady_()) return false;
     const bool ok = menu_.openModule(module);
-    if (ok) viewDirty_ = true;
+    if (ok) {
+        configMenuActive_ = true;
+        viewDirty_ = true;
+    }
     return ok;
 #else
     (void)module;
@@ -174,6 +348,9 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     dsSvc_ = services.get<DataStoreService>(ServiceId::DataStore);
     alarmSvc_ = services.get<AlarmService>(ServiceId::Alarm);
     ioSvc_ = services.get<IOServiceV2>(ServiceId::Io);
+    cmdSvc_ = services.get<CommandService>(ServiceId::Command);
+    timeSvc_ = services.get<TimeService>(ServiceId::Time);
+    wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
     statusLedsSvc_ = services.get<StatusLedsService>(ServiceId::StatusLeds);
     auto* ebSvc = services.get<EventBusService>(ServiceId::EventBus);
     eventBus_ = ebSvc ? ebSvc->bus : nullptr;
@@ -185,11 +362,7 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
 #if FLOW_HMI_CONFIG_MENU_ENABLED
     {
-        const bool okMenu = menu_.begin(cfgSvc_);
-        menu_.setHints(kHints, (uint8_t)(sizeof(kHints) / sizeof(kHints[0])));
-        if (!okMenu) {
-            LOGE("Config menu init failed");
-        }
+        LOGI("Config menu enabled (lazy init)");
     }
 #else
     {
@@ -216,6 +389,8 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     nextion_.setConfig(dcfg);
     applyOutputConfig_();
     driverReady_ = false;
+    configMenuReady_ = false;
+    configMenuActive_ = false;
     viewDirty_ = true;
     lastRenderMs_ = 0;
     ledPage_ = 1U;
@@ -223,6 +398,16 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     lastLedApplyTryMs_ = 0;
     lastLedPageToggleMs_ = millis();
     lastWifiBlinkToggleMs_ = millis();
+    lastClockCheckMs_ = 0;
+    lastClockMinuteStamp_ = kInvalidClockStamp;
+    lastClockDayStamp_ = kInvalidClockStamp;
+    lastRtcFallbackAttemptMs_ = 0;
+    lastRtcPushAttemptMs_ = 0;
+    lastRtcPushDayStamp_ = kInvalidClockStamp;
+    rtcFallbackCompleted_ = false;
+    phIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPh].ioId;
+    orpIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotOrp].ioId;
+    airTempIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotAirTemp].ioId;
     poolLevelIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPoolLevel].ioId;
     waterTempIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterTemp].ioId;
 
@@ -233,10 +418,9 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
 void HMIModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
 {
-    refreshPoolLogicFlags_();
-    refreshRuntimeFlags_();
-    refreshAlarmFlags_();
     applyOutputConfig_();
+    refreshHomeBindings_();
+    queueHomePublish_(kHomePublishAll);
     applyLedMask_(true);
 }
 
@@ -246,75 +430,628 @@ void HMIModule::onEventStatic_(const Event& e, void* user)
     if (self) self->onEvent_(e);
 }
 
-void HMIModule::refreshPoolLogicFlags_()
+bool HMIModule::resolveIoRuntimeIndex_(IoId ioId, uint8_t& outIndex) const
 {
-    if (!cfgSvc_ || !cfgSvc_->toJsonModule) return;
-    bool truncated = false;
-    if (!cfgSvc_->toJsonModule(cfgSvc_->ctx,
-                               "poollogic/mode",
-                               poollogicCfgJson_,
-                               sizeof(poollogicCfgJson_),
-                               &truncated)) {
-        return;
+    outIndex = kInvalidRuntimeIndex;
+
+    if (ioId == IO_ID_INVALID) return false;
+
+    if (const PoolSensorBinding* binding = PoolBinding::sensorBindingByIoId(ioId)) {
+        outIndex = binding->runtimeIndex;
+        return true;
     }
-    (void)truncated;
+
+    if (!ioSvc_ || !ioSvc_->count || !ioSvc_->idAt) return false;
+
+    const uint8_t count = ioSvc_->count(ioSvc_->ctx);
+    for (uint8_t i = 0; i < count; ++i) {
+        IoId curId = IO_ID_INVALID;
+        if (ioSvc_->idAt(ioSvc_->ctx, i, &curId) != IO_OK) continue;
+        if (curId != ioId) continue;
+        outIndex = i;
+        return true;
+    }
+    return false;
+}
+
+void HMIModule::refreshHomeBindings_()
+{
+    if (cfgSvc_ && cfgSvc_->toJsonModule) {
+        char jsonBuf[kPoolLogicSensorsJsonBufSize]{};
+        bool truncated = false;
+        bool sensorsTruncated = false;
+        bool foundPoolLevel = false;
+        bool foundPh = false;
+        bool foundOrp = false;
+        bool foundWaterTemp = false;
+        bool foundAirTemp = false;
+        bool foundFiltrationSlot = false;
+        bool foundPhPumpSlot = false;
+        bool foundOrpPumpSlot = false;
+        bool foundRobotSlot = false;
+        bool foundFillingSlot = false;
+
+        if (cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                                  kPoolLogicSensorsModule,
+                                  jsonBuf,
+                                  sizeof(jsonBuf),
+                                  &truncated)) {
+            sensorsTruncated = truncated;
+            uint16_t ioId = (uint16_t)poolLevelIoId_;
+            foundPoolLevel = findJsonUInt16_(jsonBuf, "pool_lvl_io_id", ioId);
+            if (foundPoolLevel) {
+                poolLevelIoId_ = (IoId)ioId;
+            }
+            ioId = (uint16_t)phIoId_;
+            foundPh = findJsonUInt16_(jsonBuf, "ph_io_id", ioId);
+            if (foundPh) {
+                phIoId_ = (IoId)ioId;
+            }
+            ioId = (uint16_t)orpIoId_;
+            foundOrp = findJsonUInt16_(jsonBuf, "orp_io_id", ioId);
+            if (foundOrp) {
+                orpIoId_ = (IoId)ioId;
+            }
+            ioId = (uint16_t)waterTempIoId_;
+            foundWaterTemp = findJsonUInt16_(jsonBuf, "wat_temp_io_id", ioId);
+            if (foundWaterTemp) {
+                waterTempIoId_ = (IoId)ioId;
+            }
+            ioId = (uint16_t)airTempIoId_;
+            foundAirTemp = findJsonUInt16_(jsonBuf, "air_temp_io_id", ioId);
+            if (foundAirTemp) {
+                airTempIoId_ = (IoId)ioId;
+            }
+        } else {
+            LOGW("HMI poollogic sensors export failed");
+        }
+
+        truncated = false;
+        memset(jsonBuf, 0, sizeof(jsonBuf));
+        if (cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                                  kPoolLogicDeviceModule,
+                                  jsonBuf,
+                                  kPoolLogicDeviceJsonBufSize,
+                                  &truncated)) {
+            uint16_t slot = filtrationDeviceSlot_;
+            foundFiltrationSlot = findJsonUInt16_(jsonBuf, "filtr_slot", slot);
+            if (foundFiltrationSlot) {
+                filtrationDeviceSlot_ = (uint8_t)slot;
+            }
+            slot = phPumpDeviceSlot_;
+            foundPhPumpSlot = findJsonUInt16_(jsonBuf, "ph_pump_slot", slot);
+            if (foundPhPumpSlot) {
+                phPumpDeviceSlot_ = (uint8_t)slot;
+            }
+            slot = orpPumpDeviceSlot_;
+            foundOrpPumpSlot = findJsonUInt16_(jsonBuf, "orp_pump_slot", slot);
+            if (foundOrpPumpSlot) {
+                orpPumpDeviceSlot_ = (uint8_t)slot;
+            }
+            slot = robotDeviceSlot_;
+            foundRobotSlot = findJsonUInt16_(jsonBuf, "robot_slot", slot);
+            if (foundRobotSlot) {
+                robotDeviceSlot_ = (uint8_t)slot;
+            }
+            slot = fillingDeviceSlot_;
+            foundFillingSlot = findJsonUInt16_(jsonBuf, "fill_slot", slot);
+            if (foundFillingSlot) {
+                fillingDeviceSlot_ = (uint8_t)slot;
+            }
+
+            LOGD("HMI poollogic cfg sensors_trunc=%u device_trunc=%u keys lvl=%u ph=%u orp=%u wat=%u air=%u filtr=%u php=%u orpp=%u robot=%u fill=%u",
+                 sensorsTruncated ? 1U : 0U,
+                 truncated ? 1U : 0U,
+                 foundPoolLevel ? 1U : 0U,
+                 foundPh ? 1U : 0U,
+                 foundOrp ? 1U : 0U,
+                 foundWaterTemp ? 1U : 0U,
+                 foundAirTemp ? 1U : 0U,
+                 foundFiltrationSlot ? 1U : 0U,
+                 foundPhPumpSlot ? 1U : 0U,
+                 foundOrpPumpSlot ? 1U : 0U,
+                 foundRobotSlot ? 1U : 0U,
+                 foundFillingSlot ? 1U : 0U);
+        } else {
+            LOGW("HMI poollogic device export failed");
+        }
+    }
+
+    (void)resolveIoRuntimeIndex_(phIoId_, phRuntimeIndex_);
+    (void)resolveIoRuntimeIndex_(orpIoId_, orpRuntimeIndex_);
+    (void)resolveIoRuntimeIndex_(waterTempIoId_, waterTempRuntimeIndex_);
+    (void)resolveIoRuntimeIndex_(airTempIoId_, airTempRuntimeIndex_);
+    (void)resolveIoRuntimeIndex_(poolLevelIoId_, poolLevelRuntimeIndex_);
+
+    LOGD("HMI home bindings ph=%u(rt=%u) orp=%u(rt=%u) wat=%u(rt=%u) air=%u(rt=%u) lvl=%u(rt=%u)",
+         (unsigned)phIoId_,
+         (unsigned)phRuntimeIndex_,
+         (unsigned)orpIoId_,
+         (unsigned)orpRuntimeIndex_,
+         (unsigned)waterTempIoId_,
+         (unsigned)waterTempRuntimeIndex_,
+         (unsigned)airTempIoId_,
+         (unsigned)airTempRuntimeIndex_,
+         (unsigned)poolLevelIoId_,
+         (unsigned)poolLevelRuntimeIndex_);
+}
+
+bool HMIModule::readPoolLogicModeFlags_(bool& autoMode,
+                                        bool& winterMode,
+                                        bool& phAutoMode,
+                                        bool& orpAutoMode) const
+{
+    autoMode = false;
+    winterMode = false;
+    phAutoMode = false;
+    orpAutoMode = false;
+    if (!cfgSvc_ || !cfgSvc_->toJsonModule) return false;
+
+    char jsonBuf[kPoolLogicModeJsonBufSize]{};
+    bool truncated = false;
+    bool ok = cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                                    kPoolLogicModeModule,
+                                    jsonBuf,
+                                    sizeof(jsonBuf),
+                                    &truncated);
+    if (!ok) {
+        truncated = false;
+        memset(jsonBuf, 0, sizeof(jsonBuf));
+        ok = cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                                   kPoolLogicLegacyModule,
+                                   jsonBuf,
+                                   sizeof(jsonBuf),
+                                   &truncated);
+    }
+    if (!ok) {
+        return false;
+    }
 
     bool v = false;
-    if (findJsonBool_(poollogicCfgJson_, "auto_mode", v)) autoRegEnabled_ = v;
-    if (findJsonBool_(poollogicCfgJson_, "winter_mode", v)) winterMode_ = v;
-    if (findJsonBool_(poollogicCfgJson_, "ph_auto_mode", v)) phPidEnabled_ = v;
-    if (findJsonBool_(poollogicCfgJson_, "orp_auto_mode", v)) chlorinePidEnabled_ = v;
-
-    if (cfgSvc_->toJsonModule(cfgSvc_->ctx,
-                              "poollogic/sensors",
-                              poollogicCfgJson_,
-                              sizeof(poollogicCfgJson_),
-                              &truncated)) {
-        uint16_t ioId = (uint16_t)poolLevelIoId_;
-        if (findJsonUInt16_(poollogicCfgJson_, "pool_lvl_io_id", ioId)) {
-            poolLevelIoId_ = (IoId)ioId;
-        }
-        ioId = (uint16_t)waterTempIoId_;
-        if (findJsonUInt16_(poollogicCfgJson_, "wat_temp_io_id", ioId)) {
-            waterTempIoId_ = (IoId)ioId;
-        }
-    }
+    if (findJsonBool_(jsonBuf, "auto_mode", v)) autoMode = v;
+    if (findJsonBool_(jsonBuf, "winter_mode", v)) winterMode = v;
+    if (findJsonBool_(jsonBuf, "ph_auto_mode", v)) phAutoMode = v;
+    if (findJsonBool_(jsonBuf, "orp_auto_mode", v)) orpAutoMode = v;
+    return true;
 }
 
-void HMIModule::refreshWaterLevelFlag_()
+bool HMIModule::readPidSetpoints_(float& phSetpoint, float& orpSetpoint) const
 {
-    waterLevelLow_ = false;
-    if (alarmSvc_ && alarmSvc_->isActive) {
-        waterLevelLow_ = alarmSvc_->isActive(alarmSvc_->ctx, AlarmId::PoolWaterLevelLow);
-        return;
+    phSetpoint = 0.0f;
+    orpSetpoint = 0.0f;
+    if (!cfgSvc_ || !cfgSvc_->toJsonModule) return false;
+
+    char jsonBuf[kPoolLogicPidJsonBufSize]{};
+    bool truncated = false;
+    if (!cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                               kPoolLogicPidModule,
+                               jsonBuf,
+                               sizeof(jsonBuf),
+                               &truncated)) {
+        return false;
     }
-    if (!ioSvc_ || !ioSvc_->readDigital) return;
-    if (poolLevelIoId_ == IO_ID_INVALID) return;
+
+    bool found = false;
+    float value = 0.0f;
+    if (findJsonFloat_(jsonBuf, "ph_setpoint", value)) {
+        phSetpoint = value;
+        found = true;
+    }
+    if (findJsonFloat_(jsonBuf, "orp_setpoint", value)) {
+        orpSetpoint = value;
+        found = true;
+    }
+    return found;
+}
+
+bool HMIModule::readPoolDeviceActualOn_(uint8_t slot, bool& on) const
+{
+    on = false;
+    if (!dsSvc_ || !dsSvc_->store) return false;
+    PoolDeviceRuntimeStateEntry state{};
+    if (!poolDeviceRuntimeState(*dsSvc_->store, slot, state)) return false;
+    on = state.actualOn;
+    return true;
+}
+
+bool HMIModule::isAlarmActive_(AlarmId id) const
+{
+    return alarmSvc_ && alarmSvc_->isActive && alarmSvc_->isActive(alarmSvc_->ctx, id);
+}
+
+bool HMIModule::isWaterLevelLow_() const
+{
+    if (isAlarmActive_(AlarmId::PoolWaterLevelLow)) return true;
+    if (!ioSvc_ || !ioSvc_->readDigital) return false;
+    if (poolLevelIoId_ == IO_ID_INVALID) return false;
 
     uint8_t levelOk = 0U;
-    if (ioSvc_->readDigital(ioSvc_->ctx, poolLevelIoId_, &levelOk, nullptr, nullptr) != IO_OK) return;
-    waterLevelLow_ = (levelOk == 0U);
+    if (ioSvc_->readDigital(ioSvc_->ctx, poolLevelIoId_, &levelOk, nullptr, nullptr) != IO_OK) return false;
+    return levelOk == 0U;
 }
 
-void HMIModule::refreshRuntimeFlags_()
+uint32_t HMIModule::buildHomeStateBits_() const
 {
-    if (!dsSvc_ || !dsSvc_->store) return;
-    wifiReady_ = wifiReady(*dsSvc_->store);
-    mqttReady_ = mqttReady(*dsSvc_->store);
-    refreshWaterLevelFlag_();
+    uint32_t bits = 0U;
+    PoolLogicModeFlags modes{};
+
+    if (dsSvc_ && dsSvc_->store) {
+        PoolDeviceRuntimeStateEntry state{};
+        if (poolDeviceRuntimeState(*dsSvc_->store, filtrationDeviceSlot_, state) && state.actualOn) {
+            bits |= (1UL << HMI_HOME_STATE_FILTER_PUMP_ON);
+        }
+        if (poolDeviceRuntimeState(*dsSvc_->store, phPumpDeviceSlot_, state) && state.actualOn) {
+            bits |= (1UL << HMI_HOME_STATE_PH_PUMP_ON);
+        }
+        if (poolDeviceRuntimeState(*dsSvc_->store, orpPumpDeviceSlot_, state) && state.actualOn) {
+            bits |= (1UL << HMI_HOME_STATE_ORP_PUMP_ON);
+        }
+        if (poolDeviceRuntimeState(*dsSvc_->store, robotDeviceSlot_, state) && state.actualOn) {
+            bits |= (1UL << HMI_HOME_STATE_ROBOT_ON);
+        }
+        if (poolDeviceRuntimeState(*dsSvc_->store, lightsDeviceSlot_, state) && state.actualOn) {
+            bits |= (1UL << HMI_HOME_STATE_LIGHTS_ON);
+        }
+        if (poolDeviceRuntimeState(*dsSvc_->store, heaterDeviceSlot_, state) && state.actualOn) {
+            bits |= (1UL << HMI_HOME_STATE_HEATER_ON);
+        }
+        if (poolDeviceRuntimeState(*dsSvc_->store, fillingDeviceSlot_, state) && state.actualOn) {
+            bits |= (1UL << HMI_HOME_STATE_FILLING_ON);
+        }
+        if (wifiReady(*dsSvc_->store)) bits |= (1UL << HMI_HOME_STATE_WIFI_READY);
+        if (mqttReady(*dsSvc_->store)) bits |= (1UL << HMI_HOME_STATE_MQTT_READY);
+    }
+
+    (void)readPoolLogicModeFlags_(modes.autoMode, modes.winterMode, modes.phAutoMode, modes.orpAutoMode);
+    if (modes.autoMode) bits |= (1UL << HMI_HOME_STATE_AUTO_MODE);
+    if (modes.phAutoMode) bits |= (1UL << HMI_HOME_STATE_PH_AUTO_MODE);
+    if (modes.orpAutoMode) bits |= (1UL << HMI_HOME_STATE_ORP_AUTO_MODE);
+    if (modes.winterMode) bits |= (1UL << HMI_HOME_STATE_WINTER_MODE);
+    return bits;
 }
 
-void HMIModule::refreshAlarmFlags_()
+uint32_t HMIModule::buildHomeAlarmBits_() const
 {
-    if (!alarmSvc_ || !alarmSvc_->isActive) return;
-    void* ctx = alarmSvc_->ctx;
-    phTankLowAlarm_ = alarmSvc_->isActive(ctx, AlarmId::PoolPhTankLow);
-    chlorineTankLowAlarm_ = alarmSvc_->isActive(ctx, AlarmId::PoolChlorineTankLow);
-    phPumpRuntimeAlarm_ = alarmSvc_->isActive(ctx, AlarmId::PoolPhPumpMaxUptime);
-    chlorinePumpRuntimeAlarm_ = alarmSvc_->isActive(ctx, AlarmId::PoolChlorinePumpMaxUptime);
-    waterLevelLow_ = alarmSvc_->isActive(ctx, AlarmId::PoolWaterLevelLow);
-    psiAlarm_ = alarmSvc_->isActive(ctx, AlarmId::PoolPsiLow) ||
-                alarmSvc_->isActive(ctx, AlarmId::PoolPsiHigh);
+    uint32_t bits = 0U;
+    if (isWaterLevelLow_()) bits |= (1UL << HMI_HOME_ALARM_WATER_LEVEL_LOW);
+    if (isAlarmActive_(AlarmId::PoolPhTankLow)) bits |= (1UL << HMI_HOME_ALARM_PH_TANK_LOW);
+    if (isAlarmActive_(AlarmId::PoolChlorineTankLow)) bits |= (1UL << HMI_HOME_ALARM_CHLORINE_TANK_LOW);
+    if (isAlarmActive_(AlarmId::PoolPhPumpMaxUptime)) bits |= (1UL << HMI_HOME_ALARM_PH_PUMP_RUNTIME);
+    if (isAlarmActive_(AlarmId::PoolChlorinePumpMaxUptime)) bits |= (1UL << HMI_HOME_ALARM_ORP_PUMP_RUNTIME);
+    if (isAlarmActive_(AlarmId::PoolPsiLow) || isAlarmActive_(AlarmId::PoolPsiHigh)) {
+        bits |= (1UL << HMI_HOME_ALARM_PSI);
+    }
+    return bits;
+}
+
+bool HMIModule::publishHomeText_(HmiHomeTextField field)
+{
+    if (!driver_) return false;
+
+    uint8_t runtimeIndex = kInvalidRuntimeIndex;
+    char value[32]{};
+    if (field == HmiHomeTextField::Time || field == HmiHomeTextField::Date) {
+        struct tm local{};
+        bool hasTime = timeSvc_ &&
+                       timeSvc_->isSynced &&
+                       timeSvc_->epoch &&
+                       timeSvc_->isSynced(timeSvc_->ctx);
+        if (hasTime) {
+            const time_t epoch = (time_t)timeSvc_->epoch(timeSvc_->ctx);
+            hasTime = localtime_r(&epoch, &local) != nullptr;
+        }
+
+        if (field == HmiHomeTextField::Time) {
+            if (hasTime) snprintf(value, sizeof(value), "%02d:%02d", local.tm_hour, local.tm_min);
+            else snprintf(value, sizeof(value), "--:--");
+        } else {
+            if (hasTime && local.tm_mon >= 0 && local.tm_mon < 12) {
+                snprintf(value, sizeof(value), "%d %s", local.tm_mday, kMonthNamesFr[local.tm_mon]);
+            } else {
+                snprintf(value, sizeof(value), "-- ----");
+            }
+        }
+        return driver_->publishHomeText(field, value);
+    }
+
+    switch (field) {
+        case HmiHomeTextField::WaterTemp:
+            runtimeIndex = waterTempRuntimeIndex_;
+            break;
+        case HmiHomeTextField::AirTemp:
+            runtimeIndex = airTempRuntimeIndex_;
+            break;
+        case HmiHomeTextField::Ph:
+            runtimeIndex = phRuntimeIndex_;
+            break;
+        case HmiHomeTextField::Orp:
+            runtimeIndex = orpRuntimeIndex_;
+            break;
+        default:
+            return false;
+    }
+
+    bool hasValue = false;
+    float rawValue = 0.0f;
+    if (dsSvc_ && dsSvc_->store && runtimeIndex != kInvalidRuntimeIndex) {
+        hasValue = ioEndpointFloat(*dsSvc_->store, runtimeIndex, rawValue);
+    }
+
+    switch (field) {
+        case HmiHomeTextField::WaterTemp:
+            if (hasValue) snprintf(value, sizeof(value), "%.1f\xB0""C", (double)rawValue);
+            else snprintf(value, sizeof(value), "--.-\xB0""C");
+            break;
+        case HmiHomeTextField::AirTemp:
+            if (hasValue) snprintf(value, sizeof(value), "%.1f\xB0""C", (double)rawValue);
+            else snprintf(value, sizeof(value), "--.-\xB0""C");
+            break;
+        case HmiHomeTextField::Ph:
+            if (hasValue) snprintf(value, sizeof(value), "%.2f", (double)rawValue);
+            else snprintf(value, sizeof(value), "--.--");
+            break;
+        case HmiHomeTextField::Orp:
+            if (hasValue) snprintf(value, sizeof(value), "%.0f", (double)rawValue);
+            else snprintf(value, sizeof(value), "---");
+            break;
+        default:
+            return false;
+    }
+
+    return driver_->publishHomeText(field, value);
+}
+
+bool HMIModule::publishHomeGaugePercent_(HmiHomeGaugeField field)
+{
+    if (!driver_) return false;
+
+    uint8_t runtimeIndex = kInvalidRuntimeIndex;
+    float setpoint = 0.0f;
+    float phSetpoint = 0.0f;
+    float orpSetpoint = 0.0f;
+    (void)readPidSetpoints_(phSetpoint, orpSetpoint);
+
+    switch (field) {
+        case HmiHomeGaugeField::PhPercent:
+            runtimeIndex = phRuntimeIndex_;
+            setpoint = phSetpoint;
+            break;
+        case HmiHomeGaugeField::OrpPercent:
+            runtimeIndex = orpRuntimeIndex_;
+            setpoint = orpSetpoint;
+            break;
+        default:
+            return false;
+    }
+
+    bool hasValue = false;
+    float rawValue = 0.0f;
+    if (dsSvc_ && dsSvc_->store && runtimeIndex != kInvalidRuntimeIndex) {
+        hasValue = ioEndpointFloat(*dsSvc_->store, runtimeIndex, rawValue);
+    }
+
+    const uint16_t percent = hasValue ? gaugePercentFromSetpoint_(rawValue, setpoint) : 140U;
+    return driver_->publishHomeGaugePercent(field, percent);
+}
+
+bool HMIModule::publishHomeStateBits_()
+{
+    return driver_ && driver_->publishHomeStateBits(buildHomeStateBits_());
+}
+
+bool HMIModule::publishHomeAlarmBits_()
+{
+    return driver_ && driver_->publishHomeAlarmBits(buildHomeAlarmBits_());
+}
+
+bool HMIModule::readNextionRtcAndSetTime_()
+{
+    if (!driver_ || !timeSvc_ || !timeSvc_->setExternalEpoch) return false;
+
+    HmiRtcDateTime rtc{};
+    if (!driver_->readRtc(rtc, kNextionRtcReadTimeoutMs)) {
+        LOGW("HMI Nextion RTC read failed");
+        return false;
+    }
+
+    uint64_t epoch = 0ULL;
+    if (!rtcDateTimeToEpoch_(rtc, epoch)) {
+        LOGW("HMI Nextion RTC invalid %u-%02u-%02u %02u:%02u:%02u",
+             (unsigned)rtc.year,
+             (unsigned)rtc.month,
+             (unsigned)rtc.day,
+             (unsigned)rtc.hour,
+             (unsigned)rtc.minute,
+             (unsigned)rtc.second);
+        return false;
+    }
+
+    if (!timeSvc_->setExternalEpoch(timeSvc_->ctx, epoch)) {
+        LOGW("HMI external RTC import rejected epoch=%llu", (unsigned long long)epoch);
+        return false;
+    }
+
+    LOGI("HMI imported Nextion RTC %u-%02u-%02u %02u:%02u:%02u",
+         (unsigned)rtc.year,
+         (unsigned)rtc.month,
+         (unsigned)rtc.day,
+         (unsigned)rtc.hour,
+         (unsigned)rtc.minute,
+         (unsigned)rtc.second);
+    return true;
+}
+
+bool HMIModule::pushEspTimeToNextionRtc_()
+{
+    if (!driver_ || !timeSvc_ || !timeSvc_->epoch) return false;
+
+    const uint64_t epoch = timeSvc_->epoch(timeSvc_->ctx);
+    HmiRtcDateTime rtc{};
+    if (!epochToRtcDateTime_(epoch, rtc)) return false;
+
+    if (!driver_->writeRtc(rtc)) {
+        LOGW("HMI Nextion RTC write failed");
+        return false;
+    }
+
+    LOGI("HMI pushed ESP time to Nextion RTC %u-%02u-%02u %02u:%02u:%02u",
+         (unsigned)rtc.year,
+         (unsigned)rtc.month,
+         (unsigned)rtc.day,
+         (unsigned)rtc.hour,
+         (unsigned)rtc.minute,
+         (unsigned)rtc.second);
+    return true;
+}
+
+void HMIModule::serviceRtcBridge_(uint32_t nowMs)
+{
+    if (!driver_ || !driverReady_ || !timeSvc_) return;
+
+    const bool timeSynced = timeSvc_->isSynced && timeSvc_->isSynced(timeSvc_->ctx);
+    const bool fromExternalRtc = timeSynced &&
+                                 timeSvc_->isExternalRtc &&
+                                 timeSvc_->isExternalRtc(timeSvc_->ctx);
+
+    if (timeSynced && !fromExternalRtc) {
+        rtcFallbackCompleted_ = true;
+        if (!timeSvc_->epoch) return;
+
+        const uint64_t epoch = timeSvc_->epoch(timeSvc_->ctx);
+        const uint32_t dayStamp = rtcDayStamp_(epoch);
+        if (dayStamp == kInvalidClockStamp || dayStamp == lastRtcPushDayStamp_) return;
+        if (lastRtcPushAttemptMs_ != 0U &&
+            (uint32_t)(nowMs - lastRtcPushAttemptMs_) < kRtcPushRetryMs) {
+            return;
+        }
+
+        lastRtcPushAttemptMs_ = nowMs;
+        if (pushEspTimeToNextionRtc_()) {
+            lastRtcPushDayStamp_ = dayStamp;
+        }
+        return;
+    }
+
+    if (rtcFallbackCompleted_) return;
+
+    bool immediateFallback = false;
+    if (timeSvc_->state && timeSvc_->state(timeSvc_->ctx) == TimeSyncState::Disabled) {
+        immediateFallback = true;
+    }
+    if (wifiSvc_ && wifiSvc_->state && wifiSvc_->state(wifiSvc_->ctx) == WifiState::Disabled) {
+        immediateFallback = true;
+    }
+
+    if (!immediateFallback && nowMs < kRtcFallbackDelayMs) return;
+    if (lastRtcFallbackAttemptMs_ != 0U &&
+        (uint32_t)(nowMs - lastRtcFallbackAttemptMs_) < kRtcFallbackRetryMs) {
+        return;
+    }
+
+    lastRtcFallbackAttemptMs_ = nowMs;
+    if (readNextionRtcAndSetTime_()) {
+        rtcFallbackCompleted_ = true;
+        queueHomePublish_(kHomePublishTime | kHomePublishDate);
+    }
+}
+
+void HMIModule::queueHomePublish_(uint32_t mask)
+{
+    if (mask == 0U) return;
+    portENTER_CRITICAL(&homePublishMux_);
+    homePublishMask_ |= mask;
+    portEXIT_CRITICAL(&homePublishMux_);
+}
+
+void HMIModule::queueClockPublishIfDue_(uint32_t nowMs)
+{
+    if (!driver_ || !driverReady_) return;
+    if ((uint32_t)(nowMs - lastClockCheckMs_) < kClockPublishCheckMs) return;
+    lastClockCheckMs_ = nowMs;
+
+    const bool synced = timeSvc_ &&
+                        timeSvc_->isSynced &&
+                        timeSvc_->epoch &&
+                        timeSvc_->isSynced(timeSvc_->ctx);
+    if (!synced) {
+        if (lastClockMinuteStamp_ != kInvalidClockStamp || lastClockDayStamp_ != kInvalidClockStamp) {
+            lastClockMinuteStamp_ = kInvalidClockStamp;
+            lastClockDayStamp_ = kInvalidClockStamp;
+            queueHomePublish_(kHomePublishTime | kHomePublishDate);
+        }
+        return;
+    }
+
+    const time_t epoch = (time_t)timeSvc_->epoch(timeSvc_->ctx);
+    struct tm local{};
+    if (!localtime_r(&epoch, &local)) return;
+
+    const uint32_t year = (uint32_t)(local.tm_year + 1900);
+    const uint32_t minuteStamp = (year * 1000000UL) +
+                                 ((uint32_t)local.tm_yday * 1440UL) +
+                                 ((uint32_t)local.tm_hour * 60UL) +
+                                 (uint32_t)local.tm_min;
+    const uint32_t dayStamp = (year * 1000UL) + (uint32_t)local.tm_yday;
+
+    uint32_t mask = 0U;
+    if (minuteStamp != lastClockMinuteStamp_) {
+        lastClockMinuteStamp_ = minuteStamp;
+        mask |= kHomePublishTime;
+    }
+    if (dayStamp != lastClockDayStamp_) {
+        lastClockDayStamp_ = dayStamp;
+        mask |= kHomePublishDate;
+    }
+    queueHomePublish_(mask);
+}
+
+void HMIModule::flushHomePublish_()
+{
+    if (!driver_ || !driverReady_) return;
+
+    uint32_t pending = 0U;
+    portENTER_CRITICAL(&homePublishMux_);
+    pending = homePublishMask_;
+    portEXIT_CRITICAL(&homePublishMux_);
+    if (pending == 0U) return;
+
+    uint32_t sent = 0U;
+    if ((pending & kHomePublishWaterTemp) != 0U && publishHomeText_(HmiHomeTextField::WaterTemp)) {
+        sent |= kHomePublishWaterTemp;
+    }
+    if ((pending & kHomePublishAirTemp) != 0U && publishHomeText_(HmiHomeTextField::AirTemp)) {
+        sent |= kHomePublishAirTemp;
+    }
+    if ((pending & kHomePublishPh) != 0U && publishHomeText_(HmiHomeTextField::Ph)) {
+        sent |= kHomePublishPh;
+    }
+    if ((pending & kHomePublishOrp) != 0U && publishHomeText_(HmiHomeTextField::Orp)) {
+        sent |= kHomePublishOrp;
+    }
+    if ((pending & kHomePublishPhGauge) != 0U && publishHomeGaugePercent_(HmiHomeGaugeField::PhPercent)) {
+        sent |= kHomePublishPhGauge;
+    }
+    if ((pending & kHomePublishOrpGauge) != 0U && publishHomeGaugePercent_(HmiHomeGaugeField::OrpPercent)) {
+        sent |= kHomePublishOrpGauge;
+    }
+    if ((pending & kHomePublishStateBits) != 0U && publishHomeStateBits_()) {
+        sent |= kHomePublishStateBits;
+    }
+    if ((pending & kHomePublishAlarmBits) != 0U && publishHomeAlarmBits_()) {
+        sent |= kHomePublishAlarmBits;
+    }
+    if ((pending & kHomePublishTime) != 0U && publishHomeText_(HmiHomeTextField::Time)) {
+        sent |= kHomePublishTime;
+    }
+    if ((pending & kHomePublishDate) != 0U && publishHomeText_(HmiHomeTextField::Date)) {
+        sent |= kHomePublishDate;
+    }
+
+    if (sent == 0U) return;
+
+    portENTER_CRITICAL(&homePublishMux_);
+    homePublishMask_ &= ~sent;
+    portEXIT_CRITICAL(&homePublishMux_);
 }
 
 void HMIModule::applyLedMask_(bool force)
@@ -322,33 +1059,47 @@ void HMIModule::applyLedMask_(bool force)
     if (!cfgData_.ledsEnabled) return;
     if (!statusLedsSvc_ || !statusLedsSvc_->setMask) return;
 
+    PoolLogicModeFlags modes{};
+    bool wifiConnected = false;
+    bool mqttConnected = false;
+    if (dsSvc_ && dsSvc_->store) {
+        wifiConnected = wifiReady(*dsSvc_->store);
+        mqttConnected = mqttReady(*dsSvc_->store);
+    }
+    (void)readPoolLogicModeFlags_(modes.autoMode, modes.winterMode, modes.phAutoMode, modes.orpAutoMode);
+    const bool waterLevelLow = isWaterLevelLow_();
+    const bool psiAlarm = isAlarmActive_(AlarmId::PoolPsiLow) || isAlarmActive_(AlarmId::PoolPsiHigh);
+    const bool phTankLowAlarm = isAlarmActive_(AlarmId::PoolPhTankLow);
+    const bool chlorineTankLowAlarm = isAlarmActive_(AlarmId::PoolChlorineTankLow);
+    const bool phPumpRuntimeAlarm = isAlarmActive_(AlarmId::PoolPhPumpMaxUptime);
+    const bool chlorinePumpRuntimeAlarm = isAlarmActive_(AlarmId::PoolChlorinePumpMaxUptime);
+
     uint8_t mask = 0U;
-    if (wifiReady_ && (mqttReady_ || wifiBlinkOn_)) {
+    if (wifiConnected && (mqttConnected || wifiBlinkOn_)) {
         mask |= (uint8_t)(1U << kLedBitMqttConnected);
     }
 
-    // The front-panel overlay is wired with page labels opposite to the
-    // internal toggle order, so we intentionally swap page 1/page 2 here.
-    const bool page2 = (ledPage_ == 1U);
+    // Direct mapping: ledPage_=1 drives page 1, ledPage_=2 drives page 2.
+    const bool page2 = (ledPage_ == 2U);
     if (!page2) mask |= (uint8_t)(1U << kLedBitPageSelect);
 
     if (!page2) {
         // Page 1:
         // p2=mode auto, p3=winter, p4/p5 unused, p6=niveau eau bas, p7=PSI error.
-        if (autoRegEnabled_) mask |= (uint8_t)(1U << kLedBitModeA);
-        if (winterMode_) mask |= (uint8_t)(1U << kLedBitModeB);
-        if (waterLevelLow_) mask |= (uint8_t)(1U << kLedBitAlarmC);
-        if (psiAlarm_) mask |= (uint8_t)(1U << kLedBitAlarmD);
+        if (modes.autoMode) mask |= (uint8_t)(1U << kLedBitModeA);
+        if (modes.winterMode) mask |= (uint8_t)(1U << kLedBitModeB);
+        if (waterLevelLow) mask |= (uint8_t)(1U << kLedBitAlarmC);
+        if (psiAlarm) mask |= (uint8_t)(1U << kLedBitAlarmD);
     } else {
         // Page 2:
         // p2=mode pH auto, p3=mode ORP auto, p4=bidon pH bas, p5=bidon chlore bas,
         // p6=pompe pH uptime max, p7=pompe chlore uptime max.
-        if (phPidEnabled_) mask |= (uint8_t)(1U << kLedBitModeA);
-        if (chlorinePidEnabled_) mask |= (uint8_t)(1U << kLedBitModeB);
-        if (phTankLowAlarm_) mask |= (uint8_t)(1U << kLedBitAlarmA);
-        if (chlorineTankLowAlarm_) mask |= (uint8_t)(1U << kLedBitAlarmB);
-        if (phPumpRuntimeAlarm_) mask |= (uint8_t)(1U << kLedBitAlarmC);
-        if (chlorinePumpRuntimeAlarm_) mask |= (uint8_t)(1U << kLedBitAlarmD);
+        if (modes.phAutoMode) mask |= (uint8_t)(1U << kLedBitModeA);
+        if (modes.orpAutoMode) mask |= (uint8_t)(1U << kLedBitModeB);
+        if (phTankLowAlarm) mask |= (uint8_t)(1U << kLedBitAlarmA);
+        if (chlorineTankLowAlarm) mask |= (uint8_t)(1U << kLedBitAlarmB);
+        if (phPumpRuntimeAlarm) mask |= (uint8_t)(1U << kLedBitAlarmC);
+        if (chlorinePumpRuntimeAlarm) mask |= (uint8_t)(1U << kLedBitAlarmD);
     }
 
     if (!force && ledMaskValid_ && ledMaskLast_ == mask) return;
@@ -363,6 +1114,7 @@ bool HMIModule::refreshCurrentModule_()
 #if !FLOW_HMI_CONFIG_MENU_ENABLED
     return false;
 #else
+    if (!configMenuReady_) return false;
     const uint8_t prevPage = menu_.pageIndex();
     if (!menu_.refreshCurrent()) return false;
     while (menu_.pageIndex() < prevPage && menu_.nextPage()) {
@@ -371,74 +1123,132 @@ bool HMIModule::refreshCurrentModule_()
 #endif
 }
 
+bool HMIModule::ensureConfigMenuReady_()
+{
+#if FLOW_HMI_CONFIG_MENU_ENABLED
+    if (configMenuReady_) return true;
+    if (!cfgSvc_) return false;
+
+    const bool okMenu = menu_.begin(cfgSvc_);
+    if (!okMenu) {
+        LOGE("Config menu init failed free_heap=%u", (unsigned)xPortGetFreeHeapSize());
+        return false;
+    }
+
+    menu_.setHints(kHints, (uint8_t)(sizeof(kHints) / sizeof(kHints[0])));
+    configMenuReady_ = true;
+    LOGI("Config menu ready mode=stateless rows_per_page=%u row_cap=%u module_cap=%u free_heap=%u",
+         (unsigned)ConfigMenuModel::RowsPerPage,
+         (unsigned)ConfigMenuModel::MaxRows,
+         (unsigned)ConfigMenuModel::MaxModules,
+         (unsigned)xPortGetFreeHeapSize());
+    return true;
+#else
+    return false;
+#endif
+}
+
 void HMIModule::onEvent_(const Event& e)
 {
     bool ledDirty = false;
+    uint32_t homePublishMask = 0U;
 
     if (e.id == EventId::ConfigChanged && e.payload && e.len >= sizeof(ConfigChangedPayload)) {
         const ConfigChangedPayload* p = static_cast<const ConfigChangedPayload*>(e.payload);
 #if FLOW_HMI_CONFIG_MENU_ENABLED
-        if (!menu_.isHome() && p->module[0] && strcmp(p->module, menu_.currentModule()) == 0) {
-            if (refreshCurrentModule_()) viewDirty_ = true;
-        } else if (menu_.isHome()) {
-            viewDirty_ = true;
+        if (configMenuReady_) {
+            if (configMenuActive_) {
+                viewDirty_ = true;
+            }
         }
 #endif
-        if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic) {
-            refreshPoolLogicFlags_();
+        const bool poolLogicChanged = (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic) ||
+                                      isPoolLogicModuleName_(p->module);
+        if (poolLogicChanged) {
+            refreshHomeBindings_();
             ledDirty = true;
+            homePublishMask |= kHomePublishAll;
         }
         if (p->module[0] && strncmp(p->module, kHmiModulePrefix, strlen(kHmiModulePrefix)) == 0) {
             applyOutputConfig_();
             ledDirty = cfgData_.ledsEnabled;
+            if (cfgData_.nextionEnabled) {
+                homePublishMask |= kHomePublishAll;
+            }
         }
     } else if (e.id == EventId::DataChanged && e.payload && e.len >= sizeof(DataChangedPayload)) {
         const DataChangedPayload* p = static_cast<const DataChangedPayload*>(e.payload);
         if (p->id == DATAKEY_WIFI_READY || p->id == DATAKEY_MQTT_READY) {
-            refreshRuntimeFlags_();
             ledDirty = true;
-        } else if (poolLevelIoId_ != IO_ID_INVALID &&
-                   p->id == (DataKey)(DATAKEY_IO_BASE + poolLevelIoId_)) {
-            refreshWaterLevelFlag_();
+            homePublishMask |= kHomePublishStateBits;
+        } else if (p->id == DATAKEY_TIME_READY) {
+            homePublishMask |= kHomePublishTime | kHomePublishDate;
+        } else if (poolLevelRuntimeIndex_ != kInvalidRuntimeIndex &&
+                   p->id == (DataKey)(DATAKEY_IO_BASE + poolLevelRuntimeIndex_)) {
             ledDirty = true;
+            homePublishMask |= kHomePublishAlarmBits;
+        } else if (waterTempRuntimeIndex_ != kInvalidRuntimeIndex &&
+                   p->id == (DataKey)(DATAKEY_IO_BASE + waterTempRuntimeIndex_)) {
+            homePublishMask |= kHomePublishWaterTemp;
+        } else if (airTempRuntimeIndex_ != kInvalidRuntimeIndex &&
+                   p->id == (DataKey)(DATAKEY_IO_BASE + airTempRuntimeIndex_)) {
+            homePublishMask |= kHomePublishAirTemp;
+        } else if (phRuntimeIndex_ != kInvalidRuntimeIndex &&
+                   p->id == (DataKey)(DATAKEY_IO_BASE + phRuntimeIndex_)) {
+            homePublishMask |= kHomePublishPh | kHomePublishPhGauge;
+        } else if (orpRuntimeIndex_ != kInvalidRuntimeIndex &&
+                   p->id == (DataKey)(DATAKEY_IO_BASE + orpRuntimeIndex_)) {
+            homePublishMask |= kHomePublishOrp | kHomePublishOrpGauge;
+        } else if (p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + filtrationDeviceSlot_) ||
+                   p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + phPumpDeviceSlot_) ||
+                   p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + orpPumpDeviceSlot_) ||
+                   p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + robotDeviceSlot_) ||
+                   p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + lightsDeviceSlot_) ||
+                   p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + heaterDeviceSlot_) ||
+                   p->id == (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + fillingDeviceSlot_)) {
+            homePublishMask |= kHomePublishStateBits;
         }
     } else if ((e.id == EventId::AlarmRaised || e.id == EventId::AlarmCleared) &&
                e.payload &&
                e.len >= sizeof(AlarmPayload)) {
         const AlarmPayload* p = static_cast<const AlarmPayload*>(e.payload);
         const AlarmId id = (AlarmId)p->alarmId;
-        if (id == AlarmId::PoolPhTankLow) {
-            phTankLowAlarm_ = (e.id == EventId::AlarmRaised);
+        if (id == AlarmId::PoolPhTankLow ||
+            id == AlarmId::PoolChlorineTankLow ||
+            id == AlarmId::PoolPhPumpMaxUptime ||
+            id == AlarmId::PoolChlorinePumpMaxUptime ||
+            id == AlarmId::PoolWaterLevelLow ||
+            id == AlarmId::PoolPsiLow ||
+            id == AlarmId::PoolPsiHigh) {
             ledDirty = true;
-        } else if (id == AlarmId::PoolChlorineTankLow) {
-            chlorineTankLowAlarm_ = (e.id == EventId::AlarmRaised);
-            ledDirty = true;
-        } else if (id == AlarmId::PoolPhPumpMaxUptime) {
-            phPumpRuntimeAlarm_ = (e.id == EventId::AlarmRaised);
-            ledDirty = true;
-        } else if (id == AlarmId::PoolChlorinePumpMaxUptime) {
-            chlorinePumpRuntimeAlarm_ = (e.id == EventId::AlarmRaised);
-            ledDirty = true;
-        } else if (id == AlarmId::PoolWaterLevelLow) {
-            waterLevelLow_ = (e.id == EventId::AlarmRaised);
-            ledDirty = true;
-        } else if (id == AlarmId::PoolPsiLow || id == AlarmId::PoolPsiHigh) {
-            if (e.id == EventId::AlarmRaised) {
-                psiAlarm_ = true;
-            } else {
-                refreshAlarmFlags_();
-            }
-            ledDirty = true;
+            homePublishMask |= kHomePublishAlarmBits;
         }
     }
 
     if (ledDirty) {
         applyLedMask_();
     }
+    queueHomePublish_(homePublishMask);
 }
 
 void HMIModule::handleDriverEvent_(const HmiEvent& e)
 {
+    if (e.type == HmiEventType::Command) {
+        (void)executeHmiCommand_(e.command, e.value);
+        return;
+    }
+
+    if (e.type == HmiEventType::ConfigEnter) {
+        (void)openConfigHome_();
+        return;
+    }
+
+    if (e.type == HmiEventType::ConfigExit) {
+        configMenuActive_ = false;
+        viewDirty_ = false;
+        return;
+    }
+
 #if !FLOW_HMI_CONFIG_MENU_ENABLED
     {
         if (e.type == HmiEventType::NextPage) {
@@ -453,12 +1263,30 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
         return;
     }
 #else
+    if (!configMenuActive_) {
+        if (e.type == HmiEventType::NextPage) {
+            ledPage_ = 2U;
+            applyLedMask_(true);
+        } else if (e.type == HmiEventType::PrevPage ||
+                   e.type == HmiEventType::Home ||
+                   e.type == HmiEventType::Back) {
+            ledPage_ = 1U;
+            applyLedMask_(true);
+        }
+        return;
+    }
+
     bool changed = false;
     switch (e.type) {
         case HmiEventType::Home:
             changed = menu_.home();
             break;
         case HmiEventType::Back:
+            if (menu_.isHome()) {
+                configMenuActive_ = false;
+                viewDirty_ = false;
+                return;
+            }
             changed = menu_.back();
             break;
         case HmiEventType::Validate: {
@@ -488,6 +1316,9 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
             }
             break;
         }
+        case HmiEventType::RowEdit:
+            changed = menu_.editRow(e.row);
+            break;
         case HmiEventType::RowToggle:
             changed = menu_.toggleSwitch(e.row);
             break;
@@ -500,6 +1331,9 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
         case HmiEventType::RowSetSlider:
             changed = menu_.setSlider(e.row, e.sliderValue);
             break;
+        case HmiEventType::ConfigEnter:
+        case HmiEventType::ConfigExit:
+            break;
         case HmiEventType::None:
         default:
             break;
@@ -509,12 +1343,153 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
 #endif
 }
 
+bool HMIModule::executeHmiCommand_(HmiCommandId command, uint8_t value)
+{
+    bool current = false;
+    PoolLogicModeFlags modes{};
+
+    switch (command) {
+        case HmiCommandId::HomeSyncRequest:
+            queueHomePublish_(kHomePublishAll);
+            return true;
+
+        case HmiCommandId::HomeConfigOpen:
+            // Nextion owns visual navigation. The config menu is opened only
+            // when pageCfgMenu announces itself with the PAGE frame.
+            return true;
+
+        case HmiCommandId::HomeFiltrationSet:
+            return executeCommandBool_("poollogic.filtration.write", value != 0U);
+
+        case HmiCommandId::HomeAutoModeSet:
+            return executeCommandBool_("poollogic.auto_mode.set", value != 0U);
+
+        case HmiCommandId::HomePhPumpSet:
+            return executePoolDeviceWrite_(phPumpDeviceSlot_, value != 0U);
+
+        case HmiCommandId::HomeOrpPumpSet:
+            return executePoolDeviceWrite_(orpPumpDeviceSlot_, value != 0U);
+
+        case HmiCommandId::HomePhPumpToggle:
+            if (!readPoolDeviceActualOn_(phPumpDeviceSlot_, current)) return false;
+            return executePoolDeviceWrite_(phPumpDeviceSlot_, !current);
+
+        case HmiCommandId::HomeOrpPumpToggle:
+            if (!readPoolDeviceActualOn_(orpPumpDeviceSlot_, current)) return false;
+            return executePoolDeviceWrite_(orpPumpDeviceSlot_, !current);
+
+        case HmiCommandId::HomeFiltrationToggle:
+            if (!readPoolDeviceActualOn_(filtrationDeviceSlot_, current)) return false;
+            return executeCommandBool_("poollogic.filtration.write", !current);
+
+        case HmiCommandId::HomeAutoModeToggle:
+            (void)readPoolLogicModeFlags_(modes.autoMode, modes.winterMode, modes.phAutoMode, modes.orpAutoMode);
+            return executeCommandBool_("poollogic.auto_mode.set", !modes.autoMode);
+
+        case HmiCommandId::HomeOrpAutoModeToggle:
+            (void)readPoolLogicModeFlags_(modes.autoMode, modes.winterMode, modes.phAutoMode, modes.orpAutoMode);
+            return executePoolLogicModePatch_("orp_auto_mode", !modes.orpAutoMode);
+
+        case HmiCommandId::HomePhAutoModeToggle:
+            (void)readPoolLogicModeFlags_(modes.autoMode, modes.winterMode, modes.phAutoMode, modes.orpAutoMode);
+            return executePoolLogicModePatch_("ph_auto_mode", !modes.phAutoMode);
+
+        case HmiCommandId::HomeWinterModeToggle:
+            (void)readPoolLogicModeFlags_(modes.autoMode, modes.winterMode, modes.phAutoMode, modes.orpAutoMode);
+            return executePoolLogicModePatch_("winter_mode", !modes.winterMode);
+
+        case HmiCommandId::HomeLightsToggle:
+            if (!readPoolDeviceActualOn_(lightsDeviceSlot_, current)) return false;
+            return executePoolDeviceWrite_(lightsDeviceSlot_, !current);
+
+        case HmiCommandId::HomeRobotToggle:
+            if (!readPoolDeviceActualOn_(robotDeviceSlot_, current)) return false;
+            return executePoolDeviceWrite_(robotDeviceSlot_, !current);
+
+        case HmiCommandId::None:
+        default:
+            return false;
+    }
+}
+
+bool HMIModule::executeCommandBool_(const char* cmdName, bool value)
+{
+    if (!cmdName || cmdName[0] == '\0') return false;
+    if (!cmdSvc_ || !cmdSvc_->execute) {
+        LOGW("HMI command service unavailable cmd=%s", cmdName);
+        return false;
+    }
+
+    char args[32]{};
+    char reply[128]{};
+    snprintf(args, sizeof(args), "{\"value\":%s}", value ? "true" : "false");
+
+    const bool ok = cmdSvc_->execute(cmdSvc_->ctx, cmdName, args, nullptr, reply, sizeof(reply));
+    if (!ok) {
+        LOGW("HMI command failed cmd=%s args=%s reply=%s",
+             cmdName,
+             args,
+             reply[0] ? reply : "{}");
+        return false;
+    }
+
+    LOGI("HMI command ok cmd=%s args=%s", cmdName, args);
+    queueHomePublish_(kHomePublishAll);
+    return true;
+}
+
+bool HMIModule::executePoolDeviceWrite_(uint8_t slot, bool value)
+{
+    if (!cmdSvc_ || !cmdSvc_->execute) {
+        LOGW("HMI command service unavailable cmd=pooldevice.write");
+        return false;
+    }
+
+    char args[40]{};
+    char reply[128]{};
+    snprintf(args, sizeof(args), "{\"slot\":%u,\"value\":%s}", (unsigned)slot, value ? "true" : "false");
+
+    const bool ok = cmdSvc_->execute(cmdSvc_->ctx, "pooldevice.write", args, nullptr, reply, sizeof(reply));
+    if (!ok) {
+        LOGW("HMI command failed cmd=pooldevice.write args=%s reply=%s",
+             args,
+             reply[0] ? reply : "{}");
+        return false;
+    }
+
+    LOGI("HMI command ok cmd=pooldevice.write args=%s", args);
+    queueHomePublish_(kHomePublishAll);
+    return true;
+}
+
+bool HMIModule::executePoolLogicModePatch_(const char* key, bool value)
+{
+    if (!key || key[0] == '\0') return false;
+    if (!cfgSvc_ || !cfgSvc_->applyJson) {
+        LOGW("HMI config service unavailable key=%s", key);
+        return false;
+    }
+
+    char json[96]{};
+    snprintf(json, sizeof(json), "{\"poollogic/mode\":{\"%s\":%s}}", key, value ? "true" : "false");
+    const bool ok = cfgSvc_->applyJson(cfgSvc_->ctx, json);
+    if (!ok) {
+        LOGW("HMI config patch failed json=%s", json);
+        return false;
+    }
+
+    LOGI("HMI config patch ok json=%s", json);
+    queueHomePublish_(kHomePublishAll);
+    return true;
+}
+
 bool HMIModule::render_()
 {
     if (!driver_) return false;
     ConfigMenuView view{};
 #if FLOW_HMI_CONFIG_MENU_ENABLED
     {
+        if (!ensureConfigMenuReady_()) return false;
         menu_.buildView(view);
     }
 #else
@@ -537,11 +1512,30 @@ bool HMIModule::render_()
     const bool ok = driver_->renderConfigMenu(view);
     if (ok) {
         lastRenderMs_ = millis();
+        lastConfigValueRefreshMs_ = lastRenderMs_;
     }
     return ok;
 }
 
-bool HMIModule::buildMenuJson_(char* out, size_t outLen) const
+bool HMIModule::refreshConfigMenuValues_()
+{
+    if (!driver_) return false;
+
+#if FLOW_HMI_CONFIG_MENU_ENABLED
+    {
+        if (!ensureConfigMenuReady_()) return false;
+        ConfigMenuView view{};
+        menu_.buildView(view);
+        const bool ok = driver_->refreshConfigMenuValues(view);
+        if (ok) lastConfigValueRefreshMs_ = millis();
+        return ok;
+    }
+#else
+    return false;
+#endif
+}
+
+bool HMIModule::buildMenuJson_(char* out, size_t outLen)
 {
     if (!out || outLen == 0) return false;
 
@@ -563,6 +1557,7 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen) const
         return written > 0 && written < outLen;
     }
 #else
+    if (!ensureConfigMenuReady_()) return false;
     ConfigMenuView view{};
     menu_.buildView(view);
 
@@ -574,6 +1569,7 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen) const
     root["page"] = (uint32_t)view.pageIndex + 1U;
     root["pages"] = (uint32_t)view.pageCount;
     root["rows"] = (uint32_t)view.rowCountOnPage;
+    root["mode"] = (view.mode == ConfigMenuMode::Edit) ? "edit" : "browse";
     root["can_home"] = view.canHome;
     root["can_back"] = view.canBack;
     root["can_validate"] = view.canValidate;
@@ -587,6 +1583,9 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen) const
         it["key"] = row.key;
         it["label"] = row.label;
         it["value"] = row.value;
+        it["value_visible"] = row.valueVisible;
+        it["can_enter"] = row.canEnter;
+        it["can_edit"] = row.canEdit;
         it["editable"] = row.editable;
         it["dirty"] = row.dirty;
         it["widget"] = (uint8_t)row.widget;
@@ -608,6 +1607,7 @@ void HMIModule::loop()
                 return;
             }
             viewDirty_ = true;
+            queueHomePublish_(kHomePublishAll);
         }
 
         HmiEvent ev{};
@@ -620,7 +1620,14 @@ void HMIModule::loop()
 
     const uint32_t now = millis();
     if (cfgData_.ledsEnabled) {
-        if (wifiReady_ && !mqttReady_) {
+        bool wifiConnected = false;
+        bool mqttConnected = false;
+        if (dsSvc_ && dsSvc_->store) {
+            wifiConnected = wifiReady(*dsSvc_->store);
+            mqttConnected = mqttReady(*dsSvc_->store);
+        }
+
+        if (wifiConnected && !mqttConnected) {
             if ((uint32_t)(now - lastWifiBlinkToggleMs_) >= kWifiBlinkPeriodMs) {
                 lastWifiBlinkToggleMs_ = now;
                 wifiBlinkOn_ = !wifiBlinkOn_;
@@ -643,11 +1650,18 @@ void HMIModule::loop()
             lastLedApplyTryMs_ = now;
         }
     }
-    const bool periodicRefresh = driver_ && ((uint32_t)(now - lastRenderMs_) >= 1200U);
-    if (driver_ && (viewDirty_ || periodicRefresh)) {
+    serviceRtcBridge_(now);
+    queueClockPublishIfDue_(now);
+    flushHomePublish_();
+    if (kConfigMenuEnabled && configMenuActive_ && driver_ && viewDirty_) {
         if (render_()) {
             viewDirty_ = false;
         }
+    } else if (kConfigMenuEnabled &&
+               configMenuActive_ &&
+               driver_ &&
+               (uint32_t)(now - lastConfigValueRefreshMs_) >= 5000U) {
+        (void)refreshConfigMenuValues_();
     }
 
     if (driver_) driver_->tick(now);

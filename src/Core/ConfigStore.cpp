@@ -8,6 +8,7 @@
 #include "Core/Log.h"
 #include "Core/ModuleId.h"
 #include "Core/SnprintfCheck.h"
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <stdio.h>
 
@@ -20,6 +21,43 @@ static bool strEquals(const char* a, const char* b) {
     if (!a || !b) return false;
     return strcmp(a, b) == 0;
 }
+
+namespace {
+constexpr uint32_t kApplyJsonDocReportPeriodMs = 5000U;
+
+void reportApplyJsonDocPeak_(size_t usedBytes, size_t capacityBytes)
+{
+    // Keep the highest observed usage since boot so we can validate that
+    // Limits::JsonConfigApplyBuf is sized with enough headroom in real traffic.
+    static std::atomic<size_t> s_applyJsonPeakBytes{0U};
+    static std::atomic<uint32_t> s_applyJsonLastReportMs{0U};
+
+    size_t peakBytes = s_applyJsonPeakBytes.load(std::memory_order_relaxed);
+    while (usedBytes > peakBytes &&
+           !s_applyJsonPeakBytes.compare_exchange_weak(peakBytes,
+                                                       usedBytes,
+                                                       std::memory_order_relaxed,
+                                                       std::memory_order_relaxed)) {
+    }
+    peakBytes = s_applyJsonPeakBytes.load(std::memory_order_relaxed);
+
+    const uint32_t nowMs = millis();
+    const uint32_t stampMs = (nowMs == 0U) ? 1U : nowMs;
+    uint32_t lastReportMs = s_applyJsonLastReportMs.load(std::memory_order_relaxed);
+    if (lastReportMs != 0U && (uint32_t)(nowMs - lastReportMs) < kApplyJsonDocReportPeriodMs) return;
+    if (!s_applyJsonLastReportMs.compare_exchange_strong(lastReportMs,
+                                                         stampMs,
+                                                         std::memory_order_relaxed,
+                                                         std::memory_order_relaxed)) {
+        return;
+    }
+
+    Log::debug(LOG_MODULE_ID,
+               "applyJson doc peak since boot: %lu / %lu bytes",
+               (unsigned long)peakBytes,
+               (unsigned long)capacityBytes);
+}
+}  // namespace
 
 void ConfigStore::ensureMutex_()
 {
@@ -493,9 +531,12 @@ bool ConfigStore::applyJson(const char* json)
     static StaticJsonDocument<APPLY_JSON_DOC_CAPACITY> doc;
     doc.clear();
     const DeserializationError err = deserializeJson(doc, json);
+    const size_t docUsedBytes = doc.memoryUsage();
+    const size_t docCapacityBytes = doc.capacity();
+    reportApplyJsonDocPeak_(docUsedBytes, docCapacityBytes);
     if (err || !doc.is<JsonObjectConst>()) {
         BufferUsageTracker::note(TrackedBufferId::ConfigApplyJsonDoc,
-                                 doc.memoryUsage(),
+                                 docUsedBytes,
                                  sizeof(doc),
                                  "applyJson",
                                  nullptr);
@@ -509,7 +550,7 @@ bool ConfigStore::applyJson(const char* json)
         break;
     }
     BufferUsageTracker::note(TrackedBufferId::ConfigApplyJsonDoc,
-                             doc.memoryUsage(),
+                             docUsedBytes,
                              sizeof(doc),
                              peakSource,
                              "<json>");

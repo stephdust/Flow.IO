@@ -1635,6 +1635,13 @@ void WebInterfaceModule::startServer_()
             return;
         }
 
+        if (!netAccessSvc_ && services_) {
+            netAccessSvc_ = services_->get<NetworkAccessService>(ServiceId::NetworkAccess);
+        }
+        const bool wasApProvisioning = netAccessSvc_ &&
+                                       netAccessSvc_->mode &&
+                                       (netAccessSvc_->mode(netAccessSvc_->ctx) == NetworkAccessMode::AccessPoint);
+
         char enabledStr[8] = {0};
         char ssid[96] = {0};
         char pass[96] = {0};
@@ -1709,13 +1716,48 @@ void WebInterfaceModule::startServer_()
                  flowSyncErr[0] ? flowSyncErr : "none");
         }
 
-        char out[256] = {0};
+        bool flowRebootAttempted = false;
+        bool flowRebootOk = false;
+        char flowRebootErr[96] = {0};
+        if (wasApProvisioning && flowSyncAttempted && flowSyncOk) {
+            flowRebootAttempted = true;
+            if (!cmdSvc_ && services_) {
+                cmdSvc_ = services_->get<CommandService>(ServiceId::Command);
+            }
+            if (cmdSvc_ && cmdSvc_->execute) {
+                char rebootReply[220] = {0};
+                flowRebootOk = cmdSvc_->execute(cmdSvc_->ctx,
+                                                "flow.system.reboot",
+                                                "{}",
+                                                nullptr,
+                                                rebootReply,
+                                                sizeof(rebootReply));
+                if (!flowRebootOk) {
+                    snprintf(flowRebootErr, sizeof(flowRebootErr), "flow.system.reboot failed");
+                }
+            } else {
+                snprintf(flowRebootErr, sizeof(flowRebootErr), "command service unavailable");
+            }
+        }
+
+        if (flowRebootAttempted && flowRebootOk) {
+            LOGI("Flow.io reboot requested after AP WiFi provisioning");
+        } else if (flowRebootAttempted) {
+            LOGW("Flow.io reboot request failed err=%s", flowRebootErr[0] ? flowRebootErr : "unknown");
+        }
+
+        char out[384] = {0};
         const int n = snprintf(out,
                                sizeof(out),
-                               "{\"ok\":true,\"flowio_sync\":{\"attempted\":%s,\"ok\":%s,\"err\":\"%s\"}}",
+                               "{\"ok\":true,"
+                               "\"flowio_sync\":{\"attempted\":%s,\"ok\":%s,\"err\":\"%s\"},"
+                               "\"flowio_reboot\":{\"attempted\":%s,\"ok\":%s,\"err\":\"%s\"}}",
                                flowSyncAttempted ? "true" : "false",
                                flowSyncOk ? "true" : "false",
-                               flowSyncErr);
+                               flowSyncErr,
+                               flowRebootAttempted ? "true" : "false",
+                               flowRebootOk ? "true" : "false",
+                               flowRebootErr);
         if (n <= 0 || (size_t)n >= sizeof(out)) {
             request->send(200, "application/json", "{\"ok\":true}");
             return;
