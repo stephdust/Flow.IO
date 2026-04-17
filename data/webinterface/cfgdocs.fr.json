@@ -1,7 +1,7 @@
 {
   "_meta": {
     "generated": true,
-    "total": 433,
+    "total": 382,
     "decl_total": 219,
     "decl_with_cfgdoc": 120,
     "missing_cfgdoc_count": 99,
@@ -3471,35 +3471,6 @@
       "var": "cfgRuntimeVar_",
       "source": "cfgdoc-series"
     },
-    "poollogic/air_temp_io_id": {
-      "module": "poollogic",
-      "name": "air_temp_io_id",
-      "type": "UInt16",
-      "label": "IO température air",
-      "help": "Identifiant IO de la sonde température air.",
-      "var": "airTempIdVar_",
-      "source": "cfgdoc",
-      "enum_set": "flowio_logical_input_analog"
-    },
-    "poollogic/auto_mode": {
-      "module": "poollogic",
-      "name": "auto_mode",
-      "type": "Bool",
-      "label": "Mode auto global",
-      "help": "Active le pilotage automatique global de la piscine.",
-      "var": "autoModeVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/chl_lvl_io_id": {
-      "module": "poollogic",
-      "name": "chl_lvl_io_id",
-      "type": "UInt16",
-      "label": "IO niveau cuve chlore",
-      "help": "Identifiant IO de l'entrée digitale niveau bas cuve chlore.",
-      "var": "chlorineLevelIdVar_",
-      "source": "cfgdoc",
-      "enum_set": "flowio_logical_input_digital"
-    },
     "poollogic/delay/dly_electro_min": {
       "module": "poollogic/delay",
       "name": "dly_electro_min",
@@ -3620,119 +3591,6 @@
       "source": "cfgdoc-alias",
       "enum_set": "poollogic_device_slot"
     },
-    "poollogic/dly_electro_min": {
-      "module": "poollogic",
-      "name": "dly_electro_min",
-      "type": "UInt8",
-      "label": "Délai electrolyse (min)",
-      "help": "Délai avant autorisation de l'electrolyse après filtration.",
-      "var": "delayElectroVar_",
-      "source": "cfgdoc",
-      "unit": "min"
-    },
-    "poollogic/dly_pid_min": {
-      "module": "poollogic",
-      "name": "dly_pid_min",
-      "type": "UInt8",
-      "label": "Délai PID après filtration (min)",
-      "help": "Délai avant activation des PID après début filtration.",
-      "var": "delayPidsVar_",
-      "source": "cfgdoc",
-      "unit": "min"
-    },
-    "poollogic/elec_mode": {
-      "module": "poollogic",
-      "name": "elec_mode",
-      "type": "Bool",
-      "label": "Electrolyse active",
-      "help": "Autorise l'usage de l'electrolyseur.",
-      "var": "electrolyseModeVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/elec_run": {
-      "module": "poollogic",
-      "name": "elec_run",
-      "type": "Bool",
-      "label": "Electrolyse en service",
-      "help": "Autorise la commande de marche de l'electrolyseur.",
-      "var": "electroRunModeVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/enabled": {
-      "module": "poollogic",
-      "name": "enabled",
-      "type": "Bool",
-      "label": "PoolLogic actif",
-      "help": "Active ou désactive les automatismes PoolLogic.",
-      "var": "enabledVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/fill_min_on_s": {
-      "module": "poollogic",
-      "name": "fill_min_on_s",
-      "type": "UInt8",
-      "label": "Temps mini remplissage (s)",
-      "help": "Durée minimale de marche de la pompe de remplissage.",
-      "var": "fillingMinOnVar_",
-      "source": "cfgdoc",
-      "unit": "s"
-    },
-    "poollogic/fill_slot": {
-      "module": "poollogic",
-      "name": "fill_slot",
-      "type": "UInt8",
-      "label": "Slot remplissage",
-      "help": "Numéro de slot PDM associé au remplissage.",
-      "var": "fillingDeviceVar_",
-      "source": "cfgdoc",
-      "enum_set": "poollogic_device_slot"
-    },
-    "poollogic/filtr_slot": {
-      "module": "poollogic",
-      "name": "filtr_slot",
-      "type": "UInt8",
-      "label": "Slot filtration",
-      "help": "Numéro de slot PDM pilote pour la filtration.",
-      "var": "filtrationDeviceVar_",
-      "source": "cfgdoc",
-      "enum_set": "poollogic_device_slot"
-    },
-    "poollogic/filtr_start_clc": {
-      "module": "poollogic",
-      "name": "filtr_start_clc",
-      "type": "UInt8",
-      "label": "Début filtration calculé",
-      "help": "Heure de début de filtration calculée automatiquement.",
-      "var": "calcStartVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/filtr_start_min": {
-      "module": "poollogic",
-      "name": "filtr_start_min",
-      "type": "UInt8",
-      "label": "Début filtration min",
-      "help": "Heure minimale autorisée pour démarrer la filtration.",
-      "var": "startMinVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/filtr_stop_clc": {
-      "module": "poollogic",
-      "name": "filtr_stop_clc",
-      "type": "UInt8",
-      "label": "Arrêt filtration calculé",
-      "help": "Heure de fin de filtration calculée automatiquement.",
-      "var": "calcStopVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/filtr_stop_max": {
-      "module": "poollogic",
-      "name": "filtr_stop_max",
-      "type": "UInt8",
-      "label": "Arrêt filtration max",
-      "help": "Heure maximale autorisée pour arrêter la filtration.",
-      "var": "stopMaxVar_",
-      "source": "cfgdoc"
-    },
     "poollogic/filtration/filtr_start_clc": {
       "module": "poollogic/filtration",
       "name": "filtr_start_clc",
@@ -3787,16 +3645,6 @@
       "help": "Consigne de température d'eau pour le calcul de filtration.",
       "var": "tempSetpointVar_",
       "source": "cfgdoc-alias",
-      "unit": "C"
-    },
-    "poollogic/freeze_hold_t": {
-      "module": "poollogic",
-      "name": "freeze_hold_t",
-      "type": "Float",
-      "label": "Seuil maintien hors gel (C)",
-      "help": "Temperature de maintien pour la protection hors gel.",
-      "var": "freezeHoldVar_",
-      "source": "cfgdoc",
       "unit": "C"
     },
     "poollogic/mode/auto_mode": {
@@ -3871,176 +3719,6 @@
       "var": "winterModeVar_",
       "source": "cfgdoc-alias"
     },
-    "poollogic/orp_auto_mode": {
-      "module": "poollogic",
-      "name": "orp_auto_mode",
-      "type": "Bool",
-      "label": "Mode auto ORP",
-      "help": "Active la régulation automatique ORP/chlore.",
-      "var": "orpAutoModeVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/orp_io_id": {
-      "module": "poollogic",
-      "name": "orp_io_id",
-      "type": "UInt16",
-      "label": "IO capteur ORP",
-      "help": "Identifiant IO de la mesure ORP.",
-      "var": "orpIdVar_",
-      "source": "cfgdoc",
-      "enum_set": "flowio_logical_input_analog"
-    },
-    "poollogic/orp_kd": {
-      "module": "poollogic",
-      "name": "orp_kd",
-      "type": "Float",
-      "label": "ORP Kd",
-      "help": "Gain dérivé du régulateur ORP.",
-      "var": "orpKdVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/orp_ki": {
-      "module": "poollogic",
-      "name": "orp_ki",
-      "type": "Float",
-      "label": "ORP Ki",
-      "help": "Gain intégral du régulateur ORP.",
-      "var": "orpKiVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/orp_kp": {
-      "module": "poollogic",
-      "name": "orp_kp",
-      "type": "Float",
-      "label": "ORP Kp",
-      "help": "Gain proportionnel du régulateur ORP.",
-      "var": "orpKpVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/orp_pump_slot": {
-      "module": "poollogic",
-      "name": "orp_pump_slot",
-      "type": "UInt8",
-      "label": "Slot pompe chlore liquide",
-      "help": "Numéro de slot PDM associé à la pompe ORP/chlore liquide.",
-      "var": "orpPumpDeviceVar_",
-      "source": "cfgdoc",
-      "enum_set": "poollogic_device_slot"
-    },
-    "poollogic/orp_setpoint": {
-      "module": "poollogic",
-      "name": "orp_setpoint",
-      "type": "Float",
-      "label": "Consigne ORP",
-      "help": "Valeur cible ORP pour la régulation chlore.",
-      "var": "orpSetpointVar_",
-      "source": "cfgdoc",
-      "unit": "mV"
-    },
-    "poollogic/orp_window_ms": {
-      "module": "poollogic",
-      "name": "orp_window_ms",
-      "type": "Int32",
-      "label": "Fenêtre ORP (ms)",
-      "help": "Fenêtre temporelle PWM appliquée a la pompe ORP.",
-      "var": "orpWindowMsVar_",
-      "source": "cfgdoc",
-      "unit": "ms"
-    },
-    "poollogic/ph_auto_mode": {
-      "module": "poollogic",
-      "name": "ph_auto_mode",
-      "type": "Bool",
-      "label": "Mode auto pH",
-      "help": "Active la régulation automatique du pH.",
-      "var": "phAutoModeVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/ph_dose_plus": {
-      "module": "poollogic",
-      "name": "ph_dose_plus",
-      "type": "Bool",
-      "label": "Injection pH+",
-      "help": "Si activé, la pompe pH injecte du pH+ (sinon pH-).",
-      "var": "phDosePlusVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/ph_io_id": {
-      "module": "poollogic",
-      "name": "ph_io_id",
-      "type": "UInt16",
-      "label": "IO capteur pH",
-      "help": "Identifiant IO de la mesure pH.",
-      "var": "phIdVar_",
-      "source": "cfgdoc",
-      "enum_set": "flowio_logical_input_analog"
-    },
-    "poollogic/ph_kd": {
-      "module": "poollogic",
-      "name": "ph_kd",
-      "type": "Float",
-      "label": "pH Kd",
-      "help": "Gain dérivé du régulateur pH.",
-      "var": "phKdVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/ph_ki": {
-      "module": "poollogic",
-      "name": "ph_ki",
-      "type": "Float",
-      "label": "pH Ki",
-      "help": "Gain intégral du régulateur pH.",
-      "var": "phKiVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/ph_kp": {
-      "module": "poollogic",
-      "name": "ph_kp",
-      "type": "Float",
-      "label": "pH Kp",
-      "help": "Gain proportionnel du régulateur pH.",
-      "var": "phKpVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/ph_lvl_io_id": {
-      "module": "poollogic",
-      "name": "ph_lvl_io_id",
-      "type": "UInt16",
-      "label": "IO niveau cuve pH",
-      "help": "Identifiant IO de l'entrée digitale niveau bas cuve pH.",
-      "var": "phLevelIdVar_",
-      "source": "cfgdoc",
-      "enum_set": "flowio_logical_input_digital"
-    },
-    "poollogic/ph_pump_slot": {
-      "module": "poollogic",
-      "name": "ph_pump_slot",
-      "type": "UInt8",
-      "label": "Slot pompe pH",
-      "help": "Numéro de slot PDM associé à la pompe pH.",
-      "var": "phPumpDeviceVar_",
-      "source": "cfgdoc",
-      "enum_set": "poollogic_device_slot"
-    },
-    "poollogic/ph_setpoint": {
-      "module": "poollogic",
-      "name": "ph_setpoint",
-      "type": "Float",
-      "label": "Consigne pH",
-      "help": "Valeur cible de pH pour la régulation.",
-      "var": "phSetpointVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/ph_window_ms": {
-      "module": "poollogic",
-      "name": "ph_window_ms",
-      "type": "Int32",
-      "label": "Fenêtre pH (ms)",
-      "help": "Fenêtre temporelle PWM appliquée a la pompe pH.",
-      "var": "phWindowMsVar_",
-      "source": "cfgdoc",
-      "unit": "ms"
-    },
     "poollogic/pid/freeze_hold_t": {
       "module": "poollogic/pid",
       "name": "freeze_hold_t",
@@ -4085,8 +3763,7 @@
       "label": "Consigne ORP",
       "help": "Valeur cible ORP pour la régulation chlore.",
       "var": "orpSetpointVar_",
-      "source": "cfgdoc-alias",
-      "unit": "mV"
+      "source": "cfgdoc-alias"
     },
     "poollogic/pid/orp_window_ms": {
       "module": "poollogic/pid",
@@ -4204,116 +3881,6 @@
       "source": "cfgdoc-alias",
       "unit": "C"
     },
-    "poollogic/pid_min_on_ms": {
-      "module": "poollogic",
-      "name": "pid_min_on_ms",
-      "type": "Int32",
-      "label": "Temps min ON PID (ms)",
-      "help": "Durée minimale ON appliquée aux sorties PID.",
-      "var": "pidMinOnMsVar_",
-      "source": "cfgdoc",
-      "unit": "ms"
-    },
-    "poollogic/pid_sample_ms": {
-      "module": "poollogic",
-      "name": "pid_sample_ms",
-      "type": "Int32",
-      "label": "Période échantillonnage PID (ms)",
-      "help": "Intervalle de calcul des régulateurs PID.",
-      "var": "pidSampleMsVar_",
-      "source": "cfgdoc",
-      "unit": "ms"
-    },
-    "poollogic/pool_lvl_io_id": {
-      "module": "poollogic",
-      "name": "pool_lvl_io_id",
-      "type": "UInt16",
-      "label": "IO niveau bassin",
-      "help": "Identifiant IO de la mesure de niveau bassin.",
-      "var": "levelIdVar_",
-      "source": "cfgdoc",
-      "enum_set": "flowio_logical_input_digital"
-    },
-    "poollogic/psi_high_th": {
-      "module": "poollogic",
-      "name": "psi_high_th",
-      "type": "Float",
-      "label": "Seuil pression haute",
-      "help": "Seuil de pression haute pour detection d'anomalie.",
-      "var": "psiHighVar_",
-      "source": "cfgdoc",
-      "unit": "bar"
-    },
-    "poollogic/psi_io_id": {
-      "module": "poollogic",
-      "name": "psi_io_id",
-      "type": "UInt16",
-      "label": "IO pression",
-      "help": "Identifiant IO du capteur de pression.",
-      "var": "psiIdVar_",
-      "source": "cfgdoc",
-      "enum_set": "flowio_logical_input_analog"
-    },
-    "poollogic/psi_low_th": {
-      "module": "poollogic",
-      "name": "psi_low_th",
-      "type": "Float",
-      "label": "Seuil pression basse",
-      "help": "Seuil de pression basse pour detection d'anomalie.",
-      "var": "psiLowVar_",
-      "source": "cfgdoc",
-      "unit": "bar"
-    },
-    "poollogic/psi_start_dly_s": {
-      "module": "poollogic",
-      "name": "psi_start_dly_s",
-      "type": "UInt8",
-      "label": "Délai démarrage pression (s)",
-      "help": "Temps d'attente avant vérification pression après démarrage.",
-      "var": "psiDelayVar_",
-      "source": "cfgdoc",
-      "unit": "s"
-    },
-    "poollogic/robot_delay_min": {
-      "module": "poollogic",
-      "name": "robot_delay_min",
-      "type": "UInt8",
-      "label": "Délai robot (min)",
-      "help": "Délai avant lancement automatique du robot.",
-      "var": "robotDelayVar_",
-      "source": "cfgdoc",
-      "unit": "min"
-    },
-    "poollogic/robot_dur_min": {
-      "module": "poollogic",
-      "name": "robot_dur_min",
-      "type": "UInt8",
-      "label": "Durée robot (min)",
-      "help": "Durée de fonctionnement du robot.",
-      "var": "robotDurationVar_",
-      "source": "cfgdoc",
-      "unit": "min"
-    },
-    "poollogic/robot_slot": {
-      "module": "poollogic",
-      "name": "robot_slot",
-      "type": "UInt8",
-      "label": "Slot robot",
-      "help": "Numéro de slot PDM associé au robot.",
-      "var": "robotDeviceVar_",
-      "source": "cfgdoc",
-      "enum_set": "poollogic_device_slot"
-    },
-    "poollogic/secure_elec_t": {
-      "module": "poollogic",
-      "name": "secure_elec_t",
-      "type": "Float",
-      "label": "Seuil sécurité electrolyse (C)",
-      "help": "Temperature minimale autorisée pour l'electrolyse.",
-      "var": "secureElectroVar_",
-      "source": "cfgdoc",
-      "unit": "C"
-    },
     "poollogic/sensors/air_temp_io_id": {
       "module": "poollogic/sensors",
       "name": "air_temp_io_id",
@@ -4393,65 +3960,6 @@
       "var": "waterTempIdVar_",
       "source": "cfgdoc-alias",
       "enum_set": "flowio_logical_input_analog"
-    },
-    "poollogic/swg_slot": {
-      "module": "poollogic",
-      "name": "swg_slot",
-      "type": "UInt8",
-      "label": "Slot electrolyse",
-      "help": "Numéro de slot PDM associé à l'electrolyseur.",
-      "var": "swgDeviceVar_",
-      "source": "cfgdoc",
-      "enum_set": "poollogic_device_slot"
-    },
-    "poollogic/wat_temp_io_id": {
-      "module": "poollogic",
-      "name": "wat_temp_io_id",
-      "type": "UInt16",
-      "label": "IO température eau",
-      "help": "Identifiant IO de la sonde température eau.",
-      "var": "waterTempIdVar_",
-      "source": "cfgdoc",
-      "enum_set": "flowio_logical_input_analog"
-    },
-    "poollogic/wat_temp_lo_th": {
-      "module": "poollogic",
-      "name": "wat_temp_lo_th",
-      "type": "Float",
-      "label": "Seuil eau basse (C)",
-      "help": "Seuil bas de température d'eau pour la logique de filtration.",
-      "var": "tempLowVar_",
-      "source": "cfgdoc",
-      "unit": "C"
-    },
-    "poollogic/wat_temp_setpt": {
-      "module": "poollogic",
-      "name": "wat_temp_setpt",
-      "type": "Float",
-      "label": "Consigne eau (C)",
-      "help": "Consigne de température d'eau pour le calcul de filtration.",
-      "var": "tempSetpointVar_",
-      "source": "cfgdoc",
-      "unit": "C"
-    },
-    "poollogic/winter_mode": {
-      "module": "poollogic",
-      "name": "winter_mode",
-      "type": "Bool",
-      "label": "Mode hiver force",
-      "help": "Force le fonctionnement en mode hiver (anti-gel).",
-      "var": "winterModeVar_",
-      "source": "cfgdoc"
-    },
-    "poollogic/winter_start_t": {
-      "module": "poollogic",
-      "name": "winter_start_t",
-      "type": "Float",
-      "label": "Seuil entrée hiver (C)",
-      "help": "Temperature de bascule vers la logique hiver.",
-      "var": "winterStartVar_",
-      "source": "cfgdoc",
-      "unit": "C"
     },
     "sysmon/trace_period_ms": {
       "module": "sysmon",

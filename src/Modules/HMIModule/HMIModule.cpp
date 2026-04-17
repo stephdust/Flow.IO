@@ -33,7 +33,6 @@ static constexpr const char* kHmiModulePrefix = "hmi/";
 static constexpr const char* kPoolLogicSensorsModule = "poollogic/sensors";
 static constexpr const char* kPoolLogicDeviceModule = "poollogic/device";
 static constexpr const char* kPoolLogicModeModule = "poollogic/mode";
-static constexpr const char* kPoolLogicLegacyModule = "poollogic";
 static constexpr const char* kPoolLogicPidModule = "poollogic/pid";
 static constexpr size_t kPoolLogicSensorsJsonBufSize = 320U;
 static constexpr size_t kPoolLogicDeviceJsonBufSize = 192U;
@@ -60,6 +59,7 @@ static constexpr uint32_t kHomePublishStateBits = 1UL << 6;
 static constexpr uint32_t kHomePublishTime = 1UL << 7;
 static constexpr uint32_t kHomePublishDate = 1UL << 8;
 static constexpr uint32_t kHomePublishAlarmBits = 1UL << 9;
+static constexpr uint32_t kHomePublishErrorMessage = 1UL << 10;
 static constexpr uint32_t kHomePublishAll = kHomePublishWaterTemp |
                                             kHomePublishAirTemp |
                                             kHomePublishPh |
@@ -69,7 +69,8 @@ static constexpr uint32_t kHomePublishAll = kHomePublishWaterTemp |
                                             kHomePublishStateBits |
                                             kHomePublishTime |
                                             kHomePublishDate |
-                                            kHomePublishAlarmBits;
+                                            kHomePublishAlarmBits |
+                                            kHomePublishErrorMessage;
 static constexpr uint32_t kClockPublishCheckMs = 1000U;
 static constexpr uint32_t kInvalidClockStamp = 0xFFFFFFFFUL;
 static constexpr uint32_t kRtcFallbackDelayMs = 30000U;
@@ -242,19 +243,36 @@ static bool findJsonFloat_(const char* json, const char* key, float& out)
     return true;
 }
 
-static bool isPoolLogicModuleName_(const char* moduleName)
+static bool extractJsonStringField_(const char* json, const char* key, char* out, size_t outLen)
 {
-    if (!moduleName || moduleName[0] == '\0') return false;
-    if (strcmp(moduleName, kPoolLogicLegacyModule) == 0) return true;
-    return strncmp(moduleName, "poollogic/", 10) == 0;
+    if (!out || outLen == 0) return false;
+    out[0] = '\0';
+    if (!json || !key || key[0] == '\0') return false;
+
+    char needle[48]{};
+    const int nn = snprintf(needle, sizeof(needle), "\"%s\":\"", key);
+    if (nn <= 0 || (size_t)nn >= sizeof(needle)) return false;
+    const char* p = strstr(json, needle);
+    if (!p) return false;
+    p += nn;
+
+    size_t pos = 0;
+    while (*p != '\0' && *p != '"' && pos + 1 < outLen) {
+        const unsigned char uc = (unsigned char)*p;
+        if (uc < 32U) break;
+        out[pos++] = (char)uc;
+        ++p;
+    }
+    out[pos] = '\0';
+    return pos > 0;
 }
 
 #if FLOW_HMI_CONFIG_MENU_ENABLED
 static const ConfigMenuHint kHints[] = {
-    {"poollogic", "filtr_start_min", {ConfigMenuWidget::Slider, true, 0.0f, 23.0f, 1.0f, nullptr}},
-    {"poollogic", "filtr_stop_max", {ConfigMenuWidget::Slider, true, 0.0f, 23.0f, 1.0f, nullptr}},
-    {"poollogic", "ph_setpoint", {ConfigMenuWidget::Slider, true, 6.6f, 7.8f, 0.1f, nullptr}},
-    {"poollogic", "orp_setpoint", {ConfigMenuWidget::Slider, true, 450.0f, 950.0f, 10.0f, nullptr}},
+    {"poollogic/filtration", "filtr_start_min", {ConfigMenuWidget::Slider, true, 0.0f, 23.0f, 1.0f, nullptr}},
+    {"poollogic/filtration", "filtr_stop_max", {ConfigMenuWidget::Slider, true, 0.0f, 23.0f, 1.0f, nullptr}},
+    {"poollogic/pid", "ph_setpoint", {ConfigMenuWidget::Slider, true, 6.6f, 7.8f, 0.1f, nullptr}},
+    {"poollogic/pid", "orp_setpoint", {ConfigMenuWidget::Slider, true, 450.0f, 950.0f, 10.0f, nullptr}},
     {"time", "tz", {ConfigMenuWidget::Select, true, 0.0f, 0.0f, 1.0f,
                     "CET-1CEST,M3.5.0/2,M10.5.0/3|UTC0|EST5EDT,M3.2.0/2,M11.1.0/2"}}
 };
@@ -410,6 +428,7 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     airTempIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotAirTemp].ioId;
     poolLevelIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPoolLevel].ioId;
     waterTempIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterTemp].ioId;
+    homeErrorMessage_[0] = '\0';
 
     LOGI("HMI service registered with driver=%s led_panel=%s",
          driver_ ? driver_->driverId() : "none",
@@ -589,21 +608,11 @@ bool HMIModule::readPoolLogicModeFlags_(bool& autoMode,
 
     char jsonBuf[kPoolLogicModeJsonBufSize]{};
     bool truncated = false;
-    bool ok = cfgSvc_->toJsonModule(cfgSvc_->ctx,
-                                    kPoolLogicModeModule,
-                                    jsonBuf,
-                                    sizeof(jsonBuf),
-                                    &truncated);
-    if (!ok) {
-        truncated = false;
-        memset(jsonBuf, 0, sizeof(jsonBuf));
-        ok = cfgSvc_->toJsonModule(cfgSvc_->ctx,
-                                   kPoolLogicLegacyModule,
-                                   jsonBuf,
-                                   sizeof(jsonBuf),
-                                   &truncated);
-    }
-    if (!ok) {
+    if (!cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                               kPoolLogicModeModule,
+                               jsonBuf,
+                               sizeof(jsonBuf),
+                               &truncated)) {
         return false;
     }
 
@@ -730,6 +739,9 @@ bool HMIModule::publishHomeText_(HmiHomeTextField field)
 
     uint8_t runtimeIndex = kInvalidRuntimeIndex;
     char value[32]{};
+    if (field == HmiHomeTextField::ErrorMessage) {
+        return driver_->publishHomeText(field, homeErrorMessage_);
+    }
     if (field == HmiHomeTextField::Time || field == HmiHomeTextField::Date) {
         struct tm local{};
         bool hasTime = timeSvc_ &&
@@ -1046,6 +1058,9 @@ void HMIModule::flushHomePublish_()
     if ((pending & kHomePublishDate) != 0U && publishHomeText_(HmiHomeTextField::Date)) {
         sent |= kHomePublishDate;
     }
+    if ((pending & kHomePublishErrorMessage) != 0U && publishHomeText_(HmiHomeTextField::ErrorMessage)) {
+        sent |= kHomePublishErrorMessage;
+    }
 
     if (sent == 0U) return;
 
@@ -1162,9 +1177,14 @@ void HMIModule::onEvent_(const Event& e)
             }
         }
 #endif
-        const bool poolLogicChanged = (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic) ||
-                                      isPoolLogicModuleName_(p->module);
-        if (poolLogicChanged) {
+        const bool poolLogicChangedByName =
+            p->module[0] && strncmp(p->module, "poollogic/", 10) == 0;
+        if (p->moduleId == (uint8_t)ConfigModuleId::PoolLogic && !poolLogicChangedByName) {
+            LOGW("HMI ignored non-branched PoolLogic config module=%s key=%s",
+                 p->module[0] ? p->module : "<empty>",
+                 p->nvsKey[0] ? p->nvsKey : "<none>");
+        }
+        if (poolLogicChangedByName) {
             refreshHomeBindings_();
             ledDirty = true;
             homePublishMask |= kHomePublishAll;
@@ -1343,6 +1363,45 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
 #endif
 }
 
+void HMIModule::setHomeErrorMessage_(const char* message, bool forceStateRefresh)
+{
+    const char* src = (message && message[0] != '\0') ? message : "";
+    char next[sizeof(homeErrorMessage_)]{};
+    snprintf(next, sizeof(next), "%s", src);
+
+    if (strncmp(homeErrorMessage_, next, sizeof(homeErrorMessage_)) != 0) {
+        snprintf(homeErrorMessage_, sizeof(homeErrorMessage_), "%s", next);
+    }
+
+    uint32_t mask = kHomePublishErrorMessage;
+    if (forceStateRefresh) mask |= kHomePublishStateBits;
+    queueHomePublish_(mask);
+    if (driverReady_) {
+        flushHomePublish_();
+    }
+}
+
+void HMIModule::reportCommandError_(const char* operation, const char* reply)
+{
+    char code[40]{};
+    char where[48]{};
+    const bool haveCode = extractJsonStringField_(reply, "code", code, sizeof(code));
+    const bool haveWhere = extractJsonStringField_(reply, "where", where, sizeof(where));
+
+    char message[sizeof(homeErrorMessage_)]{};
+    if (haveCode && haveWhere) {
+        snprintf(message, sizeof(message), "%s (%s)", code, where);
+    } else if (haveCode) {
+        snprintf(message, sizeof(message), "%s", code);
+    } else if (operation && operation[0] != '\0') {
+        snprintf(message, sizeof(message), "%s failed", operation);
+    } else {
+        snprintf(message, sizeof(message), "Command failed");
+    }
+
+    setHomeErrorMessage_(message, true);
+}
+
 bool HMIModule::executeHmiCommand_(HmiCommandId command, uint8_t value)
 {
     bool current = false;
@@ -1362,7 +1421,7 @@ bool HMIModule::executeHmiCommand_(HmiCommandId command, uint8_t value)
             return executeCommandBool_("poollogic.filtration.write", value != 0U);
 
         case HmiCommandId::HomeAutoModeSet:
-            return executeCommandBool_("poollogic.auto_mode.set", value != 0U);
+            return executePoolLogicModePatch_("auto_mode", value != 0U);
 
         case HmiCommandId::HomePhPumpSet:
             return executePoolDeviceWrite_(phPumpDeviceSlot_, value != 0U);
@@ -1371,20 +1430,29 @@ bool HMIModule::executeHmiCommand_(HmiCommandId command, uint8_t value)
             return executePoolDeviceWrite_(orpPumpDeviceSlot_, value != 0U);
 
         case HmiCommandId::HomePhPumpToggle:
-            if (!readPoolDeviceActualOn_(phPumpDeviceSlot_, current)) return false;
+            if (!readPoolDeviceActualOn_(phPumpDeviceSlot_, current)) {
+                setHomeErrorMessage_("ReadStateFailed", true);
+                return false;
+            }
             return executePoolDeviceWrite_(phPumpDeviceSlot_, !current);
 
         case HmiCommandId::HomeOrpPumpToggle:
-            if (!readPoolDeviceActualOn_(orpPumpDeviceSlot_, current)) return false;
+            if (!readPoolDeviceActualOn_(orpPumpDeviceSlot_, current)) {
+                setHomeErrorMessage_("ReadStateFailed", true);
+                return false;
+            }
             return executePoolDeviceWrite_(orpPumpDeviceSlot_, !current);
 
         case HmiCommandId::HomeFiltrationToggle:
-            if (!readPoolDeviceActualOn_(filtrationDeviceSlot_, current)) return false;
+            if (!readPoolDeviceActualOn_(filtrationDeviceSlot_, current)) {
+                setHomeErrorMessage_("ReadStateFailed", true);
+                return false;
+            }
             return executeCommandBool_("poollogic.filtration.write", !current);
 
         case HmiCommandId::HomeAutoModeToggle:
             (void)readPoolLogicModeFlags_(modes.autoMode, modes.winterMode, modes.phAutoMode, modes.orpAutoMode);
-            return executeCommandBool_("poollogic.auto_mode.set", !modes.autoMode);
+            return executePoolLogicModePatch_("auto_mode", !modes.autoMode);
 
         case HmiCommandId::HomeOrpAutoModeToggle:
             (void)readPoolLogicModeFlags_(modes.autoMode, modes.winterMode, modes.phAutoMode, modes.orpAutoMode);
@@ -1399,15 +1467,22 @@ bool HMIModule::executeHmiCommand_(HmiCommandId command, uint8_t value)
             return executePoolLogicModePatch_("winter_mode", !modes.winterMode);
 
         case HmiCommandId::HomeLightsToggle:
-            if (!readPoolDeviceActualOn_(lightsDeviceSlot_, current)) return false;
+            if (!readPoolDeviceActualOn_(lightsDeviceSlot_, current)) {
+                setHomeErrorMessage_("ReadStateFailed", true);
+                return false;
+            }
             return executePoolDeviceWrite_(lightsDeviceSlot_, !current);
 
         case HmiCommandId::HomeRobotToggle:
-            if (!readPoolDeviceActualOn_(robotDeviceSlot_, current)) return false;
+            if (!readPoolDeviceActualOn_(robotDeviceSlot_, current)) {
+                setHomeErrorMessage_("ReadStateFailed", true);
+                return false;
+            }
             return executePoolDeviceWrite_(robotDeviceSlot_, !current);
 
         case HmiCommandId::None:
         default:
+            setHomeErrorMessage_("UnknownCmd", true);
             return false;
     }
 }
@@ -1417,11 +1492,12 @@ bool HMIModule::executeCommandBool_(const char* cmdName, bool value)
     if (!cmdName || cmdName[0] == '\0') return false;
     if (!cmdSvc_ || !cmdSvc_->execute) {
         LOGW("HMI command service unavailable cmd=%s", cmdName);
+        setHomeErrorMessage_("CmdServiceUnavailable", true);
         return false;
     }
 
     char args[32]{};
-    char reply[128]{};
+    char reply[192]{};
     snprintf(args, sizeof(args), "{\"value\":%s}", value ? "true" : "false");
 
     const bool ok = cmdSvc_->execute(cmdSvc_->ctx, cmdName, args, nullptr, reply, sizeof(reply));
@@ -1430,6 +1506,7 @@ bool HMIModule::executeCommandBool_(const char* cmdName, bool value)
              cmdName,
              args,
              reply[0] ? reply : "{}");
+        reportCommandError_(cmdName, reply[0] ? reply : nullptr);
         return false;
     }
 
@@ -1442,11 +1519,12 @@ bool HMIModule::executePoolDeviceWrite_(uint8_t slot, bool value)
 {
     if (!cmdSvc_ || !cmdSvc_->execute) {
         LOGW("HMI command service unavailable cmd=pooldevice.write");
+        setHomeErrorMessage_("CmdServiceUnavailable", true);
         return false;
     }
 
     char args[40]{};
-    char reply[128]{};
+    char reply[192]{};
     snprintf(args, sizeof(args), "{\"slot\":%u,\"value\":%s}", (unsigned)slot, value ? "true" : "false");
 
     const bool ok = cmdSvc_->execute(cmdSvc_->ctx, "pooldevice.write", args, nullptr, reply, sizeof(reply));
@@ -1454,6 +1532,7 @@ bool HMIModule::executePoolDeviceWrite_(uint8_t slot, bool value)
         LOGW("HMI command failed cmd=pooldevice.write args=%s reply=%s",
              args,
              reply[0] ? reply : "{}");
+        reportCommandError_("pooldevice.write", reply[0] ? reply : nullptr);
         return false;
     }
 
@@ -1467,6 +1546,7 @@ bool HMIModule::executePoolLogicModePatch_(const char* key, bool value)
     if (!key || key[0] == '\0') return false;
     if (!cfgSvc_ || !cfgSvc_->applyJson) {
         LOGW("HMI config service unavailable key=%s", key);
+        setHomeErrorMessage_("CfgServiceUnavailable", true);
         return false;
     }
 
@@ -1475,6 +1555,7 @@ bool HMIModule::executePoolLogicModePatch_(const char* key, bool value)
     const bool ok = cfgSvc_->applyJson(cfgSvc_->ctx, json);
     if (!ok) {
         LOGW("HMI config patch failed json=%s", json);
+        reportCommandError_("cfg.applyJson", "{\"ok\":false,\"err\":{\"code\":\"CfgApplyFailed\",\"where\":\"cfg.applyJson\"}}");
         return false;
     }
 

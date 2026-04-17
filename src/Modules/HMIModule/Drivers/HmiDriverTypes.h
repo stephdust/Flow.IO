@@ -71,6 +71,7 @@ enum class HmiHomeTextField : uint8_t {
     Orp = 3,
     Time = 4,
     Date = 5,
+    ErrorMessage = 6,
 };
 
 enum class HmiHomeGaugeField : uint8_t {

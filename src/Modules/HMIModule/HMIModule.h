@@ -126,6 +126,7 @@ private:
     uint32_t lastRtcPushAttemptMs_ = 0;
     uint32_t lastRtcPushDayStamp_ = 0xFFFFFFFFUL;
     bool rtcFallbackCompleted_ = false;
+    char homeErrorMessage_[96]{};
 
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
@@ -163,6 +164,8 @@ private:
     bool executeCommandBool_(const char* cmdName, bool value);
     bool executePoolDeviceWrite_(uint8_t slot, bool value);
     bool executePoolLogicModePatch_(const char* key, bool value);
+    void setHomeErrorMessage_(const char* message, bool forceStateRefresh);
+    void reportCommandError_(const char* operation, const char* reply);
     void applyOutputConfig_();
     void applyLedMask_(bool force = false);
 

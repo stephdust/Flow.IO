@@ -79,6 +79,14 @@ Enregistrées:
 - `pool.refill`
   - args: `{"slot":N,"remaining_ml":1234.0}` (`remaining_ml` optionnel)
   - met à jour niveau cuve suivi et force commit runtime/persist
+- `pooldevice.uptime.reset`
+- `pool.uptime.reset`
+  - args: `{"slot":N}`
+  - remet à zéro les compteurs jour/semaine/mois (runtime + volume injecté) du slot ciblé
+- `pooldevice.uptime.reset_all`
+- `pool.uptime.reset_all`
+  - sans args
+  - remet à zéro les compteurs jour/semaine/mois de tous les slots actifs
 
 ## EventBus
 
@@ -200,6 +208,12 @@ Entités créées:
 - buttons de service:
   - `refill_ph_tank` (libellé HA: `Fill pH Tank`) -> `{"cmd":"pool.refill","args":{"slot":1}}`
   - `refill_chlorine_tank` (libellé HA: `Fill Chlorine Tank`) -> `{"cmd":"pool.refill","args":{"slot":2}}`
+  - `reset_uptime_filtration` -> `{"cmd":"pool.uptime.reset","args":{"slot":0}}`
+  - `reset_uptime_ph` -> `{"cmd":"pool.uptime.reset","args":{"slot":1}}`
+  - `reset_uptime_chlorine` -> `{"cmd":"pool.uptime.reset","args":{"slot":2}}`
+  - `reset_uptime_fill` -> `{"cmd":"pool.uptime.reset","args":{"slot":4}}`
+  - `reset_uptime_chlorine_generator` -> `{"cmd":"pool.uptime.reset","args":{"slot":5}}`
+  - `reset_uptime_all` -> `{"cmd":"pool.uptime.reset_all"}`
 
 ## Initialisation des slots dans le profil
 

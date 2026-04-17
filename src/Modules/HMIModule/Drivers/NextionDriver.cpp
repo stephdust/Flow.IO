@@ -162,6 +162,8 @@ const char* NextionDriver::homeTextObjectName_(HmiHomeTextField field) const
             return cfg_.timeTextObject;
         case HmiHomeTextField::Date:
             return cfg_.dateTextObject;
+        case HmiHomeTextField::ErrorMessage:
+            return cfg_.errorMessageTextObject;
         default:
             return nullptr;
     }

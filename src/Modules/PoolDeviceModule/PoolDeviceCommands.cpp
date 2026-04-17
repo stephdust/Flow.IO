@@ -72,6 +72,20 @@ bool PoolDeviceModule::cmdPoolRefill_(void* userCtx, const CommandRequest& req, 
     return self->handlePoolRefill_(req, reply, replyLen);
 }
 
+bool PoolDeviceModule::cmdPoolResetUptime_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen)
+{
+    PoolDeviceModule* self = static_cast<PoolDeviceModule*>(userCtx);
+    if (!self) return false;
+    return self->handlePoolResetUptime_(req, reply, replyLen);
+}
+
+bool PoolDeviceModule::cmdPoolResetUptimeAll_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen)
+{
+    PoolDeviceModule* self = static_cast<PoolDeviceModule*>(userCtx);
+    if (!self) return false;
+    return self->handlePoolResetUptimeAll_(req, reply, replyLen);
+}
+
 bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, size_t replyLen)
 {
     JsonObjectConst args;
@@ -224,4 +238,90 @@ bool PoolDeviceModule::handlePoolRefill_(const CommandRequest& req, char* reply,
     const float applied = slots_[slot].tankRemainingMl;
     snprintf(reply, replyLen, "{\"ok\":true,\"slot\":%u,\"remaining_ml\":%.1f}", (unsigned)slot, (double)applied);
     return true;
+}
+
+bool PoolDeviceModule::handlePoolResetUptime_(const CommandRequest& req, char* reply, size_t replyLen)
+{
+    JsonObjectConst args;
+    if (!parseCmdArgsObject_(req, args)) {
+        writeCmdError_(reply, replyLen, "pool.uptime.reset", ErrorCode::MissingArgs);
+        return false;
+    }
+
+    if (!args.containsKey("slot")) {
+        writeCmdError_(reply, replyLen, "pool.uptime.reset", ErrorCode::MissingSlot);
+        return false;
+    }
+    if (!args["slot"].is<uint8_t>()) {
+        writeCmdError_(reply, replyLen, "pool.uptime.reset", ErrorCode::BadSlot);
+        return false;
+    }
+
+    const uint8_t slot = args["slot"].as<uint8_t>();
+    if (slot >= POOL_DEVICE_MAX) {
+        writeCmdError_(reply, replyLen, "pool.uptime.reset", ErrorCode::BadSlot);
+        return false;
+    }
+    if (!resetUptimeSlot_(slot)) {
+        writeCmdErrorSlot_(reply, replyLen, "pool.uptime.reset", ErrorCode::UnknownSlot, slot);
+        return false;
+    }
+
+    tickDevices_(millis(), false);
+    const char* label = deviceLabel(slot);
+    LOGI("Reset uptime %s (slot=%u)",
+         (label && label[0] != '\0') ? label : "Pool Device",
+         (unsigned)slot);
+    snprintf(reply, replyLen, "{\"ok\":true,\"slot\":%u}", (unsigned)slot);
+    return true;
+}
+
+bool PoolDeviceModule::handlePoolResetUptimeAll_(const CommandRequest&, char* reply, size_t replyLen)
+{
+    const uint8_t resetCount = resetUptimeAll_();
+    tickDevices_(millis(), false);
+    LOGI("Reset uptime all (count=%u)", (unsigned)resetCount);
+    snprintf(reply, replyLen, "{\"ok\":true,\"reset\":%u}", (unsigned)resetCount);
+    return true;
+}
+
+bool PoolDeviceModule::resetUptimeSlot_(uint8_t slot)
+{
+    if (slot >= POOL_DEVICE_MAX) return false;
+    PoolDeviceSlot& s = slots_[slot];
+    if (!s.used) return false;
+
+    PeriodKeys keys{};
+    const bool hasKeys = currentPeriodKeys_(keys);
+
+    s.runningMsDay = 0;
+    s.runningMsWeek = 0;
+    s.runningMsMonth = 0;
+    s.injectedMlDay = 0.0f;
+    s.injectedMlWeek = 0.0f;
+    s.injectedMlMonth = 0.0f;
+    if (hasKeys) {
+        s.dayKey = keys.day;
+        s.weekKey = keys.week;
+        s.monthKey = keys.month;
+    }
+
+    // Clear local max-uptime latch immediately; tickDevices_ will re-evaluate
+    // interlocks and publish updated runtime state/metrics right away.
+    if (s.blockReason == POOL_DEVICE_BLOCK_MAX_UPTIME) {
+        s.blockReason = POOL_DEVICE_BLOCK_NONE;
+    }
+    s.forceMetricsCommit = true;
+    s.persistDirty = true;
+    s.persistImmediate = true;
+    return true;
+}
+
+uint8_t PoolDeviceModule::resetUptimeAll_()
+{
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < POOL_DEVICE_MAX; ++i) {
+        if (resetUptimeSlot_(i)) ++count;
+    }
+    return count;
 }

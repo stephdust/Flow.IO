@@ -442,6 +442,14 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
         phPidEnabled_ = false;
         orpPidEnabled_ = false;
     }
+    // Manual forcing relies on *_auto_mode=false. In that case, PID must not
+    // keep a stale enabled state that could override manual requests.
+    if (!phAutoMode_ && phPidEnabled_) {
+        phPidEnabled_ = false;
+    }
+    if (!orpAutoMode_ && orpPidEnabled_) {
+        orpPidEnabled_ = false;
+    }
 
     bool windowActive = false;
     bool forceFiltrationReconcile = false;
@@ -523,44 +531,63 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
 
     // Chemical dosing is computed last because it depends on the resolved
     // filtration state, alarm state, and sensor freshness.
-    bool phPumpDesired = false;
-    bool orpPumpDesired = false;
-    if (filtrationDesired) {
-        const bool phAllowed = phPidEnabled_ && havePh && !psiError_ && !phTankLowError_;
-        if (phAllowed) {
-            uint32_t outMs = 0;
-            (void)stepTemporalPid_(phPidState_,
-                                   ph,
-                                   phSetpoint_,
-                                   phKp_,
-                                   phKi_,
-                                   phKd_,
-                                   phWindowMs_,
-                                   !phDosePlus_,
-                                   nowMs,
-                                   phPumpDesired,
-                                   outMs);
-        } else if (phPidState_.initialized || phPidState_.outputOnMs != 0U || phPidState_.lastDemandOn) {
-            resetTemporalPidState_(phPidState_, nowMs);
-        }
+    bool phPumpDesired = phPumpFsm_.on;
+    bool orpPumpDesired = orpPumpFsm_.on;
+    if (phAutoMode_ || orpAutoMode_) {
+        if (filtrationDesired) {
+            if (phAutoMode_) {
+                const bool phAllowed = phPidEnabled_ && havePh && !psiError_ && !phTankLowError_;
+                if (phAllowed) {
+                    uint32_t outMs = 0;
+                    (void)stepTemporalPid_(phPidState_,
+                                           ph,
+                                           phSetpoint_,
+                                           phKp_,
+                                           phKi_,
+                                           phKd_,
+                                           phWindowMs_,
+                                           !phDosePlus_,
+                                           nowMs,
+                                           phPumpDesired,
+                                           outMs);
+                } else if (phPidState_.initialized || phPidState_.outputOnMs != 0U || phPidState_.lastDemandOn) {
+                    resetTemporalPidState_(phPidState_, nowMs);
+                }
+            } else if (phPidState_.initialized || phPidState_.outputOnMs != 0U || phPidState_.lastDemandOn) {
+                resetTemporalPidState_(phPidState_, nowMs);
+            }
 
-        // ORP peristaltic dosing is disabled when electrolyse mode is active.
-        const bool orpAllowed = orpPidEnabled_ && haveOrp && !electrolyseMode_ && !psiError_ && !chlorineTankLowError_;
-        if (orpAllowed) {
-            uint32_t outMs = 0;
-            (void)stepTemporalPid_(orpPidState_,
-                                   orp,
-                                   orpSetpoint_,
-                                   orpKp_,
-                                   orpKi_,
-                                   orpKd_,
-                                   orpWindowMs_,
-                                   false,
-                                   nowMs,
-                                   orpPumpDesired,
-                                   outMs);
-        } else if (orpPidState_.initialized || orpPidState_.outputOnMs != 0U || orpPidState_.lastDemandOn) {
-            resetTemporalPidState_(orpPidState_, nowMs);
+            if (orpAutoMode_) {
+                // ORP peristaltic dosing is disabled when electrolyse mode is active.
+                const bool orpAllowed =
+                    orpPidEnabled_ && haveOrp && !electrolyseMode_ && !psiError_ && !chlorineTankLowError_;
+                if (orpAllowed) {
+                    uint32_t outMs = 0;
+                    (void)stepTemporalPid_(orpPidState_,
+                                           orp,
+                                           orpSetpoint_,
+                                           orpKp_,
+                                           orpKi_,
+                                           orpKd_,
+                                           orpWindowMs_,
+                                           false,
+                                           nowMs,
+                                           orpPumpDesired,
+                                           outMs);
+                } else if (orpPidState_.initialized || orpPidState_.outputOnMs != 0U || orpPidState_.lastDemandOn) {
+                    resetTemporalPidState_(orpPidState_, nowMs);
+                }
+            } else if (orpPidState_.initialized || orpPidState_.outputOnMs != 0U || orpPidState_.lastDemandOn) {
+                resetTemporalPidState_(orpPidState_, nowMs);
+            }
+        } else {
+            if (phAutoMode_ && (phPidState_.initialized || phPidState_.outputOnMs != 0U || phPidState_.lastDemandOn)) {
+                resetTemporalPidState_(phPidState_, nowMs);
+            }
+            if (orpAutoMode_ &&
+                (orpPidState_.initialized || orpPidState_.outputOnMs != 0U || orpPidState_.lastDemandOn)) {
+                resetTemporalPidState_(orpPidState_, nowMs);
+            }
         }
     } else {
         if (phPidState_.initialized || phPidState_.outputOnMs != 0U || phPidState_.lastDemandOn) {

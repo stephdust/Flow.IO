@@ -55,19 +55,19 @@
     "label": "Identifiant appareil HA",
     "help": "Identifiant exposé a Home Assistant pour cet appareil."
   },
-  "poollogic/ph_setpoint": {
+  "poollogic/pid/ph_setpoint": {
     "label": "Consigne pH",
     "help": "Valeur cible de pH pour la régulation."
   },
-  "poollogic/orp_setpoint": {
+  "poollogic/pid/orp_setpoint": {
     "label": "Consigne ORP",
     "help": "Valeur cible ORP pour la régulation chlore."
   },
-  "poollogic/filtr_start_min": {
+  "poollogic/filtration/filtr_start_min": {
     "label": "Début filtration min",
     "help": "Heure minimale autorisée pour le démarrage de la filtration."
   },
-  "poollogic/filtr_stop_max": {
+  "poollogic/filtration/filtr_stop_max": {
     "label": "Arrêt filtration max",
     "help": "Heure maximale autorisée pour l'arrêt de la filtration."
   },

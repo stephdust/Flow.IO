@@ -355,7 +355,14 @@ bool HAModule::addButtonEntry(const HAButtonEntry& entry)
         }
     }
 
-    if (buttonCount_ >= MAX_HA_BUTTONS) return false;
+    if (buttonCount_ >= MAX_HA_BUTTONS) {
+        LOGW("HA button table full (%u/%u) reject=%s/%s",
+             (unsigned)buttonCount_,
+             (unsigned)MAX_HA_BUTTONS,
+             entry.ownerId ? entry.ownerId : "?",
+             entry.objectSuffix ? entry.objectSuffix : "?");
+        return false;
+    }
     buttons_[buttonCount_++] = entry;
     BufferUsageTracker::note(TrackedBufferId::HaEntityTables,
                              (size_t)sensorCount_ * sizeof(sensors_[0]) +

@@ -136,7 +136,7 @@ private:
     PoolDeviceSvcStatus svcReadActualOnImpl_(uint8_t slot, uint8_t* outOn, uint32_t* outTsMs) const;
     PoolDeviceSvcStatus svcWriteDesiredImpl_(uint8_t slot, uint8_t on);
     PoolDeviceSvcStatus svcRefillTankImpl_(uint8_t slot, float remainingMl);
-    void tickDevices_(uint32_t nowMs);
+    void tickDevices_(uint32_t nowMs, bool allowPersist = true);
     void resetDailyCounters_();
     void resetWeeklyCounters_();
     void resetMonthlyCounters_();
@@ -166,8 +166,14 @@ private:
     // Commands
     static bool cmdPoolWrite_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     static bool cmdPoolRefill_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    static bool cmdPoolResetUptime_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
+    static bool cmdPoolResetUptimeAll_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen);
     bool handlePoolWrite_(const CommandRequest& req, char* reply, size_t replyLen);
     bool handlePoolRefill_(const CommandRequest& req, char* reply, size_t replyLen);
+    bool handlePoolResetUptime_(const CommandRequest& req, char* reply, size_t replyLen);
+    bool handlePoolResetUptimeAll_(const CommandRequest& req, char* reply, size_t replyLen);
+    bool resetUptimeSlot_(uint8_t slot);
+    uint8_t resetUptimeAll_();
 
     // State and configuration storage
     bool runtimeReady_ = false;

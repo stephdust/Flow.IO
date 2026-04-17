@@ -110,12 +110,12 @@ PoolDeviceSvcStatus PoolDeviceModule::svcWriteDesiredImpl_(uint8_t slot, uint8_t
             s.blockReason = POOL_DEVICE_BLOCK_NONE;
         } else {
             s.blockReason = POOL_DEVICE_BLOCK_IO_ERROR;
-            tickDevices_(millis());
+            tickDevices_(millis(), false);
             return POOLDEV_SVC_ERR_IO;
         }
     }
 
-    tickDevices_(millis());
+    tickDevices_(millis(), false);
     return POOLDEV_SVC_OK;
 }
 
@@ -135,7 +135,7 @@ PoolDeviceSvcStatus PoolDeviceModule::svcRefillTankImpl_(uint8_t slot, float rem
     s.forceMetricsCommit = true;
     s.persistDirty = true;
     s.persistImmediate = true;
-    if (runtimeReady_) tickDevices_(millis());
+    if (runtimeReady_) tickDevices_(millis(), false);
     return POOLDEV_SVC_OK;
 }
 
@@ -433,7 +433,7 @@ void PoolDeviceModule::resetMonthlyCounters_()
     }
 }
 
-void PoolDeviceModule::tickDevices_(uint32_t nowMs)
+void PoolDeviceModule::tickDevices_(uint32_t nowMs, bool allowPersist)
 {
     uint8_t pending = 0;
     bool reconcilePending = false;
@@ -636,7 +636,7 @@ void PoolDeviceModule::tickDevices_(uint32_t nowMs)
                 shouldPersist = true;
             }
         }
-        if (shouldPersist) {
+        if (allowPersist && shouldPersist) {
             (void)persistMetrics_(i, s, nowMs);
         }
     }

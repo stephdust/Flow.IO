@@ -20,6 +20,7 @@ struct NextionDriverConfig {
     const char* orpTextObject = "tORP";
     const char* timeTextObject = "tTime";
     const char* dateTextObject = "tDate";
+    const char* errorMessageTextObject = "tErrorMessage";
     const char* phGaugePercentObject = "vapHPercent";
     const char* orpGaugePercentObject = "vaOrpPercent";
     const char* stateBitsObject = "globals.vaStates";

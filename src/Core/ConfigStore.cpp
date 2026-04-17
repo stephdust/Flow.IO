@@ -555,6 +555,52 @@ bool ConfigStore::applyJson(const char* json)
                              peakSource,
                              "<json>");
 
+    // Warn on unknown module/key pairs to surface malformed patches early.
+    for (JsonPairConst moduleKv : root) {
+        const char* moduleName = moduleKv.key().c_str();
+        JsonVariantConst moduleVar = moduleKv.value();
+        if (!moduleVar.is<JsonObjectConst>()) {
+            Log::warn(LOG_MODULE_ID,
+                      "applyJson: module '%s' has non-object payload",
+                      moduleName ? moduleName : "<null>");
+            continue;
+        }
+
+        bool moduleKnown = false;
+        for (uint16_t i = 0; i < _metaCount; ++i) {
+            const ConfigMeta& m = _meta[i];
+            if (!m.module) continue;
+            if (strcmp(m.module, moduleName) == 0) {
+                moduleKnown = true;
+                break;
+            }
+        }
+        if (!moduleKnown) {
+            Log::warn(LOG_MODULE_ID, "applyJson: unknown module '%s'", moduleName ? moduleName : "<null>");
+            continue;
+        }
+
+        JsonObjectConst moduleObj = moduleVar.as<JsonObjectConst>();
+        for (JsonPairConst valueKv : moduleObj) {
+            const char* keyName = valueKv.key().c_str();
+            bool keyKnown = false;
+            for (uint16_t i = 0; i < _metaCount; ++i) {
+                const ConfigMeta& m = _meta[i];
+                if (!m.module || !m.name) continue;
+                if (strcmp(m.module, moduleName) != 0) continue;
+                if (strcmp(m.name, keyName) != 0) continue;
+                keyKnown = true;
+                break;
+            }
+            if (!keyKnown) {
+                Log::warn(LOG_MODULE_ID,
+                          "applyJson: unknown key '%s.%s'",
+                          moduleName ? moduleName : "<null>",
+                          keyName ? keyName : "<null>");
+            }
+        }
+    }
+
     Log::debug(LOG_MODULE_ID, "applyJson: start");
     for (uint16_t i = 0; i < _metaCount; ++i) {
         auto& m = _meta[i];

@@ -254,6 +254,10 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.write", cmdPoolWrite_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.write", cmdPoolWrite_, this); // backward compatibility
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.refill", cmdPoolRefill_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.uptime.reset", cmdPoolResetUptime_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.uptime.reset", cmdPoolResetUptime_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.uptime.reset_all", cmdPoolResetUptimeAll_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.uptime.reset_all", cmdPoolResetUptimeAll_, this);
     }
     if (haSvc_ && haSvc_->addSensor) {
         if (slots_[PoolBinding::kDeviceSlotChlorinePump].used) {
@@ -407,6 +411,76 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
             };
             (void)haSvc_->addButton(haSvc_->ctx, &refillChlorineTank);
         }
+        if (slots_[PoolBinding::kDeviceSlotFiltrationPump].used) {
+            const HAButtonEntry resetFiltrationUptime{
+                "pooldev",
+                "pd_reset_upt_flt",
+                "Reset Uptime Filtration Pump",
+                MqttTopics::SuffixCmd,
+                "{\\\"cmd\\\":\\\"pool.uptime.reset\\\",\\\"args\\\":{\\\"slot\\\":0}}",
+                "diagnostic",
+                "mdi:timer-refresh-outline"
+            };
+            (void)haSvc_->addButton(haSvc_->ctx, &resetFiltrationUptime);
+        }
+        if (slots_[PoolBinding::kDeviceSlotPhPump].used) {
+            const HAButtonEntry resetPhUptime{
+                "pooldev",
+                "pd_reset_upt_ph",
+                "Reset Uptime pH Pump",
+                MqttTopics::SuffixCmd,
+                "{\\\"cmd\\\":\\\"pool.uptime.reset\\\",\\\"args\\\":{\\\"slot\\\":1}}",
+                "diagnostic",
+                "mdi:timer-refresh-outline"
+            };
+            (void)haSvc_->addButton(haSvc_->ctx, &resetPhUptime);
+        }
+        if (slots_[PoolBinding::kDeviceSlotChlorinePump].used) {
+            const HAButtonEntry resetChlorineUptime{
+                "pooldev",
+                "pd_reset_upt_chl",
+                "Reset Uptime Chlorine Pump",
+                MqttTopics::SuffixCmd,
+                "{\\\"cmd\\\":\\\"pool.uptime.reset\\\",\\\"args\\\":{\\\"slot\\\":2}}",
+                "diagnostic",
+                "mdi:timer-refresh-outline"
+            };
+            (void)haSvc_->addButton(haSvc_->ctx, &resetChlorineUptime);
+        }
+        if (slots_[PoolBinding::kDeviceSlotFillPump].used) {
+            const HAButtonEntry resetFillUptime{
+                "pooldev",
+                "pd_reset_upt_fill",
+                "Reset Uptime Fill Pump",
+                MqttTopics::SuffixCmd,
+                "{\\\"cmd\\\":\\\"pool.uptime.reset\\\",\\\"args\\\":{\\\"slot\\\":4}}",
+                "diagnostic",
+                "mdi:timer-refresh-outline"
+            };
+            (void)haSvc_->addButton(haSvc_->ctx, &resetFillUptime);
+        }
+        if (slots_[PoolBinding::kDeviceSlotChlorineGenerator].used) {
+            const HAButtonEntry resetGeneratorUptime{
+                "pooldev",
+                "pd_reset_upt_chl_gen",
+                "Reset Uptime Chlorine Generator",
+                MqttTopics::SuffixCmd,
+                "{\\\"cmd\\\":\\\"pool.uptime.reset\\\",\\\"args\\\":{\\\"slot\\\":5}}",
+                "diagnostic",
+                "mdi:timer-refresh-outline"
+            };
+            (void)haSvc_->addButton(haSvc_->ctx, &resetGeneratorUptime);
+        }
+        const HAButtonEntry resetAllUptime{
+            "pooldev",
+            "pd_reset_upt_all",
+            "Reset Uptime All Pool Devices",
+            MqttTopics::SuffixCmd,
+            "{\\\"cmd\\\":\\\"pool.uptime.reset_all\\\"}",
+            "diagnostic",
+            "mdi:timer-refresh-outline"
+        };
+        (void)haSvc_->addButton(haSvc_->ctx, &resetAllUptime);
     }
 
     uint8_t count = 0;

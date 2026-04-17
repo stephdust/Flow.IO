@@ -28,7 +28,7 @@ Réponse:
 
 Payload patch config multi-modules:
 ```json
-{"poollogic":{"auto_mode":true},"pdm/pd1":{"flow_l_h":1.4}}
+{"poollogic/mode":{"auto_mode":true},"pdm/pd1":{"flow_l_h":1.4}}
 ```
 Réponse:
 - `<base>/<device>/cfg/ack`
