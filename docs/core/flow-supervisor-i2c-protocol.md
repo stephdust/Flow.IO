@@ -379,7 +379,7 @@ Payload requête:
 Contraintes:
 - taille `> 0`
 - taille `< sizeof(patchBuf_)`
-- taille `<= Limits::JsonConfigApplyBuf`, soit actuellement `4096` octets
+- taille `<= Limits::JsonConfigApplyBuf`, soit actuellement `1024` octets
 
 Réponse:
 - pas de payload utile en succès

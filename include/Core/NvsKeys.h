@@ -127,6 +127,8 @@ FLOW_IO_ANALOG_NVS_KEYS("11", IO_A11NM, IO_A11BP, IO_A110, IO_A111, IO_A11P)
 FLOW_IO_ANALOG_NVS_KEYS("12", IO_A12NM, IO_A12BP, IO_A120, IO_A121, IO_A12P)
 FLOW_IO_ANALOG_NVS_KEYS("13", IO_A13NM, IO_A13BP, IO_A130, IO_A131, IO_A13P)
 FLOW_IO_ANALOG_NVS_KEYS("14", IO_A14NM, IO_A14BP, IO_A140, IO_A141, IO_A14P)
+FLOW_IO_ANALOG_NVS_KEYS("15", IO_A15NM, IO_A15BP, IO_A150, IO_A151, IO_A15P)
+FLOW_IO_ANALOG_NVS_KEYS("16", IO_A16NM, IO_A16BP, IO_A160, IO_A161, IO_A16P)
 #undef FLOW_IO_ANALOG_NVS_KEYS
 constexpr char IO_ADS[] = "io_ads"; // IO module persisted key for field `io_ads`.
 constexpr char IO_AEAD[] = "io_aead"; // IO module persisted key for field `io_aead`.
@@ -273,6 +275,8 @@ constexpr char ClientSda[] = "ic_cli_sda"; // I2C cfg client SDA pin.
 constexpr char ClientScl[] = "ic_cli_scl"; // I2C cfg client SCL pin.
 constexpr char ClientFreq[] = "ic_cli_frq"; // I2C cfg client bus frequency.
 constexpr char ClientAddr[] = "ic_cli_adr"; // I2C cfg client target slave address.
+constexpr char LcdAutoOffEnabled[] = "ic_lcd_ao"; // Supervisor LCD auto-off after 60s when no motion.
+constexpr char LcdMotionGpio[] = "ic_lcd_mg"; // Supervisor LCD motion detector GPIO pin.
 constexpr char DashboardEnabledFmt[] = "ic_d%u_en"; // I2C cfg dashboard slot enabled.
 constexpr char DashboardRuntimeIdFmt[] = "ic_d%u_rt"; // I2C cfg dashboard slot runtime UI id.
 constexpr char DashboardLabelFmt[] = "ic_d%u_lb"; // I2C cfg dashboard slot label.

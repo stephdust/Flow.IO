@@ -6,6 +6,7 @@
 
 #include "Core/EventBus/EventBus.h"
 #include "Core/Module.h"
+#include "Core/NvsKeys.h"
 #include "Core/Services/Services.h"
 #include "Modules/SupervisorHMIModule/Drivers/St7789SupervisorDriver.h"
 
@@ -37,6 +38,7 @@ public:
     }
 
     void init(ConfigStore& cfg, ServiceRegistry& services) override;
+    void onConfigLoaded(ConfigStore&, ServiceRegistry&) override;
     void loop() override;
 
 private:
@@ -55,8 +57,24 @@ private:
     void updateFactoryResetButton_();
     void scheduleFactoryReset_();
     void executePendingFactoryReset_();
+    void syncMotionInputConfig_();
     void rebuildBanner_();
     void setDefaultBanner_();
+
+    struct LcdConfigData {
+        bool autoOff60s = true;
+        int32_t motionGpio = -1;
+    } lcdCfg_{};
+    // CFGDOC: {"label":"Extinction auto ecran (60s)", "help":"Si actif, le backlight s'eteint apres 60 secondes sans mouvement; sinon l'ecran reste allume."}
+    ConfigVariable<bool, 0> lcdAutoOffVar_{
+        NVS_KEY(NvsKeys::I2cCfg::LcdAutoOffEnabled), "auto_off_60s", "elink/lcd",
+        ConfigType::Bool, &lcdCfg_.autoOff60s, ConfigPersistence::Persistent, 0
+    };
+    // CFGDOC: {"label":"GPIO detecteur de mouvement", "help":"GPIO du capteur de mouvement utilise pour rallumer l'ecran quand l'extinction auto est active."}
+    ConfigVariable<int32_t, 0> lcdMotionGpioVar_{
+        NVS_KEY(NvsKeys::I2cCfg::LcdMotionGpio), "motion_gpio", "elink/lcd",
+        ConfigType::Int32, &lcdCfg_.motionGpio, ConfigPersistence::Persistent, 0
+    };
 
     const LogHubService* logHub_ = nullptr;
     const ConfigStoreService* cfgSvc_ = nullptr;
@@ -75,10 +93,13 @@ private:
     volatile bool flowRuntimeDirty_ = true;
 
     int8_t pirPin_ = -1;
+    int32_t appliedMotionGpio_ = -1;
+    bool motionCfgInitialized_ = false;
     int8_t factoryResetPin_ = -1;
     uint32_t pirTimeoutMs_ = 60000U;
     uint32_t pirDebounceMs_ = 120U;
     bool pirActiveHigh_ = true;
+    bool lastAutoOffEnabled_ = true;
     uint32_t factoryResetHoldMs_ = 5000U;
     uint32_t factoryResetDebounceMs_ = 40U;
 

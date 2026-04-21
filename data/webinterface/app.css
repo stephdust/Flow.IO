@@ -1695,6 +1695,25 @@
       font-size: 12px;
       background: rgba(238, 244, 249, 0.88);
     }
+    .flow-cfg-backup-progress {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--panel-frame-border);
+      background: #FFFFFF;
+    }
+    .flow-cfg-backup-progress-head {
+      margin-bottom: 6px;
+    }
+    .flow-cfg-backup-progress .ug-label {
+      letter-spacing: 0.08em;
+    }
+    .flow-cfg-backup-progress .ug-pct {
+      font-size: 12px;
+    }
+    .flow-cfg-backup-progress .bar-shell {
+      height: 8px;
+    }
     .config-status.is-ok {
       border-color: rgba(47, 158, 104, 0.42);
       color: #256B4A;

@@ -540,7 +540,16 @@ bool ConfigStore::applyJson(const char* json)
                                  sizeof(doc),
                                  "applyJson",
                                  nullptr);
-        Log::warn(LOG_MODULE_ID, "applyJson: invalid json");
+        if (err == DeserializationError::NoMemory) {
+            Log::warn(LOG_MODULE_ID,
+                      "applyJson: json exceeds doc capacity (%lu / %lu bytes)",
+                      (unsigned long)docUsedBytes,
+                      (unsigned long)docCapacityBytes);
+        } else if (err) {
+            Log::warn(LOG_MODULE_ID, "applyJson: invalid json (%s)", err.c_str());
+        } else {
+            Log::warn(LOG_MODULE_ID, "applyJson: root is not an object");
+        }
         return false;
     }
     JsonObjectConst root = doc.as<JsonObjectConst>();

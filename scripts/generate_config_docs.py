@@ -243,37 +243,44 @@ def _binding_label(kind: str,
                    param0: str,
                    board_points: List[dict]) -> str:
     port_display = f"{port_name}"
+    port_display = port_display.replace("PortAds", "PortADS")
+    port_display = port_display.replace("PortDs", "PortDS")
+    port_display = port_display.replace("PortSht", "PortSHT")
+    port_display = port_display.replace("PortBmp", "PortBMP")
+    port_display = port_display.replace("PortBme", "PortBME")
+    port_display = port_display.replace("PortIna", "PortINA")
+    port_display = port_display.replace("PortPcf", "PortPCF")
     board_ref = BOARD_PIN_REF_RE.search(param0)
     if board_ref:
         idx = int(board_ref.group("idx"))
         if 0 <= idx < len(board_points):
             point = board_points[idx]
-            return f"{port_display} | {point['name']} | GPIO{point['pin']}"
+            return f"{port_display} - {point['name']} - GPIO{point['pin']}"
 
     raw = param0.strip()
     if kind == "IO_PORT_KIND_ADS_INTERNAL_SINGLE":
-        return f"{port_display} | ADS1115 interne | canal {raw}"
+        return f"{port_display} - ADS1115 Interne - Canal {raw}"
     if kind == "IO_PORT_KIND_ADS_EXTERNAL_DIFF":
-        return f"{port_display} | ADS1115 externe | paire diff {raw}"
+        return f"{port_display} - ADS1115 Externe - Paire Diff {raw}"
     if kind == "IO_PORT_KIND_DS18_WATER":
-        return f"{port_display} | DS18B20 | bus eau"
+        return f"{port_display} - DS18B20 - Bus Eau"
     if kind == "IO_PORT_KIND_DS18_AIR":
-        return f"{port_display} | DS18B20 | bus air"
+        return f"{port_display} - DS18B20 - Bus Air"
     if kind == "IO_PORT_KIND_GPIO_INPUT":
-        return f"{port_display} | entree GPIO | GPIO{raw}"
+        return f"{port_display} - Entree GPIO - GPIO{raw}"
     if kind == "IO_PORT_KIND_GPIO_OUTPUT":
-        return f"{port_display} | sortie GPIO | GPIO{raw}"
+        return f"{port_display} - Sortie GPIO - GPIO{raw}"
     if kind == "IO_PORT_KIND_PCF8574_OUTPUT":
-        return f"{port_display} | sortie PCF8574 | bit {raw}"
+        return f"{port_display} - Sortie PCF8574 - Bit {raw}"
     if kind == "IO_PORT_KIND_INA226":
-        return f"{port_display} | INA226 | canal {raw}"
+        return f"{port_display} - INA226 - Canal {raw}"
     if kind == "IO_PORT_KIND_SHT40":
-        return f"{port_display} | SHT40 | canal {raw}"
+        return f"{port_display} - SHT40 - Canal {raw}"
     if kind == "IO_PORT_KIND_BMP280":
-        return f"{port_display} | BMP280 | canal {raw}"
+        return f"{port_display} - BMP280 - Canal {raw}"
     if kind == "IO_PORT_KIND_BME680":
-        return f"{port_display} | BME680 | canal {raw}"
-    return f"{port_display} | {kind} | {raw}"
+        return f"{port_display} - BME680 - Canal {raw}"
+    return f"{port_display} - {kind} - {raw}"
 
 
 def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
@@ -334,13 +341,13 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
             {"value": 20, "label": "#FFFFFF", "color": "#FFFFFF"},
         ],
         FLOWIO_DIGITAL_INPUT_MODE_SET: [
-            {"value": 0, "label": "0 | Etat"},
-            {"value": 1, "label": "1 | Compteur d'Impulsion"},
+            {"value": 0, "label": "Etat [0]"},
+            {"value": 1, "label": "Compteur d'Impulsion [1]"},
         ],
         FLOWIO_EDGE_MODE_SET: [
-            {"value": 0, "label": "0 | Front descendant"},
-            {"value": 1, "label": "1 | Front montant"},
-            {"value": 2, "label": "2 | Deux fronts"},
+            {"value": 0, "label": "Front Descendant [0]"},
+            {"value": 1, "label": "Front Montant [1]"},
+            {"value": 2, "label": "Deux Fronts [2]"},
         ],
         POOLLOGIC_DEVICE_SLOT_SET: [],
     }
@@ -355,7 +362,7 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
             continue
         enum_sets[group].append({
             "value": port_id,
-            "label": f"{port_id} | {_binding_label(kind, port_name, param0, board_points)}",
+            "label": f"{_binding_label(kind, port_name, param0, board_points)} [{port_id}]",
         })
 
     for m in POOL_DEVICE_PRESET_RE.finditer(pool_domain_text):
@@ -365,7 +372,7 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
             display = m.group("role").strip()
         enum_sets[POOLLOGIC_DEVICE_SLOT_SET].append({
             "value": slot,
-            "label": f"{slot} | {display}",
+            "label": f"{display} [{slot}]",
         })
 
     analog_base = io_bases.get("IO_ID_AI_BASE")
@@ -374,7 +381,7 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
         for idx in range(analog_count):
             enum_sets[FLOWIO_LOGICAL_INPUT_SET_ANALOG].append({
                 "value": analog_base + idx,
-                "label": f"{analog_base + idx} | io/input/a{idx:02d}",
+                "label": f"io/input/a{idx:02d} [{analog_base + idx}]",
             })
 
     digital_base = io_bases.get("IO_ID_DI_BASE")
@@ -383,7 +390,7 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
         for idx in range(digital_count):
             enum_sets[FLOWIO_LOGICAL_INPUT_SET_DIGITAL].append({
                 "value": digital_base + idx,
-                "label": f"{digital_base + idx} | io/input/i{idx:02d}",
+                "label": f"io/input/i{idx:02d} [{digital_base + idx}]",
             })
 
     if runtime_ui_path.exists():
@@ -401,11 +408,7 @@ def _build_flowio_binding_enum_sets(src_root: Path) -> Dict[str, List[dict]]:
                 if not isinstance(runtime_id, int):
                     continue
                 label = str(entry.get("label") or entry.get("key") or f"Runtime {runtime_id}").strip()
-                key = str(entry.get("key") or "").strip()
-                if key:
-                    label = f"{runtime_id} | {label} | {key}"
-                else:
-                    label = f"{runtime_id} | {label}"
+                label = f"{label} [{runtime_id}]"
                 enum_sets[ELINK_DASHBOARD_RUNTIME_UI_SET].append({
                     "value": runtime_id,
                     "label": label,
@@ -426,6 +429,15 @@ def _auto_doc_hint(module_name: str, json_name: str) -> Optional[dict]:
             "runtime_ui_id": ("Valeur distante", "Choix de la valeur runtime Flow.io a demander via eLink pour ce slot.", None),
             "label": ("Nom affiche", "Libelle local affiche sur le TFT et dans la carte web.", None),
             "color_id": ("Couleur de fond", "Palette pastel utilisee comme fond de carte sur le TFT.", None),
+        }
+        hit = mapping.get(json_name)
+        if hit:
+            return {"label": hit[0], "help": hit[1], "unit": hit[2]}
+
+    if module_name == "elink/lcd":
+        mapping = {
+            "auto_off_60s": ("Extinction auto ecran (60s)", "Si actif, l'ecran s'eteint apres 60 secondes sans mouvement; sinon il reste allume en continu.", None),
+            "motion_gpio": ("GPIO detecteur mouvement", "GPIO du detecteur de mouvement utilise pour rallumer l'ecran quand l'extinction auto est active.", None),
         }
         hit = mapping.get(json_name)
         if hit:
@@ -1065,7 +1077,7 @@ def _build_entries(src_root: Path) -> Tuple[Dict[str, dict], dict]:
         ("a{idx}_c1", "Float"),
         ("a{idx}_prec", "Int32"),
     )
-    for idx in range(15):
+    for idx in range(17):
         slot = _io_slot_token(idx)
         module_name = f"io/input/a{slot}"
         for json_tpl, type_name in analog_fields:

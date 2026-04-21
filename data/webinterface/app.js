@@ -717,6 +717,10 @@
     const flowCfgFields = document.getElementById('flowCfgFields');
     const flowCfgStatus = document.getElementById('flowCfgStatus');
     const flowCfgBackupStatus = document.getElementById('flowCfgBackupStatus');
+    const flowCfgBackupProgress = document.getElementById('flowCfgBackupProgress');
+    const flowCfgBackupPct = document.getElementById('flowCfgBackupPct');
+    const flowCfgBackupProgressBar = document.getElementById('flowCfgBackupProgressBar');
+    const flowCfgBackupProgressDot = document.getElementById('flowCfgBackupProgressDot');
     const flowCfgTreePane = flowCfgTree ? flowCfgTree.closest('.cfg-pane') : null;
     const flowCfgDetailPane = flowCfgFields ? flowCfgFields.closest('.cfg-pane') : null;
     let flowCfgCurrentModule = '';
@@ -5478,6 +5482,18 @@
       return value;
     }
 
+    function configSupportsUnsetBindingPort(moduleName, key) {
+      if (String(key || '').trim() !== 'binding_port') return false;
+      const modulePath = String(moduleName || '').trim().toLowerCase();
+      return /^io\/input\/(?:a\d{2}|i\d{2})$/.test(modulePath);
+    }
+
+    function configUnsetBindingPortValue(doc) {
+      const typeName = String((doc && doc.type) || '').trim().toLowerCase();
+      if (typeName === 'uint8') return String(0xFF);
+      return String(0xFFFF);
+    }
+
     function configDocFor(moduleName, key, extraSources) {
       const k = String(key || '').trim();
       const candidates = cfgDocPathCandidates(moduleName);
@@ -5712,10 +5728,23 @@
           }
           const currentValue = String(value);
           let hasSelectedOption = false;
+          const supportsUnsetBindingPort = configSupportsUnsetBindingPort(moduleName, key);
+          const unsetBindingPortValue = supportsUnsetBindingPort ? configUnsetBindingPortValue(doc) : '';
+          if (supportsUnsetBindingPort) {
+            const unsetOption = document.createElement('option');
+            unsetOption.value = unsetBindingPortValue;
+            unsetOption.textContent = 'Valeur non definie';
+            if (currentValue === unsetBindingPortValue || currentValue.length === 0) {
+              unsetOption.selected = true;
+              hasSelectedOption = true;
+            }
+            select.appendChild(unsetOption);
+          }
           enumOptions.forEach((opt) => {
             if (!opt || typeof opt !== 'object') return;
             const optionEl = document.createElement('option');
             optionEl.value = String(opt.value);
+            if (supportsUnsetBindingPort && optionEl.value === unsetBindingPortValue) return;
             optionEl.textContent = (typeof opt.label === 'string' && opt.label.length > 0)
               ? opt.label
               : String(opt.value);
@@ -6213,6 +6242,29 @@
       if (tone === 'busy') flowCfgBackupStatus.classList.add('is-busy');
     }
 
+    function setFlowCfgBackupProgress(percent, visible) {
+      const show = !!visible;
+      if (flowCfgBackupProgress) flowCfgBackupProgress.hidden = !show;
+
+      if (!show) {
+        if (flowCfgBackupPct) flowCfgBackupPct.textContent = '0%';
+        if (flowCfgBackupProgressBar) {
+          flowCfgBackupProgressBar.style.width = '0%';
+          flowCfgBackupProgressBar.classList.remove('is-complete');
+        }
+        if (flowCfgBackupProgressDot) flowCfgBackupProgressDot.hidden = false;
+        return;
+      }
+
+      const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+      if (flowCfgBackupPct) flowCfgBackupPct.textContent = safePercent + '%';
+      if (flowCfgBackupProgressBar) {
+        flowCfgBackupProgressBar.style.width = safePercent + '%';
+        flowCfgBackupProgressBar.classList.toggle('is-complete', safePercent >= 100);
+      }
+      if (flowCfgBackupProgressDot) flowCfgBackupProgressDot.hidden = safePercent >= 100;
+    }
+
     function setFlowCfgBackupBusy(busy) {
       flowCfgBackupBusy = !!busy;
       if (flowCfgExportBtn) flowCfgExportBtn.disabled = flowCfgBackupBusy;
@@ -6477,6 +6529,7 @@
       const startedAt = Date.now();
       try {
         setFlowCfgBackupStatus('Préparation de l\'export ConfigStore...', 'busy');
+        setFlowCfgBackupProgress(0, true);
         const createdAt = new Date();
         const backupDoc = {
           format: flowCfgBackupFormat,
@@ -6501,14 +6554,30 @@
         };
 
         const stores = ['supervisor', 'flow'];
+        const modulesByStore = {};
+        let totalModuleCount = 0;
         for (const storeName of stores) {
           const storeLabel = flowCfgBackupStoreLabel(storeName);
           setFlowCfgBackupStatus('Lecture des modules ' + storeLabel + '...', 'busy');
           const modules = await flowCfgBackupFetchModules(storeName);
+          modulesByStore[storeName] = modules;
+          totalModuleCount += modules.length;
+          backupDoc.stores[storeName].module_count = modules.length;
+        }
+
+        let exportedModuleCount = 0;
+        if (totalModuleCount === 0) {
+          setFlowCfgBackupProgress(100, true);
+        }
+
+        for (const storeName of stores) {
+          const storeLabel = flowCfgBackupStoreLabel(storeName);
+          const modules = modulesByStore[storeName] || [];
           for (let i = 0; i < modules.length; i += 1) {
             const moduleName = modules[i];
+            const moduleOrder = exportedModuleCount + 1;
             setFlowCfgBackupStatus(
-              'Export ' + storeLabel + ' : ' + moduleName + ' (' + (i + 1) + '/' + modules.length + ')...',
+              'Export ' + storeLabel + ' : ' + moduleOrder + '/' + totalModuleCount + ' ' + moduleName + '...',
               'busy'
             );
             const modulePayload = await flowCfgBackupFetchModule(storeName, moduleName);
@@ -6523,8 +6592,9 @@
                 key: entry.key
               });
             });
+            exportedModuleCount += 1;
+            setFlowCfgBackupProgress((exportedModuleCount / totalModuleCount) * 100, true);
           }
-          backupDoc.stores[storeName].module_count = modules.length;
           if (storeName === 'flow') {
             backupDoc.meta.flow_reachable = true;
           }
@@ -6543,6 +6613,7 @@
         const fileName = 'flowio-configstore-backup-' + flowCfgBackupIsoDateForFile(createdAt) + '.json';
         flowCfgBackupDownloadText(fileName, serialized);
         const durationMs = Date.now() - startedAt;
+        setFlowCfgBackupProgress(100, true);
         setFlowCfgBackupStatus(
           'Export terminé (' + fileName + ', ' + Math.max(1, Math.round(durationMs / 1000)) + ' s).',
           'ok'
@@ -6559,6 +6630,7 @@
       setFlowCfgBackupBusy(true);
       const startedAt = Date.now();
       try {
+        setFlowCfgBackupProgress(0, false);
         let parsedDoc = null;
         try {
           parsedDoc = JSON.parse(String(rawText || ''));

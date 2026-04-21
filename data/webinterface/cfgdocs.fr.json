@@ -1,9 +1,9 @@
 {
   "_meta": {
     "generated": true,
-    "total": 382,
-    "decl_total": 219,
-    "decl_with_cfgdoc": 120,
+    "total": 394,
+    "decl_total": 221,
+    "decl_with_cfgdoc": 122,
     "missing_cfgdoc_count": 99,
     "manual_overrides_total": 23,
     "manual_overrides_applied": 5
@@ -13,285 +13,317 @@
       "flowio_binding_port_analog": [
         {
           "value": 100,
-          "label": "100 | PortAdsInternal0 | ADS1115 interne | canal 0"
+          "label": "PortADSInternal0 - ADS1115 Interne - Canal 0 [100]"
         },
         {
           "value": 101,
-          "label": "101 | PortAdsInternal1 | ADS1115 interne | canal 1"
+          "label": "PortADSInternal1 - ADS1115 Interne - Canal 1 [101]"
         },
         {
           "value": 102,
-          "label": "102 | PortAdsInternal2 | ADS1115 interne | canal 2"
+          "label": "PortADSInternal2 - ADS1115 Interne - Canal 2 [102]"
         },
         {
           "value": 103,
-          "label": "103 | PortAdsInternal3 | ADS1115 interne | canal 3"
+          "label": "PortADSInternal3 - ADS1115 Interne - Canal 3 [103]"
         },
         {
           "value": 110,
-          "label": "110 | PortAdsExternal0 | ADS1115 externe | paire diff 0"
+          "label": "PortADSExternal0 - ADS1115 Externe - Paire Diff 0 [110]"
         },
         {
           "value": 111,
-          "label": "111 | PortAdsExternal1 | ADS1115 externe | paire diff 1"
+          "label": "PortADSExternal1 - ADS1115 Externe - Paire Diff 1 [111]"
         },
         {
           "value": 120,
-          "label": "120 | PortDsWater | DS18B20 | bus eau"
+          "label": "PortDSWater - DS18B20 - Bus Eau [120]"
         },
         {
           "value": 121,
-          "label": "121 | PortDsAir | DS18B20 | bus air"
+          "label": "PortDSAir - DS18B20 - Bus Air [121]"
         },
         {
           "value": 130,
-          "label": "130 | PortSht40Temp | SHT40 | canal 0"
+          "label": "PortSHT40Temp - SHT40 - Canal 0 [130]"
         },
         {
           "value": 131,
-          "label": "131 | PortSht40Humidity | SHT40 | canal 1"
+          "label": "PortSHT40Humidity - SHT40 - Canal 1 [131]"
         },
         {
           "value": 132,
-          "label": "132 | PortBmp280Temp | BMP280 | canal 0"
+          "label": "PortBMP280Temp - BMP280 - Canal 0 [132]"
         },
         {
           "value": 133,
-          "label": "133 | PortBmp280Pressure | BMP280 | canal 1"
+          "label": "PortBMP280Pressure - BMP280 - Canal 1 [133]"
         },
         {
           "value": 134,
-          "label": "134 | PortBme680Temp | BME680 | canal 0"
+          "label": "PortBME680Temp - BME680 - Canal 0 [134]"
         },
         {
           "value": 135,
-          "label": "135 | PortBme680Humidity | BME680 | canal 1"
+          "label": "PortBME680Humidity - BME680 - Canal 1 [135]"
         },
         {
           "value": 136,
-          "label": "136 | PortBme680Pressure | BME680 | canal 2"
+          "label": "PortBME680Pressure - BME680 - Canal 2 [136]"
         },
         {
           "value": 137,
-          "label": "137 | PortBme680Gas | BME680 | canal 3"
+          "label": "PortBME680Gas - BME680 - Canal 3 [137]"
         },
         {
           "value": 138,
-          "label": "138 | PortIna226ShuntMv | INA226 | canal 0"
+          "label": "PortINA226ShuntMv - INA226 - Canal 0 [138]"
         },
         {
           "value": 139,
-          "label": "139 | PortIna226BusV | INA226 | canal 1"
+          "label": "PortINA226BusV - INA226 - Canal 1 [139]"
         },
         {
           "value": 140,
-          "label": "140 | PortIna226CurrentMa | INA226 | canal 2"
+          "label": "PortINA226CurrentMa - INA226 - Canal 2 [140]"
         },
         {
           "value": 141,
-          "label": "141 | PortIna226PowerMw | INA226 | canal 3"
+          "label": "PortINA226PowerMw - INA226 - Canal 3 [141]"
         },
         {
           "value": 142,
-          "label": "142 | PortIna226LoadV | INA226 | canal 4"
+          "label": "PortINA226LoadV - INA226 - Canal 4 [142]"
         }
       ],
       "flowio_binding_port_digital_input": [
         {
           "value": 200,
-          "label": "200 | PortDigitalIn1 | digital_in1 | GPIO34"
+          "label": "PortDigitalIn1 - digital_in1 - GPIO34 [200]"
         },
         {
           "value": 201,
-          "label": "201 | PortDigitalIn2 | digital_in2 | GPIO36"
+          "label": "PortDigitalIn2 - digital_in2 - GPIO36 [201]"
         },
         {
           "value": 202,
-          "label": "202 | PortDigitalIn3 | digital_in3 | GPIO39"
+          "label": "PortDigitalIn3 - digital_in3 - GPIO39 [202]"
         },
         {
           "value": 203,
-          "label": "203 | PortDigitalIn4 | digital_in4 | GPIO35"
+          "label": "PortDigitalIn4 - digital_in4 - GPIO35 [203]"
         }
       ],
       "flowio_binding_port_digital_output": [
         {
           "value": 300,
-          "label": "300 | PortRelay1 | relay1 | GPIO32"
+          "label": "PortRelay1 - relay1 - GPIO32 [300]"
         },
         {
           "value": 301,
-          "label": "301 | PortRelay2 | relay2 | GPIO25"
+          "label": "PortRelay2 - relay2 - GPIO25 [301]"
         },
         {
           "value": 302,
-          "label": "302 | PortRelay3 | relay3 | GPIO26"
+          "label": "PortRelay3 - relay3 - GPIO26 [302]"
         },
         {
           "value": 303,
-          "label": "303 | PortRelay4 | relay4 | GPIO13"
+          "label": "PortRelay4 - relay4 - GPIO13 [303]"
         },
         {
           "value": 304,
-          "label": "304 | PortRelay5 | relay5 | GPIO33"
+          "label": "PortRelay5 - relay5 - GPIO33 [304]"
         },
         {
           "value": 305,
-          "label": "305 | PortRelay6 | relay6 | GPIO27"
+          "label": "PortRelay6 - relay6 - GPIO27 [305]"
         },
         {
           "value": 306,
-          "label": "306 | PortRelay7 | relay7 | GPIO23"
+          "label": "PortRelay7 - relay7 - GPIO23 [306]"
         },
         {
           "value": 307,
-          "label": "307 | PortRelay8 | relay8 | GPIO4"
+          "label": "PortRelay8 - relay8 - GPIO4 [307]"
         },
         {
           "value": 400,
-          "label": "400 | PortPcf0Bit0 | sortie PCF8574 | bit 0"
+          "label": "PortPCF0Bit0 - Sortie PCF8574 - Bit 0 [400]"
         },
         {
           "value": 401,
-          "label": "401 | PortPcf0Bit1 | sortie PCF8574 | bit 1"
+          "label": "PortPCF0Bit1 - Sortie PCF8574 - Bit 1 [401]"
         },
         {
           "value": 402,
-          "label": "402 | PortPcf0Bit2 | sortie PCF8574 | bit 2"
+          "label": "PortPCF0Bit2 - Sortie PCF8574 - Bit 2 [402]"
         },
         {
           "value": 403,
-          "label": "403 | PortPcf0Bit3 | sortie PCF8574 | bit 3"
+          "label": "PortPCF0Bit3 - Sortie PCF8574 - Bit 3 [403]"
         },
         {
           "value": 404,
-          "label": "404 | PortPcf0Bit4 | sortie PCF8574 | bit 4"
+          "label": "PortPCF0Bit4 - Sortie PCF8574 - Bit 4 [404]"
         },
         {
           "value": 405,
-          "label": "405 | PortPcf0Bit5 | sortie PCF8574 | bit 5"
+          "label": "PortPCF0Bit5 - Sortie PCF8574 - Bit 5 [405]"
         },
         {
           "value": 406,
-          "label": "406 | PortPcf0Bit6 | sortie PCF8574 | bit 6"
+          "label": "PortPCF0Bit6 - Sortie PCF8574 - Bit 6 [406]"
         }
       ],
       "flowio_logical_input_analog": [
         {
           "value": 192,
-          "label": "192 | io/input/a00"
+          "label": "io/input/a00 [192]"
         },
         {
           "value": 193,
-          "label": "193 | io/input/a01"
+          "label": "io/input/a01 [193]"
         },
         {
           "value": 194,
-          "label": "194 | io/input/a02"
+          "label": "io/input/a02 [194]"
         },
         {
           "value": 195,
-          "label": "195 | io/input/a03"
+          "label": "io/input/a03 [195]"
         },
         {
           "value": 196,
-          "label": "196 | io/input/a04"
+          "label": "io/input/a04 [196]"
         },
         {
           "value": 197,
-          "label": "197 | io/input/a05"
+          "label": "io/input/a05 [197]"
         },
         {
           "value": 198,
-          "label": "198 | io/input/a06"
+          "label": "io/input/a06 [198]"
         },
         {
           "value": 199,
-          "label": "199 | io/input/a07"
+          "label": "io/input/a07 [199]"
         },
         {
           "value": 200,
-          "label": "200 | io/input/a08"
+          "label": "io/input/a08 [200]"
         },
         {
           "value": 201,
-          "label": "201 | io/input/a09"
+          "label": "io/input/a09 [201]"
         },
         {
           "value": 202,
-          "label": "202 | io/input/a10"
+          "label": "io/input/a10 [202]"
         },
         {
           "value": 203,
-          "label": "203 | io/input/a11"
+          "label": "io/input/a11 [203]"
         },
         {
           "value": 204,
-          "label": "204 | io/input/a12"
+          "label": "io/input/a12 [204]"
         },
         {
           "value": 205,
-          "label": "205 | io/input/a13"
+          "label": "io/input/a13 [205]"
         },
         {
           "value": 206,
-          "label": "206 | io/input/a14"
+          "label": "io/input/a14 [206]"
+        },
+        {
+          "value": 207,
+          "label": "io/input/a15 [207]"
+        },
+        {
+          "value": 208,
+          "label": "io/input/a16 [208]"
         }
       ],
       "flowio_logical_input_digital": [
         {
           "value": 64,
-          "label": "64 | io/input/i00"
+          "label": "io/input/i00 [64]"
         },
         {
           "value": 65,
-          "label": "65 | io/input/i01"
+          "label": "io/input/i01 [65]"
         },
         {
           "value": 66,
-          "label": "66 | io/input/i02"
+          "label": "io/input/i02 [66]"
         },
         {
           "value": 67,
-          "label": "67 | io/input/i03"
+          "label": "io/input/i03 [67]"
         },
         {
           "value": 68,
-          "label": "68 | io/input/i04"
+          "label": "io/input/i04 [68]"
         }
       ],
       "elink_dashboard_runtime_ui": [
         {
           "value": 2101,
-          "label": "2101 | Temperature eau | pool.water_temp"
+          "label": "Temperature eau [2101]"
         },
         {
           "value": 2102,
-          "label": "2102 | Temperature air | pool.air_temp"
+          "label": "Temperature air [2102]"
         },
         {
           "value": 2103,
-          "label": "2103 | pH | pool.ph"
+          "label": "pH [2103]"
         },
         {
           "value": 2104,
-          "label": "2104 | ORP | pool.orp"
+          "label": "ORP [2104]"
         },
         {
           "value": 2105,
-          "label": "2105 | Volume eau | pool.water_counter"
+          "label": "Volume eau [2105]"
         },
         {
           "value": 2106,
-          "label": "2106 | Pression pompe | pool.psi"
+          "label": "Pression pompe [2106]"
         },
         {
           "value": 2107,
-          "label": "2107 | Temperature BMP280 | io.bmp280_temp"
+          "label": "Temperature BMP280 [2107]"
         },
         {
           "value": 2108,
-          "label": "2108 | Temperature BME680 | io.bme680_temp"
+          "label": "Temperature BME680 [2108]"
+        },
+        {
+          "value": 2109,
+          "label": "Pression BMP280 [2109]"
+        },
+        {
+          "value": 2110,
+          "label": "Temperature SHT40 [2110]"
+        },
+        {
+          "value": 2111,
+          "label": "Humidite SHT40 [2111]"
+        },
+        {
+          "value": 2112,
+          "label": "Humidite BME680 [2112]"
+        },
+        {
+          "value": 2113,
+          "label": "Pression BME680 [2113]"
+        },
+        {
+          "value": 2114,
+          "label": "Gaz BME680 [2114]"
         }
       ],
       "elink_dashboard_color": [
@@ -404,59 +436,59 @@
       "flowio_digital_input_mode": [
         {
           "value": 0,
-          "label": "0 | Etat"
+          "label": "Etat [0]"
         },
         {
           "value": 1,
-          "label": "1 | Compteur d'Impulsion"
+          "label": "Compteur d'Impulsion [1]"
         }
       ],
       "flowio_edge_mode": [
         {
           "value": 0,
-          "label": "0 | Front descendant"
+          "label": "Front Descendant [0]"
         },
         {
           "value": 1,
-          "label": "1 | Front montant"
+          "label": "Front Montant [1]"
         },
         {
           "value": 2,
-          "label": "2 | Deux fronts"
+          "label": "Deux Fronts [2]"
         }
       ],
       "poollogic_device_slot": [
         {
           "value": 0,
-          "label": "0 | Filtration Pump"
+          "label": "Filtration Pump [0]"
         },
         {
           "value": 1,
-          "label": "1 | pH Pump"
+          "label": "pH Pump [1]"
         },
         {
           "value": 2,
-          "label": "2 | Chlorine Pump"
+          "label": "Chlorine Pump [2]"
         },
         {
           "value": 3,
-          "label": "3 | Robot"
+          "label": "Robot [3]"
         },
         {
           "value": 4,
-          "label": "4 | Fill Pump"
+          "label": "Fill Pump [4]"
         },
         {
           "value": 5,
-          "label": "5 | Chlorine Generator"
+          "label": "Chlorine Generator [5]"
         },
         {
           "value": 6,
-          "label": "6 | Lights"
+          "label": "Lights [6]"
         },
         {
           "value": 7,
-          "label": "7 | Water Heater"
+          "label": "Water Heater [7]"
         }
       ]
     }
@@ -566,6 +598,24 @@
       "var": "addrVar_",
       "source": "cfgdoc",
       "display_format": "hex"
+    },
+    "elink/lcd/auto_off_60s": {
+      "module": "elink/lcd",
+      "name": "auto_off_60s",
+      "type": "Bool",
+      "label": "Extinction auto ecran (60s)",
+      "help": "Si actif, le backlight s'eteint apres 60 secondes sans mouvement; sinon l'ecran reste allume.",
+      "var": "lcdAutoOffVar_",
+      "source": "cfgdoc"
+    },
+    "elink/lcd/motion_gpio": {
+      "module": "elink/lcd",
+      "name": "motion_gpio",
+      "type": "Int32",
+      "label": "GPIO detecteur de mouvement",
+      "help": "GPIO du capteur de mouvement utilise pour rallumer l'ecran quand l'extinction auto est active.",
+      "var": "lcdMotionGpioVar_",
+      "source": "cfgdoc"
     },
     "elink/lcd/sondes/slot00/color_id": {
       "module": "elink/lcd/sondes/slot00",
@@ -1995,6 +2045,100 @@
       "label": "Port physique A14",
       "help": "Identifiant du port physique utilise par A14. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut.",
       "var": "a14",
+      "source": "synthetic-analog",
+      "enum_set": "flowio_binding_port_analog"
+    },
+    "io/input/a15/a15_c0": {
+      "module": "io/input/a15",
+      "name": "a15_c0",
+      "type": "Float",
+      "label": "Coefficient C0 A15",
+      "help": "Coefficient multiplicateur de calibration pour A15. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
+      "var": "a15",
+      "source": "synthetic-analog"
+    },
+    "io/input/a15/a15_c1": {
+      "module": "io/input/a15",
+      "name": "a15_c1",
+      "type": "Float",
+      "label": "Offset C1 A15",
+      "help": "Offset de calibration pour A15. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
+      "var": "a15",
+      "source": "synthetic-analog"
+    },
+    "io/input/a15/a15_name": {
+      "module": "io/input/a15",
+      "name": "a15_name",
+      "type": "CharArray",
+      "label": "Nom entrée A15",
+      "help": "Nom lisible de l'entrée analogique A15.",
+      "var": "a15",
+      "source": "synthetic-analog"
+    },
+    "io/input/a15/a15_prec": {
+      "module": "io/input/a15",
+      "name": "a15_prec",
+      "type": "Int32",
+      "label": "Precision A15",
+      "help": "Nombre de décimales conservées pour A15.",
+      "var": "a15",
+      "source": "synthetic-analog",
+      "unit": "digits"
+    },
+    "io/input/a15/binding_port": {
+      "module": "io/input/a15",
+      "name": "binding_port",
+      "type": "UInt16",
+      "label": "Port physique A15",
+      "help": "Identifiant du port physique utilise par A15. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut.",
+      "var": "a15",
+      "source": "synthetic-analog",
+      "enum_set": "flowio_binding_port_analog"
+    },
+    "io/input/a16/a16_c0": {
+      "module": "io/input/a16",
+      "name": "a16_c0",
+      "type": "Float",
+      "label": "Coefficient C0 A16",
+      "help": "Coefficient multiplicateur de calibration pour A16. Il ajuste l'echelle de la mesure brute avant publication. Formule: value = c0 * input + c1.",
+      "var": "a16",
+      "source": "synthetic-analog"
+    },
+    "io/input/a16/a16_c1": {
+      "module": "io/input/a16",
+      "name": "a16_c1",
+      "type": "Float",
+      "label": "Offset C1 A16",
+      "help": "Offset de calibration pour A16. Il ajoute un decalage a la mesure convertie pour corriger le zero ou appliquer une translation. Formule: value = c0 * input + c1.",
+      "var": "a16",
+      "source": "synthetic-analog"
+    },
+    "io/input/a16/a16_name": {
+      "module": "io/input/a16",
+      "name": "a16_name",
+      "type": "CharArray",
+      "label": "Nom entrée A16",
+      "help": "Nom lisible de l'entrée analogique A16.",
+      "var": "a16",
+      "source": "synthetic-analog"
+    },
+    "io/input/a16/a16_prec": {
+      "module": "io/input/a16",
+      "name": "a16_prec",
+      "type": "Int32",
+      "label": "Precision A16",
+      "help": "Nombre de décimales conservées pour A16.",
+      "var": "a16",
+      "source": "synthetic-analog",
+      "unit": "digits"
+    },
+    "io/input/a16/binding_port": {
+      "module": "io/input/a16",
+      "name": "binding_port",
+      "type": "UInt16",
+      "label": "Port physique A16",
+      "help": "Identifiant du port physique utilise par A16. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut.",
+      "var": "a16",
       "source": "synthetic-analog",
       "enum_set": "flowio_binding_port_analog"
     },

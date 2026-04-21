@@ -28,6 +28,7 @@ static constexpr uint32_t kButtonArmHighStableMs = 500U;
 static constexpr uint32_t kFactoryResetMessageDelayMs = 900U;
 static constexpr uint32_t kPageRotateMs = 10000U;
 static constexpr uint32_t kWifiRssiRefreshMs = 3000U;
+static constexpr uint8_t kI2cLcdCfgBranch = 3U; // Must stay in sync with I2CCfgClient route table.
 
 const SupervisorBoardSpec& supervisorBoardSpec_(const BoardSpec& board)
 {
@@ -77,11 +78,13 @@ SupervisorHMIModule::SupervisorHMIModule(const BoardSpec& board, const Superviso
       driver_(driverCfg_)
 {
     const SupervisorBoardSpec& boardCfg = supervisorBoardSpec_(board);
+    lcdCfg_.motionGpio = boardCfg.inputs.pirPin;
     pirPin_ = boardCfg.inputs.pirPin;
     factoryResetPin_ = boardCfg.inputs.factoryResetPin;
     pirTimeoutMs_ = runtime.pirTimeoutMs;
     pirDebounceMs_ = boardCfg.inputs.pirDebounceMs;
     pirActiveHigh_ = boardCfg.inputs.pirActiveHigh;
+    lastAutoOffEnabled_ = lcdCfg_.autoOff60s;
     factoryResetHoldMs_ = runtime.factoryResetHoldMs;
     factoryResetDebounceMs_ = boardCfg.inputs.factoryResetDebounceMs;
 }
@@ -213,8 +216,12 @@ void SupervisorHMIModule::onEventStatic_(const Event& e, void* user)
     if (self) self->onEvent_(e);
 }
 
-void SupervisorHMIModule::init(ConfigStore&, ServiceRegistry& services)
+void SupervisorHMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
+    constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::I2cCfg;
+    cfg.registerVar(lcdAutoOffVar_, kCfgModuleId, kI2cLcdCfgBranch);
+    cfg.registerVar(lcdMotionGpioVar_, kCfgModuleId, kI2cLcdCfgBranch);
+
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);
     cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
     cmdSvc_ = services.get<CommandService>(ServiceId::Command);
@@ -230,21 +237,7 @@ void SupervisorHMIModule::init(ConfigStore&, ServiceRegistry& services)
         eventBus_->subscribe(EventId::DataChanged, &SupervisorHMIModule::onEventStatic_, this);
     }
 
-    if (pirPin_ >= 0) {
-        int pirMode = INPUT;
-#if defined(ESP32)
-        // ESP32 GPIO 34..39 are input-only and don't support internal pull resistors.
-        if (pirPin_ <= 33) {
-            pirMode = pirActiveHigh_ ? INPUT_PULLDOWN : INPUT_PULLUP;
-        }
-#endif
-        pinMode(pirPin_, pirMode);
-        const bool pirLevelHigh = (digitalRead(pirPin_) == HIGH);
-        const bool rawPir = pirActiveHigh_ ? pirLevelHigh : !pirLevelHigh;
-        pirRawState_ = rawPir;
-        pirStableState_ = rawPir;
-        pirDebounceChangedAtMs_ = millis();
-    }
+    syncMotionInputConfig_();
     if (factoryResetPin_ >= 0) {
         pinMode(factoryResetPin_, INPUT_PULLUP);
         const bool rawPressed = (digitalRead(factoryResetPin_) == LOW);
@@ -274,6 +267,15 @@ void SupervisorHMIModule::init(ConfigStore&, ServiceRegistry& services)
          (int)pirPin_,
          (int)(pirActiveHigh_ ? 1 : 0),
          (int)factoryResetPin_);
+}
+
+void SupervisorHMIModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
+{
+    syncMotionInputConfig_();
+    lastAutoOffEnabled_ = lcdCfg_.autoOff60s;
+    LOGI("Supervisor HMI LCD cfg auto_off_60s=%d motion_gpio=%ld",
+         (int)(lcdCfg_.autoOff60s ? 1 : 0),
+         (long)lcdCfg_.motionGpio);
 }
 
 void SupervisorHMIModule::onEvent_(const Event& e)
@@ -520,9 +522,61 @@ void SupervisorHMIModule::updateFactoryResetButton_()
     scheduleFactoryReset_();
 }
 
+void SupervisorHMIModule::syncMotionInputConfig_()
+{
+    if (motionCfgInitialized_ && (appliedMotionGpio_ == lcdCfg_.motionGpio)) return;
+
+    appliedMotionGpio_ = lcdCfg_.motionGpio;
+    motionCfgInitialized_ = true;
+
+    int8_t nextPirPin = -1;
+    if (lcdCfg_.motionGpio >= 0) {
+        if (lcdCfg_.motionGpio <= 39) {
+            nextPirPin = (int8_t)lcdCfg_.motionGpio;
+        } else {
+            LOGW("Invalid LCD motion GPIO=%ld (supported: -1 or 0..39); motion wake disabled",
+                 (long)lcdCfg_.motionGpio);
+        }
+    }
+
+    pirPin_ = nextPirPin;
+    const uint32_t now = millis();
+    pirRawState_ = false;
+    pirStableState_ = false;
+    pirDebounceChangedAtMs_ = now;
+    if (pirPin_ < 0) {
+        lastMotionMs_ = now;
+        return;
+    }
+
+    int pirMode = INPUT;
+#if defined(ESP32)
+    // ESP32 GPIO 34..39 are input-only and don't support internal pull resistors.
+    if (pirPin_ <= 33) {
+        pirMode = pirActiveHigh_ ? INPUT_PULLDOWN : INPUT_PULLUP;
+    }
+#endif
+    pinMode(pirPin_, pirMode);
+    const bool pirLevelHigh = (digitalRead(pirPin_) == HIGH);
+    const bool rawPir = pirActiveHigh_ ? pirLevelHigh : !pirLevelHigh;
+    pirRawState_ = rawPir;
+    pirStableState_ = rawPir;
+    lastMotionMs_ = now;
+}
+
 void SupervisorHMIModule::updateBacklight_()
 {
     const uint32_t now = millis();
+    syncMotionInputConfig_();
+    if (lcdCfg_.autoOff60s != lastAutoOffEnabled_) {
+        lastAutoOffEnabled_ = lcdCfg_.autoOff60s;
+        lastMotionMs_ = now;
+    }
+    if (!lcdCfg_.autoOff60s) {
+        driver_.setBacklight(true);
+        return;
+    }
+
     const bool forceBacklightOn = (int32_t)(now - backlightForceOnUntilMs_) < 0;
     bool motion = false;
     if (pirPin_ >= 0) {

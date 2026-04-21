@@ -19,8 +19,9 @@ Interface HMI locale du firmware Supervisor:
 ## Comportement
 
 - écran rafraîchi périodiquement sans blocage
-- extinction backlight après timeout d'inactivité PIR
+- extinction backlight après timeout d'inactivité PIR (configurable dans `elink/lcd/auto_off_60s`)
 - rallumage du backlight sur détection de présence par le capteur PIR
+- GPIO de détection de mouvement configurable dans `elink/lcd/motion_gpio`
 - backlight forcé ON pendant update firmware
 - appui long sur l'entrée `factoryResetPin` (5s par défaut dans le profil Supervisor): reset `wifi.ssid`/`wifi.pass`, notification provisioning, reboot
 
@@ -32,11 +33,13 @@ Quand plusieurs valeurs semblent définies à plusieurs endroits, l'ordre réel 
    C'est la source de vérité hardware pour le profil Supervisor.
 2. `src/Profiles/Supervisor/SupervisorProfile.cpp` (`runtimeOptions`)  
    C'est la source de vérité des timings runtime (timeout PIR, durée appui long reset).
-3. `src/Modules/SupervisorHMIModule/SupervisorHMIModule.cpp` (`makeDriverConfig_`)  
-   Le module copie ces valeurs board/profile vers `St7789SupervisorDriverConfig` avant de créer le driver.
-4. `src/Modules/SupervisorHMIModule/SupervisorHMIModule.cpp` (`kFallback`)  
+3. `ConfigStore` (`elink/lcd/auto_off_60s`, `elink/lcd/motion_gpio`)  
+   Ces variables persistent des overrides runtime pour l'extinction auto et le GPIO mouvement.
+4. `src/Modules/SupervisorHMIModule/SupervisorHMIModule.cpp` (`makeDriverConfig_`)  
+   Le module copie les valeurs board/profile vers `St7789SupervisorDriverConfig` avant de créer le driver.
+5. `src/Modules/SupervisorHMIModule/SupervisorHMIModule.cpp` (`kFallback`)  
    Utilisé uniquement si `board.supervisor == nullptr` (mode secours/compatibilité).
-5. `src/Modules/SupervisorHMIModule/Drivers/St7789SupervisorDriver.h` (`St7789SupervisorDriverConfig`)  
+6. `src/Modules/SupervisorHMIModule/Drivers/St7789SupervisorDriver.h` (`St7789SupervisorDriverConfig`)  
    Ce sont des valeurs par défaut de structure C++, pas la config effective du profil Supervisor.
 
 ## Clarification SDA/SCL vs MOSI/SCLK (LCD)

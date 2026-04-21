@@ -88,6 +88,7 @@ private:
     IHmiDriver* driver_ = nullptr;
 
     bool driverReady_ = false;
+    bool nextionDisabledByVersion_ = false;
     bool viewDirty_ = true;
     bool configMenuReady_ = false;
     bool configMenuActive_ = false;

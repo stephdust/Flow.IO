@@ -181,7 +181,7 @@ Les valeurs ci-dessous correspondent à l'implémentation actuelle du profil `Fl
 
 | Domaine | Capacité compile-time | Implémentation |
 |---|---:|---|
-| Entrées analogiques IO | 12 | `IOModule::MAX_ANALOG_ENDPOINTS` |
+| Entrées analogiques IO | 17 | `IOModule::MAX_ANALOG_ENDPOINTS` |
 | Entrées digitales IO | 5 | `IOModule::MAX_DIGITAL_INPUTS` |
 | Sorties digitales IO | 10 | `IOModule::MAX_DIGITAL_OUTPUTS` |
 | Équipements `PoolDevice` | 8 | `POOL_DEVICE_MAX` |

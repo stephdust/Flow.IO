@@ -135,6 +135,78 @@
       "unit": "\u00b0C",
       "decimals": 1,
       "order": 80
+    },
+    {
+      "valueId": 9,
+      "key": "bmp280.pressure",
+      "label": "Pression BMP280",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "display": "value",
+      "unit": "hPa",
+      "decimals": 1,
+      "order": 90
+    },
+    {
+      "valueId": 10,
+      "key": "sht40.temperature",
+      "label": "Temperature SHT40",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "display": "value",
+      "unit": "\u00b0C",
+      "decimals": 1,
+      "order": 100
+    },
+    {
+      "valueId": 11,
+      "key": "sht40.humidity",
+      "label": "Humidite SHT40",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "display": "value",
+      "unit": "%",
+      "decimals": 1,
+      "order": 110
+    },
+    {
+      "valueId": 12,
+      "key": "bme680.humidity",
+      "label": "Humidite BME680",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "display": "value",
+      "unit": "%",
+      "decimals": 1,
+      "order": 120
+    },
+    {
+      "valueId": 13,
+      "key": "bme680.pressure",
+      "label": "Pression BME680",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "display": "value",
+      "unit": "hPa",
+      "decimals": 1,
+      "order": 130
+    },
+    {
+      "valueId": 14,
+      "key": "bme680.gaz",
+      "label": "Gaz BME680",
+      "type": "float",
+      "domain": "pool",
+      "group": "Sondes",
+      "display": "value",
+      "unit": "Ohm",
+      "decimals": 0,
+      "order": 140
     }
   ]
 }

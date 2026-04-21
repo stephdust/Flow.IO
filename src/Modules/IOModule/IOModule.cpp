@@ -33,6 +33,8 @@ static constexpr uint8_t kCfgBranchIoA11 = 38;
 static constexpr uint8_t kCfgBranchIoA12 = 39;
 static constexpr uint8_t kCfgBranchIoA13 = 40;
 static constexpr uint8_t kCfgBranchIoA14 = 41;
+static constexpr uint8_t kCfgBranchIoA15 = 42;
+static constexpr uint8_t kCfgBranchIoA16 = 43;
 static constexpr uint8_t kCfgBranchIoD0 = 9;
 static constexpr uint8_t kCfgBranchIoD1 = 10;
 static constexpr uint8_t kCfgBranchIoD2 = 11;
@@ -103,6 +105,8 @@ static constexpr MqttConfigRouteProducer::Route kIoCfgRoutes[] = {
     FLOW_IO_ANALOG_ROUTE_ENTRY(39, kCfgBranchIoA12, "12"),
     FLOW_IO_ANALOG_ROUTE_ENTRY(40, kCfgBranchIoA13, "13"),
     FLOW_IO_ANALOG_ROUTE_ENTRY(41, kCfgBranchIoA14, "14"),
+    FLOW_IO_ANALOG_ROUTE_ENTRY(42, kCfgBranchIoA15, "15"),
+    FLOW_IO_ANALOG_ROUTE_ENTRY(43, kCfgBranchIoA16, "16"),
 };
 #undef FLOW_IO_ANALOG_ROUTE_ENTRY
 }
@@ -448,9 +452,9 @@ int32_t IOModule::analogPrecision(uint8_t idx) const
     return sanitizeAnalogPrecision_(analogCfg_[idx].precision);
 }
 
-uint16_t IOModule::takeAnalogConfigDirtyMask()
+uint32_t IOModule::takeAnalogConfigDirtyMask()
 {
-    const uint16_t mask = analogConfigDirtyMask_;
+    const uint32_t mask = analogConfigDirtyMask_;
     analogConfigDirtyMask_ = 0;
     return mask;
 }
@@ -531,6 +535,18 @@ bool IOModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) co
             return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_BMP280, 0U, writer);
         case RuntimeUiBme680Temp:
             return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_BME680, 0U, writer);
+        case RuntimeUiBmp280Pressure:
+            return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_BMP280, 1U, writer);
+        case RuntimeUiSht40Temperature:
+            return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_SHT40, 0U, writer);
+        case RuntimeUiSht40Humidity:
+            return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_SHT40, 1U, writer);
+        case RuntimeUiBme680Humidity:
+            return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_BME680, 1U, writer);
+        case RuntimeUiBme680Pressure:
+            return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_BME680, 2U, writer);
+        case RuntimeUiBme680Gaz:
+            return writeAnalogProviderRuntimeValue_(runtimeId, IO_SRC_BME680, 3U, writer);
         case RuntimeUiWaterTemp:
             runtimeIndex = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterTemp].runtimeIndex;
             break;
@@ -1218,7 +1234,7 @@ void IOModule::refreshAnalogConfigState_()
     }
 
     bool changed = false;
-    uint16_t changedMask = 0;
+    uint32_t changedMask = 0;
     for (uint8_t i = 0; i < ANALOG_CFG_SLOTS; ++i) {
         int32_t p = sanitizeAnalogPrecision_(analogCfg_[i].precision);
         if (analogPrecisionLast_[i] == p) continue;
@@ -1226,7 +1242,7 @@ void IOModule::refreshAnalogConfigState_()
         if (runtimeReady_ && i < MAX_ANALOG_ENDPOINTS && analogSlots_[i].used) {
             analogSlots_[i].def.precision = p;
         }
-        changedMask |= (uint16_t)(1u << i);
+        changedMask |= (uint32_t)(1u << i);
         changed = true;
     }
 
@@ -1234,7 +1250,7 @@ void IOModule::refreshAnalogConfigState_()
         LOGI("Input precision changed -> publish runtime snapshot");
         const uint32_t nowMs = millis();
         for (uint8_t i = 0; i < ANALOG_CFG_SLOTS; ++i) {
-            if ((changedMask & (uint16_t)(1u << i)) == 0) continue;
+            if ((changedMask & (uint32_t)(1u << i)) == 0) continue;
             forceAnalogSnapshotPublish_(i, nowMs);
         }
         analogConfigDirtyMask_ |= changedMask;
@@ -2226,8 +2242,14 @@ void IOModule::pollPulseOutputs_(uint32_t nowMs)
 
 AnalogSensorEndpoint* IOModule::allocAnalogEndpoint_(const char* endpointId)
 {
+    if (!analogEndpointPool_) {
+        analogEndpointPool_ = static_cast<AnalogSensorEndpoint*>(
+            heap_caps_malloc(sizeof(AnalogSensorEndpoint) * MAX_ANALOG_ENDPOINTS, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
+        );
+        if (!analogEndpointPool_) return nullptr;
+    }
     if (analogEndpointPoolUsed_ >= MAX_ANALOG_ENDPOINTS) return nullptr;
-    void* mem = analogEndpointPool_[analogEndpointPoolUsed_++];
+    void* mem = &analogEndpointPool_[analogEndpointPoolUsed_++];
     return new (mem) AnalogSensorEndpoint(endpointId);
 }
 
@@ -2440,6 +2462,8 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
         FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(12, kCfgBranchIoA12)
         FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(13, kCfgBranchIoA13)
         FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(14, kCfgBranchIoA14)
+        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(15, kCfgBranchIoA15)
+        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(16, kCfgBranchIoA16)
 #undef FLOW_IO_REGISTER_EXTRA_ANALOG_CFG
     } else {
         LOGE("failed to allocate extra analog config vars");

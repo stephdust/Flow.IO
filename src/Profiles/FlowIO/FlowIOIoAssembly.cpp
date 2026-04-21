@@ -19,7 +19,7 @@ namespace {
 
 using Profiles::FlowIO::ModuleInstances;
 namespace FlowIoLayout = Profiles::FlowIO::IoLayout;
-static constexpr uint8_t kFlowIoAnalogHaSlots = 15;
+static constexpr uint8_t kFlowIoAnalogHaSlots = 17;
 
 struct FlowIoAnalogHaSpec {
     const char* objectSuffix = nullptr;
@@ -43,6 +43,8 @@ constexpr FlowIoAnalogHaSpec kAnalogHaSpecs[kFlowIoAnalogHaSlots] = {
     {"io_spare", "Spare", "mdi:sine-wave", nullptr},
     {"io_wat_tmp", "Water Temperature", "mdi:water-thermometer", "\xC2\xB0""C"},
     {"io_air_tmp", "Air Temperature", "mdi:thermometer", "\xC2\xB0""C"},
+    {nullptr, nullptr, "mdi:sine-wave", nullptr},
+    {nullptr, nullptr, "mdi:sine-wave", nullptr},
     {nullptr, nullptr, "mdi:sine-wave", nullptr},
     {nullptr, nullptr, "mdi:sine-wave", nullptr},
     {nullptr, nullptr, "mdi:sine-wave", nullptr},
@@ -376,7 +378,7 @@ void configureIoModule(const AppContext& ctx, ModuleInstances& modules)
         requireSetup(modules.ioModule.defineAnalogInput(def), "define analog input");
     }
 
-    for (uint8_t i = 6; i < 15; ++i) {
+    for (uint8_t i = 6; i < 17; ++i) {
         IOAnalogDefinition def{};
         snprintf(def.id, sizeof(def.id), "a%02u", (unsigned)i);
         def.ioId = (IoId)(IO_ID_AI_BASE + i);
@@ -419,7 +421,7 @@ void registerIoHomeAssistant(AppContext& ctx, ModuleInstances& modules)
 void refreshIoHomeAssistantIfNeeded(ModuleInstances& modules)
 {
     if (!modules.haService) return;
-    const uint16_t dirtyMask = modules.ioModule.takeAnalogConfigDirtyMask();
+    const uint32_t dirtyMask = modules.ioModule.takeAnalogConfigDirtyMask();
     if (dirtyMask == 0) return;
 
     syncAnalogSensors(modules);

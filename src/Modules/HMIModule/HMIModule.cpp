@@ -77,6 +77,7 @@ static constexpr uint32_t kRtcFallbackDelayMs = 30000U;
 static constexpr uint32_t kRtcFallbackRetryMs = 10000U;
 static constexpr uint32_t kRtcPushRetryMs = 60000U;
 static constexpr uint16_t kNextionRtcReadTimeoutMs = 180U;
+static constexpr uint32_t kNextionDisplayVersionCurrent = 1U;
 
 static const char* const kMonthNamesFr[] = {
     "Janvier",
@@ -282,7 +283,8 @@ static const ConfigMenuHint kHints[] = {
 
 void HMIModule::applyOutputConfig_()
 {
-    IHmiDriver* wantedDriver = cfgData_.nextionEnabled ? static_cast<IHmiDriver*>(&nextion_) : nullptr;
+    IHmiDriver* wantedDriver =
+        (cfgData_.nextionEnabled && !nextionDisabledByVersion_) ? static_cast<IHmiDriver*>(&nextion_) : nullptr;
     if (driver_ != wantedDriver) {
         driver_ = wantedDriver;
         driverReady_ = false;
@@ -407,6 +409,7 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     nextion_.setConfig(dcfg);
     applyOutputConfig_();
     driverReady_ = false;
+    nextionDisabledByVersion_ = false;
     configMenuReady_ = false;
     configMenuActive_ = false;
     viewDirty_ = true;
@@ -1694,8 +1697,21 @@ void HMIModule::loop()
                 nextionVersion_ = nextion_.displayVersion();
                 if (nextionVersionDetected_) {
                     LOGI("Ecran Nextion version %04lu detecte.", (unsigned long)nextionVersion_);
+                    if (nextionVersion_ != kNextionDisplayVersionCurrent) {
+                        LOGW("Ecran Nextion version %04lu non supportee (attendu %04lu). Affichage Nextion desactive.",
+                             (unsigned long)nextionVersion_,
+                             (unsigned long)kNextionDisplayVersionCurrent);
+                        nextionDisabledByVersion_ = true;
+                        applyOutputConfig_();
+                        vTaskDelay(pdMS_TO_TICKS(25));
+                        return;
+                    }
                 } else {
-                    LOGI("Ecran Nextion version non detectee.");
+                    LOGW("Ecran Nextion version non detectee. Affichage Nextion desactive.");
+                    nextionDisabledByVersion_ = true;
+                    applyOutputConfig_();
+                    vTaskDelay(pdMS_TO_TICKS(25));
+                    return;
                 }
             }
             viewDirty_ = true;

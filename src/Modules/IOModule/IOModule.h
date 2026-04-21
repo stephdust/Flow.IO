@@ -81,7 +81,7 @@ public:
     int32_t digitalInputPrecision(uint8_t logicalIdx) const;
     bool digitalOutputSlotUsed(uint8_t logicalIdx) const;
     int32_t analogPrecision(uint8_t idx) const;
-    uint16_t takeAnalogConfigDirtyMask();
+    uint32_t takeAnalogConfigDirtyMask();
     const char* endpointLabel(const char* endpointId) const;
     bool buildInputSnapshot(char* out, size_t len, uint32_t& maxTsOut) const;
     bool buildOutputSnapshot(char* out, size_t len, uint32_t& maxTsOut) const;
@@ -107,6 +107,12 @@ private:
         RuntimeUiPsi = 6,
         RuntimeUiBmp280Temp = 7,
         RuntimeUiBme680Temp = 8,
+        RuntimeUiBmp280Pressure = 9,
+        RuntimeUiSht40Temperature = 10,
+        RuntimeUiSht40Humidity = 11,
+        RuntimeUiBme680Humidity = 12,
+        RuntimeUiBme680Pressure = 13,
+        RuntimeUiBme680Gaz = 14,
     };
 
     static bool tickFastAds_(void* ctx, uint32_t nowMs);
@@ -198,7 +204,7 @@ private:
     IMaskOutputDriver* allocPcfDriver_(const char* driverId, I2CBus* bus, uint8_t address);
     Pcf8574MaskEndpoint* allocMaskEndpoint_(const char* endpointId, MaskWriteFn writeFn, MaskReadFn readFn, void* fnCtx);
 
-    static constexpr uint8_t MAX_ANALOG_ENDPOINTS = 15;
+    static constexpr uint8_t MAX_ANALOG_ENDPOINTS = 17;
     static constexpr uint8_t MAX_DIGITAL_INPUTS = 5;
     static constexpr uint8_t MAX_DIGITAL_OUTPUTS = 10;
     static constexpr uint8_t MAX_DIGITAL_SLOTS = MAX_DIGITAL_INPUTS + MAX_DIGITAL_OUTPUTS;
@@ -298,6 +304,16 @@ private:
         ConfigVariable<float,0> a14C0Var_;
         ConfigVariable<float,0> a14C1Var_;
         ConfigVariable<int32_t,0> a14PrecVar_;
+        ConfigVariable<char,0> a15NameVar_;
+        ConfigVariable<PhysicalPortId,0> a15BindingVar_;
+        ConfigVariable<float,0> a15C0Var_;
+        ConfigVariable<float,0> a15C1Var_;
+        ConfigVariable<int32_t,0> a15PrecVar_;
+        ConfigVariable<char,0> a16NameVar_;
+        ConfigVariable<PhysicalPortId,0> a16BindingVar_;
+        ConfigVariable<float,0> a16C0Var_;
+        ConfigVariable<float,0> a16C1Var_;
+        ConfigVariable<int32_t,0> a16PrecVar_;
 
         explicit ExtraAnalogConfigVars(IOAnalogSlotConfig* analogCfg)
             : a6NameVar_{NVS_KEY(NvsKeys::Io::IO_A6NM), "a06_name", "io/input/a06", ConfigType::CharArray, (char*)analogCfg[6].name, ConfigPersistence::Persistent, sizeof(analogCfg[6].name)},
@@ -344,7 +360,17 @@ private:
               a14BindingVar_{NVS_KEY(NvsKeys::Io::IO_A14BP), "binding_port", "io/input/a14", ConfigType::UInt16, &analogCfg[14].bindingPort, ConfigPersistence::Persistent, 0},
               a14C0Var_{NVS_KEY(NvsKeys::Io::IO_A140), "a14_c0", "io/input/a14", ConfigType::Float, &analogCfg[14].c0, ConfigPersistence::Persistent, 0},
               a14C1Var_{NVS_KEY(NvsKeys::Io::IO_A141), "a14_c1", "io/input/a14", ConfigType::Float, &analogCfg[14].c1, ConfigPersistence::Persistent, 0},
-              a14PrecVar_{NVS_KEY(NvsKeys::Io::IO_A14P), "a14_prec", "io/input/a14", ConfigType::Int32, &analogCfg[14].precision, ConfigPersistence::Persistent, 0}
+              a14PrecVar_{NVS_KEY(NvsKeys::Io::IO_A14P), "a14_prec", "io/input/a14", ConfigType::Int32, &analogCfg[14].precision, ConfigPersistence::Persistent, 0},
+              a15NameVar_{NVS_KEY(NvsKeys::Io::IO_A15NM), "a15_name", "io/input/a15", ConfigType::CharArray, (char*)analogCfg[15].name, ConfigPersistence::Persistent, sizeof(analogCfg[15].name)},
+              a15BindingVar_{NVS_KEY(NvsKeys::Io::IO_A15BP), "binding_port", "io/input/a15", ConfigType::UInt16, &analogCfg[15].bindingPort, ConfigPersistence::Persistent, 0},
+              a15C0Var_{NVS_KEY(NvsKeys::Io::IO_A150), "a15_c0", "io/input/a15", ConfigType::Float, &analogCfg[15].c0, ConfigPersistence::Persistent, 0},
+              a15C1Var_{NVS_KEY(NvsKeys::Io::IO_A151), "a15_c1", "io/input/a15", ConfigType::Float, &analogCfg[15].c1, ConfigPersistence::Persistent, 0},
+              a15PrecVar_{NVS_KEY(NvsKeys::Io::IO_A15P), "a15_prec", "io/input/a15", ConfigType::Int32, &analogCfg[15].precision, ConfigPersistence::Persistent, 0},
+              a16NameVar_{NVS_KEY(NvsKeys::Io::IO_A16NM), "a16_name", "io/input/a16", ConfigType::CharArray, (char*)analogCfg[16].name, ConfigPersistence::Persistent, sizeof(analogCfg[16].name)},
+              a16BindingVar_{NVS_KEY(NvsKeys::Io::IO_A16BP), "binding_port", "io/input/a16", ConfigType::UInt16, &analogCfg[16].bindingPort, ConfigPersistence::Persistent, 0},
+              a16C0Var_{NVS_KEY(NvsKeys::Io::IO_A160), "a16_c0", "io/input/a16", ConfigType::Float, &analogCfg[16].c0, ConfigPersistence::Persistent, 0},
+              a16C1Var_{NVS_KEY(NvsKeys::Io::IO_A161), "a16_c1", "io/input/a16", ConfigType::Float, &analogCfg[16].c1, ConfigPersistence::Persistent, 0},
+              a16PrecVar_{NVS_KEY(NvsKeys::Io::IO_A16P), "a16_prec", "io/input/a16", ConfigType::Int32, &analogCfg[16].precision, ConfigPersistence::Persistent, 0}
         {
         }
     };
@@ -445,7 +471,7 @@ private:
 
     AnalogSlot analogSlots_[MAX_ANALOG_ENDPOINTS]{};
     DigitalSlot digitalSlots_[MAX_DIGITAL_SLOTS]{};
-    alignas(AnalogSensorEndpoint) uint8_t analogEndpointPool_[MAX_ANALOG_ENDPOINTS][sizeof(AnalogSensorEndpoint)]{};
+    AnalogSensorEndpoint* analogEndpointPool_ = nullptr;
     alignas(DigitalSensorEndpoint) uint8_t digitalSensorEndpointPool_[MAX_DIGITAL_INPUTS][sizeof(DigitalSensorEndpoint)]{};
     alignas(DigitalActuatorEndpoint) uint8_t digitalActuatorEndpointPool_[MAX_DIGITAL_OUTPUTS][sizeof(DigitalActuatorEndpoint)]{};
     alignas(GpioDriver) uint8_t gpioDriverPool_[MAX_DIGITAL_SLOTS][sizeof(GpioDriver)]{};
@@ -480,7 +506,7 @@ private:
     int32_t* analogPrecisionLast_ = nullptr;
     float* digitalCounterLastConfigTotals_ = nullptr;
     bool analogPrecisionLastInit_ = false;
-    uint16_t analogConfigDirtyMask_ = 0;
+    uint32_t analogConfigDirtyMask_ = 0;
     ExtraAnalogConfigVars* extraAnalogCfgVars_ = nullptr;
     ExtraDigitalInputModeConfigVars* extraDigitalInputModeCfgVars_ = nullptr;
     ExtraDigitalCounterConfigVars* extraDigitalCounterCfgVars_ = nullptr;

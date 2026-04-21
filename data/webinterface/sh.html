@@ -395,6 +395,18 @@
                 <div id="flowCfgFields" class="control-fields"></div>
                 <div id="flowCfgStatus" class="config-status">Configuration distante prête.</div>
                 <div id="flowCfgBackupStatus" class="config-status config-status-muted">Sauvegarde configuration prête.</div>
+                <div id="flowCfgBackupProgress" class="flow-cfg-backup-progress" hidden>
+                  <div class="ug-header flow-cfg-backup-progress-head">
+                    <span class="ug-label">Export ConfigStore</span>
+                    <span id="flowCfgBackupPct" class="ug-pct">0%</span>
+                  </div>
+                  <div class="bar-shell">
+                    <div id="flowCfgBackupProgressBar" class="bar-fill" style="width:0%">
+                      <div class="bar-shimmer"></div>
+                      <div id="flowCfgBackupProgressDot" class="bar-dot"></div>
+                    </div>
+                  </div>
+                </div>
                 <div class="control-actions">
                   <button id="flowCfgApply" class="btn-primary">Appliquer</button>
                 </div>

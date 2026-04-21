@@ -21,6 +21,7 @@ namespace {
 constexpr uint8_t kInterlinkBus = 1;  // Interlink is fixed on I2C controller 1 (Wire1 on ESP32).
 constexpr uint8_t kI2cClientCfgProducerId = 51;
 constexpr uint8_t kI2cClientCfgBranch = 2;
+constexpr uint8_t kI2cLcdCfgBranch = 3;
 constexpr uint8_t kI2cDashboardCfgBranchBase = 10;
 constexpr size_t kRuntimeStatusDomainBufSize = 640;
 constexpr uint32_t kRuntimeCacheTtlMs = 5000U;
@@ -37,6 +38,7 @@ constexpr uint8_t dashboardCfgBranchId_(uint8_t slot)
 }
 static constexpr MqttConfigRouteProducer::Route kI2cClientCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::I2cCfg, kI2cClientCfgBranch}, "elink/client", "elink/client", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {2, {(uint8_t)ConfigModuleId::I2cCfg, kI2cLcdCfgBranch}, "elink/lcd", "elink/lcd", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {kCfgMsgDashboardSlotBase + 0U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(0U)}, "elink/lcd/sondes/slot00", "elink/lcd/sondes/slot00", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {kCfgMsgDashboardSlotBase + 1U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(1U)}, "elink/lcd/sondes/slot01", "elink/lcd/sondes/slot01", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {kCfgMsgDashboardSlotBase + 2U, {(uint8_t)ConfigModuleId::I2cCfg, dashboardCfgBranchId_(2U)}, "elink/lcd/sondes/slot02", "elink/lcd/sondes/slot02", (uint8_t)MqttPublishPriority::Normal, nullptr},
