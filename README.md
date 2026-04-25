@@ -80,6 +80,10 @@ La documentation complète (architecture, services Core, flux EventBus/DataStore
 - [Protocole Flow.IO <-> Supervisor (I2C cfg/status)](docs/core/flow-supervisor-i2c-protocol.md)
 - [Quality Gates Modules (notes + description des 10 points)](docs/core/module-quality-gates.md)
 
+## Documentation utilisateur
+
+- [Documentation utilisateurs (PDF)](docs/Documentation%20utilisateurs.pdf)
+
 ## Référence rapide
 
 - Firmware: ESP32 + FreeRTOS

@@ -2208,8 +2208,13 @@ void WebInterfaceModule::startServer_()
         bool truncated = false;
         char moduleJson[Limits::Mqtt::Buffers::StateCfg] = {0};
         if (!flowCfgSvc_->getModuleJson(flowCfgSvc_->ctx, moduleStr, moduleJson, sizeof(moduleJson), &truncated)) {
-            request->send(500, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flowcfg.module.get\"}}");
+            if (moduleJson[0] != '\0') {
+                LOGW("flowcfg.module failed module=%s details=%s", moduleStr, moduleJson);
+                request->send(500, "application/json", moduleJson);
+            } else {
+                request->send(500, "application/json",
+                              "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flowcfg.module.get\"}}");
+            }
             return;
         }
 

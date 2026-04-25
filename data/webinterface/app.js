@@ -6443,19 +6443,30 @@
     async function flowCfgBackupFetchModule(storeName, moduleName) {
       const basePath = flowCfgBackupStoreBasePath(storeName);
       const fetchImpl = flowCfgBackupStoreFetchImpl(storeName);
-      const data = await fetchOkJson(
-        basePath + '/module?name=' + encodeURIComponent(moduleName),
-        { cache: 'no-store' },
-        'lecture module ' + moduleName + ' (' + flowCfgBackupStoreLabel(storeName) + ') impossible',
-        fetchImpl
-      );
-      if (!data || typeof data.data !== 'object' || Array.isArray(data.data)) {
-        throw new Error('module ' + moduleName + ' invalide (' + flowCfgBackupStoreLabel(storeName) + ')');
+      const maxAttempts = storeName === 'flow' ? 3 : 1;
+      let lastError = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          const data = await fetchOkJson(
+            basePath + '/module?name=' + encodeURIComponent(moduleName),
+            { cache: 'no-store' },
+            'lecture module ' + moduleName + ' (' + flowCfgBackupStoreLabel(storeName) + ') impossible',
+            fetchImpl
+          );
+          if (!data || typeof data.data !== 'object' || Array.isArray(data.data)) {
+            throw new Error('module ' + moduleName + ' invalide (' + flowCfgBackupStoreLabel(storeName) + ')');
+          }
+          return {
+            data: data.data,
+            truncated: !!data.truncated
+          };
+        } catch (err) {
+          lastError = err;
+          if (attempt >= maxAttempts) break;
+          await waitMs(120 * attempt);
+        }
       }
-      return {
-        data: data.data,
-        truncated: !!data.truncated
-      };
+      throw (lastError || new Error('lecture module ' + moduleName + ' impossible'));
     }
 
     function flowCfgBackupValidatePrimitiveValue(value, moduleName, key) {

@@ -319,6 +319,45 @@ bool writeApplyStatusError_(char* out, size_t outLen, const char* step, uint8_t 
     return writeErrorJson(out, outLen, code, where);
 }
 
+bool writeGetModuleStatusError_(char* out, size_t outLen, const char* step, bool transportOk, uint8_t status)
+{
+    const bool isBegin = step && strcmp(step, "begin") == 0;
+    const bool isChunk = step && strcmp(step, "chunk") == 0;
+
+    if (!transportOk) {
+        if (isBegin) return writeErrorJson(out, outLen, ErrorCode::IoError, "flowcfg.get.begin.transport");
+        if (isChunk) return writeErrorJson(out, outLen, ErrorCode::IoError, "flowcfg.get.chunk.transport");
+        return writeErrorJson(out, outLen, ErrorCode::IoError, "flowcfg.get.transport");
+    }
+
+    switch (status) {
+        case I2cCfgProtocol::StatusNotReady:
+            if (isBegin) return writeErrorJson(out, outLen, ErrorCode::NotReady, "flowcfg.get.begin.not_ready");
+            if (isChunk) return writeErrorJson(out, outLen, ErrorCode::NotReady, "flowcfg.get.chunk.not_ready");
+            return writeErrorJson(out, outLen, ErrorCode::NotReady, "flowcfg.get.not_ready");
+        case I2cCfgProtocol::StatusBadRequest:
+            if (isBegin) return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.begin.bad_request");
+            if (isChunk) return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.chunk.bad_request");
+            return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.bad_request");
+        case I2cCfgProtocol::StatusRange:
+            if (isBegin) return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.begin.range");
+            if (isChunk) return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.chunk.range");
+            return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.range");
+        case I2cCfgProtocol::StatusOverflow:
+            if (isBegin) return writeErrorJson(out, outLen, ErrorCode::ArgsTooLarge, "flowcfg.get.begin.overflow");
+            if (isChunk) return writeErrorJson(out, outLen, ErrorCode::ArgsTooLarge, "flowcfg.get.chunk.overflow");
+            return writeErrorJson(out, outLen, ErrorCode::ArgsTooLarge, "flowcfg.get.overflow");
+        case I2cCfgProtocol::StatusFailed:
+            if (isBegin) return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.begin.failed");
+            if (isChunk) return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.chunk.failed");
+            return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.failed");
+        default:
+            if (isBegin) return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.begin.status");
+            if (isChunk) return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.chunk.status");
+            return writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.status");
+    }
+}
+
 }  // namespace
 
 I2CCfgClientModule::I2CCfgClientModule(const BoardSpec& board)
@@ -1488,17 +1527,20 @@ bool I2CCfgClientModule::getModuleJson_(const char* module, char* out, size_t ou
 {
     if (truncated) *truncated = false;
     if (!out || outLen == 0 || !module || module[0] == '\0') return false;
+    out[0] = '\0';
     if (!beginRequestSession_(pdMS_TO_TICKS(1500), true)) {
         (void)writeErrorJson(out, outLen, ErrorCode::NotReady, "flowcfg.get.busy");
         return false;
     }
     if (!ensureReady_()) {
+        (void)writeErrorJson(out, outLen, ErrorCode::NotReady, "flowcfg.get.link");
         endRequestSession_();
         return false;
     }
 
     const size_t moduleLen = strnlen(module, I2cCfgProtocol::MaxPayload);
     if (moduleLen == 0 || moduleLen >= I2cCfgProtocol::MaxPayload) {
+        (void)writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.module.invalid");
         endRequestSession_();
         return false;
     }
@@ -1514,15 +1556,22 @@ bool I2CCfgClientModule::getModuleJson_(const char* module, char* out, size_t ou
                    resp,
                    sizeof(resp),
                    respLen);
-    if (!okBegin ||
-        status != I2cCfgProtocol::StatusOk ||
-        respLen < 3) {
+    if (!okBegin || status != I2cCfgProtocol::StatusOk) {
         LOGW("getModule failed module=%s step=begin transport=%s status=%u (%s) resp_len=%u",
              module,
              okBegin ? "ok" : "failed",
              (unsigned)status,
              statusName(status),
              (unsigned)respLen);
+        (void)writeGetModuleStatusError_(out, outLen, "begin", okBegin, status);
+        endRequestSession_();
+        return false;
+    }
+    if (respLen < 3) {
+        LOGW("getModule failed module=%s step=begin invalid_reply resp_len=%u",
+             module,
+             (unsigned)respLen);
+        (void)writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.begin.reply");
         endRequestSession_();
         return false;
     }
@@ -1536,6 +1585,7 @@ bool I2CCfgClientModule::getModuleJson_(const char* module, char* out, size_t ou
          isTruncated ? "true" : "false");
 
     if (totalLen + 1 > outLen) {
+        (void)writeErrorJson(out, outLen, ErrorCode::ArgsTooLarge, "flowcfg.get.reply.overflow");
         endRequestSession_();
         return false;
     }
@@ -1553,8 +1603,7 @@ bool I2CCfgClientModule::getModuleJson_(const char* module, char* out, size_t ou
         memset(resp, 0, sizeof(resp));
         respLen = 0;
         const bool okChunk = transact_(I2cCfgProtocol::OpGetModuleChunk, req, sizeof(req), status, resp, sizeof(resp), respLen);
-        if (!okChunk ||
-            status != I2cCfgProtocol::StatusOk) {
+        if (!okChunk || status != I2cCfgProtocol::StatusOk) {
             LOGW("getModule failed module=%s step=chunk off=%u want=%u transport=%s status=%u (%s) resp_len=%u",
                  module,
                  (unsigned)written,
@@ -1563,6 +1612,7 @@ bool I2CCfgClientModule::getModuleJson_(const char* module, char* out, size_t ou
                  (unsigned)status,
                  statusName(status),
                  (unsigned)respLen);
+            (void)writeGetModuleStatusError_(out, outLen, "chunk", okChunk, status);
             endRequestSession_();
             return false;
         }
@@ -1572,6 +1622,7 @@ bool I2CCfgClientModule::getModuleJson_(const char* module, char* out, size_t ou
                  (unsigned)written,
                  (unsigned)respLen,
                  (unsigned)totalLen);
+            (void)writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.get.chunk.reply");
             endRequestSession_();
             return false;
         }
