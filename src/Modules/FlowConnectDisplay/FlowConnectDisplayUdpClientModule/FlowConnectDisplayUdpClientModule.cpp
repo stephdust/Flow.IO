@@ -1,14 +1,15 @@
-#include "Modules/Display/DisplayUdpClientModule/DisplayUdpClientModule.h"
+#include "Modules/FlowConnectDisplay/FlowConnectDisplayUdpClientModule/FlowConnectDisplayUdpClientModule.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "Board/BoardSerialMap.h"
 #include "Core/FirmwareVersion.h"
 
-#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::DisplayUdpClientModule)
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::FlowConnectDisplayUdpClientModule)
 #include "Core/ModuleLog.h"
 
-void DisplayUdpClientModule::init(ConfigStore& cfgStore, ServiceRegistry& services)
+void FlowConnectDisplayUdpClientModule::init(ConfigStore& cfgStore, ServiceRegistry& services)
 {
     cfgStore.registerVar(tokenVar_);
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
@@ -22,36 +23,43 @@ void DisplayUdpClientModule::init(ConfigStore& cfgStore, ServiceRegistry& servic
     cfg.configPageId = 2U;
     cfg.homePageAliasId = 0U;
     nextion_.setConfig(cfg);
+    nextion_.setDebugCallback(&FlowConnectDisplayUdpClientModule::nextionDebugCallback_, this);
 }
 
-void DisplayUdpClientModule::loop()
+void FlowConnectDisplayUdpClientModule::loop()
 {
     tick(millis());
     vTaskDelay(pdMS_TO_TICKS(20));
 }
 
-bool DisplayUdpClientModule::begin()
+bool FlowConnectDisplayUdpClientModule::begin()
 {
     if (!nextion_.begin()) return false;
+    if (!flowConnectInitialized_) {
+        setFlowConnectionVisible_(false, "boot", true);
+        flowConnectInitialized_ = true;
+    }
+    probeNextionVersion_(millis(), true);
     if (started_) return true;
     if (!wifiConnected_()) return true;
 
     if (!udp_.begin(HMI_UDP_PORT)) {
-        LOGW("Display UDP begin failed port=%u", (unsigned)HMI_UDP_PORT);
+        LOGW("FCD UDP begin failed port=%u", (unsigned)HMI_UDP_PORT);
         return false;
     }
     started_ = true;
-    LOGI("Display UDP client listening port=%u", (unsigned)HMI_UDP_PORT);
+    LOGI("FCD UDP client listening port=%u", (unsigned)HMI_UDP_PORT);
     return true;
 }
 
-void DisplayUdpClientModule::tick(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::tick(uint32_t nowMs)
 {
     if (!begin()) return;
     nextion_.tick(nowMs);
 
     if (!wifiConnected_()) {
         linked_ = false;
+        setFlowConnectionVisible_(false, "wifi-offline");
         return;
     }
     if (!started_) return;
@@ -60,7 +68,7 @@ void DisplayUdpClientModule::tick(uint32_t nowMs)
     servicePendingAck_(nowMs);
     serviceConfigRendering_(nowMs);
     if (inputLocked_ && (int32_t)(nowMs - inputLockedAtMs_) > (int32_t)InputLockMaxMs) {
-        LOGW("Display Nextion touch lock watchdog expired");
+        LOGW("FCD Nextion touch lock watchdog expired");
         configBatchActive_ = false;
         configRenderPending_ = false;
         configValuesPending_ = false;
@@ -80,15 +88,20 @@ void DisplayUdpClientModule::tick(uint32_t nowMs)
     }
 }
 
-void DisplayUdpClientModule::sendHello_(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::sendHello_(uint32_t nowMs)
 {
     if ((uint32_t)(nowMs - lastHelloMs_) < HelloPeriodMs) return;
     lastHelloMs_ = nowMs;
+    probeNextionVersion_(nowMs);
 
     HmiUdpHelloPayload payload{};
     payload.tokenCrc = hmiUdpTokenCrc(cfgData_.token);
     payload.displayFw = 1U;
     payload.protoVersion = HMI_UDP_VERSION;
+    if (nextion_.hasDisplayVersion()) {
+        payload.nextionVersion = nextion_.displayVersion();
+        payload.flags |= HMI_UDP_HELLO_FLAG_NEXTION_VERSION_VALID;
+    }
 
     size_t packetLen = 0;
     if (!hmiUdpBuildPacket(txBuf_,
@@ -108,14 +121,27 @@ void DisplayUdpClientModule::sendHello_(uint32_t nowMs)
     (void)udp_.endPacket();
 }
 
-void DisplayUdpClientModule::sendPing_(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::probeNextionVersion_(uint32_t nowMs, bool force)
+{
+    if (nextion_.hasDisplayVersion()) return;
+    if (!force && (uint32_t)(nowMs - lastVersionProbeMs_) < VersionProbePeriodMs) return;
+    lastVersionProbeMs_ = nowMs;
+
+    if (nextion_.detectDisplayVersion()) {
+        LOGI("FCD Nextion version=%lu", (unsigned long)nextion_.displayVersion());
+    } else if (force) {
+        LOGW("FCD Nextion version not available yet");
+    }
+}
+
+void FlowConnectDisplayUdpClientModule::sendPing_(uint32_t nowMs)
 {
     if ((uint32_t)(nowMs - lastPingMs_) < PingPeriodMs) return;
     lastPingMs_ = nowMs;
     (void)sendPacket_(HmiUdpMsgType::Ping, nullptr, 0U);
 }
 
-void DisplayUdpClientModule::readUdp_(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::readUdp_(uint32_t nowMs)
 {
     int packetSize = udp_.parsePacket();
     while (packetSize > 0) {
@@ -135,12 +161,12 @@ void DisplayUdpClientModule::readUdp_(uint32_t nowMs)
     }
 }
 
-void DisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header, const uint8_t* payload, uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header, const uint8_t* payload, uint32_t nowMs)
 {
     lastRxSeq_ = header.seq;
     markSeen_(nowMs);
     const HmiUdpMsgType msgType = (HmiUdpMsgType)header.type;
-    LOGI("FlowIO -> Display msg=%s seq=%u ack=%u flags=0x%02X len=%u",
+    LOGI("FlowIO -> FCD msg=%s seq=%u ack=%u flags=0x%02X len=%u",
          msgTypeName_(msgType),
          (unsigned)header.seq,
          (unsigned)header.ack,
@@ -152,8 +178,12 @@ void DisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header, const uin
     if ((header.flags & HMI_UDP_FLAG_IS_ACK) != 0U || msgType == HmiUdpMsgType::Ack) {
         lastAck_ = header.ack;
         if (pendingLen_ > 0 && header.ack == pendingSeq_) {
-            LOGI("Display event ACK received seq=%u attempts=%u", (unsigned)pendingSeq_, (unsigned)pendingAttempts_);
+            LOGI("FCD %s ACK received seq=%u attempts=%u",
+                 msgTypeName_(pendingType_),
+                 (unsigned)pendingSeq_,
+                 (unsigned)pendingAttempts_);
             pendingLen_ = 0;
+            pendingType_ = HmiUdpMsgType::Error;
             pendingAttempts_ = 0;
         }
         return;
@@ -166,8 +196,12 @@ void DisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header, const uin
             linked_ = welcome->accepted != 0U;
             lostShown_ = false;
             if (linked_) {
-                LOGI("Display linked to FlowIO proto=%u fw=%u", (unsigned)welcome->protoVersion, (unsigned)welcome->flowFw);
+                setFlowConnectionVisible_(true, "welcome");
+                (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "");
+                LOGI("FCD linked to FlowIO proto=%u fw=%u", (unsigned)welcome->protoVersion, (unsigned)welcome->flowFw);
                 requestFullRefresh_("welcome");
+            } else {
+                setFlowConnectionVisible_(false, "welcome-rejected");
             }
             break;
         }
@@ -185,9 +219,23 @@ void DisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header, const uin
             (void)nextion_.publishHomeGaugePercent((HmiHomeGaugeField)p->field, p->percent);
             break;
         }
+        case HmiUdpMsgType::HomeV2Needles: {
+            if (header.len != sizeof(HmiUdpHomeV2NeedlesPayload) || !payload) return;
+            const auto* p = reinterpret_cast<const HmiUdpHomeV2NeedlesPayload*>(payload);
+            NextionV2NeedlePublish publish{};
+            publish.ph = (p->flags & HMI_UDP_V2_NEEDLE_PH) != 0U;
+            publish.orp = (p->flags & HMI_UDP_V2_NEEDLE_ORP) != 0U;
+            publish.psi = (p->flags & HMI_UDP_V2_NEEDLE_PSI) != 0U;
+            publish.phNeedle = p->phNeedle;
+            publish.orpNeedle = p->orpNeedle;
+            publish.psiNeedle = p->psiNeedle;
+            (void)nextion_.publishV2Needles(publish);
+            break;
+        }
         case HmiUdpMsgType::HomeStateBits: {
             if (header.len != sizeof(HmiUdpStateBitsPayload) || !payload) return;
             const auto* p = reinterpret_cast<const HmiUdpStateBitsPayload*>(payload);
+            LOGI("FCD apply HomeStateBits stateBits=0x%08lX", (unsigned long)p->stateBits);
             (void)nextion_.publishHomeStateBits(p->stateBits);
             break;
         }
@@ -213,7 +261,7 @@ void DisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header, const uin
             configValuesPending_ = false;
             setInputLocked_(true, "config-batch", nowMs);
             const bool loadingOk = nextion_.showConfigLoading(configView_.breadcrumb);
-            LOGI("Display config batch start page=%u/%u flags=0x%02X canBack=%u title='%s' loading=%d",
+            LOGI("FCD config batch start page=%u/%u flags=0x%02X canBack=%u title='%s' loading=%d",
                  (unsigned)p->page,
                  (unsigned)p->pageCount,
                  (unsigned)p->flags,
@@ -238,7 +286,7 @@ void DisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header, const uin
             row.widget = (ConfigMenuWidget)p->widget;
             copyText_(row.label, sizeof(row.label), p->label);
             copyText_(row.value, sizeof(row.value), p->value);
-            LOGI("Display config row row=%u widget=%s flags=0x%02X label='%s' value='%s'",
+            LOGI("FCD config row row=%u widget=%s flags=0x%02X label='%s' value='%s'",
                  (unsigned)p->row,
                  widgetName_(row.widget),
                  (unsigned)p->flags,
@@ -266,6 +314,9 @@ void DisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header, const uin
             (void)nextion_.writeRtc(rtc);
             break;
         }
+        case HmiUdpMsgType::RtcReadRequest:
+            (void)sendRtcReadResponse_();
+            break;
         case HmiUdpMsgType::FullRefresh:
             break;
         default:
@@ -273,7 +324,7 @@ void DisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header, const uin
     }
 }
 
-bool DisplayUdpClientModule::sendPacket_(HmiUdpMsgType type, const void* payload, uint8_t payloadLen, uint8_t flags)
+bool FlowConnectDisplayUdpClientModule::sendPacket_(HmiUdpMsgType type, const void* payload, uint8_t payloadLen, uint8_t flags)
 {
     if (!started_ || !wifiConnected_()) return false;
     size_t packetLen = 0;
@@ -285,7 +336,7 @@ bool DisplayUdpClientModule::sendPacket_(HmiUdpMsgType type, const void* payload
     return written == packetLen && udp_.endPacket() == 1;
 }
 
-bool DisplayUdpClientModule::sendAck_(uint16_t seq)
+bool FlowConnectDisplayUdpClientModule::sendAck_(uint16_t seq)
 {
     size_t packetLen = 0;
     if (!hmiUdpBuildPacket(txBuf_,
@@ -304,19 +355,24 @@ bool DisplayUdpClientModule::sendAck_(uint16_t seq)
     return written == packetLen && udp_.endPacket() == 1;
 }
 
-void DisplayUdpClientModule::pollNextion_()
+void FlowConnectDisplayUdpClientModule::pollNextion_()
 {
     uint8_t drained = 0;
     HmiEvent event{};
     while (drained < 4U && nextion_.pollEvent(event)) {
-        logEvent_("Nextion -> Display", event);
+        logEvent_("Nextion -> FCD", event);
+        if (event.type == HmiEventType::Home) {
+            uint8_t page = 0;
+            if (nextion_.currentPage(page)) lastFlowConnectPage_ = page;
+            setFlowConnectionVisible_(linked_, "nextion-home", true);
+        }
         if (event.type == HmiEventType::Home ||
             event.type == HmiEventType::ConfigExit ||
             (event.type == HmiEventType::Command && event.command == HmiCommandId::HomeSyncRequest)) {
             requestFullRefresh_("nextion-home", true);
         }
         if (inputLocked_) {
-            LOGI("Display drops Nextion event while input locked event=%s command=%s",
+            LOGI("FCD drops Nextion event while input locked event=%s command=%s",
                  eventTypeName_(event.type),
                  commandName_(event.command));
             ++drained;
@@ -327,7 +383,7 @@ void DisplayUdpClientModule::pollNextion_()
     }
 }
 
-void DisplayUdpClientModule::serviceEventTx_()
+void FlowConnectDisplayUdpClientModule::serviceEventTx_()
 {
     if (pendingLen_ > 0) return;
     HmiEvent event{};
@@ -335,11 +391,11 @@ void DisplayUdpClientModule::serviceEventTx_()
     (void)sendEvent_(event);
 }
 
-bool DisplayUdpClientModule::enqueueEvent_(const HmiEvent& event)
+bool FlowConnectDisplayUdpClientModule::enqueueEvent_(const HmiEvent& event)
 {
     const uint8_t next = (uint8_t)((eventHead_ + 1U) % NEXTION_EVENT_QUEUE_SIZE);
     if (next == eventTail_) {
-        LOGW("Display Nextion event queue full drop type=%s command=%s",
+        LOGW("FCD Nextion event queue full drop type=%s command=%s",
              eventTypeName_(event.type),
              commandName_(event.command));
         return false;
@@ -349,7 +405,7 @@ bool DisplayUdpClientModule::enqueueEvent_(const HmiEvent& event)
     return true;
 }
 
-bool DisplayUdpClientModule::dequeueEvent_(HmiEvent& out)
+bool FlowConnectDisplayUdpClientModule::dequeueEvent_(HmiEvent& out)
 {
     out = HmiEvent{};
     if (eventHead_ == eventTail_) return false;
@@ -358,26 +414,37 @@ bool DisplayUdpClientModule::dequeueEvent_(HmiEvent& out)
     return true;
 }
 
-bool DisplayUdpClientModule::sendEvent_(const HmiEvent& event)
+bool FlowConnectDisplayUdpClientModule::sendEvent_(const HmiEvent& event)
 {
     HmiUdpEventPayload payload{};
     hmiUdpEventToPayload(event, payload);
+    logEvent_("FCD -> FlowIO", event);
+    return queueReliablePacket_(HmiUdpMsgType::HmiEvent, &payload, sizeof(payload));
+}
+
+bool FlowConnectDisplayUdpClientModule::queueReliablePacket_(HmiUdpMsgType type, const void* payload, uint8_t payloadLen)
+{
+    if (pendingLen_ > 0) return false;
     pendingSeq_ = txSeq_;
+    pendingType_ = type;
     size_t packetLen = 0;
     if (!hmiUdpBuildPacket(pendingBuf_,
                            sizeof(pendingBuf_),
                            packetLen,
-                           HmiUdpMsgType::HmiEvent,
+                           type,
                            txSeq_++,
                            lastRxSeq_,
                            HMI_UDP_FLAG_ACK_REQUIRED,
-                           &payload,
-                           sizeof(payload))) {
+                           payload,
+                           payloadLen)) {
         pendingSeq_ = 0;
+        pendingType_ = HmiUdpMsgType::Error;
         return false;
     }
-    logEvent_("Display -> FlowIO", event);
-    LOGI("Display queued HmiEvent seq=%u len=%u", (unsigned)pendingSeq_, (unsigned)packetLen);
+    LOGI("FCD queued %s seq=%u len=%u",
+         msgTypeName_(type),
+         (unsigned)pendingSeq_,
+         (unsigned)packetLen);
     pendingLen_ = packetLen;
     pendingAttempts_ = 0;
     pendingLastSendMs_ = 0;
@@ -385,7 +452,29 @@ bool DisplayUdpClientModule::sendEvent_(const HmiEvent& event)
     return pendingLen_ > 0;
 }
 
-void DisplayUdpClientModule::requestFullRefresh_(const char* reason, bool force)
+bool FlowConnectDisplayUdpClientModule::sendRtcReadResponse_()
+{
+    HmiRtcDateTime rtc{};
+    if (!nextion_.readRtc(rtc, 180U)) {
+        LOGW("FCD Nextion RTC read failed");
+        return false;
+    }
+
+    HmiUdpRtcPayload payload{};
+    hmiUdpRtcToPayload(rtc, payload);
+    const bool ok = queueReliablePacket_(HmiUdpMsgType::RtcReadResponse, &payload, sizeof(payload));
+    LOGI("FCD RTC response queued ok=%d value=%u-%02u-%02u %02u:%02u:%02u",
+         ok ? 1 : 0,
+         (unsigned)rtc.year,
+         (unsigned)rtc.month,
+         (unsigned)rtc.day,
+         (unsigned)rtc.hour,
+         (unsigned)rtc.minute,
+         (unsigned)rtc.second);
+    return ok;
+}
+
+void FlowConnectDisplayUdpClientModule::requestFullRefresh_(const char* reason, bool force)
 {
     if (!linked_) return;
     const uint32_t now = millis();
@@ -396,58 +485,63 @@ void DisplayUdpClientModule::requestFullRefresh_(const char* reason, bool force)
     }
     lastHomeRefreshRequestMs_ = now;
     const bool ok = sendPacket_(HmiUdpMsgType::FullRefresh, nullptr, 0U);
-    LOGI("Display requested FlowIO full refresh reason=%s ok=%d",
+    LOGI("FCD requested FlowIO full refresh reason=%s ok=%d",
          reason ? reason : "unknown",
          ok ? 1 : 0);
 }
 
-void DisplayUdpClientModule::servicePageProbe_(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::servicePageProbe_(uint32_t nowMs)
 {
     if ((uint32_t)(nowMs - lastPageProbeMs_) >= PageProbePeriodMs) {
         lastPageProbeMs_ = nowMs;
         const bool ok = nextion_.requestPageReport();
         if (!ok) {
-            LOGW("Display Nextion page probe send failed");
+            LOGW("FCD Nextion page probe send failed");
         }
     }
 
     uint8_t page = 0;
     if (nextion_.currentPage(page)) {
         logDisplayState_("page-probe");
-        if (nextion_.isHomePage()) {
+        const bool pageChanged = page != lastFlowConnectPage_;
+        if (pageChanged) {
+            lastFlowConnectPage_ = page;
+        }
+        if (pageChanged && nextion_.isHomePage()) {
+            setFlowConnectionVisible_(linked_, "home-page-probe", true);
             requestFullRefresh_("home-page-probe");
         }
     }
 }
 
-void DisplayUdpClientModule::scheduleConfigRender_(uint32_t nowMs, const char* reason)
+void FlowConnectDisplayUdpClientModule::scheduleConfigRender_(uint32_t nowMs, const char* reason)
 {
     setInputLocked_(true, reason, nowMs);
     configRenderPending_ = true;
     configRenderRemaining_ = ConfigRenderPasses;
     configRenderDueMs_ = nowMs + ConfigRenderDelayMs;
-    LOGI("Display config render scheduled reason=%s rows=%u passes=%u",
+    LOGI("FCD config render scheduled reason=%s rows=%u passes=%u",
          reason ? reason : "unknown",
          (unsigned)configView_.rowCountOnPage,
          (unsigned)configRenderRemaining_);
     logDisplayState_("config-render-scheduled", true);
 }
 
-void DisplayUdpClientModule::scheduleConfigValuesRefresh_(uint32_t nowMs, const char* reason)
+void FlowConnectDisplayUdpClientModule::scheduleConfigValuesRefresh_(uint32_t nowMs, const char* reason)
 {
     configValuesPending_ = true;
     configValuesRemaining_ = ConfigValuesPasses;
     configValuesDueMs_ = nowMs + ConfigValuesDelayMs;
-    LOGI("Display config values refresh scheduled reason=%s passes=%u",
+    LOGI("FCD config values refresh scheduled reason=%s passes=%u",
          reason ? reason : "unknown",
          (unsigned)configValuesRemaining_);
 }
 
-void DisplayUdpClientModule::serviceConfigRendering_(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::serviceConfigRendering_(uint32_t nowMs)
 {
     if (configRenderPending_ && (int32_t)(nowMs - configRenderDueMs_) >= 0) {
         const bool ok = nextion_.renderConfigMenu(configView_);
-        LOGI("Display config render pass ok=%d remaining=%u page=%u rows=%u",
+        LOGI("FCD config render pass ok=%d remaining=%u page=%u rows=%u",
              ok ? 1 : 0,
              (unsigned)configRenderRemaining_,
              (unsigned)(configView_.pageIndex + 1U),
@@ -466,7 +560,7 @@ void DisplayUdpClientModule::serviceConfigRendering_(uint32_t nowMs)
 
     if (configValuesPending_ && (int32_t)(nowMs - configValuesDueMs_) >= 0) {
         const bool ok = nextion_.refreshConfigMenuValues(configView_);
-        LOGI("Display config values refresh pass ok=%d remaining=%u",
+        LOGI("FCD config values refresh pass ok=%d remaining=%u",
              ok ? 1 : 0,
              (unsigned)configValuesRemaining_);
         if (configValuesRemaining_ > 0U) {
@@ -480,7 +574,7 @@ void DisplayUdpClientModule::serviceConfigRendering_(uint32_t nowMs)
     }
 }
 
-void DisplayUdpClientModule::setInputLocked_(bool locked, const char* reason, uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::setInputLocked_(bool locked, const char* reason, uint32_t nowMs)
 {
     if (inputLocked_ == locked) {
         if (locked) {
@@ -493,14 +587,14 @@ void DisplayUdpClientModule::setInputLocked_(bool locked, const char* reason, ui
         inputLockedAtMs_ = nowMs;
     }
     const bool ok = nextion_.setTouchEnabled(!locked);
-    LOGI("Display Nextion touch %s reason=%s ok=%d",
+    LOGI("FCD Nextion touch %s reason=%s ok=%d",
          locked ? "locked" : "unlocked",
          reason ? reason : "unknown",
          ok ? 1 : 0);
     logDisplayState_(reason ? reason : "touch-lock", true);
 }
 
-void DisplayUdpClientModule::logDisplayState_(const char* reason, bool force)
+void FlowConnectDisplayUdpClientModule::logDisplayState_(const char* reason, bool force)
 {
     uint8_t nextionPage = 0xFFU;
     bool pageKnown = nextion_.currentPage(nextionPage);
@@ -533,7 +627,7 @@ void DisplayUdpClientModule::logDisplayState_(const char* reason, bool force)
     lastLoggedConfigMode_ = configView_.mode;
     copyText_(lastLoggedConfigPath_, sizeof(lastLoggedConfigPath_), configView_.breadcrumb);
 
-    LOGI("Display state reason=%s nextionPage=%s%u logicalPage=%u(%s) configPage=%u/%u mode=%s rows=%u submenu='%s' inputLocked=%u batch=%u renderPending=%u valuesPending=%u",
+    LOGI("FCD state reason=%s nextionPage=%s%u logicalPage=%u(%s) configPage=%u/%u mode=%s rows=%u submenu='%s' inputLocked=%u batch=%u renderPending=%u valuesPending=%u",
          reason ? reason : "state",
          pageKnown ? "" : "?",
          (unsigned)nextionPage,
@@ -550,7 +644,7 @@ void DisplayUdpClientModule::logDisplayState_(const char* reason, bool force)
          configValuesPending_ ? 1U : 0U);
 }
 
-void DisplayUdpClientModule::logEvent_(const char* prefix, const HmiEvent& event) const
+void FlowConnectDisplayUdpClientModule::logEvent_(const char* prefix, const HmiEvent& event) const
 {
     LOGI("%s event=%s command=%s row=%u value=%u dir=%d slider=%.2f text='%s'",
          prefix ? prefix : "HMI",
@@ -563,14 +657,16 @@ void DisplayUdpClientModule::logEvent_(const char* prefix, const HmiEvent& event
          event.text);
 }
 
-void DisplayUdpClientModule::servicePendingAck_(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::servicePendingAck_(uint32_t nowMs)
 {
     if (pendingLen_ == 0 || !linked_) return;
     if (pendingAttempts_ >= AckMaxAttempts) {
-        LOGW("Display event ACK timeout seq=%u attempts=%u",
+        LOGW("FCD %s ACK timeout seq=%u attempts=%u",
+             msgTypeName_(pendingType_),
              (unsigned)pendingSeq_,
              (unsigned)pendingAttempts_);
         pendingLen_ = 0;
+        pendingType_ = HmiUdpMsgType::Error;
         pendingAttempts_ = 0;
         return;
     }
@@ -580,38 +676,52 @@ void DisplayUdpClientModule::servicePendingAck_(uint32_t nowMs)
     if (written == pendingLen_ && udp_.endPacket() == 1) {
         ++pendingAttempts_;
         pendingLastSendMs_ = nowMs;
-        LOGI("Display sent HmiEvent seq=%u attempt=%u len=%u",
+        LOGI("FCD sent %s seq=%u attempt=%u len=%u",
+             msgTypeName_(pendingType_),
              (unsigned)pendingSeq_,
              (unsigned)pendingAttempts_,
              (unsigned)pendingLen_);
     }
 }
 
-void DisplayUdpClientModule::markSeen_(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::markSeen_(uint32_t nowMs)
 {
     lastSeenMs_ = nowMs;
 }
 
-void DisplayUdpClientModule::handleLinkLost_()
+void FlowConnectDisplayUdpClientModule::setFlowConnectionVisible_(bool visible, const char* reason, bool force)
+{
+    if (!force && flowConnectVisible_ == visible) return;
+    const bool ok = nextion_.setObjectVisible(FlowConnectionStateObject, visible);
+    if (ok) flowConnectVisible_ = visible;
+    LOGI("FCD FlowIO connection indicator visible=%u reason=%s ok=%d",
+         visible ? 1U : 0U,
+         reason ? reason : "state",
+         ok ? 1 : 0);
+}
+
+void FlowConnectDisplayUdpClientModule::handleLinkLost_()
 {
     linked_ = false;
     pendingLen_ = 0;
+    pendingType_ = HmiUdpMsgType::Error;
     eventHead_ = 0;
     eventTail_ = 0;
+    setFlowConnectionVisible_(false, "link-lost");
     setInputLocked_(false, "link-lost", millis());
     if (!lostShown_) {
         lostShown_ = true;
         (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "Connexion Flow.io perdue");
-        LOGW("Display lost FlowIO link");
+        LOGW("FCD lost FlowIO link");
     }
 }
 
-bool DisplayUdpClientModule::wifiConnected_() const
+bool FlowConnectDisplayUdpClientModule::wifiConnected_() const
 {
     return wifiSvc_ && wifiSvc_->isConnected && wifiSvc_->isConnected(wifiSvc_->ctx);
 }
 
-void DisplayUdpClientModule::copyText_(char* out, size_t outLen, const char* in)
+void FlowConnectDisplayUdpClientModule::copyText_(char* out, size_t outLen, const char* in)
 {
     if (!out || outLen == 0) return;
     out[0] = '\0';
@@ -624,7 +734,32 @@ void DisplayUdpClientModule::copyText_(char* out, size_t outLen, const char* in)
     out[i] = '\0';
 }
 
-const char* DisplayUdpClientModule::msgTypeName_(HmiUdpMsgType type)
+void FlowConnectDisplayUdpClientModule::nextionDebugCallback_(void*, const char* kind, const uint8_t* data, uint8_t len)
+{
+    char hex[3U * 64U + 1U]{};
+    size_t pos = 0;
+    for (uint8_t i = 0; i < len && pos + 3U < sizeof(hex); ++i) {
+        const int written = snprintf(hex + pos, sizeof(hex) - pos, "%s%02X", i == 0 ? "" : " ", (unsigned)data[i]);
+        if (written <= 0) break;
+        pos += (size_t)written;
+    }
+
+    if (strcmp(kind ? kind : "", "touch") == 0 && len >= 6U) {
+        LOGI("Nextion native touch page=%u component=%u state=%u raw=%s",
+             (unsigned)data[0],
+             (unsigned)data[1],
+             (unsigned)data[2],
+             hex);
+        return;
+    }
+
+    LOGW("Nextion raw %s len=%u data=%s",
+         kind ? kind : "?",
+         (unsigned)len,
+         hex);
+}
+
+const char* FlowConnectDisplayUdpClientModule::msgTypeName_(HmiUdpMsgType type)
 {
     switch (type) {
         case HmiUdpMsgType::Hello: return "Hello";
@@ -637,6 +772,7 @@ const char* DisplayUdpClientModule::msgTypeName_(HmiUdpMsgType type)
         case HmiUdpMsgType::HomeStateBits: return "HomeStateBits";
         case HmiUdpMsgType::HomeAlarmBits: return "HomeAlarmBits";
         case HmiUdpMsgType::FullRefresh: return "FullRefresh";
+        case HmiUdpMsgType::HomeV2Needles: return "HomeV2Needles";
         case HmiUdpMsgType::HmiEvent: return "HmiEvent";
         case HmiUdpMsgType::ConfigStart: return "ConfigStart";
         case HmiUdpMsgType::ConfigRow: return "ConfigRow";
@@ -650,7 +786,7 @@ const char* DisplayUdpClientModule::msgTypeName_(HmiUdpMsgType type)
     }
 }
 
-const char* DisplayUdpClientModule::eventTypeName_(HmiEventType type)
+const char* FlowConnectDisplayUdpClientModule::eventTypeName_(HmiEventType type)
 {
     switch (type) {
         case HmiEventType::None: return "None";
@@ -672,7 +808,7 @@ const char* DisplayUdpClientModule::eventTypeName_(HmiEventType type)
     }
 }
 
-const char* DisplayUdpClientModule::commandName_(HmiCommandId command)
+const char* FlowConnectDisplayUdpClientModule::commandName_(HmiCommandId command)
 {
     switch (command) {
         case HmiCommandId::None: return "None";
@@ -695,7 +831,7 @@ const char* DisplayUdpClientModule::commandName_(HmiCommandId command)
     }
 }
 
-const char* DisplayUdpClientModule::menuModeName_(ConfigMenuMode mode)
+const char* FlowConnectDisplayUdpClientModule::menuModeName_(ConfigMenuMode mode)
 {
     switch (mode) {
         case ConfigMenuMode::Browse: return "Browse";
@@ -704,7 +840,7 @@ const char* DisplayUdpClientModule::menuModeName_(ConfigMenuMode mode)
     }
 }
 
-const char* DisplayUdpClientModule::widgetName_(ConfigMenuWidget widget)
+const char* FlowConnectDisplayUdpClientModule::widgetName_(ConfigMenuWidget widget)
 {
     switch (widget) {
         case ConfigMenuWidget::Text: return "Text";

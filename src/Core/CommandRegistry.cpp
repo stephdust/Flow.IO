@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cstdio>
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::Core)
+#include "Core/ModuleLog.h"
 #undef snprintf
 #define snprintf(OUT, LEN, FMT, ...) \
     FLOW_SNPRINTF_CHECKED_MODULE(LOG_MODULE_ID, OUT, LEN, FMT, ##__VA_ARGS__)
@@ -29,10 +30,19 @@ static bool isJsonObjectReply_(const char* s, size_t len)
 
 bool CommandRegistry::registerHandler(const char* cmd, CommandHandler fn, void* userCtx) {
     if (!cmd || !fn) return false;
-    if (count >= MAX_COMMANDS) return false;
+    if (count >= MAX_COMMANDS) {
+        LOGW("Command registry full, dropping cmd=%s count=%u capacity=%u",
+             cmd,
+             (unsigned)count,
+             (unsigned)MAX_COMMANDS);
+        return false;
+    }
 
     for (uint8_t i = 0; i < count; ++i) {
-        if (strcmp(entries[i].cmd, cmd) == 0) return false;
+        if (strcmp(entries[i].cmd, cmd) == 0) {
+            LOGW("Command registry duplicate cmd=%s", cmd);
+            return false;
+        }
     }
 
     entries[count++] = {cmd, fn, userCtx};

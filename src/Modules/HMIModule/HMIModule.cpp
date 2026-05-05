@@ -79,7 +79,8 @@ static constexpr uint32_t kInvalidClockStamp = 0xFFFFFFFFUL;
 static constexpr uint32_t kRtcFallbackDelayMs = 30000U;
 static constexpr uint32_t kRtcFallbackRetryMs = 10000U;
 static constexpr uint32_t kRtcPushRetryMs = 60000U;
-static constexpr uint16_t kNextionRtcReadTimeoutMs = 180U;
+static constexpr uint16_t kLocalNextionRtcReadTimeoutMs = 180U;
+static constexpr uint16_t kRemoteNextionRtcReadTimeoutMs = 2000U;
 static constexpr uint32_t kNextionDisplayVersionV1 = 1U;
 static constexpr uint32_t kNextionDisplayVersionLegacyV2 = 2U;
 
@@ -919,8 +920,7 @@ bool HMIModule::publishNextionV2Needles_(uint32_t pending, uint32_t& sent)
 {
     sent = 0U;
     if (!driver_ || !driverReady_) return false;
-    if (driver_ != static_cast<IHmiDriver*>(&nextion_)) return false;
-    if (!nextion_.isLegacyV2()) return false;
+    if (!driver_->isLegacyV2()) return false;
 
     NextionV2NeedlePublish publish{};
     publish.ph = (pending & kHomePublishPhGauge) != 0U;
@@ -981,9 +981,49 @@ bool HMIModule::publishNextionV2Needles_(uint32_t pending, uint32_t& sent)
     }
 
     if (needleSent == 0U) return false;
-    if (!nextion_.publishV2Needles(publish)) return false;
+    if (!driver_->publishV2Needles(publish)) return false;
 
     sent = needleSent;
+    return true;
+}
+
+bool HMIModule::validateDriverDisplayVersion_(bool requireDetection)
+{
+    if (!driver_) return true;
+    if (!driver_->hasDisplayVersion()) {
+        if (!requireDetection) return true;
+        LOGW("Ecran Nextion version non detectee. Affichage Nextion desactive.");
+        nextionDisabledByVersion_ = true;
+        applyOutputConfig_();
+        return false;
+    }
+
+    const uint32_t version = driver_->displayVersion();
+    if (nextionVersionDetected_ && nextionVersion_ == version) {
+        return isSupportedNextionDisplayVersion_(version);
+    }
+
+    nextionVersionDetected_ = true;
+    nextionVersion_ = version;
+    LOGI("Ecran Nextion version %04lu detecte driver=%s.",
+         (unsigned long)nextionVersion_,
+         driver_->driverId());
+
+    if (!isSupportedNextionDisplayVersion_(nextionVersion_)) {
+        LOGW("Ecran Nextion version %04lu non supportee (supportees %04lu,%04lu). Affichage Nextion desactive.",
+             (unsigned long)nextionVersion_,
+             (unsigned long)kNextionDisplayVersionV1,
+             (unsigned long)kNextionDisplayVersionLegacyV2);
+        nextionDisabledByVersion_ = true;
+        applyOutputConfig_();
+        return false;
+    }
+
+    if (driver_->isLegacyV2()) {
+        LOGI("Ecran Nextion V2 detecte: rendu Home V1 avec aiguilles active.");
+    }
+    viewDirty_ = true;
+    queueHomePublish_(kHomePublishAll);
     return true;
 }
 
@@ -992,7 +1032,9 @@ bool HMIModule::readNextionRtcAndSetTime_()
     if (!driver_ || !timeSvc_ || !timeSvc_->setExternalEpoch) return false;
 
     HmiRtcDateTime rtc{};
-    if (!driver_->readRtc(rtc, kNextionRtcReadTimeoutMs)) {
+    const uint16_t timeoutMs =
+        (driver_ == static_cast<IHmiDriver*>(&remoteUdp_)) ? kRemoteNextionRtcReadTimeoutMs : kLocalNextionRtcReadTimeoutMs;
+    if (!driver_->readRtc(rtc, timeoutMs)) {
         LOGW("HMI Nextion RTC read failed");
         return false;
     }
@@ -1045,6 +1087,12 @@ bool HMIModule::pushEspTimeToNextionRtc_()
          (unsigned)rtc.minute,
          (unsigned)rtc.second);
     return true;
+}
+
+void HMIModule::resetClockPublishStamps_()
+{
+    lastClockMinuteStamp_ = kInvalidClockStamp;
+    lastClockDayStamp_ = kInvalidClockStamp;
 }
 
 void HMIModule::serviceRtcBridge_(uint32_t nowMs)
@@ -1159,7 +1207,7 @@ void HMIModule::flushHomePublish_()
     if (pending == 0U) return;
 
     uint32_t sent = 0U;
-    const bool nextionV2 = driver_ == static_cast<IHmiDriver*>(&nextion_) && nextion_.isLegacyV2();
+    const bool nextionV2 = driver_->isLegacyV2();
 
     if ((pending & kHomePublishWaterTemp) != 0U && publishHomeText_(HmiHomeTextField::WaterTemp)) {
         sent |= kHomePublishWaterTemp;
@@ -1574,24 +1622,24 @@ bool HMIModule::executeHmiCommand_(HmiCommandId command, uint8_t value)
             return executePoolLogicModePatch_("auto_mode", value != 0U);
 
         case HmiCommandId::HomePhPumpSet:
-            return executePoolDeviceWrite_(phPumpDeviceSlot_, value != 0U);
+            return executeCommandBool_("poollogic.ph_pump.write", value != 0U);
 
         case HmiCommandId::HomeOrpPumpSet:
-            return executePoolDeviceWrite_(orpPumpDeviceSlot_, value != 0U);
+            return executeCommandBool_("poollogic.orp_pump.write", value != 0U);
 
         case HmiCommandId::HomePhPumpToggle:
             if (!readPoolDeviceActualOn_(phPumpDeviceSlot_, current)) {
                 setHomeErrorMessage_("ReadStateFailed", true);
                 return false;
             }
-            return executePoolDeviceWrite_(phPumpDeviceSlot_, !current);
+            return executeCommandBool_("poollogic.ph_pump.write", !current);
 
         case HmiCommandId::HomeOrpPumpToggle:
             if (!readPoolDeviceActualOn_(orpPumpDeviceSlot_, current)) {
                 setHomeErrorMessage_("ReadStateFailed", true);
                 return false;
             }
-            return executePoolDeviceWrite_(orpPumpDeviceSlot_, !current);
+            return executeCommandBool_("poollogic.orp_pump.write", !current);
 
         case HmiCommandId::HomeFiltrationToggle:
             if (!readPoolDeviceActualOn_(filtrationDeviceSlot_, current)) {
@@ -1837,38 +1885,23 @@ void HMIModule::loop()
                 vTaskDelay(pdMS_TO_TICKS(500));
                 return;
             }
-            if (driver_ == static_cast<IHmiDriver*>(&nextion_)) {
-                nextionVersionDetected_ = nextion_.hasDisplayVersion();
-                nextionVersion_ = nextion_.displayVersion();
-                if (nextionVersionDetected_) {
-                    LOGI("Ecran Nextion version %04lu detecte.", (unsigned long)nextionVersion_);
-                    if (!isSupportedNextionDisplayVersion_(nextionVersion_)) {
-                        LOGW("Ecran Nextion version %04lu non supportee (supportees %04lu,%04lu). Affichage Nextion desactive.",
-                             (unsigned long)nextionVersion_,
-                             (unsigned long)kNextionDisplayVersionV1,
-                             (unsigned long)kNextionDisplayVersionLegacyV2);
-                        nextionDisabledByVersion_ = true;
-                        applyOutputConfig_();
-                        vTaskDelay(pdMS_TO_TICKS(25));
-                        return;
-                    }
-                    if (nextionVersion_ == kNextionDisplayVersionLegacyV2) {
-                        LOGI("Ecran Nextion V2 detecte: rendu Home V1 avec aiguilles active.");
-                    }
-                } else {
-                    LOGW("Ecran Nextion version non detectee. Affichage Nextion desactive.");
-                    nextionDisabledByVersion_ = true;
-                    applyOutputConfig_();
-                    vTaskDelay(pdMS_TO_TICKS(25));
-                    return;
-                }
+            if (!validateDriverDisplayVersion_(driver_ == static_cast<IHmiDriver*>(&nextion_))) {
+                vTaskDelay(pdMS_TO_TICKS(25));
+                return;
             }
+            resetClockPublishStamps_();
             viewDirty_ = true;
             queueHomePublish_(kHomePublishAll);
         }
 
+        if (!validateDriverDisplayVersion_(false)) {
+            vTaskDelay(pdMS_TO_TICKS(25));
+            return;
+        }
+
         if (driverReady_ && driver_ == static_cast<IHmiDriver*>(&remoteUdp_) &&
             remoteUdpServer_ && remoteUdpServer_->consumeFullRefreshRequested()) {
+            resetClockPublishStamps_();
             queueHomePublish_(kHomePublishAll);
             viewDirty_ = true;
         }

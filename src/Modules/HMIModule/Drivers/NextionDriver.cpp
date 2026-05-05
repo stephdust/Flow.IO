@@ -15,6 +15,7 @@ namespace {
 static constexpr uint8_t NEXTION_FF = 0xFF;
 static constexpr uint8_t NEXTION_RSP_NUMBER = 0x71;
 static constexpr uint8_t NEXTION_RSP_PAGE = 0x66;
+static constexpr uint8_t NEXTION_RSP_TOUCH = 0x65;
 static constexpr uint8_t NEXTION_CUSTOM_START = '#';
 static constexpr uint8_t NEXTION_CMD_PAGE = 0x50;
 static constexpr uint8_t NEXTION_CMD_NAV = 0x51;
@@ -69,16 +70,12 @@ bool NextionDriver::begin()
     customLen_ = 0;
     pageResponseActive_ = false;
     pageResponseLen_ = 0;
+    touchResponseActive_ = false;
+    touchResponseLen_ = 0;
     currentPageKnown_ = false;
     currentPage_ = 0;
 
-    if (cfg_.displayVersionExpr && cfg_.displayVersionExpr[0] != '\0') {
-        uint32_t detected = 0U;
-        if (readNumber_(cfg_.displayVersionExpr, detected, cfg_.displayVersionReadTimeoutMs)) {
-            displayVersion_ = detected;
-            versionDetected_ = true;
-        }
-    }
+    (void)detectDisplayVersion();
     return true;
 }
 
@@ -121,6 +118,12 @@ bool NextionDriver::isConfigPage() const
 bool NextionDriver::setTouchEnabled(bool enabled)
 {
     return sendCmdFmt_("tsw 255,%u", enabled ? 1U : 0U);
+}
+
+bool NextionDriver::setObjectVisible(const char* objectName, bool visible)
+{
+    if (!started_ || !objectName || objectName[0] == '\0') return false;
+    return sendCmdFmt_("vis %s,%u", objectName, visible ? 1U : 0U);
 }
 
 bool NextionDriver::showConfigLoading(const char* title)
@@ -360,9 +363,25 @@ bool NextionDriver::readNumber_(const char* expr, uint32_t& value, uint16_t time
     customLen_ = 0U;
     pageResponseActive_ = false;
     pageResponseLen_ = 0U;
+    touchResponseActive_ = false;
+    touchResponseLen_ = 0U;
 
     if (!sendCmdFmt_("get %s", expr)) return false;
     return readNumberResponse_(value, timeoutMs);
+}
+
+bool NextionDriver::detectDisplayVersion(uint16_t timeoutMs)
+{
+    if (versionDetected_) return true;
+    if (!cfg_.displayVersionExpr || cfg_.displayVersionExpr[0] == '\0') return false;
+
+    uint32_t detected = 0U;
+    const uint16_t effectiveTimeout = timeoutMs != 0U ? timeoutMs : cfg_.displayVersionReadTimeoutMs;
+    if (!readNumber_(cfg_.displayVersionExpr, detected, effectiveTimeout)) return false;
+
+    displayVersion_ = detected;
+    versionDetected_ = true;
+    return true;
 }
 
 bool NextionDriver::readRtc(HmiRtcDateTime& out, uint16_t timeoutMs)
@@ -567,15 +586,15 @@ bool NextionDriver::parseCustomFrame_(const uint8_t* frame, uint8_t len, HmiEven
             return true;
 
         case NEXTION_CMD_HOME_ACTION:
-            if (payloadLen < 2U) return false;
+            if (payloadLen < 1U) return false;
             out.type = HmiEventType::Command;
-            out.value = payload[1];
+            out.value = (payloadLen >= 2U) ? payload[1] : 1U;
             switch (payload[0]) {
                 case HOME_ACTION_FILTRATION:
-                    out.command = HmiCommandId::HomeFiltrationSet;
+                    out.command = (payloadLen >= 2U) ? HmiCommandId::HomeFiltrationSet : HmiCommandId::HomeFiltrationToggle;
                     return true;
                 case HOME_ACTION_AUTO_MODE:
-                    out.command = HmiCommandId::HomeAutoModeSet;
+                    out.command = (payloadLen >= 2U) ? HmiCommandId::HomeAutoModeSet : HmiCommandId::HomeAutoModeToggle;
                     return true;
                 case HOME_ACTION_SYNC:
                     out.command = HmiCommandId::HomeSyncRequest;
@@ -584,10 +603,10 @@ bool NextionDriver::parseCustomFrame_(const uint8_t* frame, uint8_t len, HmiEven
                     out.command = HmiCommandId::HomeConfigOpen;
                     return true;
                 case HOME_ACTION_PH_PUMP:
-                    out.command = HmiCommandId::HomePhPumpSet;
+                    out.command = (payloadLen >= 2U) ? HmiCommandId::HomePhPumpSet : HmiCommandId::HomePhPumpToggle;
                     return true;
                 case HOME_ACTION_ORP_PUMP:
-                    out.command = HmiCommandId::HomeOrpPumpSet;
+                    out.command = (payloadLen >= 2U) ? HmiCommandId::HomeOrpPumpSet : HmiCommandId::HomeOrpPumpToggle;
                     return true;
                 case HOME_ACTION_PH_PUMP_TOGGLE:
                     out.command = HmiCommandId::HomePhPumpToggle;
@@ -661,6 +680,11 @@ bool NextionDriver::isConfigPageId_(uint8_t pageId) const
     return pageId == cfg_.configPageId || pageId == cfg_.configPageAliasId;
 }
 
+void NextionDriver::emitDebug_(const char* kind, const uint8_t* data, uint8_t len) const
+{
+    if (debugCallback_) debugCallback_(debugCtx_, kind, data, len);
+}
+
 bool NextionDriver::pollEvent(HmiEvent& out)
 {
     out = HmiEvent{};
@@ -683,6 +707,24 @@ bool NextionDriver::pollEvent(HmiEvent& out)
                 if (valid && handlePageId_(pageId, true, out)) {
                     return true;
                 }
+                if (!valid) emitDebug_("page-drop", pageResponseBuf_, PageResponseBufSize);
+            }
+            continue;
+        }
+
+        if (touchResponseActive_) {
+            touchResponseBuf_[touchResponseLen_++] = b;
+            if (touchResponseLen_ >= TouchResponseBufSize) {
+                const bool valid = touchResponseBuf_[3] == NEXTION_FF &&
+                                   touchResponseBuf_[4] == NEXTION_FF &&
+                                   touchResponseBuf_[5] == NEXTION_FF;
+                touchResponseActive_ = false;
+                touchResponseLen_ = 0U;
+                if (valid) {
+                    emitDebug_("touch", touchResponseBuf_, TouchResponseBufSize);
+                } else {
+                    emitDebug_("touch-drop", touchResponseBuf_, TouchResponseBufSize);
+                }
             }
             continue;
         }
@@ -690,6 +732,7 @@ bool NextionDriver::pollEvent(HmiEvent& out)
         if (customFrameActive_) {
             if (customExpectedLen_ == 0U) {
                 if (b == 0U || b > CustomRxBufSize) {
+                    emitDebug_("custom-len-drop", &b, 1U);
                     customFrameActive_ = false;
                     customExpectedLen_ = 0U;
                     customLen_ = 0U;
@@ -702,11 +745,13 @@ bool NextionDriver::pollEvent(HmiEvent& out)
 
             customBuf_[customLen_++] = b;
             if (customLen_ >= customExpectedLen_) {
+                const uint8_t frameLen = customExpectedLen_;
                 const bool parsed = parseCustomFrame_(customBuf_, customExpectedLen_, out);
                 customFrameActive_ = false;
                 customExpectedLen_ = 0U;
                 customLen_ = 0U;
                 if (parsed) return true;
+                emitDebug_("custom-drop", customBuf_, frameLen);
             }
             continue;
         }
@@ -721,6 +766,12 @@ bool NextionDriver::pollEvent(HmiEvent& out)
         if (b == NEXTION_RSP_PAGE) {
             pageResponseActive_ = true;
             pageResponseLen_ = 0U;
+            continue;
+        }
+
+        if (b == NEXTION_RSP_TOUCH) {
+            touchResponseActive_ = true;
+            touchResponseLen_ = 0U;
             continue;
         }
     }

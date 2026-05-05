@@ -8,6 +8,8 @@ namespace NvsKeys {
 
 /** @brief Preferences namespace opened at boot (`main.cpp`). */
 constexpr char StorageNamespace[] = "flowio"; // Preferences namespace name used at boot to open the firmware NVS partition.
+/** @brief Preferences namespace for the Flow Connect Display firmware. */
+constexpr char FlowConnectDisplayStorageNamespace[] = "flowconnectdisp";
 /** @brief Config schema version key read/written by `ConfigStore::runMigrations`. */
 constexpr char ConfigVersion[] = "cfg_ver"; // Persistent schema-version marker used to select and run config migrations.
 
@@ -368,10 +370,16 @@ constexpr char EvalPeriodMs[] = "al_epms"; // Alarm module persisted key for fie
 namespace Hmi {
 constexpr char LedsEnabled[] = "hmi_leds"; // HMI module persisted key for logical LED-panel writes enable.
 constexpr char NextionEnabled[] = "hmi_nxen"; // HMI module persisted key for Nextion output enable.
-constexpr char RemoteUdpEnabled[] = "hmi_udpen"; // HMI module persisted key for remote UDP display driver enable.
-constexpr char RemoteUdpToken[] = "hmi_udptk"; // Shared token for remote UDP display pairing.
+constexpr char FlowConnectUdpEnabled[] = "hmi_fcden"; // HMI module persisted key for Flow Connect Display UDP driver enable.
+constexpr char FlowConnectUdpToken[] = "hmi_fcdtk"; // Shared token for Flow Connect Display UDP pairing.
+constexpr char RemoteUdpEnabledLegacy[] = "hmi_udpen"; // Legacy remote UDP display driver enable key.
+constexpr char RemoteUdpTokenLegacy[] = "hmi_udptk"; // Legacy remote UDP display pairing token key.
 constexpr char VeniceEnabled[] = "hmi_vcen"; // HMI module persisted key for Venice RF433 output enable.
 constexpr char VeniceTxGpio[] = "hmi_vcgp"; // HMI module persisted key for Venice RF433 TX GPIO.
 }  // namespace Hmi
+
+namespace FlowConnectDisplay {
+constexpr char UdpToken[] = "fcd_udptk"; // Flow Connect Display persisted pairing token key.
+}  // namespace FlowConnectDisplay
 
 }  // namespace NvsKeys

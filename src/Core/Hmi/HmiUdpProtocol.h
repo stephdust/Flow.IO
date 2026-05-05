@@ -31,6 +31,7 @@ enum class HmiUdpMsgType : uint8_t {
     HomeStateBits = 12,
     HomeAlarmBits = 13,
     FullRefresh = 14,
+    HomeV2Needles = 15,
 
     HmiEvent = 20,
 
@@ -63,7 +64,11 @@ struct HmiUdpHelloPayload {
     uint32_t tokenCrc;
     uint16_t displayFw;
     uint16_t protoVersion;
+    uint32_t nextionVersion;
+    uint8_t flags;
 };
+
+static constexpr uint8_t HMI_UDP_HELLO_FLAG_NEXTION_VERSION_VALID = 0x01;
 
 struct HmiUdpWelcomePayload {
     uint16_t flowFw;
@@ -80,6 +85,17 @@ struct HmiUdpHomeGaugePayload {
     uint8_t field;
     uint16_t percent;
 };
+
+struct HmiUdpHomeV2NeedlesPayload {
+    uint8_t flags;
+    int8_t phNeedle;
+    int8_t orpNeedle;
+    uint8_t psiNeedle;
+};
+
+static constexpr uint8_t HMI_UDP_V2_NEEDLE_PH = 0x01;
+static constexpr uint8_t HMI_UDP_V2_NEEDLE_ORP = 0x02;
+static constexpr uint8_t HMI_UDP_V2_NEEDLE_PSI = 0x04;
 
 struct HmiUdpStateBitsPayload {
     uint32_t stateBits;

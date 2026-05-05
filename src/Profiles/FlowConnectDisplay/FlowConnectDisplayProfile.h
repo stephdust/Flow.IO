@@ -1,7 +1,7 @@
 #pragma once
 
 #include "App/FirmwareProfile.h"
-#include "Modules/Display/DisplayUdpClientModule/DisplayUdpClientModule.h"
+#include "Modules/FlowConnectDisplay/FlowConnectDisplayUdpClientModule/FlowConnectDisplayUdpClientModule.h"
 #include "Modules/EventBusModule/EventBusModule.h"
 #include "Modules/Logs/LogDispatcherModule/LogDispatcherModule.h"
 #include "Modules/Logs/LogHubModule/LogHubModule.h"
@@ -12,7 +12,7 @@
 #include "Modules/Stores/DataStoreModule/DataStoreModule.h"
 
 namespace Profiles {
-namespace Display {
+namespace FlowConnectDisplay {
 
 struct ModuleInstances {
     ModuleInstances() = default;
@@ -25,7 +25,7 @@ struct ModuleInstances {
     DataStoreModule dataStoreModule{};
     WifiModule wifiModule{};
     WifiProvisioningModule wifiProvisioningModule{};
-    DisplayUdpClientModule displayUdpClientModule{};
+    FlowConnectDisplayUdpClientModule flowConnectDisplayUdpClientModule{};
 };
 
 ModuleInstances& moduleInstances();
@@ -33,5 +33,5 @@ const FirmwareProfile& profile();
 void setupProfile(AppContext& ctx);
 void loopProfile(AppContext& ctx);
 
-}  // namespace Display
+}  // namespace FlowConnectDisplay
 }  // namespace Profiles

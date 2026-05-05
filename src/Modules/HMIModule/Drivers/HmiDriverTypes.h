@@ -64,6 +64,15 @@ struct HmiRtcDateTime {
     uint8_t second = 0;
 };
 
+struct NextionV2NeedlePublish {
+    bool ph = false;
+    bool orp = false;
+    bool psi = false;
+    int8_t phNeedle = 0;
+    int8_t orpNeedle = 0;
+    uint8_t psiNeedle = 0;
+};
+
 enum class HmiHomeTextField : uint8_t {
     WaterTemp = 0,
     AirTemp = 1,
@@ -116,6 +125,13 @@ public:
     virtual bool publishHomeGaugePercent(HmiHomeGaugeField field, uint16_t percent) = 0;
     virtual bool publishHomeStateBits(uint32_t stateBits) = 0;
     virtual bool publishHomeAlarmBits(uint32_t alarmBits) = 0;
+    virtual bool hasDisplayVersion() const { return false; }
+    virtual uint32_t displayVersion() const { return 0U; }
+    virtual bool isLegacyV2() const { return false; }
+    virtual bool publishV2Needles(const NextionV2NeedlePublish& publish) {
+        (void)publish;
+        return false;
+    }
     virtual bool readRtc(HmiRtcDateTime& out, uint16_t timeoutMs) = 0;
     virtual bool writeRtc(const HmiRtcDateTime& value) = 0;
     virtual bool renderConfigMenu(const ConfigMenuView& view) = 0;

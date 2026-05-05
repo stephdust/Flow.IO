@@ -1,4 +1,4 @@
-#include "Profiles/Display/DisplayProfile.h"
+#include "Profiles/FlowConnectDisplay/FlowConnectDisplayProfile.h"
 
 #include <Arduino.h>
 
@@ -8,7 +8,7 @@
 #include "Core/NvsKeys.h"
 
 namespace Profiles {
-namespace Display {
+namespace FlowConnectDisplay {
 
 void setupProfile(AppContext& ctx)
 {
@@ -17,7 +17,7 @@ void setupProfile(AppContext& ctx)
     Serial.begin(Board::SerialMap::uart0Baud());
     delay(50);
 
-    ctx.preferences.begin(NvsKeys::StorageNamespace, false);
+    ctx.preferences.begin(NvsKeys::FlowConnectDisplayStorageNamespace, false);
     ctx.registry.setPreferences(ctx.preferences);
     ctx.registry.runMigrations(CURRENT_CFG_VERSION, steps, MIGRATION_COUNT);
 
@@ -30,7 +30,7 @@ void setupProfile(AppContext& ctx)
     ctx.moduleManager.add(&modules.dataStoreModule);
     ctx.moduleManager.add(&modules.wifiModule);
     ctx.moduleManager.add(&modules.wifiProvisioningModule);
-    ctx.moduleManager.add(&modules.displayUdpClientModule);
+    ctx.moduleManager.add(&modules.flowConnectDisplayUdpClientModule);
 
     if (!ctx.moduleManager.initAll(ctx.registry, ctx.services)) {
         while (true) delay(1000);
@@ -42,5 +42,5 @@ void loopProfile(AppContext&)
     delay(20);
 }
 
-}  // namespace Display
+}  // namespace FlowConnectDisplay
 }  // namespace Profiles

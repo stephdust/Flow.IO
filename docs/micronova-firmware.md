@@ -1,6 +1,6 @@
 # Firmware Micronova
 
-Le profil `Micronova` est un firmware Flow.io dedie au pilotage d'une chaudiere a granules equipee d'une carte Micronova. Il est isole des profils piscine `FlowIO`, `Supervisor` et `Display`.
+Le profil `Micronova` est un firmware Flow.io dedie au pilotage d'une chaudiere a granules equipee d'une carte Micronova. Il est isole des profils piscine `FlowIO`, `Supervisor` et `FlowConnectDisplay`.
 
 ## Architecture
 
@@ -254,5 +254,5 @@ Verifier les profils existants :
 ```sh
 pio run -e FlowIO
 pio run -e Supervisor
-pio run -e Display
+pio run -e FlowConnectDisplay
 ```

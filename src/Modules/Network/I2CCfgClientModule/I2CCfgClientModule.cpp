@@ -533,6 +533,7 @@ void I2CCfgClientModule::startLink_()
     ready_ = false;
     reachable_ = false;
     frameCrcEnabled_ = false;
+    activeFreqHz_ = 0;
     retryAfterMs_ = 0;
     nextRuntimeCacheRefreshAtMs_ = 0;
     invalidateRuntimeCache_();
@@ -549,17 +550,11 @@ void I2CCfgClientModule::startLink_()
         return;
     }
 
-    int32_t sda = cfgData_.sda;
-    int32_t scl = cfgData_.scl;
-
-    if (!link_.beginMaster(kInterlinkBus,
-                           sda,
-                           scl,
-                           (uint32_t)(cfgData_.freqHz <= 0 ? 100000 : cfgData_.freqHz))) {
+    if (!beginMasterAtFreq_((uint32_t)(cfgData_.freqHz <= 0 ? 100000 : cfgData_.freqHz), "start")) {
         LOGE("I2C cfg client start failed bus=%u sda=%ld scl=%ld freq=%ld target=0x%02X",
              (unsigned)kInterlinkBus,
-             (long)sda,
-             (long)scl,
+             (long)cfgData_.sda,
+             (long)cfgData_.scl,
              (long)cfgData_.freqHz,
              (unsigned)cfgData_.targetAddr);
         return;
@@ -568,9 +563,9 @@ void I2CCfgClientModule::startLink_()
     LOGI("I2C cfg client started app_role=client i2c_role=master target=0x%02X bus=%u sda=%ld scl=%ld freq=%ld",
          (unsigned)cfgData_.targetAddr,
          (unsigned)kInterlinkBus,
-         (long)sda,
-         (long)scl,
-         (long)cfgData_.freqHz);
+         (long)cfgData_.sda,
+         (long)cfgData_.scl,
+         (long)activeFreqHz_);
 
     uint8_t pingStatus = I2cCfgProtocol::StatusFailed;
     if (!pingFlow_(pingStatus)) {
@@ -592,6 +587,27 @@ void I2CCfgClientModule::startLink_()
         LOGI("I2C cfg ping ok target=0x%02X", (unsigned)cfgData_.targetAddr);
         (void)refreshRuntimeCacheIfNeeded_(true);
     }
+}
+
+bool I2CCfgClientModule::beginMasterAtFreq_(uint32_t freqHz, const char* reason)
+{
+    if (freqHz == 0U) freqHz = 100000U;
+    if (!link_.beginMaster(kInterlinkBus,
+                           (int)cfgData_.sda,
+                           (int)cfgData_.scl,
+                           freqHz)) {
+        activeFreqHz_ = 0;
+        return false;
+    }
+    activeFreqHz_ = freqHz;
+    LOGI("I2C cfg client bus ready reason=%s bus=%u sda=%ld scl=%ld freq=%lu target=0x%02X",
+         reason ? reason : "unknown",
+         (unsigned)kInterlinkBus,
+         (long)cfgData_.sda,
+         (long)cfgData_.scl,
+         (unsigned long)activeFreqHz_,
+         (unsigned)cfgData_.targetAddr);
+    return true;
 }
 
 bool I2CCfgClientModule::ensureReady_()
@@ -1253,6 +1269,8 @@ bool I2CCfgClientModule::transactUnlocked_(uint8_t op,
     }
 
     constexpr uint8_t kMaxAttempts = 3;
+    constexpr uint32_t kSlowFallbackHz = 100000U;
+    bool triedSlowFallback = false;
     uint8_t rx[128] = {0};
     size_t rxLen = 0;
     for (uint8_t attempt = 0; attempt < kMaxAttempts; ++attempt) {
@@ -1263,17 +1281,31 @@ bool I2CCfgClientModule::transactUnlocked_(uint8_t op,
                 delay(2);
                 continue;
             }
+            if (!triedSlowFallback && activeFreqHz_ > kSlowFallbackHz) {
+                triedSlowFallback = true;
+                LOGW("I2C transfer failed at %lu Hz, retrying at %lu Hz op=%s seq=%u",
+                     (unsigned long)activeFreqHz_,
+                     (unsigned long)kSlowFallbackHz,
+                     opName(op),
+                     (unsigned)seq);
+                if (beginMasterAtFreq_(kSlowFallbackHz, "transport-fallback")) {
+                    attempt = 0;
+                    delay(5);
+                    continue;
+                }
+            }
             markRemoteUnavailable_();
             LOGW("I2C transfer failed op=%s seq=%u addr=0x%02X req=%u",
                  opName(op),
                  (unsigned)seq,
                  (unsigned)cfgData_.targetAddr,
                  (unsigned)txLen);
-            LOGW("I2C link cfg bus=%u sda=%ld scl=%ld freq=%ld",
+            LOGW("I2C link cfg bus=%u sda=%ld scl=%ld cfg_freq=%ld active_freq=%lu",
                  (unsigned)kInterlinkBus,
                  (long)cfgData_.sda,
                  (long)cfgData_.scl,
-                 (long)cfgData_.freqHz);
+                 (long)cfgData_.freqHz,
+                 (unsigned long)activeFreqHz_);
             return false;
         }
         if (rxLen < I2cCfgProtocol::RespHeaderSize) {

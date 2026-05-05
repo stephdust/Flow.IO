@@ -14,7 +14,8 @@ enum PoolDeviceSvcStatus : uint8_t {
     POOLDEV_SVC_ERR_NOT_READY = 3,
     POOLDEV_SVC_ERR_DISABLED = 4,
     POOLDEV_SVC_ERR_INTERLOCK = 5,
-    POOLDEV_SVC_ERR_IO = 6
+    POOLDEV_SVC_ERR_IO = 6,
+    POOLDEV_SVC_ERR_MAX_UPTIME = 7
 };
 
 /** Static metadata for one pool device slot. */

@@ -212,6 +212,7 @@
       hideFieldForInput('nextionPath', true);
       setPageMenuVisible('page-calibration', false);
       setSystemActionVisible('rebootFlow', false);
+      setSystemActionVisible('rebootFlowHardware', false);
       setSystemActionVisible('rebootNextion', false);
       setSystemActionVisible('flowFactoryReset', false);
       const rebootAction = rebootSupervisorBtn ? rebootSupervisorBtn.closest('.system-action') : null;
@@ -859,6 +860,7 @@
     const wifiConfigStatus = document.getElementById('wifiConfigStatus');
     const rebootSupervisorBtn = document.getElementById('rebootSupervisor');
     const rebootFlowBtn = document.getElementById('rebootFlow');
+    const rebootFlowHardwareBtn = document.getElementById('rebootFlowHardware');
     const rebootNextionBtn = document.getElementById('rebootNextion');
     const flowFactoryResetBtn = document.getElementById('flowFactoryReset');
     const systemStatusText = document.getElementById('systemStatusText');
@@ -7061,12 +7063,15 @@
     async function callSystemAction(target, action) {
       let endpoint = '/api/system/reboot';
       if (target === 'flow' && action === 'reboot') endpoint = '/api/flow/system/reboot';
+      else if (target === 'flow' && action === 'hardware_reboot') endpoint = '/api/flow/system/hardware-reboot';
       else if (target === 'nextion' && action === 'reboot') endpoint = '/api/system/nextion/reboot';
       else if (target === 'flow' && action === 'factory_reset') endpoint = '/api/flow/system/factory-reset';
       else if (target === 'supervisor' && action === 'factory_reset') endpoint = '/api/system/factory-reset';
       await fetchOkJson(endpoint, { method: 'POST' }, 'échec action', target === 'flow' ? fetchFlowRemoteQueued : fetch);
       if (target === 'flow' && action === 'factory_reset') {
         systemStatusText.textContent = 'Reset Flow.io en cours';
+      } else if (target === 'flow' && action === 'hardware_reboot') {
+        systemStatusText.textContent = 'Reset matériel Flow.io';
       } else if (target === 'flow' && action === 'reboot') {
         systemStatusText.textContent = 'Redémarrage Flow.io';
       } else if (target === 'nextion' && action === 'reboot') {
@@ -7086,11 +7091,14 @@
       }
       pendingSystemActionCountdowns.delete(button);
       button.disabled = false;
-      button.textContent = 'Redémarrer';
+      button.textContent = button.dataset.defaultLabel || 'Redémarrer';
     }
 
     function startDelayedSystemAction(button, countdownLabel, actionRunner, failurePrefix) {
       if (!button || typeof actionRunner !== 'function') return;
+      if (!button.dataset.defaultLabel) {
+        button.dataset.defaultLabel = button.textContent || 'Redémarrer';
+      }
       clearPendingSystemAction(button);
 
       let remaining = rebootActionDelaySeconds;
@@ -7111,7 +7119,7 @@
               systemStatusText.textContent = failurePrefix;
               return;
             }
-            button.textContent = 'Redémarrer';
+            button.textContent = button.dataset.defaultLabel || 'Redémarrer';
             button.disabled = false;
           });
           return;
@@ -7234,6 +7242,14 @@
           'Reboot Flow.io',
           () => callSystemAction('flow', 'reboot'),
           'Reboot Flow.io échoué'
+        );
+      });
+      bindClickAction(rebootFlowHardwareBtn, () => {
+        startDelayedSystemAction(
+          rebootFlowHardwareBtn,
+          'Reset matériel Flow.io',
+          () => callSystemAction('flow', 'hardware_reboot'),
+          'Reset matériel Flow.io échoué'
         );
       });
       bindClickAction(rebootNextionBtn, () => {

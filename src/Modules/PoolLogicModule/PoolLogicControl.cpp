@@ -23,6 +23,7 @@ const char* poolDeviceSvcStatusStr_(PoolDeviceSvcStatus st)
         case POOLDEV_SVC_ERR_DISABLED: return "disabled";
         case POOLDEV_SVC_ERR_INTERLOCK: return "interlock";
         case POOLDEV_SVC_ERR_IO: return "io";
+        case POOLDEV_SVC_ERR_MAX_UPTIME: return "max_uptime";
         default: return "unknown";
     }
 }

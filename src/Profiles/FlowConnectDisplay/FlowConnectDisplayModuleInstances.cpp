@@ -1,7 +1,7 @@
-#include "Profiles/Display/DisplayProfile.h"
+#include "Profiles/FlowConnectDisplay/FlowConnectDisplayProfile.h"
 
 namespace Profiles {
-namespace Display {
+namespace FlowConnectDisplay {
 
 ModuleInstances& moduleInstances()
 {
@@ -9,5 +9,5 @@ ModuleInstances& moduleInstances()
     return instances;
 }
 
-}  // namespace Display
+}  // namespace FlowConnectDisplay
 }  // namespace Profiles

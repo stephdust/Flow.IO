@@ -1,7 +1,7 @@
 {
   "_meta": {
     "generated": true,
-    "total": 396,
+    "total": 397,
     "decl_total": 224,
     "decl_with_cfgdoc": 125,
     "missing_cfgdoc_count": 99,
@@ -948,6 +948,15 @@
       "var": "enabledVar_",
       "source": "cfgdoc"
     },
+    "fcd/udp/token": {
+      "module": "fcd/udp",
+      "name": "token",
+      "type": "CharArray",
+      "label": "Token Flow Connect Display",
+      "help": "Token partage optionnel envoye en CRC dans Hello pour l'appairage FlowIO.",
+      "var": "tokenVar_",
+      "source": "cfgdoc"
+    },
     "fwupdate/cfgdocs_path": {
       "module": "fwupdate",
       "name": "cfgdocs_path",
@@ -1038,6 +1047,24 @@
       "var": "vendorVar",
       "source": "cfgdoc"
     },
+    "hmi/fcd_udp/enabled": {
+      "module": "hmi/fcd_udp",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Flow Connect Display UDP actif",
+      "help": "Utilise un Flow Connect Display distant via UDP a la place du Nextion local.",
+      "var": "remoteUdpEnabledVar_",
+      "source": "cfgdoc"
+    },
+    "hmi/fcd_udp/token": {
+      "module": "hmi/fcd_udp",
+      "name": "token",
+      "type": "CharArray",
+      "label": "Token Flow Connect Display",
+      "help": "Token partage optionnel. Si renseigne, le Flow Connect Display doit envoyer le meme token sous forme CRC.",
+      "var": "tokenVar_",
+      "source": "cfgdoc"
+    },
     "hmi/leds/enabled": {
       "module": "hmi/leds",
       "name": "enabled",
@@ -1054,24 +1081,6 @@
       "label": "Nextion actif",
       "help": "Autorise le HMIModule a envoyer le rendu et les commandes vers l'ecran Nextion local.",
       "var": "nextionEnabledVar_",
-      "source": "cfgdoc"
-    },
-    "hmi/remote_udp/enabled": {
-      "module": "hmi/remote_udp",
-      "name": "enabled",
-      "type": "Bool",
-      "label": "Display UDP actif",
-      "help": "Utilise un ESP32 Display distant via UDP a la place du Nextion local.",
-      "var": "remoteUdpEnabledVar_",
-      "source": "cfgdoc"
-    },
-    "hmi/remote_udp/token": {
-      "module": "hmi/remote_udp",
-      "name": "token",
-      "type": "CharArray",
-      "label": "Token Display UDP",
-      "help": "Token partage optionnel. Si renseigne, le Display doit envoyer le meme token sous forme CRC.",
-      "var": "tokenVar_",
       "source": "cfgdoc"
     },
     "hmi/venice/enabled": {

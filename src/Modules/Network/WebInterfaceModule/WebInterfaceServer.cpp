@@ -2986,6 +2986,30 @@ void WebInterfaceModule::startServer_()
         request->send(200, "application/json", (reply[0] != '\0') ? reply : "{\"ok\":true}");
     });
 
+    server_.on("/api/flow/system/hardware-reboot", HTTP_POST, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/flow/system/hardware-reboot");
+        if (!cmdSvc_ && services_) {
+            cmdSvc_ = services_->get<CommandService>(ServiceId::Command);
+        }
+        if (!cmdSvc_ || !cmdSvc_->execute) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"fw.flowio.hw_reboot\"}}");
+            return;
+        }
+
+        char reply[220] = {0};
+        const bool ok = cmdSvc_->execute(cmdSvc_->ctx, "fw.flowio.hw_reboot", "{}", nullptr, reply, sizeof(reply));
+        if (!ok) {
+            request->send(500,
+                          "application/json",
+                          (reply[0] != '\0')
+                              ? reply
+                              : "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"fw.flowio.hw_reboot\"}}");
+            return;
+        }
+        request->send(200, "application/json", (reply[0] != '\0') ? reply : "{\"ok\":true}");
+    });
+
     server_.on("/api/flow/system/factory-reset", HTTP_POST, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/flow/system/factory-reset");
         if (!cmdSvc_ && services_) {

@@ -88,7 +88,7 @@ void WifiProvisioningModule::loop()
     if (apActive_) {
         handleStaProbePolicy_(now);
         dns_.processNextRequest();
-#if defined(FLOW_PROFILE_DISPLAY)
+#if defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
         handleLightPortalClient_();
 #endif
     }
@@ -210,7 +210,7 @@ bool WifiProvisioningModule::startCaptivePortal_(PortalReason reason)
 
     const IPAddress apIp = WiFi.softAPIP();
     dns_.start(kDnsPort, "*", apIp);
-#if defined(FLOW_PROFILE_DISPLAY)
+#if defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
     startLightPortal_();
     portalCredentialsSaved_ = false;
 #endif
@@ -235,7 +235,7 @@ void WifiProvisioningModule::stopCaptivePortal_()
     if (wifiSvc_ && wifiSvc_->setStaRetryEnabled) {
         (void)wifiSvc_->setStaRetryEnabled(wifiSvc_->ctx, true);
     }
-#if defined(FLOW_PROFILE_DISPLAY)
+#if defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
     stopLightPortal_();
 #endif
     dns_.stop();
@@ -336,7 +336,7 @@ void WifiProvisioningModule::handleStaProbePolicy_(uint32_t nowMs)
     const bool clientConnected = (apClientCount_ > 0U);
     const bool clientSeenRecently = (lastApClientSeenMs_ != 0U) &&
                                     ((nowMs - lastApClientSeenMs_) < kApClientGraceMs);
-#if defined(FLOW_PROFILE_DISPLAY)
+#if defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
     const bool holdForPortalClient = !portalCredentialsSaved_ && (clientConnected || clientSeenRecently);
 #else
     const bool holdForPortalClient = clientConnected || clientSeenRecently;
@@ -394,13 +394,13 @@ bool WifiProvisioningModule::getApIp_(char* out, size_t len) const
     return true;
 }
 
-#if defined(FLOW_PROFILE_DISPLAY)
+#if defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
 void WifiProvisioningModule::startLightPortal_()
 {
     if (portalHttpActive_) return;
     portalServer_.begin();
     portalHttpActive_ = true;
-    LOGI("Display provisioning HTTP started on port 80");
+    LOGI("Flow Connect Display provisioning HTTP started on port 80");
 }
 
 void WifiProvisioningModule::stopLightPortal_()
@@ -493,13 +493,13 @@ void WifiProvisioningModule::sendPortalPage_(WiFiClient& client, const char* mes
     sendHttpHeader_(client, "200 OK", "text/html; charset=utf-8");
     client.print(F("<!doctype html><html><head><meta charset=\"utf-8\">"
                    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                   "<title>FlowIO Display WiFi</title>"
+                   "<title>Flow Connect Display WiFi</title>"
                    "<style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:0;background:#f7f7f2;color:#17211c}"
                    "main{max-width:420px;margin:8vh auto;padding:24px}h1{font-size:24px;margin:0 0 8px}"
                    "p{line-height:1.45}.msg{padding:12px;border:1px solid #cbd5c8;background:#fff;margin:16px 0}"
                    "label{display:block;margin:14px 0 6px;font-weight:600}input{box-sizing:border-box;width:100%;font-size:18px;padding:12px;border:1px solid #9aa89d}"
                    "button{margin-top:18px;width:100%;font-size:18px;padding:12px;border:0;background:#166b52;color:#fff}</style></head><body><main>"
-                   "<h1>FlowIO Display</h1><p>Connexion au reseau WiFi de la piscine.</p>"));
+                   "<h1>Flow Connect Display</h1><p>Connexion au reseau WiFi de la piscine.</p>"));
     if (message && message[0] != '\0') {
         client.print(F("<div class=\"msg\" role=\"status\">"));
         client.print(message);
@@ -574,7 +574,7 @@ bool WifiProvisioningModule::handleSaveRequest_(const char* query)
         portalCredentialsSaved_ = true;
         (void)notifyWifiConfigChanged_();
         startStaProbe_(millis());
-        LOGI("Display provisioning credentials saved ssid_len=%u pass_len=%u",
+        LOGI("Flow Connect Display provisioning credentials saved ssid_len=%u pass_len=%u",
              (unsigned)strnlen(portalSsid_, sizeof(portalSsid_)),
              (unsigned)strnlen(portalPass_, sizeof(portalPass_)));
     }

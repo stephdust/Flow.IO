@@ -34,6 +34,7 @@ bool isKnownDefaultMdnsHost_(const char* host)
     return strcmp(host, "flowio") == 0 ||
            strcmp(host, "flowio-core") == 0 ||
            strcmp(host, "flowio-display") == 0 ||
+           strcmp(host, "flow-connect-display") == 0 ||
            strcmp(host, "flowio-micronova") == 0;
 }
 

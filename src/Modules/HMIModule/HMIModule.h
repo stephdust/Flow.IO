@@ -71,9 +71,9 @@ private:
         NVS_KEY(NvsKeys::Hmi::NextionEnabled), "enabled", "hmi/nextion",
         ConfigType::Bool, &cfgData_.nextionEnabled, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"Display UDP actif", "help":"Utilise un ESP32 Display distant via UDP a la place du Nextion local."}
+    // CFGDOC: {"label":"Flow Connect Display UDP actif", "help":"Utilise un Flow Connect Display distant via UDP a la place du Nextion local."}
     ConfigVariable<bool,0> remoteUdpEnabledVar_{
-        NVS_KEY(NvsKeys::Hmi::RemoteUdpEnabled), "enabled", "hmi/remote_udp",
+        NVS_KEY(NvsKeys::Hmi::FlowConnectUdpEnabled), "enabled", "hmi/fcd_udp",
         ConfigType::Bool, &cfgData_.remoteUdpEnabled, ConfigPersistence::Persistent, 0
     };
     // CFGDOC: {"label":"Venice RF433 actif", "help":"Active l'emission periodique de la temperature d'eau vers un afficheur TFA Venice compatible."}
@@ -177,9 +177,11 @@ private:
     bool publishHomeStateBits_();
     bool publishHomeAlarmBits_();
     bool publishNextionV2Needles_(uint32_t pending, uint32_t& sent);
+    bool validateDriverDisplayVersion_(bool requireDetection);
     void serviceRtcBridge_(uint32_t nowMs);
     bool readNextionRtcAndSetTime_();
     bool pushEspTimeToNextionRtc_();
+    void resetClockPublishStamps_();
     void queueClockPublishIfDue_(uint32_t nowMs);
     void queueHomePublish_(uint32_t mask);
     void flushHomePublish_();

@@ -29,10 +29,14 @@ public:
     void tick(uint32_t nowMs);
 
     bool isDisplayOnline() const { return displayOnline_; }
+    bool hasDisplayVersion() const { return displayVersionDetected_; }
+    uint32_t displayVersion() const { return displayVersion_; }
+    bool isLegacyV2() const { return displayVersionDetected_ && displayVersion_ == 2U; }
     bool consumeFullRefreshRequested();
 
     bool sendHomeText(HmiHomeTextField field, const char* text);
     bool sendHomeGauge(HmiHomeGaugeField field, uint16_t percent);
+    bool sendHomeV2Needles(const NextionV2NeedlePublish& publish);
     bool sendHomeStateBits(uint32_t stateBits);
     bool sendHomeAlarmBits(uint32_t alarmBits);
 
@@ -42,6 +46,7 @@ public:
 
     bool sendRtcWrite(const HmiRtcDateTime& value);
     bool requestRtcRead();
+    bool requestRtcRead(HmiRtcDateTime& out, uint16_t timeoutMs);
 
     bool pollEvent(HmiEvent& out);
 
@@ -63,9 +68,9 @@ private:
         char token[33]{};
     } cfgData_{};
 
-    // CFGDOC: {"label":"Token Display UDP", "help":"Token partage optionnel. Si renseigne, le Display doit envoyer le meme token sous forme CRC."}
+    // CFGDOC: {"label":"Token Flow Connect Display", "help":"Token partage optionnel. Si renseigne, le Flow Connect Display doit envoyer le meme token sous forme CRC."}
     ConfigVariable<char,0> tokenVar_{
-        NVS_KEY(NvsKeys::Hmi::RemoteUdpToken), "token", "hmi/remote_udp",
+        NVS_KEY(NvsKeys::Hmi::FlowConnectUdpToken), "token", "hmi/fcd_udp",
         ConfigType::CharArray, cfgData_.token, ConfigPersistence::Persistent, sizeof(cfgData_.token)
     };
 
@@ -80,11 +85,16 @@ private:
     bool started_ = false;
     bool displayOnline_ = false;
     bool fullRefreshRequested_ = false;
+    bool displayVersionDetected_ = false;
+    uint32_t displayVersion_ = 0U;
     uint16_t txSeq_ = 1;
     uint16_t lastRxSeq_ = 0;
     uint16_t lastEventSeq_ = 0;
     bool hasLastEventSeq_ = false;
     uint32_t lastSeenMs_ = 0;
+    bool rtcResponseReady_ = false;
+    bool rtcReadInProgress_ = false;
+    HmiRtcDateTime rtcResponse_{};
 
     HmiEvent eventQueue_[HMI_UDP_EVENT_QUEUE_SIZE]{};
     uint8_t eventHead_ = 0;
@@ -106,6 +116,7 @@ private:
     bool loadNextReliable_();
     void serviceReliableTx_(uint32_t nowMs);
     void clearReliableQueue_(bool clearPending);
+    void markDisplayOffline_(const char* reason, bool clearPending);
     bool isConfigMsg_(HmiUdpMsgType type) const;
     bool sendAck_(uint16_t seq);
     void readUdp_(uint32_t nowMs);
