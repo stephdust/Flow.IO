@@ -40,6 +40,9 @@ static constexpr HaDiscoveryCleanupEntry kLegacyDiscoveryCleanupEntries[] = {
 static constexpr MqttConfigRouteProducer::Route kHaCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::Ha, kHaCfgBranch}, "ha", "ha", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
+static_assert(Limits::Ha::Capacity::MaxDiscoveryCleanups <=
+                  (uint8_t)(sizeof(kLegacyDiscoveryCleanupEntries) / sizeof(kLegacyDiscoveryCleanupEntries[0])),
+              "Board HA cleanup capacity exceeds built-in legacy cleanup entries");
 }
 
 static void buildAvailabilityField(const MqttService* mqttSvc_,

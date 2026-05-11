@@ -109,6 +109,8 @@ void hmiUdpEventToPayload(const HmiEvent& event, HmiUdpEventPayload& out)
     out = HmiUdpEventPayload{};
     out.type = (uint8_t)event.type;
     out.command = (uint8_t)event.command;
+    out.contextRef = event.contextRef;
+    out.pageId = event.pageId;
     out.row = event.row;
     out.value = event.value;
     out.direction = event.direction;
@@ -121,6 +123,8 @@ void hmiUdpPayloadToEvent(const HmiUdpEventPayload& payload, HmiEvent& out)
     out = HmiEvent{};
     out.type = (HmiEventType)payload.type;
     out.command = (HmiCommandId)payload.command;
+    out.contextRef = payload.contextRef;
+    out.pageId = payload.pageId;
     out.row = payload.row;
     out.value = payload.value;
     out.direction = payload.direction;

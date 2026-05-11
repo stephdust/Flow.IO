@@ -147,6 +147,7 @@ private:
     bool loadPersistedMetrics_(uint8_t slotIdx, PoolDeviceSlot& slot);
     bool persistMetrics_(uint8_t slotIdx, PoolDeviceSlot& slot, uint32_t nowMs);
     bool dependenciesSatisfied_(uint8_t slotIdx) const;
+    void logStartInterlock_(uint8_t slotIdx, uint8_t reason) const;
     static bool maxUptimeReached_(const PoolDeviceSlot& slot);
     bool readIoState_(const PoolDeviceSlot& slot, bool& onOut) const;
     bool writeIo_(IoId ioId, bool on);

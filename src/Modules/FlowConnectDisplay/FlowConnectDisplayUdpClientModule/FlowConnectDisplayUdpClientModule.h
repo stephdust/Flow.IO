@@ -1,7 +1,7 @@
 #pragma once
 /**
- * @file DisplayUdpClientModule.h
- * @brief Remote Display firmware UDP bridge between FlowIO and a local Nextion.
+ * @file FlowConnectDisplayUdpClientModule.h
+ * @brief Flow Connect FCD UDP bridge between FlowIO and a local Nextion.
  */
 
 #include <WiFiUdp.h>
@@ -12,10 +12,10 @@
 #include "Core/Services/Services.h"
 #include "Modules/HMIModule/Drivers/NextionDriver.h"
 
-class DisplayUdpClientModule : public Module {
+class FlowConnectDisplayUdpClientModule : public Module {
 public:
-    ModuleId moduleId() const override { return ModuleId::DisplayUdpClient; }
-    const char* taskName() const override { return "displayudp"; }
+    ModuleId moduleId() const override { return ModuleId::FlowConnectDisplayUdpClient; }
+    const char* taskName() const override { return "fcdudp"; }
     BaseType_t taskCore() const override { return 1; }
     uint16_t taskStackSize() const override { return 4096; }
     uint8_t taskCount() const override { return 1; }
@@ -40,7 +40,9 @@ private:
     static constexpr uint32_t AckRetryMs = 150U;
     static constexpr uint8_t AckMaxAttempts = 3U;
     static constexpr uint32_t HomeRefreshThrottleMs = 10000U;
-    static constexpr uint32_t PageProbePeriodMs = 1500U;
+    static constexpr uint32_t PageProbePeriodMs = 5000U;
+    static constexpr uint32_t VersionProbeRetryMs = 2000U;
+    static constexpr uint32_t VersionRecheckPeriodMs = 60000U;
     static constexpr uint32_t ConfigRenderDelayMs = 120U;
     static constexpr uint32_t ConfigRenderRetryMs = 320U;
     static constexpr uint8_t ConfigRenderPasses = 3U;
@@ -48,19 +50,21 @@ private:
     static constexpr uint8_t ConfigValuesPasses = 2U;
     static constexpr uint8_t NEXTION_EVENT_QUEUE_SIZE = 6U;
     static constexpr uint32_t InputLockMaxMs = 5000U;
+    static constexpr const char* FlowConnectionStateObject = "tFConnectState";
 
     struct ConfigData {
         char token[33]{};
     } cfgData_{};
 
-    // CFGDOC: {"label":"Token Display UDP", "help":"Token partage optionnel envoye en CRC dans Hello pour l'appairage FlowIO."}
+    // CFGDOC: {"label":"Token Flow Connect Display", "help":"Token partage optionnel envoye en CRC dans Hello pour l'appairage FlowIO."}
     ConfigVariable<char,0> tokenVar_{
-        NVS_KEY(NvsKeys::Hmi::RemoteUdpToken), "token", "hmi/remote_udp",
+        NVS_KEY(NvsKeys::FlowConnectDisplay::UdpToken), "token", "fcd/udp",
         ConfigType::CharArray, cfgData_.token, ConfigPersistence::Persistent, sizeof(cfgData_.token)
     };
 
     WiFiUDP udp_{};
     NextionDriver nextion_{};
+    ConfigStore* cfgStore_ = nullptr;
     const WifiService* wifiSvc_ = nullptr;
 
     uint8_t rxBuf_[HMI_UDP_MAX_PACKET]{};
@@ -72,6 +76,11 @@ private:
     bool linked_ = false;
     bool lostShown_ = false;
     bool inputLocked_ = false;
+    bool flowConnectInitialized_ = false;
+    bool flowConnectVisible_ = false;
+    bool configPageActive_ = false;
+    bool wifiFactoryResetPending_ = false;
+    uint8_t lastFlowConnectPage_ = 0xFFU;
 
     uint16_t txSeq_ = 1;
     uint16_t lastAck_ = 0;
@@ -82,7 +91,9 @@ private:
     uint32_t lastSeenMs_ = 0;
     uint32_t lastHomeRefreshRequestMs_ = 0;
     uint32_t lastPageProbeMs_ = 0;
+    uint32_t lastVersionProbeMs_ = 0;
     uint32_t inputLockedAtMs_ = 0;
+    uint32_t wifiFactoryResetAtMs_ = 0;
     uint8_t lastLoggedNextionPage_ = 0xFFU;
     uint8_t lastLoggedLogicalPage_ = 0xFFU;
     uint8_t lastLoggedConfigPage_ = 0xFFU;
@@ -94,6 +105,7 @@ private:
     uint8_t pendingBuf_[HMI_UDP_MAX_PACKET]{};
     size_t pendingLen_ = 0;
     uint16_t pendingSeq_ = 0;
+    HmiUdpMsgType pendingType_ = HmiUdpMsgType::Error;
     uint8_t pendingAttempts_ = 0;
     uint32_t pendingLastSendMs_ = 0;
 
@@ -110,7 +122,8 @@ private:
     uint8_t eventHead_ = 0;
     uint8_t eventTail_ = 0;
 
-    void sendHello_(uint32_t nowMs);
+    void sendHello_(uint32_t nowMs, bool force = false);
+    void probeNextionVersion_(uint32_t nowMs, bool force = false);
     void sendPing_(uint32_t nowMs);
     void readUdp_(uint32_t nowMs);
     void handlePacket_(const HmiUdpHeader& header, const uint8_t* payload, uint32_t nowMs);
@@ -121,6 +134,11 @@ private:
     bool enqueueEvent_(const HmiEvent& event);
     bool dequeueEvent_(HmiEvent& out);
     bool sendEvent_(const HmiEvent& event);
+    bool queueReliablePacket_(HmiUdpMsgType type, const void* payload, uint8_t payloadLen);
+    bool sendRtcReadResponse_();
+    bool handleLocalCommand_(const HmiEvent& event);
+    bool requestWifiFactoryReset_();
+    void serviceWifiFactoryReset_(uint32_t nowMs);
     void requestFullRefresh_(const char* reason, bool force = false);
     void servicePageProbe_(uint32_t nowMs);
     void scheduleConfigRender_(uint32_t nowMs, const char* reason);
@@ -130,10 +148,12 @@ private:
     void logDisplayState_(const char* reason, bool force = false);
     void logEvent_(const char* prefix, const HmiEvent& event) const;
     void servicePendingAck_(uint32_t nowMs);
+    void setFlowConnectionVisible_(bool visible, const char* reason, bool force = false);
     void markSeen_(uint32_t nowMs);
     void handleLinkLost_();
     bool wifiConnected_() const;
     static void copyText_(char* out, size_t outLen, const char* in);
+    static void nextionDebugCallback_(void* ctx, const char* kind, const uint8_t* data, uint8_t len);
     static const char* msgTypeName_(HmiUdpMsgType type);
     static const char* eventTypeName_(HmiEventType type);
     static const char* commandName_(HmiCommandId command);

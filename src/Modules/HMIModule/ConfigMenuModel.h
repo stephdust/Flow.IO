@@ -55,6 +55,7 @@ struct ConfigMenuRowView {
     bool canEnter = false;
     bool canEdit = false;
     ConfigMenuWidget widget = ConfigMenuWidget::Text;
+    uint8_t editType = 0; // 0=text, 1=int, 2=float, 3=bool
     char key[28]{};
     char label[28]{};
     char value[40]{};
@@ -62,6 +63,7 @@ struct ConfigMenuRowView {
 
 struct ConfigMenuView {
     char breadcrumb[96]{};
+    uint32_t contextRef = 0U;
     uint8_t pageIndex = 0;
     uint8_t pageCount = 1;
     uint8_t rowCountOnPage = 0;
@@ -142,6 +144,7 @@ private:
 
     ConfigMenuMode mode_ = ConfigMenuMode::Browse;
     uint8_t pageIndex_ = 0;
+    uint8_t editReturnPageIndex_ = 0;
 
     char currentModule_[28]{};
     char previousModule_[28]{};

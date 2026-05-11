@@ -62,6 +62,16 @@ void copyTaskName_(char* out, size_t outLen, TaskHandle_t task)
 }
 #endif
 
+bool isLikelyValidTaskHandle_(TaskHandle_t handle)
+{
+    const uintptr_t raw = (uintptr_t)handle;
+    if (raw == 0U) return false;
+    // ESP32 task handles are pointers in DRAM/IRAM address ranges.
+    if (raw < 0x3FF00000U) return false;
+    if (raw > 0x60000000U) return false;
+    return true;
+}
+
 }
 
 const char* SystemMonitorModule::wifiStateStr(WifiState st) {
@@ -238,6 +248,15 @@ void SystemMonitorModule::logHeapStats() {
 }
 
 void SystemMonitorModule::logTaskStacks() {
+#if defined(FLOW_PROFILE_MICRONOVA)
+    static bool warned = false;
+    if (!warned) {
+        warned = true;
+        LOGW("Stack task monitoring disabled on Micronova profile (stability guard)");
+    }
+    return;
+#endif
+
     if (!moduleManager) {
         LOGD("ModuleManager not set, task stats disabled");
         return;
@@ -251,11 +270,16 @@ void SystemMonitorModule::logTaskStacks() {
     line[0] = '\0';
     uint8_t tasksOnLine = 0;
     bool hasTask = false;
+    uint16_t skippedInvalidHandles = 0;
 
     const uint8_t n = moduleManager->getTaskEntryCount();
     for (uint8_t i = 0; i < n; ++i) {
         const ModuleManager::TaskEntry* task = moduleManager->getTaskEntry(i);
         if (!task || !task->module || !task->handle) continue;
+        if (!isLikelyValidTaskHandle_(task->handle)) {
+            ++skippedInvalidHandles;
+            continue;
+        }
 
         const ModuleTaskSpec* specs = task->module->taskSpecs();
         const uint8_t taskCount = task->module->taskCount();
@@ -309,11 +333,17 @@ void SystemMonitorModule::logTaskStacks() {
 
     if (!hasTask) {
         LOGD("Stack none");
+        if (skippedInvalidHandles > 0U) {
+            LOGW("Stack skipped invalid handles=%u", (unsigned)skippedInvalidHandles);
+        }
         return;
     }
 
     if (tasksOnLine > 0) {
         LOGD("Stack %s", line);
+    }
+    if (skippedInvalidHandles > 0U) {
+        LOGW("Stack skipped invalid handles=%u", (unsigned)skippedInvalidHandles);
     }
 }
 

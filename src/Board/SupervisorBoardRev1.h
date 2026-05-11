@@ -6,6 +6,12 @@ namespace BoardProfiles {
 
 inline constexpr uint32_t kSupervisorBoardRev1UartBaud = 115200U;
 inline constexpr uint32_t kSupervisorBoardRev1InterlinkI2cHz = 400000U;
+inline constexpr IoCapacitySpec kSupervisorBoardRev1IoCapacity{1, 1, 1, 6, 5, 8};
+inline constexpr MqttCapacitySpec kSupervisorBoardRev1MqttCapacity{5712, 8, 8, 48, 24, 16, 2, 80, 80, 80, 60};
+inline constexpr MqttBufferSpec kSupervisorBoardRev1MqttBuffers{
+    64, 32, 32, 15, 15, 70, 160, 128, 384, 1536, 1024, 1536, 1536, 64, 320, 32
+};
+inline constexpr HaCapacitySpec kSupervisorBoardRev1HaCapacity{40, 6, 14, 14, 24, 9};
 
 inline constexpr UartSpec kSupervisorBoardRev1Uarts[] = {
     // {name, uartIndex, rxPin, txPin, baud, primary, enableRxPin}
@@ -70,7 +76,10 @@ inline constexpr BoardSpec kSupervisorBoardRev1{
     0,
     nullptr,
     0,
-    {0, 0, 0},
+    kSupervisorBoardRev1IoCapacity,
+    kSupervisorBoardRev1MqttCapacity,
+    kSupervisorBoardRev1MqttBuffers,
+    kSupervisorBoardRev1HaCapacity,
     &kSupervisorBoardRev1Supervisor
 };
 

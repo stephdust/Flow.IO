@@ -8,6 +8,7 @@
             <span></span>
             <span></span>
           </span>
+          <span class="ui-msr menu-btn-msr" aria-hidden="true">menu</span>
         </button>
         <div class="drawer-user" aria-label="Flow.io">
           <span class="brand-wordmark" aria-hidden="true">
@@ -40,6 +41,7 @@
             <span></span>
             <span></span>
           </span>
+          <span class="ui-msr menu-btn-msr" aria-hidden="true">menu</span>
         </button>
         <div class="mobile-title" aria-label="Flow.io">
           <span class="mobile-wordmark" aria-hidden="true">
@@ -49,17 +51,17 @@
       </div>
       <section id="page-pool-measures" class="page active">
         <div class="topbar">
-          <h1>Tableau de Bord</h1>
+          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">dashboard</span>Tableau de Bord</h1>
           <div class="topbar-actions">
             <span id="poolMeasuresStatus" class="status-chip measure-status-badge">en attente...</span>
             <button id="poolMeasuresRefresh" class="btn-tonal btn-icon-only btn-refresh-icon" aria-label="Rafraîchir les mesures actives" title="Rafraîchir les mesures actives"><span class="refresh-icon-glyph" aria-hidden="true"></span></button>
           </div>
         </div>
         <div class="control-shell">
-          <div class="control-section-title">Domaines</div>
+          <div class="control-section-title ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">category</span>Domaines</div>
           <div id="poolMeasuresDomains" class="control-sections measure-domain-chips" aria-label="Domaines de mesures"></div>
           <div class="control-divider measure-domain-divider"></div>
-          <div class="control-section-title">Mesures</div>
+          <div class="control-section-title ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">monitoring</span>Mesures</div>
           <div class="measure-results-shell">
             <div id="poolMeasuresGrid" class="status-grid measure-status-grid"></div>
           </div>
@@ -68,7 +70,7 @@
 
       <section id="page-terminal" class="page">
         <div class="topbar">
-          <h1>Journaux</h1>
+          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">terminal_2</span>Journaux</h1>
           <div class="topbar-actions">
             <select id="logSourceSelect" class="log-source-select" aria-label="Source des journaux" title="Source des journaux affichés">
               <option value="flow">Flow.io (distant)</option>
@@ -97,7 +99,7 @@
 
       <section id="page-system" class="page">
         <div class="topbar">
-          <h1>Mises à Jour</h1>
+          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">system_update_alt</span>Mises à Jour</h1>
           <div class="topbar-actions">
             <span id="systemStatusText" class="status-chip system-status-badge">Prêt</span>
           </div>
@@ -105,7 +107,7 @@
         <div class="system-groups">
           <div class="card system-card system-card-firmware">
             <div class="config-section">
-              <h2>Mise à jour Firmware</h2>
+              <h2 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">browser_updated</span>Mise à jour Firmware</h2>
               <div class="form-grid upgrade-form-grid">
                 <div class="field full">
                   <label for="updateHost">Serveur HTTP (nom d'hôte ou IP, protocole optionnel)</label>
@@ -179,31 +181,32 @@
 
           <div class="card system-card system-card-actions">
             <div class="config-section">
-              <h2>Redémarrage</h2>
+              <h2 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">restart_alt</span>Redémarrage</h2>
               <div class="system-actions">
                 <div class="system-action">
-                  <h3>Redémarrer le Superviseur</h3>
+                  <h3 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">restart_alt</span>Redémarrer le Superviseur</h3>
                   <p>Redémarre uniquement le Superviseur pour relancer les services sans modifier la configuration.</p>
                   <div class="btn-row system-action-actions">
                     <button id="rebootSupervisor" class="btn-tonal system-reboot-btn">Redémarrer</button>
                   </div>
                 </div>
                 <div class="system-action">
-                  <h3>Redémarrer Flow.io</h3>
-                  <p>Redémarre Flow.io proprement via le lien I2C.</p>
+                  <h3 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">power_settings_new</span>Redémarrer Flow.io</h3>
+                  <p>Redémarre Flow.io proprement via le lien I2C, ou force un reset matériel avec la ligne EN.</p>
                   <div class="btn-row system-action-actions">
                     <button id="rebootFlow" class="btn-tonal system-reboot-btn">Redémarrer</button>
+                    <button id="rebootFlowHardware" class="btn-tonal system-reboot-btn">Reset matériel</button>
                   </div>
                 </div>
                 <div class="system-action">
-                  <h3>Redémarrer Nextion</h3>
+                  <h3 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">developer_board</span>Redémarrer Nextion</h3>
                   <p>Relance uniquement l'écran Nextion via la séquence matérielle dédiée.</p>
                   <div class="btn-row system-action-actions">
                     <button id="rebootNextion" class="btn-tonal system-reboot-btn">Redémarrer</button>
                   </div>
                 </div>
                 <div class="system-action">
-                  <h3>Réinitialisation</h3>
+                  <h3 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">settings_backup_restore</span>Réinitialisation</h3>
                   <p>Efface la configuration de Flow.io puis redémarre l’équipement.</p>
                   <div class="btn-row system-action-actions">
                     <button id="flowFactoryReset" class="btn-primary">Réinitialiser</button>
@@ -217,12 +220,12 @@
 
       <section id="page-wifi" class="page">
         <div class="topbar">
-          <h1>Configuration WiFi</h1>
+          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">wifi</span>Configuration WiFi</h1>
         </div>
         <div class="card">
           <div class="config-section">
             <div class="config-section-head wifi-section-head">
-              <h2>WiFi</h2>
+              <h2 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">router</span>WiFi</h2>
               <div class="wifi-section-toggle">
                 <span>Activer</span>
                 <label class="md3-switch">
@@ -255,7 +258,7 @@
               </div>
             </div>
             <div class="btn-row">
-              <button id="applyWifiCfg" class="btn-primary">Appliquer WiFi</button>
+              <button id="applyWifiCfg" class="btn-primary"><span class="ui-msr btn-msr" aria-hidden="true">wifi_protected_setup</span>Appliquer WiFi</button>
             </div>
             <div id="wifiConfigStatus" class="config-status">Configuration WiFi prête.</div>
           </div>
@@ -264,7 +267,7 @@
 
       <section id="page-calibration" class="page">
         <div class="topbar">
-          <h1>Étalonnage</h1>
+          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">science</span>Étalonnage</h1>
           <div class="topbar-actions">
             <span id="calibrationStatusChip" class="status-chip">Prêt</span>
           </div>
@@ -272,7 +275,7 @@
         <div class="card calibration-card">
           <div class="control-shell calibration-shell">
             <section class="cfg-pane calibration-pane">
-              <div class="control-section-title">Assistant</div>
+              <div class="control-section-title ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">auto_fix_high</span>Assistant</div>
               <p class="calibration-intro">
                 Étalonnez les sondes piscine en calculant automatiquement les coefficients <b>C0</b> et <b>C1</b> selon la formule
                 <code>valeur = C0 * input + C1</code>.
@@ -352,8 +355,8 @@
               </div>
 
               <div class="btn-row calibration-main-actions">
-                <button id="calibrationComputeBtn" class="btn-tonal">Calculer C0/C1</button>
-                <button id="calibrationApplyBtn" class="btn-primary" disabled>Appliquer sur Flow.io</button>
+                <button id="calibrationComputeBtn" class="btn-tonal"><span class="ui-msr btn-msr" aria-hidden="true">calculate</span>Calculer C0/C1</button>
+                <button id="calibrationApplyBtn" class="btn-primary" disabled><span class="ui-msr btn-msr" aria-hidden="true">done</span>Appliquer sur Flow.io</button>
               </div>
 
               <div id="calibrationPreview" class="calibration-preview" hidden></div>
@@ -367,12 +370,12 @@
       <section id="page-control" class="page">
         <div class="topbar">
           <div class="control-topbar-heading">
-            <h1 id="flowCfgTitle">Configuration</h1>
+            <h1 id="flowCfgTitle" class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">settings</span>Configuration</h1>
           </div>
           <div class="topbar-actions control-topbar-actions">
             <button id="flowCfgRefresh" class="btn-tonal btn-icon-only btn-refresh-icon" aria-label="Rafraîchir la configuration" title="Rafraîchir la configuration"><span class="refresh-icon-glyph" aria-hidden="true"></span></button>
-            <button id="flowCfgExport" class="btn-tonal btn-compact">Exporter ConfigStore</button>
-            <button id="flowCfgImport" class="btn-tonal btn-compact">Importer ConfigStore</button>
+            <button id="flowCfgExport" class="btn-tonal btn-compact"><span class="ui-msr btn-msr" aria-hidden="true">download</span>Exporter ConfigStore</button>
+            <button id="flowCfgImport" class="btn-tonal btn-compact"><span class="ui-msr btn-msr" aria-hidden="true">upload</span>Importer ConfigStore</button>
             <input id="flowCfgImportFile" type="file" accept=".json,application/json" hidden />
           </div>
         </div>
@@ -383,7 +386,7 @@
                 <div id="flowCfgTree" class="cfg-tree" role="tree" aria-label="Arbre de configuration Flow.io"></div>
               </aside>
               <section class="cfg-pane cfg-detail-pane">
-                <div class="control-section-title">Branche</div>
+                <div class="control-section-title ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">account_tree</span>Branche</div>
                 <div class="control-detail-header">
                   <div class="control-current-path-wrap">
                     <div id="flowCfgCurrentPath" class="control-current-path">Racine</div>
@@ -391,7 +394,7 @@
                   </div>
                 </div>
                 <div class="control-divider"></div>
-                <div class="control-section-title">Variables</div>
+                <div class="control-section-title ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">tune</span>Variables</div>
                 <div id="flowCfgFields" class="control-fields"></div>
                 <div id="flowCfgStatus" class="config-status">Configuration distante prête.</div>
                 <div id="flowCfgBackupStatus" class="config-status config-status-muted">Sauvegarde configuration prête.</div>
@@ -408,7 +411,7 @@
                   </div>
                 </div>
                 <div class="control-actions">
-                  <button id="flowCfgApply" class="btn-primary">Appliquer</button>
+                  <button id="flowCfgApply" class="btn-primary"><span class="ui-msr btn-msr" aria-hidden="true">done_all</span>Appliquer</button>
                 </div>
               </section>
             </div>

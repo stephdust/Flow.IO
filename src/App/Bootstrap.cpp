@@ -10,8 +10,8 @@
 #include "Profiles/Supervisor/SupervisorProfile.h"
 #endif
 
-#if FLOW_BUILD_IS_DISPLAY
-#include "Profiles/Display/DisplayProfile.h"
+#if FLOW_BUILD_IS_FLOW_CONNECT_DISPLAY
+#include "Profiles/FlowConnectDisplay/FlowConnectDisplayProfile.h"
 #endif
 
 #if FLOW_BUILD_IS_MICRONOVA
@@ -29,8 +29,8 @@ const FirmwareProfile& resolveProfile()
     return Profiles::FlowIO::profile();
 #elif FLOW_BUILD_IS_SUPERVISOR
     return Profiles::Supervisor::profile();
-#elif FLOW_BUILD_IS_DISPLAY
-    return Profiles::Display::profile();
+#elif FLOW_BUILD_IS_FLOW_CONNECT_DISPLAY
+    return Profiles::FlowConnectDisplay::profile();
 #elif FLOW_BUILD_IS_MICRONOVA
     return Profiles::Micronova::profile();
 #else

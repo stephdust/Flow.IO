@@ -1,5 +1,15 @@
 const $ = (id) => document.getElementById(id);
 
+const ui = {
+  product: "Flow.io",
+  runtime: true,
+  ap: true,
+  mqtt: true,
+  cfg: true,
+  full: true,
+  rebootAfterWifi: false
+};
+
 function status(text) {
   $("status").textContent = text;
 }
@@ -17,10 +27,31 @@ function form(values) {
 
 function applyBrand(meta) {
   const profile = String((meta && (meta.profile || meta.profile_name)) || "").toLowerCase();
-  const name = profile === "micronova" ? "Pellet" : "Flow";
+  const product = String((meta && meta.product_name) || "");
+  const isDisplay = product === "Flow Connect Display" || profile.indexOf("flowconnectdisplay") >= 0 || profile.indexOf("flow_connect_display") >= 0;
+  const name = isDisplay ? "Flow Connect Display" : profile === "micronova" ? "Pellet" : "Flow";
+  const suffix = document.querySelector(".brand-io");
   $("brandName").textContent = name;
-  $("brand").setAttribute("aria-label", name + ".io");
-  document.title = name + ".io";
+  if (suffix) suffix.textContent = isDisplay ? "" : ".io";
+  $("brand").setAttribute("aria-label", isDisplay ? name : name + ".io");
+  document.title = isDisplay ? name : name + ".io";
+}
+
+function applyCapabilities(meta) {
+  const wifiOnly = !!(meta && meta.wifi_only);
+  ui.product = String((meta && meta.product_name) || ui.product);
+  ui.runtime = !wifiOnly && meta && meta.runtime_enabled !== false;
+  ui.ap = !meta || meta.ap_status_enabled !== false;
+  ui.mqtt = !wifiOnly && (!meta || meta.mqtt_config_enabled !== false);
+  ui.cfg = !wifiOnly && (!meta || meta.config_browser_enabled !== false);
+  ui.full = !wifiOnly && (!meta || meta.full_ui_enabled !== false);
+  ui.rebootAfterWifi = !!(meta && meta.reboot_after_wifi_save);
+
+  $("runtimeBox").classList.toggle("hidden", !ui.runtime);
+  $("apBox").classList.toggle("hidden", !ui.ap);
+  $("mqttBox").classList.toggle("hidden", true);
+  $("cfgBox").classList.toggle("hidden", !ui.cfg);
+  $("fullUiBtn").classList.toggle("hidden", !ui.full);
 }
 
 let scanTimer = 0;
@@ -136,6 +167,7 @@ async function loadAll() {
   try {
     const meta = await json("/api/web/meta");
     applyBrand(meta);
+    applyCapabilities(meta);
     $("subtitle").textContent = "Configuration Initiale - " + (meta.firmware_version || "Flow.io");
     status("Pret");
     ok = true;
@@ -153,7 +185,7 @@ async function loadAll() {
     status("Erreur Wi-Fi: " + err.message);
   }
 
-  try {
+  if (ui.mqtt) try {
     const cfg = await json("/api/mqtt/config");
     $("mqttBox").classList.remove("hidden");
     $("mqttEnabled").checked = !!cfg.enabled;
@@ -166,14 +198,14 @@ async function loadAll() {
   } catch (err) {
   }
 
-  await loadRuntime();
-  await loadApStatus();
+  if (ui.runtime) await loadRuntime();
+  if (ui.ap) await loadApStatus();
   if (ok) $("cfgOut").textContent = "Lecture a la demande.";
 }
 
 async function saveWifi() {
   try {
-    await json("/api/wifi/config", {
+    const data = await json("/api/wifi/config", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form({
@@ -182,7 +214,9 @@ async function saveWifi() {
         pass: $("wifiPass").value
       })
     });
-    status("Wi-Fi enregistre. Le portail peut se couper si la connexion station reussit.");
+    status((ui.rebootAfterWifi || data.reboot_scheduled)
+      ? "Wi-Fi enregistre. Redemarrage en cours..."
+      : "Wi-Fi enregistre. Le portail peut se couper si la connexion station reussit.");
   } catch (err) {
     status("Erreur Wi-Fi: " + err.message);
   }

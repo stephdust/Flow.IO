@@ -30,6 +30,7 @@ enum class ErrorCode : uint16_t {
     NotReady,
     Disabled,
     InterlockBlocked,
+    MaxUptimeReached,
     IoError,
     Failed,
     InvalidSlot,
@@ -75,6 +76,7 @@ static inline const char* errorCodeStr(ErrorCode code)
     case ErrorCode::NotReady: return "NotReady";
     case ErrorCode::Disabled: return "Disabled";
     case ErrorCode::InterlockBlocked: return "InterlockBlocked";
+    case ErrorCode::MaxUptimeReached: return "MaxUptimeReached";
     case ErrorCode::IoError: return "IoError";
     case ErrorCode::Failed: return "Failed";
     case ErrorCode::InvalidSlot: return "InvalidSlot";

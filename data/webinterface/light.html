@@ -24,7 +24,7 @@
       <button class="secondary" id="runtimeRefresh" type="button">Rafraichir</button>
     </section>
 
-    <section class="box">
+    <section class="box" id="apBox">
       <h2>Portail Wi-Fi AP</h2>
       <pre id="apOut">Chargement...</pre>
       <button class="secondary" id="apRefresh" type="button">Rafraichir AP</button>
@@ -59,7 +59,7 @@
       <button id="mqttSave" type="button">Enregistrer MQTT</button>
     </section>
 
-    <section class="box alt">
+    <section class="box alt" id="cfgBox">
       <h2>Configuration locale</h2>
       <div class="row">
         <label>Module<input id="cfgModule" value="micronova" autocomplete="off" /></label>
@@ -68,7 +68,7 @@
       <pre id="cfgOut">-</pre>
     </section>
 
-    <section class="box actions">
+    <section class="box actions" id="actionsBox">
       <button class="secondary" id="rebootBtn" type="button">Redemarrer</button>
       <button class="secondary" id="fullUiBtn" type="button">Interface complete</button>
     </section>

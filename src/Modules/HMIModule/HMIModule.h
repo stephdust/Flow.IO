@@ -71,9 +71,9 @@ private:
         NVS_KEY(NvsKeys::Hmi::NextionEnabled), "enabled", "hmi/nextion",
         ConfigType::Bool, &cfgData_.nextionEnabled, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"Display UDP actif", "help":"Utilise un ESP32 Display distant via UDP a la place du Nextion local."}
+    // CFGDOC: {"label":"Flow Connect Display UDP actif", "help":"Utilise un Flow Connect Display distant via UDP a la place du Nextion local."}
     ConfigVariable<bool,0> remoteUdpEnabledVar_{
-        NVS_KEY(NvsKeys::Hmi::RemoteUdpEnabled), "enabled", "hmi/remote_udp",
+        NVS_KEY(NvsKeys::Hmi::FlowConnectUdpEnabled), "enabled", "hmi/fcd_udp",
         ConfigType::Bool, &cfgData_.remoteUdpEnabled, ConfigPersistence::Persistent, 0
     };
     // CFGDOC: {"label":"Venice RF433 actif", "help":"Active l'emission periodique de la temperature d'eau vers un afficheur TFA Venice compatible."}
@@ -106,6 +106,9 @@ private:
 
     bool driverReady_ = false;
     bool nextionDisabledByVersion_ = false;
+    bool homePageVisible_ = false;
+    bool menuSessionActive_ = false;
+    bool menuPageVisible_ = false;
     bool viewDirty_ = true;
     bool configMenuReady_ = false;
     bool configMenuActive_ = false;
@@ -140,6 +143,8 @@ private:
     uint32_t lastLedPageToggleMs_ = 0;
     uint32_t lastWifiBlinkToggleMs_ = 0;
     uint32_t lastClockCheckMs_ = 0;
+    uint32_t lastLegacyV2FullRefreshMs_ = 0;
+    uint32_t lastDisplayVersionProbeMs_ = 0;
     uint32_t lastClockMinuteStamp_ = 0xFFFFFFFFUL;
     uint32_t lastClockDayStamp_ = 0xFFFFFFFFUL;
     uint32_t lastRtcFallbackAttemptMs_ = 0;
@@ -149,6 +154,8 @@ private:
     bool nextionVersionDetected_ = false;
     uint32_t nextionVersion_ = 0U;
     char homeErrorMessage_[96]{};
+    uint32_t activeConfigContextToken_ = 0U;
+    uint32_t nextConfigContextToken_ = 1U;
 
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
@@ -163,6 +170,8 @@ private:
     bool refreshConfigMenuValues_();
     bool buildMenuJson_(char* out, size_t outLen);
     bool ensureConfigMenuReady_();
+    uint32_t cacheCurrentConfigContext_();
+    bool restoreConfigContext_(uint32_t token);
     void refreshHomeBindings_();
     bool resolveIoRuntimeIndex_(IoId ioId, uint8_t& outIndex) const;
     bool readPoolLogicModeFlags_(bool& autoMode, bool& winterMode, bool& phAutoMode, bool& orpAutoMode) const;
@@ -176,10 +185,11 @@ private:
     bool publishHomeGaugePercent_(HmiHomeGaugeField field);
     bool publishHomeStateBits_();
     bool publishHomeAlarmBits_();
-    bool publishNextionV2Needles_(uint32_t pending, uint32_t& sent);
+    bool validateDriverDisplayVersion_(bool requireDetection);
     void serviceRtcBridge_(uint32_t nowMs);
     bool readNextionRtcAndSetTime_();
     bool pushEspTimeToNextionRtc_();
+    void resetClockPublishStamps_();
     void queueClockPublishIfDue_(uint32_t nowMs);
     void queueHomePublish_(uint32_t mask);
     void flushHomePublish_();

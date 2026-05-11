@@ -1,21 +1,21 @@
-#include "Profiles/Display/DisplayProfile.h"
+#include "Profiles/FlowConnectDisplay/FlowConnectDisplayProfile.h"
 
 #include "Board/BoardCatalog.h"
 #include "Core/FirmwareVersion.h"
 #include "Domain/DomainCatalog.h"
 
 namespace Profiles {
-namespace Display {
+namespace FlowConnectDisplay {
 
 const FirmwareProfile& profile()
 {
     static const FirmwareProfile kProfile{
-        "Display",
+        "FlowConnectDisplay",
         &BoardCatalog::flowIODINv1(),
         &DomainCatalog::supervisor(),
         {
-            "Flow.io Display",
-            "flowio-display",
+            "Flow Connect Display",
+            "flow-connect-display",
             FirmwareVersion::Full,
             "rt"
         },
@@ -26,5 +26,5 @@ const FirmwareProfile& profile()
     return kProfile;
 }
 
-}  // namespace Display
+}  // namespace FlowConnectDisplay
 }  // namespace Profiles

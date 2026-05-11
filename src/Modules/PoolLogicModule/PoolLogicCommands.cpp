@@ -151,6 +151,7 @@ bool PoolLogicModule::cmdFiltrationWrite_(const CommandRequest& req, char* reply
         else if (st == POOLDEV_SVC_ERR_NOT_READY) code = ErrorCode::NotReady;
         else if (st == POOLDEV_SVC_ERR_DISABLED) code = ErrorCode::Disabled;
         else if (st == POOLDEV_SVC_ERR_INTERLOCK) code = ErrorCode::InterlockBlocked;
+        else if (st == POOLDEV_SVC_ERR_MAX_UPTIME) code = ErrorCode::MaxUptimeReached;
         else if (st == POOLDEV_SVC_ERR_IO) code = ErrorCode::IoError;
         writeCmdError_(reply, replyLen, "poollogic.filtration.write", code);
         return false;
@@ -272,17 +273,6 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
             autoMode_ = false;
         }
 
-        // Keep behavior aligned with pooldevice.write: manual pump start disables
-        // the corresponding auto mode so automation does not fight the operator.
-        if (requested && clearDosingModeKey && cfgStore_) {
-            char patch[96]{};
-            snprintf(patch, sizeof(patch), "{\"poollogic/mode\":{\"%s\":false}}", clearDosingModeKey);
-            if (cfgStore_->applyJson(patch)) {
-                if (strcmp(clearDosingModeKey, "ph_auto_mode") == 0) phAutoMode_ = false;
-                else if (strcmp(clearDosingModeKey, "orp_auto_mode") == 0) orpAutoMode_ = false;
-            }
-        }
-
         const PoolDeviceSvcStatus st = poolSvc_->writeDesired(poolSvc_->ctx, slot, requested ? 1U : 0U);
         if (st != POOLDEV_SVC_OK) {
             ErrorCode code = ErrorCode::Failed;
@@ -290,9 +280,21 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
             else if (st == POOLDEV_SVC_ERR_NOT_READY) code = ErrorCode::NotReady;
             else if (st == POOLDEV_SVC_ERR_DISABLED) code = ErrorCode::Disabled;
             else if (st == POOLDEV_SVC_ERR_INTERLOCK) code = ErrorCode::InterlockBlocked;
+            else if (st == POOLDEV_SVC_ERR_MAX_UPTIME) code = ErrorCode::MaxUptimeReached;
             else if (st == POOLDEV_SVC_ERR_IO) code = ErrorCode::IoError;
             writeCmdError_(reply, replyLen, where, code);
             return false;
+        }
+
+        // Keep behavior aligned with pooldevice.write: manual pump start disables
+        // the corresponding auto mode only after the hardware write is accepted.
+        if (requested && clearDosingModeKey && cfgStore_) {
+            char patch[96]{};
+            snprintf(patch, sizeof(patch), "{\"poollogic/mode\":{\"%s\":false}}", clearDosingModeKey);
+            if (cfgStore_->applyJson(patch)) {
+                if (strcmp(clearDosingModeKey, "ph_auto_mode") == 0) phAutoMode_ = false;
+                else if (strcmp(clearDosingModeKey, "orp_auto_mode") == 0) orpAutoMode_ = false;
+            }
         }
 
         if (forceManualAutoMode) {

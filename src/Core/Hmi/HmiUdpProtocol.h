@@ -11,10 +11,11 @@
 
 static constexpr uint8_t HMI_UDP_MAGIC0 = 'F';
 static constexpr uint8_t HMI_UDP_MAGIC1 = 'H';
-static constexpr uint8_t HMI_UDP_VERSION = 1;
+static constexpr uint8_t HMI_UDP_VERSION = 5;
 
 static constexpr uint16_t HMI_UDP_PORT = 42110;
 static constexpr size_t HMI_UDP_MAX_PACKET = 192;
+static constexpr size_t HMI_UDP_HOME_TEXT_MAX = 32;
 
 static constexpr uint8_t HMI_UDP_FLAG_ACK_REQUIRED = 0x01;
 static constexpr uint8_t HMI_UDP_FLAG_IS_ACK = 0x02;
@@ -31,6 +32,7 @@ enum class HmiUdpMsgType : uint8_t {
     HomeStateBits = 12,
     HomeAlarmBits = 13,
     FullRefresh = 14,
+    HomeV2Needles = 15,
 
     HmiEvent = 20,
 
@@ -63,7 +65,11 @@ struct HmiUdpHelloPayload {
     uint32_t tokenCrc;
     uint16_t displayFw;
     uint16_t protoVersion;
+    uint32_t nextionVersion;
+    uint8_t flags;
 };
+
+static constexpr uint8_t HMI_UDP_HELLO_FLAG_NEXTION_VERSION_VALID = 0x01;
 
 struct HmiUdpWelcomePayload {
     uint16_t flowFw;
@@ -73,13 +79,24 @@ struct HmiUdpWelcomePayload {
 
 struct HmiUdpHomeTextPayload {
     uint8_t field;
-    char text[16];
+    char text[HMI_UDP_HOME_TEXT_MAX];
 };
 
 struct HmiUdpHomeGaugePayload {
     uint8_t field;
     uint16_t percent;
 };
+
+struct HmiUdpHomeV2NeedlesPayload {
+    uint8_t flags;
+    int8_t phNeedle;
+    int8_t orpNeedle;
+    uint8_t psiNeedle;
+};
+
+static constexpr uint8_t HMI_UDP_V2_NEEDLE_PH = 0x01;
+static constexpr uint8_t HMI_UDP_V2_NEEDLE_ORP = 0x02;
+static constexpr uint8_t HMI_UDP_V2_NEEDLE_PSI = 0x04;
 
 struct HmiUdpStateBitsPayload {
     uint32_t stateBits;
@@ -92,23 +109,27 @@ struct HmiUdpAlarmBitsPayload {
 struct HmiUdpEventPayload {
     uint8_t type;
     uint8_t command;
+    uint32_t contextRef;
+    uint8_t pageId;
     uint8_t row;
     uint8_t value;
     int8_t direction;
     float sliderValue;
-    char text[32];
+    char text[48];
 };
 
 struct HmiUdpConfigStartPayload {
     uint8_t page;
     uint8_t pageCount;
     uint8_t flags;
+    uint32_t contextRef;
     char title[24];
 };
 
 struct HmiUdpConfigRowPayload {
     uint8_t row;
     uint8_t widget;
+    uint8_t editType;
     uint8_t flags;
     char label[24];
     char value[24];

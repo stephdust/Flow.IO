@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cstdio>
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::Core)
+#include "Core/ModuleLog.h"
 #undef snprintf
 #define snprintf(OUT, LEN, FMT, ...) \
     FLOW_SNPRINTF_CHECKED_MODULE(LOG_MODULE_ID, OUT, LEN, FMT, ##__VA_ARGS__)
@@ -27,12 +28,28 @@ static bool isJsonObjectReply_(const char* s, size_t len)
     return false;
 }
 
+static const char* resolveCommandAlias_(const char* cmd)
+{
+    if (!cmd) return cmd;
+    if (strcmp(cmd, "ntp.resync") == 0) return "time.resync";
+    return cmd;
+}
+
 bool CommandRegistry::registerHandler(const char* cmd, CommandHandler fn, void* userCtx) {
     if (!cmd || !fn) return false;
-    if (count >= MAX_COMMANDS) return false;
+    if (count >= MAX_COMMANDS) {
+        LOGW("Command registry full, dropping cmd=%s count=%u capacity=%u",
+             cmd,
+             (unsigned)count,
+             (unsigned)MAX_COMMANDS);
+        return false;
+    }
 
     for (uint8_t i = 0; i < count; ++i) {
-        if (strcmp(entries[i].cmd, cmd) == 0) return false;
+        if (strcmp(entries[i].cmd, cmd) == 0) {
+            LOGW("Command registry duplicate cmd=%s", cmd);
+            return false;
+        }
     }
 
     entries[count++] = {cmd, fn, userCtx};
@@ -48,9 +65,10 @@ bool CommandRegistry::execute(const char* cmd, const char* json, const char* arg
         }
         return false;
     }
+    const char* resolvedCmd = resolveCommandAlias_(cmd);
     for (uint8_t i = 0; i < count; ++i) {
-        if (strcmp(entries[i].cmd, cmd) == 0) {
-            CommandRequest req{cmd, json, args};
+        if (strcmp(entries[i].cmd, resolvedCmd) == 0) {
+            CommandRequest req{resolvedCmd, json, args};
             const bool ok = entries[i].fn(entries[i].userCtx, req, reply, replyLen);
             if (reply && replyLen) {
                 if (!isJsonObjectReply_(reply, replyLen)) {

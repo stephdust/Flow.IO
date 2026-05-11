@@ -42,6 +42,8 @@ public:
     bool setPowerLevel(uint8_t level);
     bool setFanSpeed(uint8_t level);
     bool setTargetTemperature(uint8_t temperature);
+    bool sendPowerPlus();
+    bool sendPowerMinus();
     bool refreshNow();
 
 private:
@@ -69,11 +71,18 @@ private:
     static void onEventStatic_(const Event& e, void* user);
     void syncOnline_(uint32_t nowMs);
     void queuePollingSweep_(uint32_t nowMs);
+    void requestReadAllSweep_();
+    void startReadAllSweep_(uint32_t nowMs);
+    void tickReadAllSweep_(uint32_t nowMs);
+    void finishReadAllSweep_(bool aborted);
+    void onReadAllSweepReply_(const MicronovaRawValue& value, uint32_t nowMs);
+    bool updateDisplayLinesFromRaw_(const MicronovaRawValue& value, uint32_t nowMs);
+    void queueDisplayLineReads_();
     bool queueRegisterRead_(MicronovaRegisterId id);
     const RegisterConfig& reg_(MicronovaRegisterId id) const;
     RegisterConfig& reg_(MicronovaRegisterId id);
     bool writeRegister_(MicronovaRegisterId id, uint8_t value);
-    bool writeCommand_(const CommandConfig& command);
+    bool writeCommand_(const CommandConfig& command, MicronovaWriteTxMode txMode = MicronovaWriteTxMode::Default);
     void recordLastCommand_(const char* command);
     uint8_t clampLevel_(uint8_t level) const;
 
@@ -84,13 +93,26 @@ private:
     bool lastOnline_ = false;
     uint32_t nextPollMs_ = 0;
     uint16_t fastCyclesRemaining_ = 0;
+    bool readAllSweepRequested_ = false;
+    bool readAllSweepActive_ = false;
+    bool readAllSweepAwaitingReply_ = false;
+    uint8_t readAllSweepAddress_ = 0;
+    uint16_t readAllSweepIndex_ = 0;
+    uint32_t readAllSweepSentMs_ = 0;
+    uint32_t readAllSweepNextStepMs_ = 0;
+    uint16_t readAllSweepValidCount_ = 0;
+    uint16_t readAllSweepInvalidCount_ = 0;
+    uint16_t readAllSweepTimeoutCount_ = 0;
+    uint8_t displayLineDirtyMask_ = 0U;
 
     RegisterConfig regs_[kMicronovaRegisterCount]{};
     CommandConfig powerOn_{};
     CommandConfig powerOff_{};
+    CommandConfig powerPlus_{};
+    CommandConfig powerMinus_{};
 
-    int32_t normalIntervalMs_ = 1800000;
-    int32_t fastIntervalMs_ = 60000;
+    int32_t normalIntervalMs_ = 60000;
+    int32_t fastIntervalMs_ = 20000;
     int32_t fastCyclesCfg_ = 30;
 
     ConfigVariable<int32_t,0> normalIntervalVar_;
@@ -113,4 +135,14 @@ private:
     ConfigVariable<int32_t,0> powerOffValueVar_;
     ConfigVariable<int32_t,0> powerOffRepeatCountVar_;
     ConfigVariable<int32_t,0> powerOffRepeatDelayVar_;
+    ConfigVariable<int32_t,0> powerPlusWriteVar_;
+    ConfigVariable<int32_t,0> powerPlusAddressVar_;
+    ConfigVariable<int32_t,0> powerPlusValueVar_;
+    ConfigVariable<int32_t,0> powerPlusRepeatCountVar_;
+    ConfigVariable<int32_t,0> powerPlusRepeatDelayVar_;
+    ConfigVariable<int32_t,0> powerMinusWriteVar_;
+    ConfigVariable<int32_t,0> powerMinusAddressVar_;
+    ConfigVariable<int32_t,0> powerMinusValueVar_;
+    ConfigVariable<int32_t,0> powerMinusRepeatCountVar_;
+    ConfigVariable<int32_t,0> powerMinusRepeatDelayVar_;
 };

@@ -41,4 +41,7 @@ enum class EventId : uint16_t {
     MicronovaCommandTargetTemperature = 513,
     MicronovaCommandRefresh = 514,
     MicronovaCommandRawWrite = 515,
+    MicronovaCommandSweepReadAll = 516,
+    MicronovaCommandPowerPlus = 517,
+    MicronovaCommandPowerMinus = 518,
 };

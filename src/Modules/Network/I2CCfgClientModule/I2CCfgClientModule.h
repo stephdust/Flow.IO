@@ -102,6 +102,7 @@ private:
     bool ready_ = false;
     bool reachable_ = false;
     bool frameCrcEnabled_ = false;
+    uint32_t activeFreqHz_ = 0;
     uint8_t seq_ = 1;
     uint32_t retryAfterMs_ = 0;
     MqttConfigRouteProducer cfgMqttPub_{};
@@ -133,6 +134,7 @@ private:
     };
 
     void startLink_();
+    bool beginMasterAtFreq_(uint32_t freqHz, const char* reason);
     void applyBoardDefaults_(const BoardSpec& board);
     bool isReadySvc_();
     bool ensureReady_();

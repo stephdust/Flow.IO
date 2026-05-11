@@ -47,7 +47,7 @@ depuis le `ConfigStore` et applique les changements simples immédiatement.
 - Les changements simples (`Switch`, `Select`, `Slider`, `Text`) sont appliqués immédiatement via un patch JSON ciblé `applyJson()`.
 - Les valeurs de la page d'édition courante sont rafraîchies toutes les `5s`; la page complète n'est pas rerendue en continu.
 - `Valider` est réservé pour une évolution ultérieure; le modèle léger actuel ne conserve pas de cache `dirty`.
-- FlowIO ne change pas la page Nextion; le `Preinitialize Event` de `pageCfgMenu` doit envoyer `printh 23 02 50 0A` pour activer le rendu du menu côté FlowIO.
+- FlowIO ne change pas la page Nextion; le `Preinitialize Event` de `pageCfgMenu` doit envoyer `printh 23 02 50 0A` (ou `printh 23 06 50 0A` + `print <ctx_ref_u32_le>`) pour activer le rendu du menu côté FlowIO.
 - Le `Page Exit Event` Nextion de `pageCfgMenu` doit envoyer `printh 23 02 51 06` pour désactiver le rendu actif du menu côté FlowIO.
 
 Le modèle de menu est volontairement stateless côté RAM longue durée:
@@ -79,6 +79,8 @@ Des hints peuvent forcer le widget et les contraintes (bornes/options).
 - Rendu page config sur objets Nextion conventionnels:
   - `tPath`, `tL0..tL5`, `tV0..tV5`
   - `bHome`, `bBack`, `bValid`, `bPrev`, `bNext`, `bR0..bR5`
+  - `vaEditType0..vaEditType5` (variables numeriques locales de `pageCfgMenu`)
+  - `vaCtxRef` (variable numerique locale de `pageCfgMenu`)
   - `nPage`, `nPages`
 - Entrées:
   - protocole binaire custom `# <len> <opcode> <payload...>`
@@ -91,6 +93,8 @@ Des hints peuvent forcer le widget et les contraintes (bornes/options).
   - clic `tLN`: `printh 23 02 52 0N` pour entrer dans la branche
   - clic `bRN`: `printh 23 02 55 0N` pour éditer les attributs de la branche
   - mode édition: `tL0..tL5` affichent les clés, `tV0..tV5` affichent les valeurs et servent de dual-state button pour les booléens; refresh valeurs toutes les `5s`
+  - `vaEditTypeN.val` indique le clavier a ouvrir pour la ligne `N`
+    (`0` texte, `1` entier, `2` decimal/float, `3` booleen)
   - valeur non-switch: FlowIO désactive `tVN` avec `tsw tVN,0`, force `tVN.val=0`, puis met `tVN.txt`
   - valeur switch: FlowIO active `tVN` avec `tsw tVN,1`, met `tVN.val=0/1`, puis `tVN.txt` à `OFF/ON`
   - changement switch `tVN`: `printh 23 02 53 0N`

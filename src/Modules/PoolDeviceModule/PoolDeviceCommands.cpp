@@ -137,6 +137,7 @@ bool PoolDeviceModule::handlePoolWrite_(const CommandRequest& req, char* reply, 
         else if (st == POOLDEV_SVC_ERR_NOT_READY) code = ErrorCode::NotReady;
         else if (st == POOLDEV_SVC_ERR_DISABLED) code = ErrorCode::Disabled;
         else if (st == POOLDEV_SVC_ERR_INTERLOCK) code = ErrorCode::InterlockBlocked;
+        else if (st == POOLDEV_SVC_ERR_MAX_UPTIME) code = ErrorCode::MaxUptimeReached;
         else if (st == POOLDEV_SVC_ERR_IO) code = ErrorCode::IoError;
         writeCmdErrorSlot_(reply, replyLen, "pooldevice.write", code, slot);
         return false;

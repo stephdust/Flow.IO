@@ -1,10 +1,10 @@
 {
   "_meta": {
     "generated": true,
-    "total": 396,
-    "decl_total": 224,
+    "total": 397,
+    "decl_total": 231,
     "decl_with_cfgdoc": 125,
-    "missing_cfgdoc_count": 99,
+    "missing_cfgdoc_count": 106,
     "manual_overrides_total": 23,
     "manual_overrides_applied": 5
   },
@@ -184,98 +184,8 @@
           "label": "PortPCF0Bit6 - Sortie PCF8574 - Bit 6 [406]"
         }
       ],
-      "flowio_logical_input_analog": [
-        {
-          "value": 192,
-          "label": "io/input/a00 [192]"
-        },
-        {
-          "value": 193,
-          "label": "io/input/a01 [193]"
-        },
-        {
-          "value": 194,
-          "label": "io/input/a02 [194]"
-        },
-        {
-          "value": 195,
-          "label": "io/input/a03 [195]"
-        },
-        {
-          "value": 196,
-          "label": "io/input/a04 [196]"
-        },
-        {
-          "value": 197,
-          "label": "io/input/a05 [197]"
-        },
-        {
-          "value": 198,
-          "label": "io/input/a06 [198]"
-        },
-        {
-          "value": 199,
-          "label": "io/input/a07 [199]"
-        },
-        {
-          "value": 200,
-          "label": "io/input/a08 [200]"
-        },
-        {
-          "value": 201,
-          "label": "io/input/a09 [201]"
-        },
-        {
-          "value": 202,
-          "label": "io/input/a10 [202]"
-        },
-        {
-          "value": 203,
-          "label": "io/input/a11 [203]"
-        },
-        {
-          "value": 204,
-          "label": "io/input/a12 [204]"
-        },
-        {
-          "value": 205,
-          "label": "io/input/a13 [205]"
-        },
-        {
-          "value": 206,
-          "label": "io/input/a14 [206]"
-        },
-        {
-          "value": 207,
-          "label": "io/input/a15 [207]"
-        },
-        {
-          "value": 208,
-          "label": "io/input/a16 [208]"
-        }
-      ],
-      "flowio_logical_input_digital": [
-        {
-          "value": 64,
-          "label": "io/input/i00 [64]"
-        },
-        {
-          "value": 65,
-          "label": "io/input/i01 [65]"
-        },
-        {
-          "value": 66,
-          "label": "io/input/i02 [66]"
-        },
-        {
-          "value": 67,
-          "label": "io/input/i03 [67]"
-        },
-        {
-          "value": 68,
-          "label": "io/input/i04 [68]"
-        }
-      ],
+      "flowio_logical_input_analog": [],
+      "flowio_logical_input_digital": [],
       "elink_dashboard_runtime_ui": [
         {
           "value": 2101,
@@ -948,6 +858,15 @@
       "var": "enabledVar_",
       "source": "cfgdoc"
     },
+    "fcd/udp/token": {
+      "module": "fcd/udp",
+      "name": "token",
+      "type": "CharArray",
+      "label": "Token Flow Connect Display",
+      "help": "Token partage optionnel envoye en CRC dans Hello pour l'appairage FlowIO.",
+      "var": "tokenVar_",
+      "source": "cfgdoc"
+    },
     "fwupdate/cfgdocs_path": {
       "module": "fwupdate",
       "name": "cfgdocs_path",
@@ -1038,6 +957,24 @@
       "var": "vendorVar",
       "source": "cfgdoc"
     },
+    "hmi/fcd_udp/enabled": {
+      "module": "hmi/fcd_udp",
+      "name": "enabled",
+      "type": "Bool",
+      "label": "Flow Connect Display UDP actif",
+      "help": "Utilise un Flow Connect Display distant via UDP a la place du Nextion local.",
+      "var": "remoteUdpEnabledVar_",
+      "source": "cfgdoc"
+    },
+    "hmi/fcd_udp/token": {
+      "module": "hmi/fcd_udp",
+      "name": "token",
+      "type": "CharArray",
+      "label": "Token Flow Connect Display",
+      "help": "Token partage optionnel. Si renseigne, le Flow Connect Display doit envoyer le meme token sous forme CRC.",
+      "var": "tokenVar_",
+      "source": "cfgdoc"
+    },
     "hmi/leds/enabled": {
       "module": "hmi/leds",
       "name": "enabled",
@@ -1054,24 +991,6 @@
       "label": "Nextion actif",
       "help": "Autorise le HMIModule a envoyer le rendu et les commandes vers l'ecran Nextion local.",
       "var": "nextionEnabledVar_",
-      "source": "cfgdoc"
-    },
-    "hmi/remote_udp/enabled": {
-      "module": "hmi/remote_udp",
-      "name": "enabled",
-      "type": "Bool",
-      "label": "Display UDP actif",
-      "help": "Utilise un ESP32 Display distant via UDP a la place du Nextion local.",
-      "var": "remoteUdpEnabledVar_",
-      "source": "cfgdoc"
-    },
-    "hmi/remote_udp/token": {
-      "module": "hmi/remote_udp",
-      "name": "token",
-      "type": "CharArray",
-      "label": "Token Display UDP",
-      "help": "Token partage optionnel. Si renseigne, le Display doit envoyer le meme token sous forme CRC.",
-      "var": "tokenVar_",
       "source": "cfgdoc"
     },
     "hmi/venice/enabled": {

@@ -492,6 +492,26 @@ bool FirmwareUpdateModule::queueNextionReboot_(char* errOut, size_t errOutLen)
     return true;
 }
 
+bool FirmwareUpdateModule::queueFlowIoHardwareReboot_(char* errOut, size_t errOutLen)
+{
+    if (flowIoEnablePin_ < 0) {
+        writeSimpleError_(errOut, errOutLen, "flowio EN pin not configured");
+        return false;
+    }
+
+    portENTER_CRITICAL(&lock_);
+    if (busy_ || queuedJob_.pending || nextionRebootQueued_ || flowIoHardwareRebootQueued_) {
+        portEXIT_CRITICAL(&lock_);
+        writeSimpleError_(errOut, errOutLen, "updater busy");
+        return false;
+    }
+    flowIoHardwareRebootQueued_ = true;
+    portEXIT_CRITICAL(&lock_);
+
+    LOGI("FlowIO hardware reboot queued");
+    return true;
+}
+
 bool FirmwareUpdateModule::runFlowIoUpdate_(const char* url, char* errOut, size_t errOutLen)
 {
     if (flowIoBootPin_ < 0 || flowIoEnablePin_ < 0) {
@@ -773,6 +793,37 @@ bool FirmwareUpdateModule::runNextionReboot_(char* errOut, size_t errOutLen)
     return true;
 }
 
+bool FirmwareUpdateModule::runFlowIoHardwareReboot_(char* errOut, size_t errOutLen)
+{
+    if (flowIoEnablePin_ < 0) {
+        writeSimpleError_(errOut, errOutLen, "flowio EN pin not configured");
+        return false;
+    }
+
+    setStatus_(UpdateState::Rebooting, FirmwareUpdateTarget::FlowIO, 0, "flowio hardware reboot");
+
+    if (flowIoBootPin_ >= 0) {
+        pinMode(flowIoBootPin_, OUTPUT);
+        digitalWrite(flowIoBootPin_, HIGH);
+    }
+    pinMode(flowIoEnablePin_, OUTPUT);
+    digitalWrite(flowIoEnablePin_, HIGH);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    digitalWrite(flowIoEnablePin_, LOW);
+    vTaskDelay(pdMS_TO_TICKS(150));
+    digitalWrite(flowIoEnablePin_, HIGH);
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    if (flowIoBootPin_ >= 0) {
+        pinMode(flowIoBootPin_, INPUT);
+    }
+    pinMode(flowIoEnablePin_, INPUT);
+
+    setStatus_(UpdateState::Done, FirmwareUpdateTarget::FlowIO, 100, "flowio hardware reboot done");
+    LOGI("FlowIO hardware reboot pulse completed en=%d boot=%d", (int)flowIoEnablePin_, (int)flowIoBootPin_);
+    return true;
+}
+
 bool FirmwareUpdateModule::runSpiffsUpdate_(const char* url, char* errOut, size_t errOutLen)
 {
     setStatus_(UpdateState::Downloading, FirmwareUpdateTarget::Spiffs, 0, "downloading");
@@ -1006,6 +1057,25 @@ bool FirmwareUpdateModule::cmdNextionReboot_(void* userCtx, const CommandRequest
     return true;
 }
 
+bool FirmwareUpdateModule::cmdFlowIoHardwareReboot_(void* userCtx, const CommandRequest&, char* reply, size_t replyLen)
+{
+    FirmwareUpdateModule* self = static_cast<FirmwareUpdateModule*>(userCtx);
+    if (!self) return false;
+
+    char err[120] = {0};
+    if (!self->queueFlowIoHardwareReboot_(err, sizeof(err))) {
+        sanitizeJsonString_(err);
+        const int wrote = snprintf(reply,
+                                   replyLen,
+                                   "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"fw.flowio.hw_reboot\",\"msg\":\"%s\"}}",
+                                   err[0] ? err : "failed");
+        return wrote > 0 && (size_t)wrote < replyLen;
+    }
+
+    snprintf(reply, replyLen, "{\"ok\":true,\"queued\":true,\"target\":\"flowio_hardware_reboot\"}");
+    return true;
+}
+
 bool FirmwareUpdateModule::cmdSpiffs_(void* userCtx, const CommandRequest& req, char* reply, size_t replyLen)
 {
     FirmwareUpdateModule* self = static_cast<FirmwareUpdateModule*>(userCtx);
@@ -1050,6 +1120,7 @@ void FirmwareUpdateModule::init(ConfigStore& cfg, ServiceRegistry& services)
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.update.supervisor", &FirmwareUpdateModule::cmdSupervisor_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.update.nextion", &FirmwareUpdateModule::cmdNextion_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.nextion.reboot", &FirmwareUpdateModule::cmdNextionReboot_, this);
+        cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.flowio.hw_reboot", &FirmwareUpdateModule::cmdFlowIoHardwareReboot_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.update.spiffs", &FirmwareUpdateModule::cmdSpiffs_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "fw.update.cfgdocs", &FirmwareUpdateModule::cmdSpiffs_, this);
     }
@@ -1062,6 +1133,7 @@ void FirmwareUpdateModule::loop()
 {
     UpdateJob job{};
     bool runNextionReboot = false;
+    bool runFlowIoHardwareReboot = false;
 
     portENTER_CRITICAL(&lock_);
     if (busy_) {
@@ -1073,6 +1145,10 @@ void FirmwareUpdateModule::loop()
         busy_ = true;
         nextionRebootQueued_ = false;
         runNextionReboot = true;
+    } else if (flowIoHardwareRebootQueued_) {
+        busy_ = true;
+        flowIoHardwareRebootQueued_ = false;
+        runFlowIoHardwareReboot = true;
     } else if (queuedJob_.pending) {
         busy_ = true;
         job = queuedJob_;
@@ -1090,6 +1166,14 @@ void FirmwareUpdateModule::loop()
             LOGE("Nextion reboot failed reason=%s", err[0] ? err : "unknown");
         } else {
             LOGI("Nextion reboot done");
+        }
+    } else if (runFlowIoHardwareReboot) {
+        char err[128] = {0};
+        if (!runFlowIoHardwareReboot_(err, sizeof(err))) {
+            LOGE("FlowIO hardware reboot failed reason=%s", err[0] ? err : "unknown");
+            setError_(FirmwareUpdateTarget::FlowIO, err[0] ? err : "flowio hardware reboot failed");
+        } else {
+            LOGI("FlowIO hardware reboot done");
         }
     } else {
         runJob_(job);

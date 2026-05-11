@@ -93,10 +93,12 @@ PoolDeviceSvcStatus PoolDeviceModule::svcWriteDesiredImpl_(uint8_t slot, uint8_t
         }
         if (maxUptimeReached) {
             s.blockReason = POOL_DEVICE_BLOCK_MAX_UPTIME;
-            return POOLDEV_SVC_ERR_INTERLOCK;
+            logStartInterlock_(slot, s.blockReason);
+            return POOLDEV_SVC_ERR_MAX_UPTIME;
         }
         if (!dependenciesSatisfied_(slot)) {
             s.blockReason = POOL_DEVICE_BLOCK_INTERLOCK;
+            logStartInterlock_(slot, s.blockReason);
             return POOLDEV_SVC_ERR_INTERLOCK;
         }
     }
@@ -656,6 +658,42 @@ bool PoolDeviceModule::dependenciesSatisfied_(uint8_t slotIdx) const
         if (!dep.used || !dep.actualOn) return false;
     }
     return true;
+}
+
+void PoolDeviceModule::logStartInterlock_(uint8_t slotIdx, uint8_t reason) const
+{
+    if (slotIdx >= POOL_DEVICE_MAX) return;
+    const PoolDeviceSlot& s = slots_[slotIdx];
+    if (!s.used) return;
+
+    LOGW("Pool device start blocked slot=%u id=%s label=%s reason=%u depends=0x%02X enabled=%u actual=%u desired=%u runDayMs=%lu maxDaySec=%ld",
+         (unsigned)slotIdx,
+         s.id,
+         s.def.label,
+         (unsigned)reason,
+         (unsigned)s.def.dependsOnMask,
+         s.def.enabled ? 1U : 0U,
+         s.actualOn ? 1U : 0U,
+         s.desiredOn ? 1U : 0U,
+         (unsigned long)s.runningMsDay,
+         (long)s.def.maxUptimeDaySec);
+
+    if (reason != POOL_DEVICE_BLOCK_INTERLOCK) return;
+
+    for (uint8_t i = 0; i < POOL_DEVICE_MAX; ++i) {
+        if ((s.def.dependsOnMask & (uint8_t)(1u << i)) == 0) continue;
+        if (i == slotIdx) continue;
+        const PoolDeviceSlot& dep = slots_[i];
+        LOGW("Pool device dependency slot=%u used=%u id=%s label=%s enabled=%u actual=%u desired=%u block=%u",
+             (unsigned)i,
+             dep.used ? 1U : 0U,
+             dep.id,
+             dep.def.label,
+             dep.def.enabled ? 1U : 0U,
+             dep.actualOn ? 1U : 0U,
+             dep.desiredOn ? 1U : 0U,
+             (unsigned)dep.blockReason);
+    }
 }
 
 bool PoolDeviceModule::maxUptimeReached_(const PoolDeviceSlot& slot)

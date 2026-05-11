@@ -28,6 +28,8 @@ def _export_program_bin(source, target, env):
         _copy_if_exists(build_dir / "firmware.bin", "firmware-flowio.bin")
     elif env_name == "Supervisor":
         _copy_if_exists(build_dir / "firmware.bin", "firmware-supervisor.bin")
+    elif env_name == "FlowConnectDisplay":
+        _copy_if_exists(build_dir / "firmware.bin", "firmware-flow-connect-display.bin")
 
 
 def _export_spiffs_bin(source, target, env):

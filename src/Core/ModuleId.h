@@ -29,7 +29,7 @@ enum class ModuleId : uint8_t {
     PoolLogic,
     Hmi,
     HmiUdpServer,
-    DisplayUdpClient,
+    FlowConnectDisplayUdpClient,
     SupervisorHmi,
     MicronovaBus,
     MicronovaBoiler,
@@ -77,7 +77,7 @@ constexpr const char* toString(ModuleId id)
         case ModuleId::PoolLogic: return "poollogic";
         case ModuleId::Hmi: return "hmi";
         case ModuleId::HmiUdpServer: return "hmi.udp.server";
-        case ModuleId::DisplayUdpClient: return "display.udp.client";
+        case ModuleId::FlowConnectDisplayUdpClient: return "fcd.udp.client";
         case ModuleId::SupervisorHmi: return "hmi.supervisor";
         case ModuleId::MicronovaBus: return "micronova.bus";
         case ModuleId::MicronovaBoiler: return "micronova.boiler";

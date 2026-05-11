@@ -1,12 +1,19 @@
 #pragma once
 
 #include "Board/BoardSpec.h"
-#include "Core/SystemLimits.h"
 
 namespace BoardProfiles {
 
 inline constexpr uint32_t kFlowIODINv1IoI2cHz = 400000U;
 inline constexpr uint32_t kFlowIODINv1InterlinkI2cHz = 400000U;
+inline constexpr uint16_t kFlowIODINMomentaryPulseMs = 500U;
+
+inline constexpr IoCapacitySpec kFlowIODINIoCapacity{17, 5, 10, 17, 5, 10};
+inline constexpr MqttCapacitySpec kFlowIODINMqttCapacity{5712, 8, 8, 48, 24, 16, 2, 80, 80, 80, 60};
+inline constexpr MqttBufferSpec kFlowIODINMqttBuffers{
+    64, 32, 32, 15, 15, 70, 160, 128, 384, 1536, 1024, 1536, 1536, 64, 320, 32
+};
+inline constexpr HaCapacitySpec kFlowIODINHaCapacity{40, 6, 14, 14, 24, 9};
 
 inline constexpr UartSpec kFlowIODINv1Uarts[] = {
     // {name, uartIndex, rxPin, txPin, baud, primary, enableRxPin}
@@ -31,7 +38,7 @@ inline constexpr IoPointSpec kFlowIODINv1IoPoints[] = {
     {"relay1", IoCapability::DigitalOut, BoardSignal::Relay1, 32, false, 0}, // Filtration pump relay on GPIO32.
     {"relay2", IoCapability::DigitalOut, BoardSignal::Relay2, 25, false, 0}, // pH pump relay on GPIO25.
     {"relay3", IoCapability::DigitalOut, BoardSignal::Relay3, 26, false, 0}, // Chlorine pump relay on GPIO26.
-    {"relay4", IoCapability::DigitalOut, BoardSignal::Relay4, 13, true, Limits::MomentaryPulseMs}, // Chlorine generator pulse relay on GPIO13; pulse duration uses `Limits::MomentaryPulseMs`.
+    {"relay4", IoCapability::DigitalOut, BoardSignal::Relay4, 13, true, kFlowIODINMomentaryPulseMs}, // Chlorine generator pulse relay on GPIO13.
     {"relay5", IoCapability::DigitalOut, BoardSignal::Relay5, 33, false, 0}, // Robot relay on GPIO33.
     {"relay6", IoCapability::DigitalOut, BoardSignal::Relay6, 27, false, 0}, // Lights relay on GPIO27.
     {"relay7", IoCapability::DigitalOut, BoardSignal::Relay7, 23, false, 0}, // Fill pump relay on GPIO23.
@@ -59,7 +66,10 @@ inline constexpr BoardSpec kFlowIODINv1{
     (uint8_t)(sizeof(kFlowIODINv1OneWire) / sizeof(kFlowIODINv1OneWire[0])),
     kFlowIODINv1IoPoints,
     (uint8_t)(sizeof(kFlowIODINv1IoPoints) / sizeof(kFlowIODINv1IoPoints[0])),
-    {17, 5, 10},
+    kFlowIODINIoCapacity,
+    kFlowIODINMqttCapacity,
+    kFlowIODINMqttBuffers,
+    kFlowIODINHaCapacity,
     nullptr
 };
 
@@ -79,7 +89,10 @@ inline constexpr BoardSpec kFlowIODINv2{
     (uint8_t)(sizeof(kFlowIODINv2OneWire) / sizeof(kFlowIODINv2OneWire[0])),
     kFlowIODINv2IoPoints,
     (uint8_t)(sizeof(kFlowIODINv2IoPoints) / sizeof(kFlowIODINv2IoPoints[0])),
-    {17, 5, 10},
+    kFlowIODINIoCapacity,
+    kFlowIODINMqttCapacity,
+    kFlowIODINMqttBuffers,
+    kFlowIODINHaCapacity,
     nullptr
 };
 

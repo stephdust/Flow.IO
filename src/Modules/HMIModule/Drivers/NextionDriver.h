@@ -14,18 +14,6 @@ struct NextionDriverConfig {
     int8_t txPin = 17;
     uint32_t baud = 115200;
     uint32_t minRenderGapMs = 120;
-    const char* waterTempTextObject = "tWaterTemp";
-    const char* airTempTextObject = "tAirTemp";
-    const char* phTextObject = "tpH";
-    const char* orpTextObject = "tORP";
-    const char* timeTextObject = "tTime";
-    const char* dateTextObject = "tDate";
-    const char* errorMessageTextObject = "tErrorMessage";
-    const char* phGaugePercentObject = "vapHPercent";
-    const char* orpGaugePercentObject = "vaOrpPercent";
-    const char* stateBitsObject = "globals.vaStates";
-    const char* alarmBitsObject = "globals.vaAlarms";
-    const char* displayVersionExpr = "globals.vaVersion.val";
     uint16_t displayVersionReadTimeoutMs = 180U;
     uint8_t homePageId = 0U;
     uint8_t configPageId = 10U;
@@ -33,20 +21,17 @@ struct NextionDriverConfig {
     uint8_t configPageAliasId = 0xFFU;
 };
 
-struct NextionV2NeedlePublish {
-    bool ph = false;
-    bool orp = false;
-    bool psi = false;
-    int8_t phNeedle = 0;
-    int8_t orpNeedle = 0;
-    uint8_t psiNeedle = 0;
-};
+using NextionDebugCallback = void (*)(void* ctx, const char* kind, const uint8_t* data, uint8_t len);
 
 class NextionDriver final : public IHmiDriver {
 public:
     NextionDriver() = default;
 
     void setConfig(const NextionDriverConfig& cfg) { cfg_ = cfg; }
+    void setDebugCallback(NextionDebugCallback callback, void* ctx) {
+        debugCallback_ = callback;
+        debugCtx_ = ctx;
+    }
 
     const char* driverId() const override { return "nextion"; }
     bool begin() override;
@@ -60,23 +45,28 @@ public:
     bool writeRtc(const HmiRtcDateTime& value) override;
     bool renderConfigMenu(const ConfigMenuView& view) override;
     bool refreshConfigMenuValues(const ConfigMenuView& view) override;
-    bool hasDisplayVersion() const { return versionDetected_; }
-    uint32_t displayVersion() const { return displayVersion_; }
-    bool isLegacyV2() const { return versionDetected_ && displayVersion_ == 2U; }
+    bool hasDisplayVersion() const override { return versionDetected_; }
+    uint32_t displayVersion() const override { return displayVersion_; }
+    bool isLegacyV2() const override { return versionDetected_ && displayVersion_ == 2U; }
+    bool detectDisplayVersion(uint16_t timeoutMs = 0U, bool force = false);
     bool requestPageReport();
     bool currentPage(uint8_t& out) const;
     bool isHomePage() const;
     bool isConfigPage() const;
     bool setTouchEnabled(bool enabled);
+    bool setObjectVisible(const char* objectName, bool visible);
     bool showConfigLoading(const char* title);
-    bool publishV2Needles(const NextionV2NeedlePublish& publish);
+    bool publishV2Needles(const NextionV2NeedlePublish& publish) override;
 
 private:
     static constexpr uint8_t CustomRxBufSize = 64;
     static constexpr size_t TxBufSize = 160U;
     static constexpr uint8_t PageResponseBufSize = 4U;
+    static constexpr uint8_t TouchResponseBufSize = 6U;
 
     NextionDriverConfig cfg_{};
+    NextionDebugCallback debugCallback_ = nullptr;
+    void* debugCtx_ = nullptr;
     bool started_ = false;
     bool pageReady_ = false;
     bool versionDetected_ = false;
@@ -90,6 +80,9 @@ private:
     bool pageResponseActive_ = false;
     uint8_t pageResponseLen_ = 0;
     uint8_t pageResponseBuf_[PageResponseBufSize]{};
+    bool touchResponseActive_ = false;
+    uint8_t touchResponseLen_ = 0;
+    uint8_t touchResponseBuf_[TouchResponseBufSize]{};
     bool currentPageKnown_ = false;
     uint8_t currentPage_ = 0;
 
@@ -97,6 +90,7 @@ private:
     bool handlePageId_(uint8_t pageId, bool emitEvents, HmiEvent& out);
     bool isHomePageId_(uint8_t pageId) const;
     bool isConfigPageId_(uint8_t pageId) const;
+    void emitDebug_(const char* kind, const uint8_t* data, uint8_t len) const;
 
     bool sendCmd_(const char* cmd);
     bool sendCmdFmt_(const char* fmt, ...);

@@ -17,30 +17,53 @@ bool RemoteHmiUdpDriver::pollEvent(HmiEvent& out)
 
 bool RemoteHmiUdpDriver::publishHomeText(HmiHomeTextField field, const char* text)
 {
+    if (udpServer_ && !udpServer_->isDisplayOnline()) return true;
     return udpServer_ && udpServer_->sendHomeText(field, text);
 }
 
 bool RemoteHmiUdpDriver::publishHomeGaugePercent(HmiHomeGaugeField field, uint16_t percent)
 {
+    if (udpServer_ && !udpServer_->isDisplayOnline()) return true;
     return udpServer_ && udpServer_->sendHomeGauge(field, percent);
 }
 
 bool RemoteHmiUdpDriver::publishHomeStateBits(uint32_t stateBits)
 {
+    if (udpServer_ && !udpServer_->isDisplayOnline()) return true;
     return udpServer_ && udpServer_->sendHomeStateBits(stateBits);
 }
 
 bool RemoteHmiUdpDriver::publishHomeAlarmBits(uint32_t alarmBits)
 {
+    if (udpServer_ && !udpServer_->isDisplayOnline()) return true;
     return udpServer_ && udpServer_->sendHomeAlarmBits(alarmBits);
+}
+
+bool RemoteHmiUdpDriver::hasDisplayVersion() const
+{
+    return udpServer_ && udpServer_->hasDisplayVersion();
+}
+
+uint32_t RemoteHmiUdpDriver::displayVersion() const
+{
+    return udpServer_ ? udpServer_->displayVersion() : 0U;
+}
+
+bool RemoteHmiUdpDriver::isLegacyV2() const
+{
+    return udpServer_ && udpServer_->isLegacyV2();
+}
+
+bool RemoteHmiUdpDriver::publishV2Needles(const NextionV2NeedlePublish& publish)
+{
+    if (udpServer_ && !udpServer_->isDisplayOnline()) return true;
+    return udpServer_ && udpServer_->sendHomeV2Needles(publish);
 }
 
 bool RemoteHmiUdpDriver::readRtc(HmiRtcDateTime& out, uint16_t timeoutMs)
 {
-    (void)timeoutMs;
     out = HmiRtcDateTime{};
-    // TODO: add a small pending-response slot if FlowIO needs remote RTC reads.
-    return udpServer_ && udpServer_->requestRtcRead() && false;
+    return udpServer_ && udpServer_->requestRtcRead(out, timeoutMs);
 }
 
 bool RemoteHmiUdpDriver::writeRtc(const HmiRtcDateTime& value)
