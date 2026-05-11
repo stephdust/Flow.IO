@@ -54,3 +54,18 @@ inline IoCapacitySpec boardIoCapacity(const BoardSpec& board)
 {
     return board.ioCapacity;
 }
+
+inline MqttCapacitySpec boardMqttCapacity(const BoardSpec& board)
+{
+    return board.mqttCapacity;
+}
+
+inline MqttBufferSpec boardMqttBuffers(const BoardSpec& board)
+{
+    return board.mqttBuffers;
+}
+
+inline HaCapacitySpec boardHaCapacity(const BoardSpec& board)
+{
+    return board.haCapacity;
+}

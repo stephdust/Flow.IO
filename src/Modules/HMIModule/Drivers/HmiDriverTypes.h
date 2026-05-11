@@ -22,8 +22,9 @@ enum class HmiEventType : uint8_t {
     RowSetSlider = 10,
     RowEdit = 11,
     Command = 12,
-    ConfigEnter = 13,
-    ConfigExit = 14
+    Page = 13,
+    ConfigEnter = 14,
+    ConfigExit = 15
 };
 
 enum class HmiCommandId : uint8_t {
@@ -43,11 +44,14 @@ enum class HmiCommandId : uint8_t {
     HomeOrpPumpSet = 13,
     HomePhPumpToggle = 14,
     HomeOrpPumpToggle = 15,
+    DisplayWifiFactoryReset = 16,
 };
 
 struct HmiEvent {
     HmiEventType type = HmiEventType::None;
     HmiCommandId command = HmiCommandId::None;
+    uint32_t contextRef = 0U; // Optional context token for config page enter.
+    uint8_t pageId = 0xFFU;   // Optional page code for PAGE/ConfigEnter/ConfigExit events.
     uint8_t row = 0;
     uint8_t value = 0;
     int8_t direction = 1;
@@ -81,6 +85,8 @@ enum class HmiHomeTextField : uint8_t {
     Time = 4,
     Date = 5,
     ErrorMessage = 6,
+    DayText = 7,
+    MonthText = 8,
 };
 
 enum class HmiHomeGaugeField : uint8_t {

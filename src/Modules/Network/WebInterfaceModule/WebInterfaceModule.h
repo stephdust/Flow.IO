@@ -54,6 +54,8 @@ public:
         return Limits::Boot::WebInterfaceStartDelayMs;
     }
     void loop() override;
+    void setProvisioningOnly(bool enabled) { provisioningOnly_ = enabled; }
+    bool provisioningOnly() const { return provisioningOnly_; }
 
 private:
     static constexpr int kServerPort = 80;
@@ -112,11 +114,14 @@ private:
     void noteWsActivity_();
     void noteServerStarted_();
     static void onHttpActivityHook_(void* ctx);
+    void scheduleReboot_(uint32_t delayMs, const char* reason);
 
     HardwareSerial& uart_ = Serial2;
     uint32_t uartBaud_ = 115200U;
     int uartRxPin_ = 16;
     int uartTxPin_ = 17;
+    bool bridgeUartConfigured_ = false;
+    bool bridgeUartEnabled_ = false;
     AsyncWebServer server_{kServerPort};
     AsyncWebSocket ws_{"/wsserial"};
     AsyncWebSocket wsLog_{"/wslog"};
@@ -138,6 +143,12 @@ private:
     bool localLogSinkRegistered_ = false;
     const FirmwareUpdateService* fwUpdateSvc_ = nullptr;
     ServiceRegistry* services_ = nullptr;
+    bool provisioningOnly_ = false;
+    bool provisioningDisableAfterConfigured_ = false;
+    bool provisioningRequireMqttForConfigured_ = false;
+    bool rebootPending_ = false;
+    uint32_t rebootAtMs_ = 0;
+    char rebootReason_[24] = {0};
 
     static constexpr size_t kLocalLogLineMax = 192;
 #if defined(FLOW_PROFILE_MICRONOVA)

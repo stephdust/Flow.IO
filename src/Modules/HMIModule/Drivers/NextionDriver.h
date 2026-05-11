@@ -14,18 +14,6 @@ struct NextionDriverConfig {
     int8_t txPin = 17;
     uint32_t baud = 115200;
     uint32_t minRenderGapMs = 120;
-    const char* waterTempTextObject = "tWaterTemp";
-    const char* airTempTextObject = "tAirTemp";
-    const char* phTextObject = "tpH";
-    const char* orpTextObject = "tORP";
-    const char* timeTextObject = "tTime";
-    const char* dateTextObject = "tDate";
-    const char* errorMessageTextObject = "tErrorMessage";
-    const char* phGaugePercentObject = "vapHPercent";
-    const char* orpGaugePercentObject = "vaOrpPercent";
-    const char* stateBitsObject = "globals.vaStates";
-    const char* alarmBitsObject = "globals.vaAlarms";
-    const char* displayVersionExpr = "globals.vaVersion.val";
     uint16_t displayVersionReadTimeoutMs = 180U;
     uint8_t homePageId = 0U;
     uint8_t configPageId = 10U;
@@ -60,7 +48,7 @@ public:
     bool hasDisplayVersion() const override { return versionDetected_; }
     uint32_t displayVersion() const override { return displayVersion_; }
     bool isLegacyV2() const override { return versionDetected_ && displayVersion_ == 2U; }
-    bool detectDisplayVersion(uint16_t timeoutMs = 0U);
+    bool detectDisplayVersion(uint16_t timeoutMs = 0U, bool force = false);
     bool requestPageReport();
     bool currentPage(uint8_t& out) const;
     bool isHomePage() const;

@@ -11,10 +11,11 @@
 
 static constexpr uint8_t HMI_UDP_MAGIC0 = 'F';
 static constexpr uint8_t HMI_UDP_MAGIC1 = 'H';
-static constexpr uint8_t HMI_UDP_VERSION = 1;
+static constexpr uint8_t HMI_UDP_VERSION = 5;
 
 static constexpr uint16_t HMI_UDP_PORT = 42110;
 static constexpr size_t HMI_UDP_MAX_PACKET = 192;
+static constexpr size_t HMI_UDP_HOME_TEXT_MAX = 32;
 
 static constexpr uint8_t HMI_UDP_FLAG_ACK_REQUIRED = 0x01;
 static constexpr uint8_t HMI_UDP_FLAG_IS_ACK = 0x02;
@@ -78,7 +79,7 @@ struct HmiUdpWelcomePayload {
 
 struct HmiUdpHomeTextPayload {
     uint8_t field;
-    char text[16];
+    char text[HMI_UDP_HOME_TEXT_MAX];
 };
 
 struct HmiUdpHomeGaugePayload {
@@ -108,23 +109,27 @@ struct HmiUdpAlarmBitsPayload {
 struct HmiUdpEventPayload {
     uint8_t type;
     uint8_t command;
+    uint32_t contextRef;
+    uint8_t pageId;
     uint8_t row;
     uint8_t value;
     int8_t direction;
     float sliderValue;
-    char text[32];
+    char text[48];
 };
 
 struct HmiUdpConfigStartPayload {
     uint8_t page;
     uint8_t pageCount;
     uint8_t flags;
+    uint32_t contextRef;
     char title[24];
 };
 
 struct HmiUdpConfigRowPayload {
     uint8_t row;
     uint8_t widget;
+    uint8_t editType;
     uint8_t flags;
     char label[24];
     char value[24];

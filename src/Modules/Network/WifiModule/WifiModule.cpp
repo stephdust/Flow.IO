@@ -448,6 +448,7 @@ bool WifiModule::requestScan_(bool force)
         }
         scanRequested_ = true;
         scanApRetryCount_ = 0;
+        scanFailRetryCount_ = 0;
     }
     portEXIT_CRITICAL(&scanMux_);
     return true;
@@ -460,6 +461,20 @@ void WifiModule::processScan_()
         if (status == WIFI_SCAN_RUNNING) return;
 
         if (status < 0) {
+            if (scanFailRetryCount_ == 0U) {
+                ++scanFailRetryCount_;
+                WiFi.scanDelete();
+                const int16_t retryStatus = WiFi.scanNetworks(true, false, false, 500);
+                if (retryStatus != WIFI_SCAN_FAILED) {
+                    portENTER_CRITICAL(&scanMux_);
+                    scanRunning_ = true;
+                    scanLastStartMs_ = millis();
+                    scanLastError_ = 0;
+                    portEXIT_CRITICAL(&scanMux_);
+                    LOGW("WiFi scan retry started after status=%d", (int)status);
+                    return;
+                }
+            }
             portENTER_CRITICAL(&scanMux_);
             scanRunning_ = false;
             scanLastError_ = status;
@@ -477,6 +492,9 @@ void WifiModule::processScan_()
         for (int16_t i = 0; i < total; ++i) {
             String ssid = WiFi.SSID(i);
             const bool hidden = (ssid.length() == 0);
+            if (hidden && !kScanIncludeHidden) {
+                continue;
+            }
             char ssidBuf[33] = {0};
             if (hidden) {
                 snprintf(ssidBuf, sizeof(ssidBuf), "<hidden>");
@@ -550,6 +568,7 @@ void WifiModule::processScan_()
         }
         scanHasResults_ = true;
         scanRunning_ = false;
+        scanFailRetryCount_ = 0;
         scanLastError_ = 0;
         scanLastDoneMs_ = millis();
         ++scanGeneration_;

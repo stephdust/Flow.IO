@@ -40,8 +40,9 @@ private:
     static constexpr uint32_t AckRetryMs = 150U;
     static constexpr uint8_t AckMaxAttempts = 3U;
     static constexpr uint32_t HomeRefreshThrottleMs = 10000U;
-    static constexpr uint32_t PageProbePeriodMs = 1500U;
-    static constexpr uint32_t VersionProbePeriodMs = 2000U;
+    static constexpr uint32_t PageProbePeriodMs = 5000U;
+    static constexpr uint32_t VersionProbeRetryMs = 2000U;
+    static constexpr uint32_t VersionRecheckPeriodMs = 60000U;
     static constexpr uint32_t ConfigRenderDelayMs = 120U;
     static constexpr uint32_t ConfigRenderRetryMs = 320U;
     static constexpr uint8_t ConfigRenderPasses = 3U;
@@ -63,6 +64,7 @@ private:
 
     WiFiUDP udp_{};
     NextionDriver nextion_{};
+    ConfigStore* cfgStore_ = nullptr;
     const WifiService* wifiSvc_ = nullptr;
 
     uint8_t rxBuf_[HMI_UDP_MAX_PACKET]{};
@@ -76,6 +78,8 @@ private:
     bool inputLocked_ = false;
     bool flowConnectInitialized_ = false;
     bool flowConnectVisible_ = false;
+    bool configPageActive_ = false;
+    bool wifiFactoryResetPending_ = false;
     uint8_t lastFlowConnectPage_ = 0xFFU;
 
     uint16_t txSeq_ = 1;
@@ -89,6 +93,7 @@ private:
     uint32_t lastPageProbeMs_ = 0;
     uint32_t lastVersionProbeMs_ = 0;
     uint32_t inputLockedAtMs_ = 0;
+    uint32_t wifiFactoryResetAtMs_ = 0;
     uint8_t lastLoggedNextionPage_ = 0xFFU;
     uint8_t lastLoggedLogicalPage_ = 0xFFU;
     uint8_t lastLoggedConfigPage_ = 0xFFU;
@@ -117,7 +122,7 @@ private:
     uint8_t eventHead_ = 0;
     uint8_t eventTail_ = 0;
 
-    void sendHello_(uint32_t nowMs);
+    void sendHello_(uint32_t nowMs, bool force = false);
     void probeNextionVersion_(uint32_t nowMs, bool force = false);
     void sendPing_(uint32_t nowMs);
     void readUdp_(uint32_t nowMs);
@@ -131,6 +136,9 @@ private:
     bool sendEvent_(const HmiEvent& event);
     bool queueReliablePacket_(HmiUdpMsgType type, const void* payload, uint8_t payloadLen);
     bool sendRtcReadResponse_();
+    bool handleLocalCommand_(const HmiEvent& event);
+    bool requestWifiFactoryReset_();
+    void serviceWifiFactoryReset_(uint32_t nowMs);
     void requestFullRefresh_(const char* reason, bool force = false);
     void servicePageProbe_(uint32_t nowMs);
     void scheduleConfigRender_(uint32_t nowMs, const char* reason);

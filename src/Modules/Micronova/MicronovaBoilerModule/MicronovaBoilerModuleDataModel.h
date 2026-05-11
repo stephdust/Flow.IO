@@ -6,6 +6,9 @@ struct MicronovaRuntimeData {
     bool online = false;
     int32_t stoveStateCode = -1;
     char stoveStateText[32] = "";
+    char displayLine1[8] = "";
+    char displayLine2[8] = "";
+    char displayLine3[8] = "";
     char powerState[8] = "UNKNOWN";
     int32_t powerLevel = -1;
     int32_t fanSpeed = -1;

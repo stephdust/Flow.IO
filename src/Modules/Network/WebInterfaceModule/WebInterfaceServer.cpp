@@ -265,6 +265,35 @@ void buildProvisioningApSsid_(char* out, size_t outLen)
     snprintf(out, outLen, "FlowIO-%s-%02X%02X%02X", FLOW_BUILD_PROFILE_NAME, b0, b1, b2);
 }
 
+bool isModuleFlagAndStringConfigured_(ConfigStore* cfgStore,
+                                      const char* moduleName,
+                                      const char* enabledKey,
+                                      bool enabledDefault,
+                                      const char* valueKey)
+{
+    if (!cfgStore || !moduleName || !enabledKey || !valueKey) return false;
+    char moduleJson[512] = {0};
+    if (!cfgStore->toJsonModule(moduleName, moduleJson, sizeof(moduleJson), nullptr, false)) return false;
+
+    StaticJsonDocument<512> doc;
+    const DeserializationError err = deserializeJson(doc, moduleJson);
+    if (err || !doc.is<JsonObjectConst>()) return false;
+
+    JsonObjectConst root = doc.as<JsonObjectConst>();
+    const bool enabled = root[enabledKey] | enabledDefault;
+    const char* value = root[valueKey] | "";
+    return enabled && value && value[0] != '\0';
+}
+
+bool isProvisioningConfigured_(ConfigStore* cfgStore, bool requireMqtt)
+{
+    const bool wifiConfigured =
+        isModuleFlagAndStringConfigured_(cfgStore, "wifi", "enabled", true, "ssid");
+    if (!wifiConfigured) return false;
+    if (!requireMqtt) return true;
+    return isModuleFlagAndStringConfigured_(cfgStore, "mqtt", "enabled", false, "host");
+}
+
 void appendJsonFieldName_(Print& out, const char* key)
 {
     out.print(",\"");
@@ -1258,11 +1287,9 @@ struct HttpLatencyScope {
     }
 };
 
-const UartSpec& webBridgeUartSpec_(const BoardSpec& board)
+const UartSpec* webBridgeUartSpec_(const BoardSpec& board)
 {
-    static constexpr UartSpec kFallback{"bridge", 2, 16, 17, 115200, false, -1};
-    const UartSpec* spec = boardFindUart(board, "bridge");
-    return spec ? *spec : kFallback;
+    return boardFindUart(board, "bridge");
 }
 } // namespace
 
@@ -1277,12 +1304,173 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
 </body></html>
 )HTML";
 
+static const char kWebSerialLogPage[] PROGMEM = R"HTML(
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Micronova - Logs Locaux</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; padding: 0; background: #091220; color: #dbeafe; font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: #0f1b2f; border-bottom: 1px solid #1d304f; }
+  .status { font-size: 12px; opacity: 0.9; }
+  .actions { display: flex; gap: 8px; }
+  button, a { border: 1px solid #2b4b78; background: #142742; color: #dbeafe; text-decoration: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; }
+  button:hover, a:hover { background: #1d3963; cursor: pointer; }
+  #out { white-space: pre-wrap; word-break: break-word; margin: 0; padding: 12px; height: calc(100vh - 56px); overflow: auto; font-size: 12px; line-height: 1.35; }
+  .line { display: block; }
+  .log-d { color: #93c5fd; }
+  .log-i { color: #86efac; }
+  .log-w { color: #fde68a; }
+  .log-e { color: #fca5a5; font-weight: 600; }
+  .log-t { color: #d8b4fe; }
+  .ansi-red { color: #f87171; }
+  .ansi-green { color: #4ade80; }
+  .ansi-yellow { color: #facc15; }
+  .ansi-blue { color: #60a5fa; }
+  .ansi-magenta { color: #c084fc; }
+  .ansi-cyan { color: #22d3ee; }
+  .ansi-white { color: #e5e7eb; }
+  .ansi-gray { color: #9ca3af; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="status" id="status">Connexion...</div>
+    <div class="actions">
+      <button id="pause" type="button">Pause</button>
+      <button id="clear" type="button">Clear</button>
+      <a href="/webinterface">Retour UI</a>
+    </div>
+  </div>
+  <pre id="out"></pre>
+<script>
+(() => {
+  const out = document.getElementById('out');
+  const status = document.getElementById('status');
+  const pauseBtn = document.getElementById('pause');
+  const clearBtn = document.getElementById('clear');
+  let paused = false;
+  let ws = null;
+
+  const MAX_LINES = 1200;
+
+  const levelClassFor = (line) => {
+    if (line.includes("][E][")) return "log-e";
+    if (line.includes("][W][")) return "log-w";
+    if (line.includes("][I][")) return "log-i";
+    if (line.includes("][D][")) return "log-d";
+    if (line.includes("][T][")) return "log-t";
+    return "";
+  };
+
+  const ansiClassForCode = (code) => {
+    if (code === 31) return "ansi-red";
+    if (code === 32) return "ansi-green";
+    if (code === 33) return "ansi-yellow";
+    if (code === 34) return "ansi-blue";
+    if (code === 35) return "ansi-magenta";
+    if (code === 36) return "ansi-cyan";
+    if (code === 37) return "ansi-white";
+    if (code === 90) return "ansi-gray";
+    return "";
+  };
+
+  const appendChunk = (parent, text, cls) => {
+    if (!text) return;
+    const span = document.createElement("span");
+    if (cls) span.className = cls;
+    span.textContent = text;
+    parent.appendChild(span);
+  };
+
+  const appendAnsiAware = (parent, line, baseClass) => {
+    const re = /\x1b\[([0-9;]*)m/g;
+    let cursor = 0;
+    let activeAnsi = "";
+    let found = false;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      found = true;
+      const start = m.index;
+      appendChunk(parent, line.slice(cursor, start), activeAnsi || baseClass);
+      const codes = (m[1] || "0").split(";");
+      for (const codeText of codes) {
+        const code = Number(codeText || "0");
+        if (code === 0) {
+          activeAnsi = "";
+          continue;
+        }
+        const mapped = ansiClassForCode(code);
+        if (mapped) activeAnsi = mapped;
+      }
+      cursor = re.lastIndex;
+    }
+    if (!found) {
+      appendChunk(parent, line, baseClass);
+      return;
+    }
+    appendChunk(parent, line.slice(cursor), activeAnsi || baseClass);
+  };
+
+  const trimLines = () => {
+    while (out.childNodes.length > MAX_LINES) {
+      out.removeChild(out.firstChild);
+    }
+  };
+
+  const append = (line) => {
+    if (paused) return;
+    const row = document.createElement("span");
+    row.className = "line";
+    appendAnsiAware(row, line, levelClassFor(line));
+    out.appendChild(row);
+    trimLines();
+    out.scrollTop = out.scrollHeight;
+  };
+
+  const open = () => {
+    const scheme = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${scheme}://${location.host}/wslog`);
+    ws.onopen = () => { status.textContent = "Connecté à /wslog"; };
+    ws.onmessage = (ev) => { append(String(ev.data || "")); };
+    ws.onclose = () => {
+      status.textContent = "Déconnecté, reconnexion...";
+      setTimeout(open, 1200);
+    };
+    ws.onerror = () => {
+      status.textContent = "Erreur WebSocket";
+    };
+  };
+
+  pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? "Reprendre" : "Pause";
+  });
+  clearBtn.addEventListener('click', () => { out.textContent = ""; });
+
+  open();
+})();
+</script>
+</body>
+</html>
+)HTML";
+
 WebInterfaceModule::WebInterfaceModule(const BoardSpec& board)
 {
-    const UartSpec& uart = webBridgeUartSpec_(board);
-    uartBaud_ = uart.baud;
-    uartRxPin_ = uart.rxPin;
-    uartTxPin_ = uart.txPin;
+    const UartSpec* uart = webBridgeUartSpec_(board);
+    if (uart) {
+        bridgeUartConfigured_ = true;
+        uartBaud_ = uart->baud;
+        uartRxPin_ = uart->rxPin;
+        uartTxPin_ = uart->txPin;
+    } else {
+        bridgeUartConfigured_ = false;
+    }
+    provisioningDisableAfterConfigured_ = board.provisioning.disableAfterConfigured;
+    provisioningRequireMqttForConfigured_ = board.provisioning.requireMqttForConfigured;
 }
 
 void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
@@ -1339,9 +1527,6 @@ void WebInterfaceModule::onStart(ConfigStore&, ServiceRegistry&)
 
 void WebInterfaceModule::startLocalRuntime_()
 {
-    uart_.setRxBufferSize(kUartRxBufferSize);
-    uart_.begin(uartBaud_, SERIAL_8N1, uartRxPin_, uartTxPin_);
-
     if (!localLogQueue_) {
         localLogQueue_ = xQueueCreate(kLocalLogQueueLen, kLocalLogLineMax);
         if (!localLogQueue_) {
@@ -1356,6 +1541,22 @@ void WebInterfaceModule::startLocalRuntime_()
             LOGW("WebInterface local log sink registration failed");
         }
     }
+
+    if (provisioningOnly_) {
+        bridgeUartEnabled_ = false;
+        LOGI("WebInterface local runtime disabled in provisioning-only mode (wslog only)");
+        return;
+    }
+
+    if (!bridgeUartConfigured_) {
+        bridgeUartEnabled_ = false;
+        LOGI("WebInterface bridge UART disabled: no 'bridge' UART in BoardSpec (wslog only)");
+        return;
+    }
+
+    uart_.setRxBufferSize(kUartRxBufferSize);
+    uart_.begin(uartBaud_, SERIAL_8N1, uartRxPin_, uartTxPin_);
+    bridgeUartEnabled_ = true;
 
     LOGI("WebInterface local runtime uart=Serial2 baud=%lu rx=%d tx=%d line_buf=%u rx_buf=%u",
          (unsigned long)uartBaud_,
@@ -1651,12 +1852,27 @@ void WebInterfaceModule::startServer_()
     });
     server_.on("/api/web/meta", HTTP_GET, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/web/meta");
-        StaticJsonDocument<448> doc;
+        StaticJsonDocument<576> doc;
+        NetworkAccessMode mode = NetworkAccessMode::None;
+        if (!netAccessSvc_ && services_) {
+            netAccessSvc_ = services_->get<NetworkAccessService>(ServiceId::NetworkAccess);
+        }
+        if (netAccessSvc_ && netAccessSvc_->mode) {
+            mode = netAccessSvc_->mode(netAccessSvc_->ctx);
+        } else if (wifiSvc_ && wifiSvc_->isConnected && wifiSvc_->isConnected(wifiSvc_->ctx)) {
+            mode = NetworkAccessMode::Station;
+        }
+        const char* modeTxt = "none";
+        if (mode == NetworkAccessMode::Station) modeTxt = "station";
+        else if (mode == NetworkAccessMode::AccessPoint) modeTxt = "ap";
+
         doc["ok"] = true;
         doc["web_asset_version"] = webAssetVersion_();
         doc["firmware_version"] = FirmwareVersion::Full;
         doc["profile"] = FLOW_BUILD_PROFILE_NAME;
         doc["profile_name"] = FLOW_BUILD_PROFILE_NAME;
+        doc["network_mode"] = modeTxt;
+        doc["is_ap_portal"] = (mode == NetworkAccessMode::AccessPoint);
 #if defined(FLOW_PROFILE_MICRONOVA)
         doc["local_runtime"] = true;
         doc["local_config_label"] = "Config Store Micronova";
@@ -1679,7 +1895,7 @@ void WebInterfaceModule::startServer_()
         heap["largest"] = snap.heap.largestFreeBlock;
         heap["frag"] = snap.heap.fragPercent;
 
-        char out[512] = {0};
+        char out[640] = {0};
         const size_t n = serializeJson(doc, out, sizeof(out));
         if (n == 0 || n >= sizeof(out)) {
             request->send(500, "application/json",
@@ -1758,8 +1974,11 @@ void WebInterfaceModule::startServer_()
     server_.on("/webinterface/", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
         request->redirect(webInterfaceLandingUrl());
     });
-    server_.on("/webserial", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
-        request->redirect(webInterfaceLandingUrl());
+    server_.on("/webserial", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        noteHttpActivity_();
+        AsyncWebServerResponse* response = request->beginResponse(200, "text/html", kWebSerialLogPage);
+        addNoCacheHeaders_(response);
+        request->send(response);
     });
 
     server_.on("/webinterface/health", HTTP_GET, [this](AsyncWebServerRequest* request) {
@@ -2015,34 +2234,36 @@ void WebInterfaceModule::startServer_()
             return;
         }
 
-        char mqttJson[512] = {0};
-        if (!cfgStore_->toJsonModule("mqtt", mqttJson, sizeof(mqttJson), nullptr, false)) {
-            request->send(500, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"mqtt.config.get\"}}");
-            return;
-        }
-
-        StaticJsonDocument<512> doc;
-        const DeserializationError err = deserializeJson(doc, mqttJson);
-        if (err || !doc.is<JsonObjectConst>()) {
-            request->send(500, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"InvalidData\",\"where\":\"mqtt.config.get\"}}");
-            return;
-        }
-
-        JsonObjectConst root = doc.as<JsonObjectConst>();
-        const bool enabled = root["enabled"] | false;
-        const int32_t port = root["port"] | Limits::Mqtt::Defaults::Port;
+        bool enabled = false;
+        int32_t port = Limits::Mqtt::Defaults::Port;
         char host[96] = {0};
         char user[64] = {0};
         char pass[64] = {0};
-        char baseTopic[48] = {0};
+        char baseTopic[48] = "flowio";
         char topicDeviceId[48] = {0};
-        snprintf(host, sizeof(host), "%s", root["host"] | "");
-        snprintf(user, sizeof(user), "%s", root["user"] | "");
-        snprintf(pass, sizeof(pass), "%s", root["pass"] | "");
-        snprintf(baseTopic, sizeof(baseTopic), "%s", root["baseTopic"] | "flowio");
-        snprintf(topicDeviceId, sizeof(topicDeviceId), "%s", root["topicDeviceId"] | "");
+
+        char mqttJson[512] = {0};
+        if (cfgStore_->toJsonModule("mqtt", mqttJson, sizeof(mqttJson), nullptr, false)) {
+            StaticJsonDocument<512> doc;
+            const DeserializationError err = deserializeJson(doc, mqttJson);
+            if (err || !doc.is<JsonObjectConst>()) {
+                request->send(500, "application/json",
+                              "{\"ok\":false,\"err\":{\"code\":\"InvalidData\",\"where\":\"mqtt.config.get\"}}");
+                return;
+            }
+
+            JsonObjectConst root = doc.as<JsonObjectConst>();
+            enabled = root["enabled"] | false;
+            port = root["port"] | Limits::Mqtt::Defaults::Port;
+            snprintf(host, sizeof(host), "%s", root["host"] | "");
+            snprintf(user, sizeof(user), "%s", root["user"] | "");
+            snprintf(pass, sizeof(pass), "%s", root["pass"] | "");
+            snprintf(baseTopic, sizeof(baseTopic), "%s", root["baseTopic"] | "flowio");
+            snprintf(topicDeviceId, sizeof(topicDeviceId), "%s", root["topicDeviceId"] | "");
+        } else {
+            LOGW("mqtt.config.get: module unavailable, returning defaults");
+        }
+
         sanitizeJsonString_(host);
         sanitizeJsonString_(user);
         sanitizeJsonString_(pass);
@@ -2202,6 +2423,16 @@ void WebInterfaceModule::startServer_()
             request->send(200, "application/json", "{\"ok\":true}");
             return;
         }
+        const bool provisioningConfigured =
+            provisioningOnly_ &&
+            provisioningDisableAfterConfigured_ &&
+            isProvisioningConfigured_(cfgStore_, provisioningRequireMqttForConfigured_);
+        if (provisioningConfigured) {
+            scheduleReboot_(1200U, "prov.done.wifi");
+            request->send(200, "application/json", "{\"ok\":true,\"reboot_scheduled\":true}");
+            return;
+        }
+
         request->send(200, "application/json", out);
     });
 
@@ -2261,6 +2492,16 @@ void WebInterfaceModule::startServer_()
                           "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"mqtt.config.set\"}}");
             return;
         }
+        const bool provisioningConfigured =
+            provisioningOnly_ &&
+            provisioningDisableAfterConfigured_ &&
+            isProvisioningConfigured_(cfgStore_, provisioningRequireMqttForConfigured_);
+        if (provisioningConfigured) {
+            scheduleReboot_(1200U, "prov.done.mqtt");
+            request->send(200, "application/json", "{\"ok\":true,\"reboot_scheduled\":true}");
+            return;
+        }
+
         request->send(200, "application/json", "{\"ok\":true}");
     });
 
@@ -3062,25 +3303,34 @@ void WebInterfaceModule::startServer_()
         request->redirect(webInterfaceLandingUrl());
     });
 
-    ws_.onEvent([this](AsyncWebSocket* server,
-                       AsyncWebSocketClient* client,
-                       AwsEventType type,
-                       void* arg,
-                       uint8_t* data,
-                       size_t len) {
-        this->onWsEvent_(server, client, type, arg, data, len);
-    });
-    wsLog_.onEvent([this](AsyncWebSocket* server,
-                          AsyncWebSocketClient* client,
-                          AwsEventType type,
-                          void* arg,
-                          uint8_t* data,
-                          size_t len) {
-        this->onWsLogEvent_(server, client, type, arg, data, len);
-    });
+    if (!provisioningOnly_ && bridgeUartEnabled_) {
+        ws_.onEvent([this](AsyncWebSocket* server,
+                           AsyncWebSocketClient* client,
+                           AwsEventType type,
+                           void* arg,
+                           uint8_t* data,
+                           size_t len) {
+            this->onWsEvent_(server, client, type, arg, data, len);
+        });
+        server_.addHandler(&ws_);
+    } else if (!provisioningOnly_) {
+        LOGI("WebInterface wsserial disabled (bridge UART unavailable)");
+    }
 
-    server_.addHandler(&ws_);
-    server_.addHandler(&wsLog_);
+    if (!provisioningOnly_) {
+        wsLog_.onEvent([this](AsyncWebSocket* server,
+                              AsyncWebSocketClient* client,
+                              AwsEventType type,
+                              void* arg,
+                              uint8_t* data,
+                              size_t len) {
+            this->onWsLogEvent_(server, client, type, arg, data, len);
+        });
+
+        server_.addHandler(&wsLog_);
+    } else {
+        LOGI("WebInterface WS handlers disabled in provisioning-only mode");
+    }
     server_.begin();
     started_ = true;
     noteServerStarted_();

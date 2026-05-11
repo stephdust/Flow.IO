@@ -17,7 +17,11 @@
 struct WifiConfig {
     bool enabled = true;
     // IEEE 802.11 SSID supports up to 32 bytes (+ '\0').
+#if defined(FLOW_PROFILE_MICRONOVA)
+    char ssid[33] = "";
+#else
     char ssid[33] = "Wokwi-GUEST";
+#endif
     // WPA/WPA2 supports 8..63 chars passphrase or 64-char hex PSK (+ '\0').
     char pass[65] = "";
 #if defined(FLOW_PROFILE_SUPERVISOR)
@@ -52,7 +56,7 @@ public:
     const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
     /** @brief Give extra headroom to WiFi stack/callback activity. */
     uint16_t taskStackSize() const override {
-#if defined(FLOW_PROFILE_SUPERVISOR)
+#if defined(FLOW_PROFILE_SUPERVISOR) || defined(FLOW_PROFILE_MICRONOVA)
         return 4096;
 #else
         return 2816;
@@ -82,7 +86,12 @@ private:
         RuntimeUiRssi = 3,
     };
 
-    static constexpr uint8_t kScanMaxResults = 24;
+    static constexpr uint8_t kScanMaxResults = Limits::Wifi::MaxScanResults;
+#if defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
+    static constexpr bool kScanIncludeHidden = false;
+#else
+    static constexpr bool kScanIncludeHidden = true;
+#endif
     static constexpr uint32_t kScanThrottleMs = Limits::Wifi::Timing::ScanThrottleMs;
     static constexpr uint32_t kInitialConnectDelayMs = Limits::Wifi::Timing::InitialConnectDelayMs;
     static constexpr uint32_t kStartupTransientLogWindowMs = Limits::Wifi::Timing::StartupTransientLogWindowMs;
@@ -121,6 +130,7 @@ private:
     uint8_t scanCount_ = 0;
     uint8_t scanTotalFound_ = 0;
     uint8_t scanApRetryCount_ = 0;
+    uint8_t scanFailRetryCount_ = 0;
     uint32_t scanLastStartMs_ = 0;
     uint32_t scanLastDoneMs_ = 0;
     uint16_t scanGeneration_ = 0;

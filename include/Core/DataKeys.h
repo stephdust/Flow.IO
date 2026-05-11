@@ -118,7 +118,10 @@ constexpr DataKey MicronovaWaterPressure = MicronovaBase + 10;
 constexpr DataKey MicronovaAlarmCode = MicronovaBase + 11;
 constexpr DataKey MicronovaLastUpdateMs = MicronovaBase + 12;
 constexpr DataKey MicronovaLastCommand = MicronovaBase + 13;
-constexpr uint8_t MicronovaReservedCount = 16;
+constexpr DataKey MicronovaDisplayLine1 = MicronovaBase + 14;
+constexpr DataKey MicronovaDisplayLine2 = MicronovaBase + 15;
+constexpr DataKey MicronovaDisplayLine3 = MicronovaBase + 16;
+constexpr uint8_t MicronovaReservedCount = 20;
 constexpr DataKey MicronovaEndExclusive = MicronovaBase + MicronovaReservedCount;
 
 /** @brief Upper bound for currently reserved keys. */

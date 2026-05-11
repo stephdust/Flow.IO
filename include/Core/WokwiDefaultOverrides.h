@@ -9,4 +9,5 @@
  */
 
 #include "Domain/Calibration.h"
+#include "Core/SystemLimits.h"
 #include "Core/Generated/WokwiDefaultOverrides_Generated.h"

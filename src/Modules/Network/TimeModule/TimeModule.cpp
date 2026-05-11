@@ -380,7 +380,6 @@ void TimeModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     cmdSvc = services.get<CommandService>(ServiceId::Command);
     if (cmdSvc) {
         cmdSvc->registerHandler(cmdSvc->ctx, "time.resync", cmdResync, this);
-        cmdSvc->registerHandler(cmdSvc->ctx, "ntp.resync", cmdResync, this); // backward compatibility
         cmdSvc->registerHandler(cmdSvc->ctx, "time.scheduler.info", cmdSchedInfo, this);
         cmdSvc->registerHandler(cmdSvc->ctx, "time.scheduler.get", cmdSchedGet, this);
         cmdSvc->registerHandler(cmdSvc->ctx, "time.scheduler.set", cmdSchedSet, this);

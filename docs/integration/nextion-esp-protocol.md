@@ -13,8 +13,11 @@ Le port série utilisé côté FlowIO est `Serial2` sur `RX16 / TX17` à `115200
 
 ## Principes
 
-- Les valeurs métier affichées (`pH`, `ORP`, températures, heure, date) sont
-  formatées côté ESP puis envoyées en `.txt`.
+- Les valeurs métier affichées (`pH`, `ORP`, températures, message d'erreur)
+  sont formatées côté ESP puis envoyées vers des variables texte globales.
+- L'heure et la date complètes ne sont pas écrites en `.txt` par l'ESP. Le
+  Nextion les calcule localement depuis son RTC; l'ESP fournit seulement le
+  texte du jour de semaine et du mois.
 - Les états discrets et indicateurs compacts sont envoyés en `.val`.
 - L'écran Nextion n'est pas la source de vérité : il émet des intentions ou des
   commandes UI, puis `FlowIO` rafraîchit l'affichage à partir du `DataStore`,
@@ -26,13 +29,14 @@ Le port série utilisé côté FlowIO est `Serial2` sur `RX16 / TX17` à `115200
 
 ### Page Home
 
-Objets texte :
-- `tWaterTemp.txt`
-- `tAirTemp.txt`
-- `tpH.txt`
-- `tORP.txt`
-- `tTime.txt`
-- `tDate.txt`
+Variables texte globales :
+- `globals.vaWaterTemp.txt`
+- `globals.vaAirTemp.txt`
+- `globals.vaPhValue.txt`
+- `globals.vaOrpValue.txt`
+- `globals.vaDayText.txt`
+- `globals.vaMonthText.txt`
+- `globals.vaErrMsg.txt`
 
 Objets numériques :
 - `vapHPercent.val`
@@ -41,12 +45,13 @@ Objets numériques :
 - `globals.vaAlarms.val`
 
 Sémantique :
-- `tWaterTemp.txt` : exemple `27.4°C`
-- `tAirTemp.txt` : exemple `21.8°C`
-- `tpH.txt` : exemple `7.18`
-- `tORP.txt` : exemple `650`
-- `tTime.txt` : heure locale au format `HH:MM`, exemple `14:37`
-- `tDate.txt` : date locale au format `jour Mois`, exemple `15 Avril`
+- `globals.vaWaterTemp.txt` : exemple `27.4°C`
+- `globals.vaAirTemp.txt` : exemple `21.8°C`
+- `globals.vaPhValue.txt` : exemple `7.18`
+- `globals.vaOrpValue.txt` : exemple `650`
+- `globals.vaDayText.txt` : jour de semaine, exemple `Vendredi`
+- `globals.vaMonthText.txt` : mois, exemple `Avril`
+- `globals.vaErrMsg.txt` : message court, limite recommandée `31` caractères
 - `vapHPercent.val` : jauge `0..280`, `140` à la consigne pH
 - `vaOrpPercent.val` : jauge `0..280`, `140` à la consigne ORP
 - `globals.vaStates.val` : bitmap d'état compact
@@ -82,7 +87,8 @@ Bits actuellement utilisés :
 ### Page de configuration
 
 Le driver rend la configuration sur la page `pageCfgMenu` après réception
-de l'annonce de page `printh 23 02 50 0A` depuis Nextion.
+de l'annonce de page `printh 23 02 50 0A` (ou variante contextualisée
+`printh 23 06 50 0A <ctx_ref_u32_le>`) depuis Nextion.
 Le modèle côté ESP est volontairement léger en RAM : il ne garde pas de cache
 complet des modules ou des lignes, et reconstruit la page courante à la demande
 depuis le `ConfigStore`.
@@ -98,6 +104,8 @@ depuis le `ConfigStore`.
 - `tL0` .. `tL5`
 - `tV0` .. `tV5`
 - `bR0` .. `bR5`
+- `vaEditType0` .. `vaEditType5` (variables locales de `pageCfgMenu`)
+- `vaCtxRef` (variable locale numerique de `pageCfgMenu`)
 
 Sémantique :
 - `tPath` : breadcrumb courant
@@ -108,6 +116,13 @@ Sémantique :
   ligne existe
 - `bValid` : réservé ; dans le modèle léger actuel, les changements simples
   sont appliqués immédiatement clé par clé au `ConfigStore`
+- `vaEditTypeN.val` : type de saisie clavier pour la ligne `N`
+  - `0` : texte
+  - `1` : entier
+  - `2` : decimal/float
+  - `3` : booleen
+- `vaCtxRef.val` : token de contexte courant fourni par FlowIO pour permettre
+  un retour clavier vers la vue exacte en cours d'edition.
 - Mode browse : seuls les topics immédiats sont affichés dans `tLx`.
 - Mode édition : les attributs de la branche sélectionnée sont affichés dans
   `tLx/tVx`; un refresh léger des valeurs est fait toutes les `5s`.
@@ -198,6 +213,7 @@ Décodage :
 
 Payload :
 - `page_code` (`uint8`, code protocolaire choisi cote Nextion)
+- optionnel : `ctx_ref` (`uint32` little-endian) pour reprise de contexte menu
 
 Usage :
 - utilisé par Nextion pour informer l'ESP de la page actuellement affichée
@@ -209,6 +225,13 @@ Exemple Nextion :
 
 ```text
 printh 23 02 50 0A
+```
+
+Exemple Nextion contextualisé :
+
+```text
+printh 23 06 50 0A
+print globals.vaKbdCtxRef.val
 ```
 
 Exemple :
@@ -296,6 +319,39 @@ Passe en mode édition des attributs de la branche affichée par la ligne `3`.
 Cette commande est prévue pour un geste/objet distinct du clic `tLx` qui, lui,
 sert à entrer dans la branche.
 
+### `0x56` : `ROW_SET_TEXT`
+
+Payload :
+- `row` (`uint8`, `0..5`)
+- `text` (`bytes`, texte non terminé obligatoirement par zéro)
+
+Exemple :
+
+```text
+printh 23 06 56 00 74 65 73 74
+```
+
+Définit la valeur texte de la ligne `0` à `test`.
+
+Limite pratique :
+- Nextion UART direct : `47` caractères utiles max (buffer `HmiEvent.text`)
+- Flow Connect Display UDP : `47` caractères utiles max (payload `HmiUdpEventPayload.text`)
+
+### `0x57` : `ROW_SET_SLIDER`
+
+Payload :
+- `row` (`uint8`, `0..5`)
+- soit `value` (`uint8`, `0..255`)
+- soit `value` (`float`, 4 octets natifs little-endian ESP32)
+
+Exemple valeur courte :
+
+```text
+printh 23 03 57 00 64
+```
+
+Définit le slider de la ligne `0` à `100`.
+
 ### `0x60` : `HOME_ACTION`
 
 Payload :
@@ -318,6 +374,7 @@ Actions supportées :
 - `0x0D` : `WINTER_MODE_TOGGLE`
 - `0x0E` : `LIGHTS_TOGGLE`
 - `0x0F` : `ROBOT_TOGGLE`
+- `0x10` : `DISPLAY_WIFI_FACTORY_RESET` (consommee localement par Flow Connect Display)
 
 Valeur :
 - `0x00` : faux / OFF
@@ -395,6 +452,16 @@ pour les toggles, conservée pour homogénéité de trame).
 - Robot toggle : `printh 23 03 60 0F 01`
 - Pompe pH toggle : `printh 23 03 60 07 01`
 - Pompe chlore toggle : `printh 23 03 60 08 01`
+
+### Commande locale Flow Connect Display
+
+La reinitialisation Wi-Fi du firmware ecran deporte est locale au Display :
+elle n'est pas envoyee a FlowIO. Elle efface les identifiants Wi-Fi du
+Display, redemarre l'ESP, puis le portail captif revient au boot.
+
+```text
+printh 23 03 60 10 01
+```
 
 ## Mapping vers les commandes ESP
 
@@ -499,7 +566,8 @@ Exemples :
 - bouton auto ON : `printh 23 03 60 02 01`
 - bouton sync : `printh 23 03 60 03 01`
 - bouton paramètres : `page pageCfgMenu` cote Nextion, puis
-  `pageCfgMenu` annonce son entree avec `printh 23 02 50 0A`
+  `pageCfgMenu` annonce son entree avec `printh 23 02 50 0A` (ou avec
+  contexte `printh 23 06 50 0A` + `print <ctx_ref_u32_le>`).
 
 ### Config
 
@@ -511,6 +579,20 @@ Dans le `Preinitialize Event` de `pageCfgMenu` :
 
 ```text
 printh 23 02 50 0A
+```
+
+Variante retour clavier avec contexte :
+
+```text
+if(globals.vaKbdCtxRef.val>0)
+{
+  printh 23 06 50 0A
+  print globals.vaKbdCtxRef.val
+  globals.vaKbdCtxRef.val=0
+}else
+{
+  printh 23 02 50 0A
+}
 ```
 
 Dans le `Page Exit Event` de `pageCfgMenu` :
@@ -525,6 +607,8 @@ La page config peut s'appuyer sur :
 - `ROW_EDIT`
 - `ROW_TOGGLE`
 - `ROW_CYCLE`
+- `ROW_SET_TEXT`
+- `ROW_SET_SLIDER`
 
 Exemples :
 - `bHome` : `printh 23 02 51 01`
@@ -538,6 +622,8 @@ Exemples :
 - `bR1` / commande édition ligne 1 : `printh 23 02 55 01`
 - changement switch `tV0` : `printh 23 02 53 00`
 - changement switch `tV1` : `printh 23 02 53 01`
+- valeur texte ligne 0 : `printh 23 <len> 56 00 <texte>`
+- valeur slider ligne 0 : `printh 23 03 57 00 <valeur_0_255>`
 
 Si `bBack` est pressé à la racine du menu, `HMIModule` considère que le menu
 configuration est fermé. Le changement de page visuel vers Home doit alors être

@@ -51,14 +51,12 @@ private:
     static constexpr uint8_t ProducerId = 32;
     static constexpr uint8_t ProducerIdCfg = 49;
 
-    static constexpr uint8_t MAX_HA_SENSORS = 40;
-    static constexpr uint8_t MAX_HA_BINARY_SENSORS = 6;
-    static constexpr uint8_t MAX_HA_SWITCHES = 14;
-    static constexpr uint8_t MAX_HA_NUMBERS = 14;
-    // PoolDevice + Alarm + PoolLogic can register many maintenance buttons
-    // (reset/refill/recalc). Keep enough headroom to avoid silent drops.
-    static constexpr uint8_t MAX_HA_BUTTONS = 24;
-    static constexpr uint8_t MAX_HA_DISCOVERY_CLEANUPS = 9;
+    static constexpr uint8_t MAX_HA_SENSORS = Limits::Ha::Capacity::MaxSensors;
+    static constexpr uint8_t MAX_HA_BINARY_SENSORS = Limits::Ha::Capacity::MaxBinarySensors;
+    static constexpr uint8_t MAX_HA_SWITCHES = Limits::Ha::Capacity::MaxSwitches;
+    static constexpr uint8_t MAX_HA_NUMBERS = Limits::Ha::Capacity::MaxNumbers;
+    static constexpr uint8_t MAX_HA_BUTTONS = Limits::Ha::Capacity::MaxButtons;
+    static constexpr uint8_t MAX_HA_DISCOVERY_CLEANUPS = Limits::Ha::Capacity::MaxDiscoveryCleanups;
     static constexpr uint16_t MAX_HA_ENTITIES =
         MAX_HA_SENSORS + MAX_HA_BINARY_SENSORS + MAX_HA_SWITCHES + MAX_HA_NUMBERS + MAX_HA_BUTTONS;
     static constexpr uint16_t MAX_HA_MESSAGES = MAX_HA_ENTITIES + MAX_HA_DISCOVERY_CLEANUPS;

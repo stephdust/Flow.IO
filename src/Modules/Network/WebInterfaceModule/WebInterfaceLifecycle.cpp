@@ -102,6 +102,14 @@ void WebInterfaceModule::onHttpActivityHook_(void* ctx)
     self->noteHttpActivity_();
 }
 
+void WebInterfaceModule::scheduleReboot_(uint32_t delayMs, const char* reason)
+{
+    rebootPending_ = true;
+    rebootAtMs_ = millis() + delayMs;
+    snprintf(rebootReason_, sizeof(rebootReason_), "%s", (reason && reason[0] != '\0') ? reason : "web");
+    LOGW("Web reboot scheduled in %lu ms reason=%s", (unsigned long)delayMs, rebootReason_);
+}
+
 void WebInterfaceModule::onEventStatic_(const Event& e, void* user)
 {
     WebInterfaceModule* self = static_cast<WebInterfaceModule*>(user);
@@ -121,6 +129,12 @@ void WebInterfaceModule::onEvent_(const Event& e)
 
 void WebInterfaceModule::loop()
 {
+    if (rebootPending_ && (int32_t)(millis() - rebootAtMs_) >= 0) {
+        LOGW("Web rebooting now reason=%s", rebootReason_);
+        delay(80);
+        ESP.restart();
+    }
+
     noteLoopActivity_();
 
     if (!netAccessSvc_ && services_) {
@@ -160,6 +174,20 @@ void WebInterfaceModule::loop()
             wsLog_.cleanupClients();
         }
         vTaskDelay(pdMS_TO_TICKS(40));
+        return;
+    }
+
+    if (provisioningOnly_) {
+        if (started_) ws_.cleanupClients();
+        if (started_) wsLog_.cleanupClients();
+        vTaskDelay(pdMS_TO_TICKS(25));
+        return;
+    }
+
+    if (!bridgeUartEnabled_) {
+        flushLocalLogQueue_();
+        if (started_) wsLog_.cleanupClients();
+        vTaskDelay(pdMS_TO_TICKS(20));
         return;
     }
 

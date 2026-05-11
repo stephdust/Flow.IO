@@ -6,11 +6,16 @@
 #include "Board/BoardSerialMap.h"
 #include "Core/FirmwareVersion.h"
 
+#include <WiFi.h>
+#include <esp_system.h>
+#include <esp_wifi.h>
+
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::FlowConnectDisplayUdpClientModule)
 #include "Core/ModuleLog.h"
 
 void FlowConnectDisplayUdpClientModule::init(ConfigStore& cfgStore, ServiceRegistry& services)
 {
+    cfgStore_ = &cfgStore;
     cfgStore.registerVar(tokenVar_);
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
 
@@ -22,6 +27,7 @@ void FlowConnectDisplayUdpClientModule::init(ConfigStore& cfgStore, ServiceRegis
     cfg.homePageId = 1U;
     cfg.configPageId = 2U;
     cfg.homePageAliasId = 0U;
+    cfg.configPageAliasId = 10U;
     nextion_.setConfig(cfg);
     nextion_.setDebugCallback(&FlowConnectDisplayUdpClientModule::nextionDebugCallback_, this);
 }
@@ -54,8 +60,10 @@ bool FlowConnectDisplayUdpClientModule::begin()
 
 void FlowConnectDisplayUdpClientModule::tick(uint32_t nowMs)
 {
+    serviceWifiFactoryReset_(nowMs);
     if (!begin()) return;
     nextion_.tick(nowMs);
+    serviceWifiFactoryReset_(nowMs);
 
     if (!wifiConnected_()) {
         linked_ = false;
@@ -78,9 +86,19 @@ void FlowConnectDisplayUdpClientModule::tick(uint32_t nowMs)
     if (!linked_) {
         sendHello_(nowMs);
     } else {
+        const bool versionProbeSafe = !inputLocked_ &&
+                                      !configPageActive_ &&
+                                      !configRenderPending_ &&
+                                      !configValuesPending_;
+        if (versionProbeSafe && !nextion_.hasDisplayVersion()) {
+            probeNextionVersion_(nowMs);
+        }
+        if (versionProbeSafe && (uint32_t)(nowMs - lastHelloMs_) >= VersionRecheckPeriodMs) {
+            sendHello_(nowMs, true);
+        }
         sendPing_(nowMs);
-        servicePageProbe_(nowMs);
         pollNextion_();
+        servicePageProbe_(nowMs);
         serviceEventTx_();
         if ((uint32_t)(nowMs - lastSeenMs_) > LinkTimeoutMs) {
             handleLinkLost_();
@@ -88,11 +106,11 @@ void FlowConnectDisplayUdpClientModule::tick(uint32_t nowMs)
     }
 }
 
-void FlowConnectDisplayUdpClientModule::sendHello_(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::sendHello_(uint32_t nowMs, bool force)
 {
-    if ((uint32_t)(nowMs - lastHelloMs_) < HelloPeriodMs) return;
+    if (!force && (uint32_t)(nowMs - lastHelloMs_) < HelloPeriodMs) return;
     lastHelloMs_ = nowMs;
-    probeNextionVersion_(nowMs);
+    probeNextionVersion_(nowMs, force);
 
     HmiUdpHelloPayload payload{};
     payload.tokenCrc = hmiUdpTokenCrc(cfgData_.token);
@@ -115,20 +133,26 @@ void FlowConnectDisplayUdpClientModule::sendHello_(uint32_t nowMs)
                            sizeof(payload))) {
         return;
     }
-    IPAddress broadcast(255, 255, 255, 255);
-    if (!udp_.beginPacket(broadcast, HMI_UDP_PORT)) return;
+    const IPAddress targetIp = linked_ ? flowIp_ : IPAddress(255, 255, 255, 255);
+    const uint16_t targetPort = linked_ ? flowPort_ : HMI_UDP_PORT;
+    if (!udp_.beginPacket(targetIp, targetPort)) return;
     (void)udp_.write(txBuf_, packetLen);
     (void)udp_.endPacket();
 }
 
 void FlowConnectDisplayUdpClientModule::probeNextionVersion_(uint32_t nowMs, bool force)
 {
-    if (nextion_.hasDisplayVersion()) return;
-    if (!force && (uint32_t)(nowMs - lastVersionProbeMs_) < VersionProbePeriodMs) return;
+    const bool hadVersion = nextion_.hasDisplayVersion();
+    const uint32_t previousVersion = nextion_.displayVersion();
+    const uint32_t period = hadVersion ? VersionRecheckPeriodMs : VersionProbeRetryMs;
+    if (!force && (uint32_t)(nowMs - lastVersionProbeMs_) < period) return;
     lastVersionProbeMs_ = nowMs;
 
-    if (nextion_.detectDisplayVersion()) {
-        LOGI("FCD Nextion version=%lu", (unsigned long)nextion_.displayVersion());
+    if (nextion_.detectDisplayVersion(0U, force || hadVersion)) {
+        const uint32_t currentVersion = nextion_.displayVersion();
+        if (!hadVersion || currentVersion != previousVersion) {
+            LOGI("FCD Nextion version=%lu", (unsigned long)currentVersion);
+        }
     } else if (force) {
         LOGW("FCD Nextion version not available yet");
     }
@@ -193,13 +217,16 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
         case HmiUdpMsgType::Welcome: {
             if (header.len != sizeof(HmiUdpWelcomePayload) || !payload) return;
             const auto* welcome = reinterpret_cast<const HmiUdpWelcomePayload*>(payload);
+            const bool wasLinked = linked_;
             linked_ = welcome->accepted != 0U;
             lostShown_ = false;
             if (linked_) {
                 setFlowConnectionVisible_(true, "welcome");
                 (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "");
-                LOGI("FCD linked to FlowIO proto=%u fw=%u", (unsigned)welcome->protoVersion, (unsigned)welcome->flowFw);
-                requestFullRefresh_("welcome");
+                if (!wasLinked) {
+                    LOGI("FCD linked to FlowIO proto=%u fw=%u", (unsigned)welcome->protoVersion, (unsigned)welcome->flowFw);
+                    requestFullRefresh_("welcome");
+                }
             } else {
                 setFlowConnectionVisible_(false, "welcome-rejected");
             }
@@ -208,18 +235,30 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
         case HmiUdpMsgType::Pong:
             break;
         case HmiUdpMsgType::HomeText: {
+            if (configPageActive_ || nextion_.isConfigPage()) {
+                LOGD("FCD ignore HomeText while Config page is active");
+                break;
+            }
             if (header.len != sizeof(HmiUdpHomeTextPayload) || !payload) return;
             const auto* p = reinterpret_cast<const HmiUdpHomeTextPayload*>(payload);
             (void)nextion_.publishHomeText((HmiHomeTextField)p->field, p->text);
             break;
         }
         case HmiUdpMsgType::HomeGauge: {
+            if (configPageActive_ || nextion_.isConfigPage()) {
+                LOGD("FCD ignore HomeGauge while Config page is active");
+                break;
+            }
             if (header.len != sizeof(HmiUdpHomeGaugePayload) || !payload) return;
             const auto* p = reinterpret_cast<const HmiUdpHomeGaugePayload*>(payload);
             (void)nextion_.publishHomeGaugePercent((HmiHomeGaugeField)p->field, p->percent);
             break;
         }
         case HmiUdpMsgType::HomeV2Needles: {
+            if (configPageActive_ || nextion_.isConfigPage()) {
+                LOGD("FCD ignore HomeV2Needles while Config page is active");
+                break;
+            }
             if (header.len != sizeof(HmiUdpHomeV2NeedlesPayload) || !payload) return;
             const auto* p = reinterpret_cast<const HmiUdpHomeV2NeedlesPayload*>(payload);
             NextionV2NeedlePublish publish{};
@@ -233,6 +272,10 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
             break;
         }
         case HmiUdpMsgType::HomeStateBits: {
+            if (configPageActive_ || nextion_.isConfigPage()) {
+                LOGD("FCD ignore HomeStateBits while Config page is active");
+                break;
+            }
             if (header.len != sizeof(HmiUdpStateBitsPayload) || !payload) return;
             const auto* p = reinterpret_cast<const HmiUdpStateBitsPayload*>(payload);
             LOGI("FCD apply HomeStateBits stateBits=0x%08lX", (unsigned long)p->stateBits);
@@ -240,6 +283,10 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
             break;
         }
         case HmiUdpMsgType::HomeAlarmBits: {
+            if (configPageActive_ || nextion_.isConfigPage()) {
+                LOGD("FCD ignore HomeAlarmBits while Config page is active");
+                break;
+            }
             if (header.len != sizeof(HmiUdpAlarmBitsPayload) || !payload) return;
             const auto* p = reinterpret_cast<const HmiUdpAlarmBitsPayload*>(payload);
             (void)nextion_.publishHomeAlarmBits(p->alarmBits);
@@ -251,19 +298,22 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
             configView_ = ConfigMenuView{};
             configView_.pageIndex = p->page > 0U ? (uint8_t)(p->page - 1U) : 0U;
             configView_.pageCount = p->pageCount;
+            configView_.contextRef = p->contextRef;
             configView_.canHome = (p->flags & HMI_UDP_CONFIG_VIEW_CAN_HOME) != 0U;
             configView_.canBack = (p->flags & HMI_UDP_CONFIG_VIEW_CAN_BACK) != 0U;
             configView_.canValidate = (p->flags & HMI_UDP_CONFIG_VIEW_CAN_VALIDATE) != 0U;
             configView_.isHome = (p->flags & HMI_UDP_CONFIG_VIEW_IS_HOME) != 0U;
             copyText_(configView_.breadcrumb, sizeof(configView_.breadcrumb), p->title);
+            configPageActive_ = true;
             configBatchActive_ = true;
             configRenderPending_ = false;
             configValuesPending_ = false;
             setInputLocked_(true, "config-batch", nowMs);
             const bool loadingOk = nextion_.showConfigLoading(configView_.breadcrumb);
-            LOGI("FCD config batch start page=%u/%u flags=0x%02X canBack=%u title='%s' loading=%d",
+            LOGI("FCD config batch start page=%u/%u ctxRef=%lu flags=0x%02X canBack=%u title='%s' loading=%d",
                  (unsigned)p->page,
                  (unsigned)p->pageCount,
+                 (unsigned long)p->contextRef,
                  (unsigned)p->flags,
                  configView_.canBack ? 1U : 0U,
                  configView_.breadcrumb,
@@ -284,11 +334,13 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
             row.canEdit = (p->flags & HMI_UDP_CONFIG_ROW_CAN_EDIT) != 0U;
             configView_.mode = (p->flags & HMI_UDP_CONFIG_MODE_EDIT) != 0U ? ConfigMenuMode::Edit : ConfigMenuMode::Browse;
             row.widget = (ConfigMenuWidget)p->widget;
+            row.editType = p->editType;
             copyText_(row.label, sizeof(row.label), p->label);
             copyText_(row.value, sizeof(row.value), p->value);
-            LOGI("FCD config row row=%u widget=%s flags=0x%02X label='%s' value='%s'",
+            LOGI("FCD config row row=%u widget=%s editType=%u flags=0x%02X label='%s' value='%s'",
                  (unsigned)p->row,
                  widgetName_(row.widget),
+                 (unsigned)row.editType,
                  (unsigned)p->flags,
                  row.label,
                  row.value);
@@ -361,12 +413,22 @@ void FlowConnectDisplayUdpClientModule::pollNextion_()
     HmiEvent event{};
     while (drained < 4U && nextion_.pollEvent(event)) {
         logEvent_("Nextion -> FCD", event);
-        if (event.type == HmiEventType::Home) {
+        if (handleLocalCommand_(event)) {
+            ++drained;
+            continue;
+        }
+        const bool actualHomePage = event.type == HmiEventType::Home && nextion_.isHomePage();
+        if (actualHomePage) {
+            configPageActive_ = false;
             uint8_t page = 0;
             if (nextion_.currentPage(page)) lastFlowConnectPage_ = page;
             setFlowConnectionVisible_(linked_, "nextion-home", true);
+        } else if (event.type == HmiEventType::ConfigEnter) {
+            configPageActive_ = true;
+        } else if (event.type == HmiEventType::ConfigExit) {
+            configPageActive_ = false;
         }
-        if (event.type == HmiEventType::Home ||
+        if (actualHomePage ||
             event.type == HmiEventType::ConfigExit ||
             (event.type == HmiEventType::Command && event.command == HmiCommandId::HomeSyncRequest)) {
             requestFullRefresh_("nextion-home", true);
@@ -474,6 +536,72 @@ bool FlowConnectDisplayUdpClientModule::sendRtcReadResponse_()
     return ok;
 }
 
+bool FlowConnectDisplayUdpClientModule::handleLocalCommand_(const HmiEvent& event)
+{
+    if (event.type != HmiEventType::Command) return false;
+    if (event.command != HmiCommandId::DisplayWifiFactoryReset) return false;
+
+    LOGW("FCD local Nextion command: WiFi factory reset requested");
+    (void)requestWifiFactoryReset_();
+    return true;
+}
+
+bool FlowConnectDisplayUdpClientModule::requestWifiFactoryReset_()
+{
+    if (wifiFactoryResetPending_) return true;
+    if (!cfgStore_) {
+        LOGE("FCD WiFi factory reset failed: ConfigStore unavailable");
+        (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "WiFi reset failed");
+        return false;
+    }
+
+    const bool patchOk = cfgStore_->applyJson("{\"wifi\":{\"enabled\":true,\"ssid\":\"\",\"pass\":\"\"}}");
+    const bool eraseMdnsOk = cfgStore_->eraseKey(NvsKeys::Wifi::Mdns);
+
+    WiFi.mode(WIFI_MODE_STA);
+    delay(20);
+    (void)WiFi.disconnect(false, true);
+    esp_err_t restoreErr = esp_wifi_restore();
+    if (restoreErr == ESP_ERR_WIFI_NOT_INIT) {
+        WiFi.mode(WIFI_MODE_STA);
+        delay(20);
+        restoreErr = esp_wifi_restore();
+    }
+    (void)WiFi.disconnect(true, true);
+
+    if (!patchOk) {
+        LOGE("FCD WiFi factory reset failed patch=%d mdns_erase=%d wifi_err=%d",
+             patchOk ? 1 : 0,
+             eraseMdnsOk ? 1 : 0,
+             (int)restoreErr);
+        (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "WiFi reset failed");
+        return false;
+    }
+
+    linked_ = false;
+    started_ = false;
+    pendingLen_ = 0;
+    pendingAttempts_ = 0;
+    wifiFactoryResetPending_ = true;
+    wifiFactoryResetAtMs_ = millis() + 900U;
+    (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "WiFi reset...");
+    setFlowConnectionVisible_(false, "wifi-factory-reset", true);
+    LOGW("FCD WiFi factory reset done patch=%d mdns_erase=%d wifi_err=%d reboot_ms=900",
+         patchOk ? 1 : 0,
+         eraseMdnsOk ? 1 : 0,
+         (int)restoreErr);
+    return true;
+}
+
+void FlowConnectDisplayUdpClientModule::serviceWifiFactoryReset_(uint32_t nowMs)
+{
+    if (!wifiFactoryResetPending_) return;
+    if ((int32_t)(nowMs - wifiFactoryResetAtMs_) < 0) return;
+    LOGW("FCD reboot after WiFi factory reset");
+    delay(20);
+    esp_restart();
+}
+
 void FlowConnectDisplayUdpClientModule::requestFullRefresh_(const char* reason, bool force)
 {
     if (!linked_) return;
@@ -506,6 +634,11 @@ void FlowConnectDisplayUdpClientModule::servicePageProbe_(uint32_t nowMs)
         const bool pageChanged = page != lastFlowConnectPage_;
         if (pageChanged) {
             lastFlowConnectPage_ = page;
+        }
+        if (nextion_.isConfigPage()) {
+            configPageActive_ = true;
+        } else if (nextion_.isHomePage()) {
+            configPageActive_ = false;
         }
         if (pageChanged && nextion_.isHomePage()) {
             setFlowConnectionVisible_(linked_, "home-page-probe", true);
@@ -646,10 +779,11 @@ void FlowConnectDisplayUdpClientModule::logDisplayState_(const char* reason, boo
 
 void FlowConnectDisplayUdpClientModule::logEvent_(const char* prefix, const HmiEvent& event) const
 {
-    LOGI("%s event=%s command=%s row=%u value=%u dir=%d slider=%.2f text='%s'",
+    LOGI("%s event=%s command=%s ctxRef=%lu row=%u value=%u dir=%d slider=%.2f text='%s'",
          prefix ? prefix : "HMI",
          eventTypeName_(event.type),
          commandName_(event.command),
+         (unsigned long)event.contextRef,
          (unsigned)event.row,
          (unsigned)event.value,
          (int)event.direction,
@@ -707,6 +841,7 @@ void FlowConnectDisplayUdpClientModule::handleLinkLost_()
     pendingType_ = HmiUdpMsgType::Error;
     eventHead_ = 0;
     eventTail_ = 0;
+    configPageActive_ = false;
     setFlowConnectionVisible_(false, "link-lost");
     setInputLocked_(false, "link-lost", millis());
     if (!lostShown_) {
@@ -802,6 +937,7 @@ const char* FlowConnectDisplayUdpClientModule::eventTypeName_(HmiEventType type)
         case HmiEventType::RowSetSlider: return "RowSetSlider";
         case HmiEventType::RowEdit: return "RowEdit";
         case HmiEventType::Command: return "Command";
+        case HmiEventType::Page: return "Page";
         case HmiEventType::ConfigEnter: return "ConfigEnter";
         case HmiEventType::ConfigExit: return "ConfigExit";
         default: return "?";
@@ -827,6 +963,7 @@ const char* FlowConnectDisplayUdpClientModule::commandName_(HmiCommandId command
         case HmiCommandId::HomeOrpPumpSet: return "HomeOrpPumpSet";
         case HmiCommandId::HomePhPumpToggle: return "HomePhPumpToggle";
         case HmiCommandId::HomeOrpPumpToggle: return "HomeOrpPumpToggle";
+        case HmiCommandId::DisplayWifiFactoryReset: return "DisplayWifiFactoryReset";
         default: return "?";
     }
 }

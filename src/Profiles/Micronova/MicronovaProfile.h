@@ -15,6 +15,7 @@
 #include "Modules/Micronova/MicronovaBoilerModule/MicronovaBoilerModule.h"
 #include "Modules/Micronova/MicronovaMqttBridgeModule/MicronovaMqttBridgeModule.h"
 #include "Modules/Network/HAModule/HAModule.h"
+#include "Modules/Network/MQTTModule/MqttConfigModule.h"
 #include "Modules/Network/MQTTModule/MQTTModule.h"
 #include "Modules/Network/TimeModule/TimeModule.h"
 #include "Modules/Network/WebInterfaceModule/WebInterfaceModule.h"
@@ -41,6 +42,7 @@ struct ModuleInstances {
     AlarmModule alarmModule{};
     WifiModule wifiModule;
     WifiProvisioningModule wifiProvisioningModule{};
+    MqttConfigModule mqttConfigModule{};
     TimeModule timeModule{};
     MQTTModule mqttModule{};
     HAModule haModule{};

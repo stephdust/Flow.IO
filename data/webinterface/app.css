@@ -133,6 +133,19 @@
       border-radius: 999px;
       background: currentColor;
     }
+    .menu-btn-msr {
+      display: none;
+      font-size: 21px;
+      font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+    }
+    body.menu-icons-remote .menu-btn-glyph {
+      display: none;
+    }
+    body.menu-icons-remote .menu-btn-msr {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
     .drawer-user {
       display: inline-flex;
       align-items: center;
@@ -276,7 +289,27 @@
       -webkit-mask-image: var(--menu-icon-flowcfg-url);
       mask-image: var(--menu-icon-flowcfg-url);
     }
-    body.web-icons-disabled .menu-item .ico {
+    body.menu-icons-remote:not(.web-icons-disabled) .menu-item .ico {
+      background: transparent;
+      background-color: transparent;
+      -webkit-mask-image: none;
+      mask-image: none;
+      font-family: "Material Symbols Rounded";
+      font-size: 21px;
+      font-weight: normal;
+      font-style: normal;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      white-space: nowrap;
+      direction: ltr;
+      font-feature-settings: "liga";
+      font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    body.web-icons-disabled .menu-item .ico,
+    body.menu-icons-letter-fallback .menu-item .ico {
       width: 32px;
       height: 32px;
       flex: 0 0 32px;
@@ -290,7 +323,9 @@
       mask-image: none;
     }
     body.web-icons-disabled .menu-item:hover .ico,
-    body.web-icons-disabled .menu-item.active .ico {
+    body.web-icons-disabled .menu-item.active .ico,
+    body.menu-icons-letter-fallback .menu-item:hover .ico,
+    body.menu-icons-letter-fallback .menu-item.active .ico {
       background: var(--menu-active-fg);
       color: #FFFFFF;
     }
@@ -357,7 +392,8 @@
         width: 20px;
         height: 20px;
       }
-      body.web-icons-disabled .drawer.collapsed .menu-item .ico {
+      body.web-icons-disabled .drawer.collapsed .menu-item .ico,
+      body.menu-icons-letter-fallback .drawer.collapsed .menu-item .ico {
         width: 32px;
         height: 32px;
         flex-basis: 32px;
@@ -416,6 +452,43 @@
       font-size: 20px;
       font-weight: 700;
       color: #FFFFFF;
+    }
+    .ui-heading-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .ui-msr {
+      display: none;
+      font-family: "Material Symbols Rounded";
+      font-weight: normal;
+      font-style: normal;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      white-space: nowrap;
+      direction: ltr;
+      font-feature-settings: "liga";
+      font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      color: inherit;
+      flex: 0 0 auto;
+    }
+    .ui-msr-sm {
+      font-size: 18px;
+      font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20;
+    }
+    .btn-msr {
+      font-size: 18px;
+      margin-right: 6px;
+      vertical-align: -2px;
+    }
+    body.menu-icons-remote .ui-msr {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .status-chip {
       font-size: 12px; padding: 7px 10px; border-radius: 999px;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 enum class IoCapability : uint8_t {
@@ -68,6 +69,51 @@ struct IoCapacitySpec {
     uint8_t analogEndpoints;  // Number of analog runtime endpoints expected for this board/profile.
     uint8_t digitalInputs;    // Number of digital input runtime endpoints expected for this board/profile.
     uint8_t digitalOutputs;   // Number of digital output runtime endpoints expected for this board/profile.
+    uint8_t analogConfigSlots = 6;       // Number of analog config slots exposed by config/NVS.
+    uint8_t digitalInputConfigSlots = 5; // Number of digital input config slots exposed by config/NVS.
+    uint8_t digitalOutputConfigSlots = 8; // Number of digital output config slots exposed by config/NVS.
+};
+
+struct MqttCapacitySpec {
+    uint16_t taskStackSize = 5712;
+    uint8_t rxQueueLen = 8;
+    uint8_t maxPublishers = 8;
+    uint8_t cfgTopicMax = 48;
+    uint8_t maxProducers = 24;
+    uint8_t maxInboundHandlers = 16;
+    uint8_t maxAckMessages = 2;
+    uint8_t maxJobs = 80;
+    uint16_t highQueueCap = 80;
+    uint16_t normalQueueCap = 80;
+    uint16_t lowQueueCap = 60;
+};
+
+struct MqttBufferSpec {
+    size_t host = 64;
+    size_t user = 32;
+    size_t pass = 32;
+    size_t baseTopic = 15;
+    size_t deviceId = 15;
+    size_t topic = 70;
+    size_t dynamicTopic = 160;
+    size_t rxTopic = 128;
+    size_t rxPayload = 384;
+    size_t ack = 1536;
+    size_t reply = 1024;
+    size_t stateCfg = 1536;
+    size_t publish = 1536;
+    size_t cmdName = 64;
+    size_t cmdArgs = 320;
+    size_t cmdModule = 32;
+};
+
+struct HaCapacitySpec {
+    uint8_t sensors = 40;
+    uint8_t binarySensors = 6;
+    uint8_t switches = 14;
+    uint8_t numbers = 14;
+    uint8_t buttons = 24;
+    uint8_t discoveryCleanups = 9;
 };
 
 struct St7789DisplaySpec {
@@ -110,6 +156,12 @@ struct SupervisorBoardSpec {
     SupervisorUpdateSpec update;  // Pins/settings for downstream update control.
 };
 
+struct ProvisioningPolicySpec {
+    bool enabled = false;                  // Enable provisioning-first boot mode for this board.
+    bool disableAfterConfigured = false;   // Stop provisioning web/AP once setup is complete.
+    bool requireMqttForConfigured = false; // Require MQTT config in addition to Wi-Fi config.
+};
+
 struct BoardSpec {
     const char* name;                  // Board identifier exposed to the app/runtime.
     const char* mdnsHost;              // Default mDNS host name for this board/profile.
@@ -121,6 +173,10 @@ struct BoardSpec {
     uint8_t oneWireCount;              // Number of 1-Wire buses.
     const IoPointSpec* ioPoints;       // IO points mapping table.
     uint8_t ioPointCount;              // Number of IO points.
-    IoCapacitySpec ioCapacity;         // Intended IO runtime capacity for memory sizing.
-    const SupervisorBoardSpec* supervisor; // Optional supervisor-only extension block.
+    IoCapacitySpec ioCapacity{};         // Intended IO runtime capacity for memory sizing.
+    MqttCapacitySpec mqttCapacity{};     // Compile-time MQTT capacities for this board/profile.
+    MqttBufferSpec mqttBuffers{};        // Compile-time MQTT buffers for this board/profile.
+    HaCapacitySpec haCapacity{};         // Compile-time HA entity capacities for this board/profile.
+    const SupervisorBoardSpec* supervisor = nullptr; // Optional supervisor-only extension block.
+    ProvisioningPolicySpec provisioning{}; // Optional provisioning policy for staged boot.
 };

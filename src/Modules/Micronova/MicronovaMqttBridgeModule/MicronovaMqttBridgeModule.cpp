@@ -31,15 +31,22 @@ static constexpr const char* kSuffixWaterPressure = "micronova/sensor/water_pres
 static constexpr const char* kSuffixPowerSensor = "micronova/sensor/power";
 static constexpr const char* kSuffixFanSensor = "micronova/sensor/fan";
 static constexpr const char* kSuffixTargetTemperature = "micronova/sensor/tempset";
+static constexpr const char* kSuffixDisplayLine1 = "micronova/status/display_line_1";
+static constexpr const char* kSuffixDisplayLine2 = "micronova/status/display_line_2";
+static constexpr const char* kSuffixDisplayLine3 = "micronova/status/display_line_3";
 
 static constexpr const char* kCommandPower = "micronova/command/power/set";
 static constexpr const char* kCommandPowerLevel = "micronova/command/power_level/set";
 static constexpr const char* kCommandFan = "micronova/command/fan/set";
 static constexpr const char* kCommandTemperature = "micronova/command/temperature/set";
 static constexpr const char* kCommandRefresh = "micronova/command/refresh";
+static constexpr const char* kCommandSweepReadAll = "micronova/command/read_all_sweep";
+static constexpr const char* kCommandPowerPlus = "micronova/command/p_plus";
+static constexpr const char* kCommandPowerMinus = "micronova/command/p_minus";
 static constexpr const char* kCommandCompact = "micronova/command/cmd";
 static constexpr const char* kCommandAuxOutput = "micronova/io/output/d00/set";
 static constexpr const char* kCommandAuxOutputAlias = "micronova/command/aux_output/set";
+static constexpr const char* kCommandAuxOutputRuntime = "rt/io/output/d00/set";
 
 static const char* trim(const char* in, char* out, size_t outLen)
 {
@@ -85,10 +92,35 @@ void MicronovaMqttBridgeModule::init(ConfigStore&, ServiceRegistry& services)
     }
     registerInbound_();
 
+    if (!producerRegistered_) {
+        LOGW("Micronova MQTT producer registration failed (producer_id=%u)", (unsigned)ProducerId);
+    }
+    if (!inboundRegistered_) {
+        LOGW("Micronova MQTT inbound registration incomplete");
+    }
+    if (mqttSvc_ && mqttSvc_->formatTopic) {
+        char publishTopic[Limits::Mqtt::Buffers::Topic] = {0};
+        char commandTopic[Limits::Mqtt::Buffers::Topic] = {0};
+        mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixConnection, publishTopic, sizeof(publishTopic));
+        mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandPower, commandTopic, sizeof(commandTopic));
+        LOGI("Micronova MQTT bridge ready producer_id=%u producer_ok=%d inbound_ok=%d pub='%s' cmd='%s'",
+             (unsigned)ProducerId,
+             producerRegistered_ ? 1 : 0,
+             inboundRegistered_ ? 1 : 0,
+             publishTopic,
+             commandTopic);
+    }
+
     if (eventBus_) {
         eventBus_->subscribe(EventId::DataChanged, &MicronovaMqttBridgeModule::onEventStatic_, this);
         eventBus_->subscribe(EventId::MicronovaValueUpdated, &MicronovaMqttBridgeModule::onEventStatic_, this);
         eventBus_->subscribe(EventId::MicronovaOnlineChanged, &MicronovaMqttBridgeModule::onEventStatic_, this);
+    }
+
+    // If MQTT is already connected before this module subscribes to DataChanged,
+    // force one full retained publication pass so all Micronova topics exist.
+    if (dataStore_ && mqttReady(*dataStore_)) {
+        enqueueAll_(MqttPublishPriority::High);
     }
 }
 
@@ -101,9 +133,13 @@ void MicronovaMqttBridgeModule::registerInbound_()
         kCommandFan,
         kCommandTemperature,
         kCommandRefresh,
+        kCommandSweepReadAll,
+        kCommandPowerPlus,
+        kCommandPowerMinus,
         kCommandCompact,
         kCommandAuxOutput,
-        kCommandAuxOutputAlias
+        kCommandAuxOutputAlias,
+        kCommandAuxOutputRuntime
     };
     bool ok = true;
     for (uint8_t i = 0; i < InboundCount; ++i) {
@@ -121,14 +157,51 @@ void MicronovaMqttBridgeModule::onEventStatic_(const Event& e, void* user)
 
 void MicronovaMqttBridgeModule::onEvent_(const Event& e)
 {
-    if (e.id == EventId::MicronovaValueUpdated || e.id == EventId::MicronovaOnlineChanged) {
-        enqueueAll_(MqttPublishPriority::Normal);
+    if (e.id == EventId::MicronovaOnlineChanged) {
+        (void)enqueueMsg_(MsgConnection, MqttPublishPriority::High);
+        return;
+    }
+    if (e.id == EventId::MicronovaValueUpdated) {
+        if (e.payload && e.len >= sizeof(MicronovaValueUpdatedPayload)) {
+            const MicronovaValueUpdatedPayload* p = (const MicronovaValueUpdatedPayload*)e.payload;
+            enqueueForMicronovaKey_(p->key);
+        }
         return;
     }
     if (e.id != EventId::DataChanged || e.len < sizeof(DataChangedPayload) || !e.payload) return;
     const DataChangedPayload* p = (const DataChangedPayload*)e.payload;
     if (p->id == DATAKEY_MQTT_READY) {
-        if (dataStore_ && mqttReady(*dataStore_)) enqueueAll_(MqttPublishPriority::High);
+        if (dataStore_ && mqttReady(*dataStore_)) {
+            enqueueAll_(MqttPublishPriority::High);
+            if (!topicsLogged_ && mqttSvc_ && mqttSvc_->formatTopic) {
+                topicsLogged_ = true;
+                char topic[Limits::Mqtt::Buffers::Topic] = {0};
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixConnection, topic, sizeof(topic));
+                LOGI("Micronova MQTT publish base topic example: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixState, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixOnoff, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixRoomTemperature, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixFumesTemperature, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixTargetTemperature, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixPowerSensor, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixFanSensor, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixAlarmCode, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixDisplayLine1, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixDisplayLine2, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+                mqttSvc_->formatTopic(mqttSvc_->ctx, kSuffixDisplayLine3, topic, sizeof(topic));
+                LOGI("Micronova MQTT topic: %s", topic);
+            }
+        }
         return;
     }
     enqueueForKey_(p->id);
@@ -138,7 +211,7 @@ void MicronovaMqttBridgeModule::enqueueAll_(MqttPublishPriority priority)
 {
     if (!producerRegistered_ || !mqttSvc_ || !mqttSvc_->enqueue) return;
     for (uint16_t msg = MsgConnection; msg < MsgCount; ++msg) {
-        (void)mqttSvc_->enqueue(mqttSvc_->ctx, ProducerId, msg, (uint8_t)priority, 0);
+        (void)enqueueMsg_(msg, priority);
     }
 }
 
@@ -161,11 +234,77 @@ void MicronovaMqttBridgeModule::enqueueForKey_(DataKey key)
         case DataKeys::MicronovaWaterPressure: msgs[n++] = MsgWaterPressure; break;
         case DataKeys::MicronovaAlarmCode: msgs[n++] = MsgAlarmCode; break;
         case DataKeys::MicronovaLastCommand: msgs[n++] = MsgLastCommand; break;
+        case DataKeys::MicronovaDisplayLine1: msgs[n++] = MsgDisplayLine1; break;
+        case DataKeys::MicronovaDisplayLine2: msgs[n++] = MsgDisplayLine2; break;
+        case DataKeys::MicronovaDisplayLine3: msgs[n++] = MsgDisplayLine3; break;
         default: return;
     }
     for (uint8_t i = 0; i < n; ++i) {
-        (void)mqttSvc_->enqueue(mqttSvc_->ctx, ProducerId, msgs[i], (uint8_t)MqttPublishPriority::High, 0);
+        (void)enqueueMsg_(msgs[i], MqttPublishPriority::High);
     }
+}
+
+void MicronovaMqttBridgeModule::enqueueForMicronovaKey_(const char* key)
+{
+    if (!key || key[0] == '\0') return;
+    LOGI("Micronova MQTT enqueue from key='%s'", key);
+    if (strcmp(key, "stove_state") == 0) {
+        (void)enqueueMsg_(MsgState, MqttPublishPriority::High);
+        (void)enqueueMsg_(MsgStoveState, MqttPublishPriority::High);
+        (void)enqueueMsg_(MsgStoveStateCode, MqttPublishPriority::High);
+        (void)enqueueMsg_(MsgOnoff, MqttPublishPriority::High);
+        (void)enqueueMsg_(MsgPowerState, MqttPublishPriority::High);
+        return;
+    }
+    if (strcmp(key, "room_temperature") == 0) {
+        (void)enqueueMsg_(MsgRoomTemperature, MqttPublishPriority::High);
+        return;
+    }
+    if (strcmp(key, "fumes_temperature") == 0) {
+        (void)enqueueMsg_(MsgFumesTemperature, MqttPublishPriority::High);
+        return;
+    }
+    if (strcmp(key, "power_level") == 0) {
+        (void)enqueueMsg_(MsgPowerLevel, MqttPublishPriority::High);
+        (void)enqueueMsg_(MsgPowerSensor, MqttPublishPriority::High);
+        return;
+    }
+    if (strcmp(key, "fan_speed") == 0) {
+        (void)enqueueMsg_(MsgFanSensor, MqttPublishPriority::High);
+        return;
+    }
+    if (strcmp(key, "target_temperature") == 0) {
+        (void)enqueueMsg_(MsgTargetTemperature, MqttPublishPriority::High);
+        return;
+    }
+    if (strcmp(key, "water_temperature") == 0) {
+        (void)enqueueMsg_(MsgWaterTemperature, MqttPublishPriority::High);
+        return;
+    }
+    if (strcmp(key, "water_pressure") == 0) {
+        (void)enqueueMsg_(MsgWaterPressure, MqttPublishPriority::High);
+        return;
+    }
+    if (strcmp(key, "alarm_code") == 0) {
+        (void)enqueueMsg_(MsgAlarmCode, MqttPublishPriority::High);
+        return;
+    }
+    LOGW("Micronova MQTT key not mapped key='%s'", key);
+}
+
+bool MicronovaMqttBridgeModule::enqueueMsg_(uint16_t msgId, MqttPublishPriority priority)
+{
+    if (!producerRegistered_ || !mqttSvc_ || !mqttSvc_->enqueue) return false;
+    const bool accepted = mqttSvc_->enqueue(mqttSvc_->ctx, ProducerId, msgId, (uint8_t)priority, 0);
+    if (!accepted) {
+        const bool connected = (mqttSvc_->isConnected && mqttSvc_->isConnected(mqttSvc_->ctx));
+        LOGW("MQTT enqueue failed producer=%u msg=%u prio=%u connected=%d",
+             (unsigned)ProducerId,
+             (unsigned)msgId,
+             (unsigned)priority,
+             connected ? 1 : 0);
+    }
+    return accepted;
 }
 
 MqttBuildResult MicronovaMqttBridgeModule::buildMessageStatic_(void* ctx, uint16_t messageId, MqttBuildContext& buildCtx)
@@ -223,6 +362,9 @@ MqttBuildResult MicronovaMqttBridgeModule::buildMessage_(uint16_t messageId, Mqt
         case MsgPowerSensor: ok = publishInt_(ctx, kSuffixPowerSensor, rt.powerLevel, true); break;
         case MsgFanSensor: ok = publishInt_(ctx, kSuffixFanSensor, rt.fanSpeed, true); break;
         case MsgTargetTemperature: ok = publishInt_(ctx, kSuffixTargetTemperature, rt.targetTemperature, true); break;
+        case MsgDisplayLine1: ok = publishText_(ctx, kSuffixDisplayLine1, rt.displayLine1, true); break;
+        case MsgDisplayLine2: ok = publishText_(ctx, kSuffixDisplayLine2, rt.displayLine2, true); break;
+        case MsgDisplayLine3: ok = publishText_(ctx, kSuffixDisplayLine3, rt.displayLine3, true); break;
         default: return MqttBuildResult::NoLongerNeeded;
     }
     return ok ? MqttBuildResult::Ready : MqttBuildResult::PermanentError;
@@ -243,8 +385,20 @@ bool MicronovaMqttBridgeModule::postValueCommand_(EventId eventId, uint8_t value
 
 bool MicronovaMqttBridgeModule::setAuxOutput_(bool on)
 {
-    if (!ioSvc_ || !ioSvc_->writeDigital) return false;
-    return ioSvc_->writeDigital(ioSvc_->ctx, (IoId)(IO_ID_DO_BASE + 0), on ? 1U : 0U, millis()) == IO_OK;
+    if (!ioSvc_) {
+        LOGW("MQTT aux_output failed: IO service unavailable");
+        return false;
+    }
+    if (!ioSvc_->writeDigital) {
+        LOGW("MQTT aux_output failed: IO writeDigital unavailable");
+        return false;
+    }
+    const IoStatus status = ioSvc_->writeDigital(ioSvc_->ctx, (IoId)(IO_ID_DO_BASE + 0), on ? 1U : 0U, millis());
+    if (status != IO_OK) {
+        LOGW("MQTT aux_output failed: io_status=%d", (int)status);
+        return false;
+    }
+    return true;
 }
 
 int MicronovaMqttBridgeModule::parseInt_(const char* payload, bool& ok)
@@ -285,46 +439,79 @@ bool MicronovaMqttBridgeModule::parseCompact_(const char* payload)
 
     if (strcmp(buf, "ON") == 0) {
         MicronovaCommandPowerPayload p{1};
-        return eventBus_->post(EventId::MicronovaCommandPower, &p, sizeof(p), moduleId());
+        const bool ok = eventBus_->post(EventId::MicronovaCommandPower, &p, sizeof(p), moduleId());
+        LOGI("MQTT compact cmd '%s' -> power on post=%d", buf, ok ? 1 : 0);
+        return ok;
     }
     if (strcmp(buf, "OFF") == 0 || strcmp(buf, "E") == 0) {
         MicronovaCommandPowerPayload p{0};
-        return eventBus_->post(EventId::MicronovaCommandPower, &p, sizeof(p), moduleId());
+        const bool ok = eventBus_->post(EventId::MicronovaCommandPower, &p, sizeof(p), moduleId());
+        LOGI("MQTT compact cmd '%s' -> power off post=%d", buf, ok ? 1 : 0);
+        return ok;
+    }
+    if (strcmp(buf, "P+") == 0) {
+        const bool ok = eventBus_->post(EventId::MicronovaCommandPowerPlus, nullptr, 0, moduleId());
+        LOGI("MQTT compact cmd '%s' -> power_plus post=%d", buf, ok ? 1 : 0);
+        return ok;
+    }
+    if (strcmp(buf, "P-") == 0) {
+        const bool ok = eventBus_->post(EventId::MicronovaCommandPowerMinus, nullptr, 0, moduleId());
+        LOGI("MQTT compact cmd '%s' -> power_minus post=%d", buf, ok ? 1 : 0);
+        return ok;
     }
     if ((buf[0] == 'P' || buf[0] == 'F' || buf[0] == 'T') && buf[1] != '\0') {
         bool ok = false;
         const int value = parseInt_(buf + 1, ok);
         if (!ok) return false;
-        if (buf[0] == 'P') return postValueCommand_(EventId::MicronovaCommandPowerLevel, (uint8_t)value);
-        if (buf[0] == 'F') return postValueCommand_(EventId::MicronovaCommandFanSpeed, (uint8_t)value);
-        return postValueCommand_(EventId::MicronovaCommandTargetTemperature, (uint8_t)value);
+        bool posted = false;
+        if (buf[0] == 'P') posted = postValueCommand_(EventId::MicronovaCommandPowerLevel, (uint8_t)value);
+        else if (buf[0] == 'F') posted = postValueCommand_(EventId::MicronovaCommandFanSpeed, (uint8_t)value);
+        else posted = postValueCommand_(EventId::MicronovaCommandTargetTemperature, (uint8_t)value);
+        LOGI("MQTT compact cmd '%s' -> value=%d post=%d", buf, value, posted ? 1 : 0);
+        return posted;
     }
+    LOGW("MQTT compact cmd unsupported payload='%s'", buf);
     return false;
 }
 
 void MicronovaMqttBridgeModule::onInbound_(const MqttInboundMessage& message)
 {
     if (!eventBus_ || !message.topic || !message.payload || message.payload[0] == '\0') return;
+    LOGI("MQTT cmd rx topic='%s' payload='%s'", message.topic, message.payload);
 
     char topic[Limits::Mqtt::Buffers::Topic] = {0};
     if (mqttSvc_ && mqttSvc_->formatTopic) {
         mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandCompact, topic, sizeof(topic));
     }
     if (topic[0] != '\0' && strcmp(message.topic, topic) == 0) {
-        (void)parseCompact_(message.payload);
+        const bool ok = parseCompact_(message.payload);
+        if (!ok) LOGW("MQTT compact cmd failed payload='%s'", message.payload);
         return;
     }
 
+    auto handleAuxOutput = [&](const char* label) {
+        bool on = false;
+        if (parsePower_(message.payload, on)) {
+            const bool ok = setAuxOutput_(on);
+            LOGI("MQTT cmd aux_output(%s) on=%d io_ok=%d", label, on ? 1 : 0, ok ? 1 : 0);
+        } else {
+            LOGW("MQTT cmd aux_output(%s) invalid payload='%s'", label, message.payload);
+        }
+    };
+
     if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandAuxOutput, topic, sizeof(topic));
     if (strcmp(message.topic, topic) == 0) {
-        bool on = false;
-        if (parsePower_(message.payload, on)) (void)setAuxOutput_(on);
+        handleAuxOutput("micronova/io/output/d00/set");
         return;
     }
     if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandAuxOutputAlias, topic, sizeof(topic));
     if (strcmp(message.topic, topic) == 0) {
-        bool on = false;
-        if (parsePower_(message.payload, on)) (void)setAuxOutput_(on);
+        handleAuxOutput("micronova/command/aux_output/set");
+        return;
+    }
+    if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandAuxOutputRuntime, topic, sizeof(topic));
+    if (strcmp(message.topic, topic) == 0) {
+        handleAuxOutput("rt/io/output/d00/set");
         return;
     }
 
@@ -333,8 +520,24 @@ void MicronovaMqttBridgeModule::onInbound_(const MqttInboundMessage& message)
         bool on = false;
         if (parsePower_(message.payload, on)) {
             MicronovaCommandPowerPayload p{(uint8_t)(on ? 1U : 0U)};
-            (void)eventBus_->post(EventId::MicronovaCommandPower, &p, sizeof(p), moduleId());
+            const bool posted = eventBus_->post(EventId::MicronovaCommandPower, &p, sizeof(p), moduleId());
+            LOGI("MQTT cmd power on=%d post=%d", on ? 1 : 0, posted ? 1 : 0);
+        } else {
+            LOGW("MQTT cmd power invalid payload='%s'", message.payload);
         }
+        return;
+    }
+
+    if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandPowerPlus, topic, sizeof(topic));
+    if (strcmp(message.topic, topic) == 0) {
+        const bool posted = eventBus_->post(EventId::MicronovaCommandPowerPlus, nullptr, 0, moduleId());
+        LOGI("MQTT cmd power_plus post=%d", posted ? 1 : 0);
+        return;
+    }
+    if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandPowerMinus, topic, sizeof(topic));
+    if (strcmp(message.topic, topic) == 0) {
+        const bool posted = eventBus_->post(EventId::MicronovaCommandPowerMinus, nullptr, 0, moduleId());
+        LOGI("MQTT cmd power_minus post=%d", posted ? 1 : 0);
         return;
     }
 
@@ -343,28 +546,50 @@ void MicronovaMqttBridgeModule::onInbound_(const MqttInboundMessage& message)
     if (!ok) {
         if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandRefresh, topic, sizeof(topic));
         if (strcmp(message.topic, topic) == 0) {
-            (void)eventBus_->post(EventId::MicronovaCommandRefresh, nullptr, 0, moduleId());
+            const bool posted = eventBus_->post(EventId::MicronovaCommandRefresh, nullptr, 0, moduleId());
+            LOGI("MQTT cmd refresh post=%d", posted ? 1 : 0);
+            return;
+        }
+        if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandSweepReadAll, topic, sizeof(topic));
+        if (strcmp(message.topic, topic) == 0) {
+            const bool posted = eventBus_->post(EventId::MicronovaCommandSweepReadAll, nullptr, 0, moduleId());
+            LOGI("MQTT cmd read_all_sweep post=%d", posted ? 1 : 0);
+            return;
+        } else {
+            LOGW("MQTT cmd parse int failed topic='%s' payload='%s'", message.topic, message.payload);
         }
         return;
     }
 
     if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandPowerLevel, topic, sizeof(topic));
     if (strcmp(message.topic, topic) == 0) {
-        (void)postValueCommand_(EventId::MicronovaCommandPowerLevel, (uint8_t)value);
+        const bool posted = postValueCommand_(EventId::MicronovaCommandPowerLevel, (uint8_t)value);
+        LOGI("MQTT cmd power_level value=%d post=%d", value, posted ? 1 : 0);
         return;
     }
     if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandFan, topic, sizeof(topic));
     if (strcmp(message.topic, topic) == 0) {
-        (void)postValueCommand_(EventId::MicronovaCommandFanSpeed, (uint8_t)value);
+        const bool posted = postValueCommand_(EventId::MicronovaCommandFanSpeed, (uint8_t)value);
+        LOGI("MQTT cmd fan_speed value=%d post=%d", value, posted ? 1 : 0);
         return;
     }
     if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandTemperature, topic, sizeof(topic));
     if (strcmp(message.topic, topic) == 0) {
-        (void)postValueCommand_(EventId::MicronovaCommandTargetTemperature, (uint8_t)value);
+        const bool posted = postValueCommand_(EventId::MicronovaCommandTargetTemperature, (uint8_t)value);
+        LOGI("MQTT cmd target_temperature value=%d post=%d", value, posted ? 1 : 0);
         return;
     }
     if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandRefresh, topic, sizeof(topic));
     if (strcmp(message.topic, topic) == 0) {
-        (void)eventBus_->post(EventId::MicronovaCommandRefresh, nullptr, 0, moduleId());
+        const bool posted = eventBus_->post(EventId::MicronovaCommandRefresh, nullptr, 0, moduleId());
+        LOGI("MQTT cmd refresh(value payload) post=%d", posted ? 1 : 0);
+        return;
     }
+    if (mqttSvc_ && mqttSvc_->formatTopic) mqttSvc_->formatTopic(mqttSvc_->ctx, kCommandSweepReadAll, topic, sizeof(topic));
+    if (strcmp(message.topic, topic) == 0) {
+        const bool posted = eventBus_->post(EventId::MicronovaCommandSweepReadAll, nullptr, 0, moduleId());
+        LOGI("MQTT cmd read_all_sweep(value payload) post=%d", posted ? 1 : 0);
+        return;
+    }
+    LOGW("MQTT cmd topic not handled topic='%s' payload='%s'", message.topic, message.payload);
 }

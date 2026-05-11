@@ -20,6 +20,15 @@
     const deferredMenuAssetReloadDelayMs = 1400;
     const deferredMenuAssetReloadStepMs = 850;
     const deferredMenuAssetReloadFallbackDelayMs = 6500;
+    const remoteMenuIconFontLinkId = 'flowMenuIconFontRemote';
+    const remoteMenuIconFontHref = 'https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded&display=block';
+    const remoteMenuIconLigatures = {
+      'icon-measures': 'dashboard',
+      'icon-calibration': 'science',
+      'icon-terminal': 'terminal_2',
+      'icon-system': 'system_update_alt',
+      'icon-flowcfg': 'settings'
+    };
     let webAssetVersion = '';
     let loadedWebAssetVersion = '';
     let supervisorFirmwareVersion = '-';
@@ -38,8 +47,82 @@
     let menuAssetsActivated = false;
     let deferredMenuAssetsArmed = false;
     let fieldApplyCheckIcon = '✓';
+    let networkMode = 'none';
+    let useRemoteMenuIcons = false;
+    let remoteMenuIconFontReady = false;
+    let remoteMenuIconFontPromise = null;
     const pendingSystemActionCountdowns = new Map();
     let activeColorPickerPopover = null;
+
+    function normalizeNetworkMode(value) {
+      const raw = String(value || '').trim().toLowerCase();
+      if (raw === 'ap' || raw === 'accesspoint' || raw === 'access_point') return 'ap';
+      if (raw === 'station' || raw === 'sta') return 'station';
+      return 'none';
+    }
+
+    function isAccessPointMode() {
+      return normalizeNetworkMode(networkMode) === 'ap';
+    }
+
+    function applyMenuIconSourcePreference(useRemote) {
+      useRemoteMenuIcons = !!useRemote;
+      document.body.classList.toggle('menu-icons-remote', useRemoteMenuIcons);
+      document.body.classList.toggle(
+        'menu-icons-letter-fallback',
+        !disableWebIcons && !isAccessPointMode() && !useRemoteMenuIcons
+      );
+      syncMenuIconFallbacks();
+    }
+
+    function menuIconLigatureForNode(iconNode) {
+      if (!iconNode || !iconNode.classList) return '';
+      const iconClasses = Object.keys(remoteMenuIconLigatures);
+      for (let i = 0; i < iconClasses.length; i += 1) {
+        const cls = iconClasses[i];
+        if (iconNode.classList.contains(cls)) return remoteMenuIconLigatures[cls];
+      }
+      return '';
+    }
+
+    function ensureRemoteMenuIconFontLoaded() {
+      if (remoteMenuIconFontReady) return Promise.resolve(true);
+      if (remoteMenuIconFontPromise) return remoteMenuIconFontPromise;
+
+      remoteMenuIconFontPromise = new Promise((resolve) => {
+        let link = document.getElementById(remoteMenuIconFontLinkId);
+        if (link) {
+          remoteMenuIconFontReady = link.getAttribute('data-flow-ready') === '1';
+          if (remoteMenuIconFontReady) {
+            resolve(true);
+            return;
+          }
+          link.remove();
+        }
+        link = document.createElement('link');
+        link.id = remoteMenuIconFontLinkId;
+        link.rel = 'stylesheet';
+        link.href = remoteMenuIconFontHref;
+        let done = false;
+        const finalize = (ok) => {
+          if (done) return;
+          done = true;
+          remoteMenuIconFontReady = !!ok;
+          if (remoteMenuIconFontReady) {
+            link.setAttribute('data-flow-ready', '1');
+          }
+          resolve(remoteMenuIconFontReady);
+        };
+        link.onload = () => finalize(true);
+        link.onerror = () => finalize(false);
+        document.head.appendChild(link);
+        setTimeout(() => finalize(false), 2600);
+      }).finally(() => {
+        remoteMenuIconFontPromise = null;
+      });
+
+      return remoteMenuIconFontPromise;
+    }
 
     function menuFallbackLetter(label) {
       const text = String(label || '').trim();
@@ -52,6 +135,7 @@
     }
 
     function syncMenuIconFallbacks() {
+      const useLetterFallback = document.body.classList.contains('menu-icons-letter-fallback');
       menuItems.forEach((item) => {
         if (!item) return;
         const icon = item.querySelector('.ico');
@@ -59,7 +143,15 @@
         if (!icon || !label) return;
         const fallback = menuFallbackLetter(label.textContent);
         icon.setAttribute('data-fallback-text', fallback);
-        icon.textContent = disableWebIcons ? fallback : '';
+        if (disableWebIcons || useLetterFallback) {
+          icon.textContent = fallback;
+          return;
+        }
+        if (useRemoteMenuIcons) {
+          icon.textContent = menuIconLigatureForNode(icon);
+          return;
+        }
+        icon.textContent = '';
       });
     }
 
@@ -86,6 +178,10 @@
     function applyIconUsagePreference(disabled) {
       disableWebIcons = !!disabled;
       document.body.classList.toggle('web-icons-disabled', disableWebIcons);
+      document.body.classList.toggle(
+        'menu-icons-letter-fallback',
+        !disableWebIcons && !isAccessPointMode() && !useRemoteMenuIcons
+      );
       fieldApplyCheckIcon = iconCheckText();
       syncMenuIconFallbacks();
       syncRenderedCheckFallbacks();
@@ -138,6 +234,17 @@
       document.body.classList.toggle('profile-micronova', isMicronovaProfile());
       applyProfileUiText();
       renderPoolMeasureDomainButtons();
+    }
+
+    async function applyMenuIconModeFromMeta(data) {
+      const mode = normalizeNetworkMode(data && data.network_mode);
+      networkMode = mode;
+      if (isAccessPointMode()) {
+        applyMenuIconSourcePreference(false);
+        return;
+      }
+      const fontReady = await ensureRemoteMenuIconFontLoaded();
+      applyMenuIconSourcePreference(fontReady);
     }
 
     function isMicronovaProfile() {
@@ -246,6 +353,7 @@
         const label = String(initialMeta.local_config_label || '').trim();
         if (label) webLocalConfigLabel = label;
         webRemoteConfigEnabled = initialMeta.remote_config_enabled !== false;
+        networkMode = normalizeNetworkMode(initialMeta.network_mode);
       }
     } catch (err) {
     }
@@ -482,7 +590,7 @@
       }
       const stepMs = Math.max(0, Number(stepDelayMs) || deferredMenuAssetStepMs);
       const steps = [];
-      if (!hideMenuSvg) {
+      if (!hideMenuSvg && isAccessPointMode() && !useRemoteMenuIcons) {
         steps.push(
           ['--menu-icon-measures-url', iconAssetUrl('m')],
           ['--menu-icon-calibration-url', iconAssetUrl('c')],
@@ -514,7 +622,7 @@
     }
 
     function armDeferredMenuAssets(startDelayMs, stepDelayMs, fallbackDelayMs) {
-      if (deferredMenuAssetsArmed || menuAssetsActivated || hideMenuSvg || disableWebIcons || !drawer) return;
+      if (deferredMenuAssetsArmed || menuAssetsActivated || hideMenuSvg || disableWebIcons || useRemoteMenuIcons || !isAccessPointMode() || !drawer) return;
       deferredMenuAssetsArmed = true;
       let triggered = false;
       const trigger = () => {
@@ -598,6 +706,7 @@
         applyIconUsagePreference(!!data.disable_icons);
         applyMenuIconPreference(!!data.hide_menu_svg);
         applyStatusIconPreference(!!data.unify_status_card_icons);
+        await applyMenuIconModeFromMeta(data);
         if (!disableWebIcons && hasWarmDeferredVisualAssets()) {
           activateMenuAssets(false);
         }
@@ -1270,7 +1379,7 @@
     function upgradeStepDefinitions(target) {
       return [
         { id: 'target', label: 'Sélection de la cible ' + upgradeTargetLabel(target) },
-        { id: 'download', label: 'Téléchargement du firmware' },
+        { id: 'download', label: 'Connexion au serveur' },
         { id: 'flash', label: 'Mise à jour' },
         { id: 'reboot', label: 'Redémarrage' },
         { id: 'reconnect', label: 'Attente de Reconnection' },
@@ -1608,7 +1717,7 @@
         updateUpgradeUiSession({
           phase: 'download',
           target: target,
-          detail: 'Téléchargement du firmware.',
+          detail: 'Connexion au serveur.',
           backendProgress: progress,
           awaitingReconnect: false,
           reconnectShown: false,

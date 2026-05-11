@@ -25,11 +25,56 @@ namespace {
 
 using Profiles::Micronova::ModuleInstances;
 
+enum class MicronovaBootMode : uint8_t {
+    Provisioning = 0,
+    Runtime = 1
+};
+
+struct MicronovaBootConfigState {
+    bool wifiEnabled = true;
+    bool wifiHasSsid = false;
+    bool mqttEnabled = false;
+    bool mqttHasHost = false;
+};
+
 void requireSetup(bool ok, const char* step)
 {
     if (ok) return;
     Serial.printf("Micronova setup failure: %s\r\n", step ? step : "unknown");
     while (true) delay(1000);
+}
+
+bool prefHasNonEmptyString_(Preferences& prefs, const char* key)
+{
+    const String value = prefs.getString(key, "");
+    return value.length() > 0U;
+}
+
+MicronovaBootConfigState readBootConfigState_(Preferences& prefs)
+{
+    MicronovaBootConfigState st{};
+    st.wifiEnabled = prefs.getBool(NvsKeys::Wifi::Enabled, true);
+    st.wifiHasSsid = prefHasNonEmptyString_(prefs, NvsKeys::Wifi::Ssid);
+    st.mqttEnabled = prefs.getBool(NvsKeys::Mqtt::Enabled, false);
+    st.mqttHasHost = prefHasNonEmptyString_(prefs, NvsKeys::Mqtt::Host);
+    return st;
+}
+
+bool runtimeConfigReady_(const BoardSpec& board, Preferences& prefs)
+{
+    const MicronovaBootConfigState st = readBootConfigState_(prefs);
+    const bool wifiConfigured = st.wifiEnabled && st.wifiHasSsid;
+    if (!wifiConfigured) return false;
+
+    if (!board.provisioning.requireMqttForConfigured) return true;
+    const bool mqttConfigured = st.mqttEnabled && st.mqttHasHost;
+    return mqttConfigured;
+}
+
+MicronovaBootMode resolveBootMode_(const BoardSpec& board, Preferences& prefs)
+{
+    if (!board.provisioning.enabled) return MicronovaBootMode::Runtime;
+    return runtimeConfigReady_(board, prefs) ? MicronovaBootMode::Runtime : MicronovaBootMode::Provisioning;
 }
 
 bool buildNetworkSnapshot(MQTTModule* mqtt, char* out, size_t len)
@@ -131,6 +176,9 @@ void registerMicronovaHomeAssistant(AppContext& ctx, ModuleInstances& modules)
             {"micronova", "mn_state", "Boiler State", "micronova/status/stove_state", kRawValueTpl, nullptr, "mdi:fireplace", nullptr, false, nullptr, true},
             {"micronova", "mn_state_code", "Boiler State Code", "micronova/status/stove_state_code", kIntTpl, "diagnostic", "mdi:numeric", nullptr, false, nullptr, false},
             {"micronova", "mn_alarm_code", "Alarm Code", "micronova/status/alarm_code", kIntTpl, "diagnostic", "mdi:alert-outline", nullptr, false, nullptr, false},
+            {"micronova", "mn_display_line1", "Display Line 1", "micronova/status/display_line_1", kRawValueTpl, "diagnostic", "mdi:text", nullptr, false, nullptr, true},
+            {"micronova", "mn_display_line2", "Display Line 2", "micronova/status/display_line_2", kRawValueTpl, "diagnostic", "mdi:text", nullptr, false, nullptr, true},
+            {"micronova", "mn_display_line3", "Display Line 3", "micronova/status/display_line_3", kRawValueTpl, "diagnostic", "mdi:text", nullptr, false, nullptr, true},
             {"micronova", "mn_room_temp", "Room Temperature", "micronova/sensor/ambtemp", kFloatTpl, nullptr, "mdi:home-thermometer-outline", "\xC2\xB0""C", false, nullptr, false},
             {"micronova", "mn_fumes_temp", "Fumes Temperature", "micronova/sensor/fumetemp", kFloatTpl, nullptr, "mdi:smoke", "\xC2\xB0""C", false, nullptr, false},
             {"micronova", "mn_water_temp", "Water Temperature", "micronova/sensor/water_temperature", kFloatTpl, nullptr, "mdi:water-thermometer", "\xC2\xB0""C", false, nullptr, false},
@@ -139,7 +187,12 @@ void registerMicronovaHomeAssistant(AppContext& ctx, ModuleInstances& modules)
             {"micronova", "mn_local_temp", "Local Temperature", "rt/io/input/a00", kIoFloatTpl, nullptr, "mdi:thermometer", "\xC2\xB0""C", false, kIoAvailabilityTpl, false},
         };
         for (uint8_t i = 0; i < (uint8_t)(sizeof(sensors) / sizeof(sensors[0])); ++i) {
-            (void)ha->addSensor(ha->ctx, &sensors[i]);
+            const bool ok = ha->addSensor(ha->ctx, &sensors[i]);
+            if (!ok) {
+                Serial.printf("Micronova HA addSensor failed object=%s topic=%s\r\n",
+                              sensors[i].objectSuffix,
+                              sensors[i].stateTopicSuffix);
+            }
         }
     }
 
@@ -159,7 +212,7 @@ void registerMicronovaHomeAssistant(AppContext& ctx, ModuleInstances& modules)
         const HASwitchEntry auxOutput{
             "micronova",
             "mn_aux_output",
-            "Aux Output",
+            "Ambiant Contact",
             "rt/io/output/d00",
             kIoBoolSwitchTpl,
             "micronova/io/output/d00/set",
@@ -175,7 +228,6 @@ void registerMicronovaHomeAssistant(AppContext& ctx, ModuleInstances& modules)
     if (ha->addNumber) {
         const HANumberEntry numbers[] = {
             {"micronova", "mn_power_level", "Power Level", "micronova/sensor/power", kIntTpl, "micronova/command/power_level/set", "{{ value | int }}", 0.0f, 5.0f, 1.0f, "slider", nullptr, "mdi:fire", nullptr},
-            {"micronova", "mn_fan_speed", "Fan Speed", "micronova/sensor/fan", kIntTpl, "micronova/command/fan/set", "{{ value | int }}", 0.0f, 5.0f, 1.0f, "slider", nullptr, "mdi:fan", nullptr},
             {"micronova", "mn_target_temp", "Target Temperature", "micronova/sensor/tempset", kIntTpl, "micronova/command/temperature/set", "{{ value | int }}", 5.0f, 35.0f, 1.0f, "box", nullptr, "mdi:thermometer-lines", "\xC2\xB0""C"},
         };
         for (uint8_t i = 0; i < (uint8_t)(sizeof(numbers) / sizeof(numbers[0])); ++i) {
@@ -184,16 +236,47 @@ void registerMicronovaHomeAssistant(AppContext& ctx, ModuleInstances& modules)
     }
 
     if (ha->addButton) {
-        const HAButtonEntry refresh{
-            "micronova",
-            "mn_refresh",
-            "Refresh Boiler",
-            "micronova/command/refresh",
-            "1",
-            "diagnostic",
-            "mdi:refresh"
+        const HAButtonEntry buttons[] = {
+            {
+                "micronova",
+                "mn_refresh",
+                "Refresh Boiler",
+                "micronova/command/refresh",
+                "1",
+                "diagnostic",
+                "mdi:refresh"
+            },
+            {
+                "micronova",
+                "mn_read_all_sweep",
+                "Read All Registers",
+                "micronova/command/read_all_sweep",
+                "1",
+                "diagnostic",
+                "mdi:database-search"
+            },
+            {
+                "micronova",
+                "mn_p_plus_ir",
+                "IR P+",
+                "micronova/command/p_plus",
+                "1",
+                "config",
+                "mdi:plus-circle-outline"
+            },
+            {
+                "micronova",
+                "mn_p_minus_ir",
+                "IR P-",
+                "micronova/command/p_minus",
+                "1",
+                "config",
+                "mdi:minus-circle-outline"
+            }
         };
-        (void)ha->addButton(ha->ctx, &refresh);
+        for (uint8_t i = 0; i < (uint8_t)(sizeof(buttons) / sizeof(buttons[0])); ++i) {
+            (void)ha->addButton(ha->ctx, &buttons[i]);
+        }
     }
 
     if (ha->requestRefresh) {
@@ -227,6 +310,20 @@ void setupProfile(AppContext& ctx)
     ctx.preferences.begin(NvsKeys::StorageNamespace, false);
     ctx.registry.setPreferences(ctx.preferences);
     ctx.registry.runMigrations(CURRENT_CFG_VERSION, steps, MIGRATION_COUNT);
+    requireSetup(ctx.board != nullptr, "missing board spec");
+
+    const MicronovaBootMode bootMode = resolveBootMode_(*ctx.board, ctx.preferences);
+    const bool provisioningMode = (bootMode == MicronovaBootMode::Provisioning);
+    const MicronovaBootConfigState bootCfg = readBootConfigState_(ctx.preferences);
+    modules.webInterfaceModule.setProvisioningOnly(provisioningMode);
+    Serial.printf("Micronova boot mode: %s\r\n", provisioningMode ? "provisioning" : "runtime");
+    Serial.printf("Micronova boot decision: wifi(enabled=%d,ssid=%d) mqtt(enabled=%d,host=%d) require_mqtt=%d provisioning_enabled=%d\r\n",
+                  (int)bootCfg.wifiEnabled,
+                  (int)bootCfg.wifiHasSsid,
+                  (int)bootCfg.mqttEnabled,
+                  (int)bootCfg.mqttHasHost,
+                  (int)ctx.board->provisioning.requireMqttForConfigured,
+                  (int)ctx.board->provisioning.enabled);
 
     ctx.moduleManager.add(&modules.logHubModule);
     ctx.moduleManager.add(&modules.logDispatcherModule);
@@ -236,27 +333,32 @@ void setupProfile(AppContext& ctx)
     ctx.moduleManager.add(&modules.configStoreModule);
     ctx.moduleManager.add(&modules.dataStoreModule);
     ctx.moduleManager.add(&modules.commandModule);
-    ctx.moduleManager.add(&modules.alarmModule);
     ctx.moduleManager.add(&modules.wifiModule);
-    ctx.moduleManager.add(&modules.wifiProvisioningModule);
-    ctx.moduleManager.add(&modules.timeModule);
-    ctx.moduleManager.add(&modules.mqttModule);
-    ctx.moduleManager.add(&modules.haModule);
-    ctx.moduleManager.add(&modules.ioModule);
-    ctx.moduleManager.add(&modules.webInterfaceModule);
-    ctx.moduleManager.add(&modules.micronovaBusModule);
-    ctx.moduleManager.add(&modules.micronovaBoilerModule);
-    ctx.moduleManager.add(&modules.micronovaMqttBridgeModule);
-    ctx.moduleManager.add(&modules.systemModule);
+    if (provisioningMode) {
+        ctx.moduleManager.add(&modules.mqttConfigModule);
+        ctx.moduleManager.add(&modules.wifiProvisioningModule);
+        ctx.moduleManager.add(&modules.webInterfaceModule);
+    } else {
+        ctx.moduleManager.add(&modules.webInterfaceModule);
+        ctx.moduleManager.add(&modules.alarmModule);
+        ctx.moduleManager.add(&modules.timeModule);
+        ctx.moduleManager.add(&modules.mqttModule);
+        ctx.moduleManager.add(&modules.haModule);
+        ctx.moduleManager.add(&modules.ioModule);
+        ctx.moduleManager.add(&modules.micronovaBusModule);
+        ctx.moduleManager.add(&modules.micronovaBoilerModule);
+        ctx.moduleManager.add(&modules.micronovaMqttBridgeModule);
+        ctx.moduleManager.add(&modules.systemModule);
+        modules.systemMonitorModule.setModuleManager(&ctx.moduleManager);
+        ctx.moduleManager.add(&modules.systemMonitorModule);
+        requireSetup(configureIoModule(*ctx.board, modules), "configure Micronova IO");
+        requireSetup(modules.mqttModule.registerRuntimeProvider(&modules.ioModule), "register runtime provider io");
+    }
 
-    modules.systemMonitorModule.setModuleManager(&ctx.moduleManager);
-    ctx.moduleManager.add(&modules.systemMonitorModule);
-
-    requireSetup(ctx.board != nullptr, "missing board spec");
-    requireSetup(configureIoModule(*ctx.board, modules), "configure Micronova IO");
-    requireSetup(modules.mqttModule.registerRuntimeProvider(&modules.ioModule), "register runtime provider io");
     requireSetup(ctx.moduleManager.initAll(ctx.registry, ctx.services), "init modules");
-    postInit(ctx, modules);
+    if (!provisioningMode) {
+        postInit(ctx, modules);
+    }
 }
 
 void loopProfile(AppContext&)

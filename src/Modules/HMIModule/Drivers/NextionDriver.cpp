@@ -23,6 +23,8 @@ static constexpr uint8_t NEXTION_CMD_ROW_ACTIVATE = 0x52;
 static constexpr uint8_t NEXTION_CMD_ROW_TOGGLE = 0x53;
 static constexpr uint8_t NEXTION_CMD_ROW_CYCLE = 0x54;
 static constexpr uint8_t NEXTION_CMD_ROW_EDIT = 0x55;
+static constexpr uint8_t NEXTION_CMD_ROW_SET_TEXT = 0x56;
+static constexpr uint8_t NEXTION_CMD_ROW_SET_SLIDER = 0x57;
 static constexpr uint8_t NEXTION_CMD_HOME_ACTION = 0x60;
 
 static constexpr uint8_t NAV_HOME = 1;
@@ -46,6 +48,24 @@ static constexpr uint8_t HOME_ACTION_PH_AUTO_MODE_TOGGLE = 12;
 static constexpr uint8_t HOME_ACTION_WINTER_MODE_TOGGLE = 13;
 static constexpr uint8_t HOME_ACTION_LIGHTS_TOGGLE = 14;
 static constexpr uint8_t HOME_ACTION_ROBOT_TOGGLE = 15;
+static constexpr uint8_t HOME_ACTION_DISPLAY_WIFI_FACTORY_RESET = 16;
+
+namespace NextionObject {
+static constexpr const char* WaterTempText = "globals.vaWaterTemp";
+static constexpr const char* AirTempText = "globals.vaAirTemp";
+static constexpr const char* PhText = "globals.vaPhValue";
+static constexpr const char* OrpText = "globals.vaOrpValue";
+static constexpr const char* TimeText = "tTime";
+static constexpr const char* DateText = "tDate";
+static constexpr const char* ErrorMessageText = "globals.vaErrMsg";
+static constexpr const char* DayText = "globals.vaDayText";
+static constexpr const char* MonthText = "globals.vaMonthText";
+static constexpr const char* PhGaugePercent = "vapHPercent";
+static constexpr const char* OrpGaugePercent = "vaOrpPercent";
+static constexpr const char* StateBits = "globals.vaStates";
+static constexpr const char* AlarmBits = "globals.vaAlarms";
+static constexpr const char* DisplayVersionExpr = "globals.vaVersion.val";
+} // namespace NextionObject
 
 } // namespace
 
@@ -143,13 +163,16 @@ bool NextionDriver::showConfigLoading(const char* title)
     ok = sendCmd_("vis bValid,0") && ok;
     ok = sendCmd_("vis bPrev,0") && ok;
     ok = sendCmd_("vis bNext,0") && ok;
+    ok = sendCmd_("vaCtxRef.val=0") && ok;
     for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
         char leftObj[8]{};
         char rightObj[8]{};
         char rowButtonObj[8]{};
+        char editTypeObj[16]{};
         snprintf(leftObj, sizeof(leftObj), "tL%u", (unsigned)i);
         snprintf(rightObj, sizeof(rightObj), "tV%u", (unsigned)i);
         snprintf(rowButtonObj, sizeof(rowButtonObj), "bR%u", (unsigned)i);
+        snprintf(editTypeObj, sizeof(editTypeObj), "vaEditType%u", (unsigned)i);
         ok = sendCmdFmt_("vis %s,0", leftObj) && ok;
         ok = sendCmdFmt_("vis %s,0", rightObj) && ok;
         ok = sendCmdFmt_("vis %s,0", rowButtonObj) && ok;
@@ -233,19 +256,23 @@ const char* NextionDriver::homeTextObjectName_(HmiHomeTextField field) const
 {
     switch (field) {
         case HmiHomeTextField::WaterTemp:
-            return cfg_.waterTempTextObject;
+            return NextionObject::WaterTempText;
         case HmiHomeTextField::AirTemp:
-            return cfg_.airTempTextObject;
+            return NextionObject::AirTempText;
         case HmiHomeTextField::Ph:
-            return cfg_.phTextObject;
+            return NextionObject::PhText;
         case HmiHomeTextField::Orp:
-            return cfg_.orpTextObject;
+            return NextionObject::OrpText;
         case HmiHomeTextField::Time:
-            return cfg_.timeTextObject;
+            return NextionObject::TimeText;
         case HmiHomeTextField::Date:
-            return cfg_.dateTextObject;
+            return NextionObject::DateText;
         case HmiHomeTextField::ErrorMessage:
-            return cfg_.errorMessageTextObject;
+            return NextionObject::ErrorMessageText;
+        case HmiHomeTextField::DayText:
+            return NextionObject::DayText;
+        case HmiHomeTextField::MonthText:
+            return NextionObject::MonthText;
         default:
             return nullptr;
     }
@@ -255,9 +282,9 @@ const char* NextionDriver::homeGaugeObjectName_(HmiHomeGaugeField field) const
 {
     switch (field) {
         case HmiHomeGaugeField::PhPercent:
-            return cfg_.phGaugePercentObject;
+            return NextionObject::PhGaugePercent;
         case HmiHomeGaugeField::OrpPercent:
-            return cfg_.orpGaugePercentObject;
+            return NextionObject::OrpGaugePercent;
         default:
             return nullptr;
     }
@@ -272,22 +299,19 @@ bool NextionDriver::publishHomeText(HmiHomeTextField field, const char* text)
 bool NextionDriver::publishHomeGaugePercent(HmiHomeGaugeField field, uint16_t percent)
 {
     if (!started_) return false;
-    (void)field;
-    (void)percent;
-    if (isLegacyV2()) return true;
     return sendNum_(homeGaugeObjectName_(field), percent);
 }
 
 bool NextionDriver::publishHomeStateBits(uint32_t stateBits)
 {
     if (!started_) return false;
-    return sendNum_(cfg_.stateBitsObject, stateBits);
+    return sendNum_(NextionObject::StateBits, stateBits);
 }
 
 bool NextionDriver::publishHomeAlarmBits(uint32_t alarmBits)
 {
     if (!started_) return false;
-    return sendNum_(cfg_.alarmBitsObject, alarmBits);
+    return sendNum_(NextionObject::AlarmBits, alarmBits);
 }
 
 bool NextionDriver::publishV2Needles(const NextionV2NeedlePublish& publish)
@@ -370,14 +394,13 @@ bool NextionDriver::readNumber_(const char* expr, uint32_t& value, uint16_t time
     return readNumberResponse_(value, timeoutMs);
 }
 
-bool NextionDriver::detectDisplayVersion(uint16_t timeoutMs)
+bool NextionDriver::detectDisplayVersion(uint16_t timeoutMs, bool force)
 {
-    if (versionDetected_) return true;
-    if (!cfg_.displayVersionExpr || cfg_.displayVersionExpr[0] == '\0') return false;
+    if (versionDetected_ && !force) return true;
 
     uint32_t detected = 0U;
     const uint16_t effectiveTimeout = timeoutMs != 0U ? timeoutMs : cfg_.displayVersionReadTimeoutMs;
-    if (!readNumber_(cfg_.displayVersionExpr, detected, effectiveTimeout)) return false;
+    if (!readNumber_(NextionObject::DisplayVersionExpr, detected, effectiveTimeout)) return false;
 
     displayVersion_ = detected;
     versionDetected_ = true;
@@ -436,14 +459,17 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
     (void)sendCmdFmt_("vis bNext,%u", (view.pageIndex + 1U < view.pageCount) ? 1U : 0U);
     (void)sendCmdFmt_("nPage.val=%u", (unsigned)(view.pageIndex + 1U));
     (void)sendCmdFmt_("nPages.val=%u", (unsigned)view.pageCount);
+    (void)sendCmdFmt_("vaCtxRef.val=%lu", (unsigned long)view.contextRef);
 
     for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
         char leftObj[8]{};
         char rightObj[8]{};
         char rowButtonObj[8]{};
+        char editTypeObj[16]{};
         snprintf(leftObj, sizeof(leftObj), "tL%u", (unsigned)i);
         snprintf(rightObj, sizeof(rightObj), "tV%u", (unsigned)i);
         snprintf(rowButtonObj, sizeof(rowButtonObj), "bR%u", (unsigned)i);
+        snprintf(editTypeObj, sizeof(editTypeObj), "vaEditType%u", (unsigned)i);
 
         const ConfigMenuRowView& row = view.rows[i];
         const bool showSwitch = row.visible &&
@@ -454,11 +480,15 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
                                    view.mode == ConfigMenuMode::Browse &&
                                    row.canEdit;
         const bool leftTouchable = row.visible && view.mode == ConfigMenuMode::Browse;
+        uint8_t editType = row.editType;
+        if (editType > 3U) editType = 0U;
+        if (!row.visible || !row.valueVisible || !row.editable) editType = 0U;
 
         (void)sendCmdFmt_("vis %s,%u", leftObj, row.visible ? 1U : 0U);
         (void)sendCmdFmt_("tsw %s,%u", leftObj, leftTouchable ? 1U : 0U);
         (void)sendCmdFmt_("vis %s,%u", rightObj, showValue ? 1U : 0U);
         (void)sendCmdFmt_("vis %s,%u", rowButtonObj, showRowButton ? 1U : 0U);
+        (void)sendCmdFmt_("%s.val=%u", editTypeObj, (unsigned)editType);
         if (!showValue) {
             (void)sendCmdFmt_("tsw %s,0", rightObj);
             (void)sendCmdFmt_("%s.val=0", rightObj);
@@ -476,13 +506,13 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
             const bool on = (strcmp(row.value, "ON") == 0);
             (void)sendCmdFmt_("tsw %s,1", rightObj);
             (void)sendCmdFmt_("%s.val=%u", rightObj, on ? 1U : 0U);
-            (void)sendText_(rightObj, on ? " ON" : " OFF");
+            (void)sendText_(rightObj, on ? "ON" : "OFF");
             continue;
         }
 
         char displayVal[64]{};
-        snprintf(displayVal, sizeof(displayVal), " %s%s", row.value, row.dirty ? " *" : "");
-        (void)sendCmdFmt_("tsw %s,0", rightObj);
+        snprintf(displayVal, sizeof(displayVal), "%s%s", row.value, row.dirty ? " *" : "");
+        (void)sendCmdFmt_("tsw %s,%u", rightObj, row.editable ? 1U : 0U);
         (void)sendCmdFmt_("%s.val=0", rightObj);
         (void)sendText_(rightObj, displayVal);
     }
@@ -494,9 +524,16 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
 bool NextionDriver::refreshConfigMenuValues(const ConfigMenuView& view)
 {
     if (!started_ || !pageReady_) return false;
+    (void)sendCmdFmt_("vaCtxRef.val=%lu", (unsigned long)view.contextRef);
 
     for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
         const ConfigMenuRowView& row = view.rows[i];
+        char editTypeObj[16]{};
+        snprintf(editTypeObj, sizeof(editTypeObj), "vaEditType%u", (unsigned)i);
+        uint8_t editType = row.editType;
+        if (editType > 3U) editType = 0U;
+        if (!row.visible || !row.valueVisible || !row.editable) editType = 0U;
+        (void)sendCmdFmt_("%s.val=%u", editTypeObj, (unsigned)editType);
         if (!row.visible || !row.valueVisible) continue;
 
         char rightObj[8]{};
@@ -506,13 +543,13 @@ bool NextionDriver::refreshConfigMenuValues(const ConfigMenuView& view)
             const bool on = (strcmp(row.value, "ON") == 0);
             (void)sendCmdFmt_("tsw %s,1", rightObj);
             (void)sendCmdFmt_("%s.val=%u", rightObj, on ? 1U : 0U);
-            (void)sendText_(rightObj, on ? " ON" : " OFF");
+            (void)sendText_(rightObj, on ? "ON" : "OFF");
             continue;
         }
 
         char displayVal[64]{};
-        snprintf(displayVal, sizeof(displayVal), " %s%s", row.value, row.dirty ? " *" : "");
-        (void)sendCmdFmt_("tsw %s,0", rightObj);
+        snprintf(displayVal, sizeof(displayVal), "%s%s", row.value, row.dirty ? " *" : "");
+        (void)sendCmdFmt_("tsw %s,%u", rightObj, row.editable ? 1U : 0U);
         (void)sendCmdFmt_("%s.val=0", rightObj);
         (void)sendText_(rightObj, displayVal);
     }
@@ -531,7 +568,19 @@ bool NextionDriver::parseCustomFrame_(const uint8_t* frame, uint8_t len, HmiEven
     switch (opcode) {
         case NEXTION_CMD_PAGE: {
             if (payloadLen < 1U) return false;
-            return handlePageId_(payload[0], true, out);
+            uint32_t contextRef = 0U;
+            if (payloadLen >= 5U) {
+                contextRef = (uint32_t)payload[1] |
+                             ((uint32_t)payload[2] << 8) |
+                             ((uint32_t)payload[3] << 16) |
+                             ((uint32_t)payload[4] << 24);
+            }
+            const bool emitted = handlePageId_(payload[0], true, out);
+            if (emitted) {
+                out.contextRef = contextRef;
+                out.pageId = payload[0];
+            }
+            return emitted;
         }
 
         case NEXTION_CMD_NAV:
@@ -585,6 +634,30 @@ bool NextionDriver::parseCustomFrame_(const uint8_t* frame, uint8_t len, HmiEven
             out.row = payload[0];
             return true;
 
+        case NEXTION_CMD_ROW_SET_TEXT: {
+            if (payloadLen < 2U || payload[0] >= ConfigMenuModel::RowsPerPage) return false;
+            out.type = HmiEventType::RowSetText;
+            out.row = payload[0];
+            const uint8_t textLen = (uint8_t)(payloadLen - 1U);
+            const uint8_t copyLen = (textLen < sizeof(out.text) - 1U) ? textLen : (uint8_t)(sizeof(out.text) - 1U);
+            memcpy(out.text, payload + 1, copyLen);
+            out.text[copyLen] = '\0';
+            return true;
+        }
+
+        case NEXTION_CMD_ROW_SET_SLIDER:
+            if (payloadLen < 2U || payload[0] >= ConfigMenuModel::RowsPerPage) return false;
+            out.type = HmiEventType::RowSetSlider;
+            out.row = payload[0];
+            if (payloadLen >= 5U) {
+                float value = 0.0f;
+                memcpy(&value, payload + 1, sizeof(value));
+                out.sliderValue = value;
+            } else {
+                out.sliderValue = (float)payload[1];
+            }
+            return true;
+
         case NEXTION_CMD_HOME_ACTION:
             if (payloadLen < 1U) return false;
             out.type = HmiEventType::Command;
@@ -635,6 +708,9 @@ bool NextionDriver::parseCustomFrame_(const uint8_t* frame, uint8_t len, HmiEven
                 case HOME_ACTION_ROBOT_TOGGLE:
                     out.command = HmiCommandId::HomeRobotToggle;
                     return true;
+                case HOME_ACTION_DISPLAY_WIFI_FACTORY_RESET:
+                    out.command = HmiCommandId::DisplayWifiFactoryReset;
+                    return true;
                 default:
                     return false;
             }
@@ -655,16 +731,25 @@ bool NextionDriver::handlePageId_(uint8_t pageId, bool emitEvents, HmiEvent& out
     pageReady_ = isConfigPageId_(pageId);
 
     if (!emitEvents) return false;
+    const bool pageChanged = (!wasKnown || prevPage != pageId);
     if (pageReady_ && !wasConfigPage) {
         out.type = HmiEventType::ConfigEnter;
+        out.pageId = pageId;
         return true;
     }
     if (!pageReady_ && wasConfigPage) {
         out.type = HmiEventType::ConfigExit;
+        out.pageId = pageId;
         return true;
     }
-    if (isHomePageId_(pageId) && (!wasKnown || prevPage != pageId)) {
+    if (isHomePageId_(pageId) && pageChanged) {
         out.type = HmiEventType::Home;
+        out.pageId = pageId;
+        return true;
+    }
+    if (pageChanged) {
+        out.type = HmiEventType::Page;
+        out.pageId = pageId;
         return true;
     }
     return false;

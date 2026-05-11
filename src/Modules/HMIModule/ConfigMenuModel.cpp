@@ -236,6 +236,22 @@ static bool immediateChildForBranch_(const char* module,
     return fullPath[0] != '\0';
 }
 
+static uint8_t editTypeFromValueType_(ConfigMenuValueType type)
+{
+    switch (type) {
+        case ConfigMenuValueType::Bool:
+            return 3U;
+        case ConfigMenuValueType::Int:
+            return 1U;
+        case ConfigMenuValueType::Float:
+            return 2U;
+        case ConfigMenuValueType::Text:
+        case ConfigMenuValueType::Unknown:
+        default:
+            return 0U;
+    }
+}
+
 } // namespace
 
 bool ConfigMenuModel::begin(const ConfigStoreService* cfgSvc)
@@ -245,6 +261,7 @@ bool ConfigMenuModel::begin(const ConfigStoreService* cfgSvc)
     hintCount_ = 0;
     mode_ = ConfigMenuMode::Browse;
     pageIndex_ = 0;
+    editReturnPageIndex_ = 0;
     currentModule_[0] = '\0';
     previousModule_[0] = '\0';
     BufferUsageTracker::note(TrackedBufferId::ConfigMenuHeap, 0U, 0U, "stateless", nullptr);
@@ -263,6 +280,7 @@ bool ConfigMenuModel::home()
     mode_ = ConfigMenuMode::Browse;
     currentModule_[0] = '\0';
     pageIndex_ = 0;
+    editReturnPageIndex_ = 0;
     return cfgSvc_ && cfgSvc_->listModules;
 }
 
@@ -272,7 +290,11 @@ bool ConfigMenuModel::back()
         mode_ = ConfigMenuMode::Browse;
         copyStr_(currentModule_, sizeof(currentModule_), previousModule_);
         previousModule_[0] = '\0';
-        pageIndex_ = 0;
+        pageIndex_ = editReturnPageIndex_;
+        const uint8_t cnt = pageCount();
+        if (cnt == 0U) pageIndex_ = 0U;
+        else if (pageIndex_ >= cnt) pageIndex_ = (uint8_t)(cnt - 1U);
+        editReturnPageIndex_ = 0U;
         return true;
     }
 
@@ -295,6 +317,7 @@ bool ConfigMenuModel::openModule(const char* module)
 
     if (!isHome()) copyStr_(previousModule_, sizeof(previousModule_), currentModule_);
     else previousModule_[0] = '\0';
+    editReturnPageIndex_ = pageIndex_;
 
     copyStr_(currentModule_, sizeof(currentModule_), module);
     mode_ = ConfigMenuMode::Edit;
@@ -784,6 +807,7 @@ void ConfigMenuModel::buildHomeView_(ConfigMenuView& out) const
         vr.canEnter = hasChildren;
         vr.canEdit = hasAttributes;
         vr.widget = ConfigMenuWidget::Text;
+        vr.editType = 0U;
         copyStr_(vr.key, sizeof(vr.key), fullPath);
         if (hasChildren) snprintf(vr.label, sizeof(vr.label), "%s/", label);
         else copyStr_(vr.label, sizeof(vr.label), label);
@@ -836,6 +860,7 @@ void ConfigMenuModel::buildModuleView_(ConfigMenuView& out) const
             vr.canEnter = false;
             vr.canEdit = false;
             vr.widget = row.widget;
+            vr.editType = editTypeFromValueType_(row.type);
             copyStr_(vr.key, sizeof(vr.key), row.key);
             copyStr_(vr.label, sizeof(vr.label), row.label);
             copyStr_(vr.value, sizeof(vr.value), row.value);
@@ -984,5 +1009,9 @@ void ConfigMenuModel::buildBreadcrumb_(char* out, size_t outLen) const
         char c[2]{*p, '\0'};
         if (!appendText_(out, outLen, pos, c)) return;
         ++p;
+    }
+
+    if (mode_ == ConfigMenuMode::Edit) {
+        (void)appendText_(out, outLen, pos, " [EDIT]");
     }
 }

@@ -5,6 +5,12 @@
 namespace BoardProfiles {
 
 inline constexpr uint32_t kMicronovaBoardRev1UartBaud = 1200U;
+inline constexpr IoCapacitySpec kMicronovaIoCapacity{1, 1, 1, 6, 5, 8};
+inline constexpr MqttCapacitySpec kMicronovaMqttCapacity{5712, 2, 2, 4, 20, 12, 1, 64, 32, 32, 32};
+inline constexpr MqttBufferSpec kMicronovaMqttBuffers{
+    64, 32, 32, 15, 15, 160, 160, 160, 96, 512, 384, 512, 2048, 32, 128, 32
+};
+inline constexpr HaCapacitySpec kMicronovaHaCapacity{16, 4, 6, 6, 16, 9};
 
 inline constexpr UartSpec kMicronovaBoardRev1Uarts[] = {
     // {name, uartIndex, rxPin, txPin, baud, primary, enableRxPin}
@@ -39,8 +45,12 @@ inline constexpr BoardSpec kMicronovaBoardRev1{
     (uint8_t)(sizeof(kMicronovaBoardRev1OneWire) / sizeof(kMicronovaBoardRev1OneWire[0])),
     kMicronovaBoardRev1IoPoints,
     (uint8_t)(sizeof(kMicronovaBoardRev1IoPoints) / sizeof(kMicronovaBoardRev1IoPoints[0])),
-    {1, 0, 1},
-    nullptr
+    kMicronovaIoCapacity,
+    kMicronovaMqttCapacity,
+    kMicronovaMqttBuffers,
+    kMicronovaHaCapacity,
+    nullptr,
+    {true, true, true}
 };
 
 }  // namespace BoardProfiles

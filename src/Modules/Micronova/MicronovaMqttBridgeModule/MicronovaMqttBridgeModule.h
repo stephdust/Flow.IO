@@ -43,11 +43,14 @@ private:
         MsgPowerSensor,
         MsgFanSensor,
         MsgTargetTemperature,
+        MsgDisplayLine1,
+        MsgDisplayLine2,
+        MsgDisplayLine3,
         MsgCount
     };
 
-    static constexpr uint8_t ProducerId = 42;
-    static constexpr uint8_t InboundCount = 8;
+    static constexpr uint8_t ProducerId = 53;
+    static constexpr uint8_t InboundCount = 12;
 
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
@@ -59,6 +62,8 @@ private:
     void registerInbound_();
     void enqueueAll_(MqttPublishPriority priority);
     void enqueueForKey_(DataKey key);
+    void enqueueForMicronovaKey_(const char* key);
+    bool enqueueMsg_(uint16_t msgId, MqttPublishPriority priority);
     bool publishText_(MqttBuildContext& buildCtx, const char* suffix, const char* text, bool retain);
     bool publishInt_(MqttBuildContext& buildCtx, const char* suffix, int32_t value, bool retain);
     bool publishFloat_(MqttBuildContext& buildCtx, const char* suffix, float value, bool retain);
@@ -74,6 +79,7 @@ private:
     const IOServiceV2* ioSvc_ = nullptr;
     bool producerRegistered_ = false;
     bool inboundRegistered_ = false;
+    bool topicsLogged_ = false;
 
     MqttPublishProducer producer_{};
     MqttInboundHandler inbound_[InboundCount]{};

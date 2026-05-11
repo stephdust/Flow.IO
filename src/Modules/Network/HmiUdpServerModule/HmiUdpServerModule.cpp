@@ -95,6 +95,7 @@ bool HmiUdpServerModule::sendConfigStart(const ConfigMenuView& view)
     HmiUdpConfigStartPayload payload{};
     payload.page = (uint8_t)(view.pageIndex + 1U);
     payload.pageCount = view.pageCount;
+    payload.contextRef = view.contextRef;
     if (view.canHome) payload.flags |= HMI_UDP_CONFIG_VIEW_CAN_HOME;
     if (view.canBack) payload.flags |= HMI_UDP_CONFIG_VIEW_CAN_BACK;
     if (view.canValidate) payload.flags |= HMI_UDP_CONFIG_VIEW_CAN_VALIDATE;
@@ -108,6 +109,7 @@ bool HmiUdpServerModule::sendConfigRow(uint8_t row, const ConfigMenuRowView& vie
     HmiUdpConfigRowPayload payload{};
     payload.row = row;
     payload.widget = (uint8_t)viewRow.widget;
+    payload.editType = viewRow.editType;
     if (viewRow.visible) payload.flags |= HMI_UDP_CONFIG_ROW_VISIBLE;
     if (viewRow.valueVisible) payload.flags |= HMI_UDP_CONFIG_ROW_VALUE_VISIBLE;
     if (viewRow.editable) payload.flags |= HMI_UDP_CONFIG_ROW_EDITABLE;
@@ -419,15 +421,31 @@ void HmiUdpServerModule::handlePacket_(const HmiUdpHeader& header, const uint8_t
             }
             const bool haveDisplayVersion = hello &&
                                             (hello->flags & HMI_UDP_HELLO_FLAG_NEXTION_VERSION_VALID) != 0U;
+            const bool wasOnline = displayOnline_;
+            const bool previousVersionDetected = displayVersionDetected_;
+            const uint32_t previousVersion = displayVersion_;
             displayVersionDetected_ = haveDisplayVersion;
             displayVersion_ = haveDisplayVersion ? hello->nextionVersion : 0U;
-            if (displayVersionDetected_) {
-                LOGI("HMI UDP display Nextion version=%lu", (unsigned long)displayVersion_);
-            } else {
-                LOGI("HMI UDP display Nextion version unknown");
+            const bool versionChanged = previousVersionDetected != displayVersionDetected_ ||
+                                        (displayVersionDetected_ && previousVersion != displayVersion_);
+            const uint16_t fcdFw = hello ? hello->displayFw : 0U;
+            const uint16_t fcdProto = hello ? hello->protoVersion : 0U;
+            if (!wasOnline || versionChanged) {
+                if (displayVersionDetected_) {
+                    LOGI("HMI UDP Flow Connect Display detected Nextion display version=%lu fcd_fw=%u proto=%u",
+                         (unsigned long)displayVersion_,
+                         (unsigned)fcdFw,
+                         (unsigned)fcdProto);
+                } else {
+                    LOGI("HMI UDP Flow Connect Display detected Nextion display version unknown fcd_fw=%u proto=%u",
+                         (unsigned)fcdFw,
+                         (unsigned)fcdProto);
+                }
             }
             displayOnline_ = true;
-            fullRefreshRequested_ = true;
+            if (!wasOnline || versionChanged) {
+                fullRefreshRequested_ = true;
+            }
             (void)sendPacket_(HmiUdpMsgType::Welcome, &welcome, sizeof(welcome));
             break;
         }

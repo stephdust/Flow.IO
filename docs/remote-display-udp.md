@@ -18,7 +18,7 @@ WebSocket ni JSON côté `FlowIO`.
 Les paquets utilisent `HmiUdpHeader` dans
 `src/Core/Hmi/HmiUdpProtocol.h`:
 
-- magic `FH`, version `1`
+- magic `FH`, version `3`
 - port UDP `42110`
 - taille maximale `192` octets
 - CRC16 Modbus sur l'en-tête sans champ CRC puis le payload
@@ -29,16 +29,32 @@ Messages principaux:
 - `Welcome` depuis `FlowIO`
 - `Ping` / `Pong` toutes les 2 secondes
 - `HomeText`, `HomeGauge`, `HomeStateBits`, `HomeAlarmBits`
-- `HomeV2Needles` pour les écrans Nextion legacy V2
+- Les écrans Nextion V1 et V2 utilisent le même transport `HomeGauge` pour les
+  jauges pH/ORP. `HomeV2Needles` reste décodable pour compatibilité, mais
+  FlowIO ne l'émet plus.
 - `ConfigStart`, `ConfigRow`, `ConfigEnd`
 - `HmiEvent` depuis `FlowConnectDisplay` vers `FlowIO`
 - `RtcReadRequest`, `RtcReadResponse`, `RtcWrite`
 
+`HomeText` transporte jusqu'à `31` caractères utiles plus le zéro terminal.
+Le message d'erreur Home est donc volontairement court et publié dans
+`globals.vaErrMsg.txt`.
+
+`HmiEvent.text` transporte jusqu'à `47` caractères utiles plus le zéro
+terminal. Cela permet d'éditer les champs texte du menu config sans troncature
+en mode Flow Connect Display (UDP), avec la même limite pratique qu'en mode
+Nextion UART direct.
+
 `FlowConnectDisplay` lit `globals.vaVersion.val` dans son Nextion local au démarrage.
 Quand la lecture réussit, `Hello` transporte cette version et le flag
 `HMI_UDP_HELLO_FLAG_NEXTION_VERSION_VALID`. `FlowIO` applique alors la même
-validation que pour un Nextion directement attaché et adapte le rendu Home,
-notamment les aiguilles des écrans V2.
+validation que pour un Nextion directement attaché et adapte le rendu Home au
+contrat V1/V2 courant.
+
+Quand le lien est établi, `FlowConnectDisplay` relit cette version toutes les
+60 secondes hors rendu de menu/configuration, puis renvoie un `Hello` unicast à
+`FlowIO`. Si la version annoncée change, `FlowIO` force un rafraîchissement Home
+complet et `HMIModule` adapte dynamiquement le mode V1/V2.
 
 `HmiEvent` et `HomeStateBits` sont envoyés avec `ACK_REQUIRED`. `FlowIO`
 répond `Ack` aux événements; `FlowConnectDisplay` répond `Ack` au bitmap d'état. Les

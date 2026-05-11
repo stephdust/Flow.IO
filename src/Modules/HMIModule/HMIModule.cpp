@@ -75,6 +75,8 @@ static constexpr uint32_t kHomePublishAll = kHomePublishWaterTemp |
                                             kHomePublishErrorMessage |
                                             kHomePublishPsi;
 static constexpr uint32_t kClockPublishCheckMs = 1000U;
+static constexpr uint32_t kLegacyV2FullRefreshPeriodMs = 10000U;
+static constexpr uint32_t kDisplayVersionProbePeriodMs = 60000U;
 static constexpr uint32_t kInvalidClockStamp = 0xFFFFFFFFUL;
 static constexpr uint32_t kRtcFallbackDelayMs = 30000U;
 static constexpr uint32_t kRtcFallbackRetryMs = 10000U;
@@ -83,6 +85,7 @@ static constexpr uint16_t kLocalNextionRtcReadTimeoutMs = 180U;
 static constexpr uint16_t kRemoteNextionRtcReadTimeoutMs = 2000U;
 static constexpr uint32_t kNextionDisplayVersionV1 = 1U;
 static constexpr uint32_t kNextionDisplayVersionLegacyV2 = 2U;
+static constexpr const char* kNextionDegreeC = "\xC2\xB0""C";
 
 static bool isSupportedNextionDisplayVersion_(uint32_t version)
 {
@@ -105,6 +108,16 @@ static const char* const kMonthNamesFr[] = {
     "D\xE9""cembre",
 };
 
+static const char* const kDayNamesFr[] = {
+    "Dimanche",
+    "Lundi",
+    "Mardi",
+    "Mercredi",
+    "Jeudi",
+    "Vendredi",
+    "Samedi",
+};
+
 struct PoolLogicModeFlags {
     bool autoMode = false;
     bool winterMode = false;
@@ -125,25 +138,14 @@ static uint16_t gaugePercentFromSetpoint_(float value, float setpoint)
     return (uint16_t)lroundf(normalized);
 }
 
-static int8_t nextionV2SignedNeedle_(float value, float setpoint, float nearLimit, float farLimit)
-{
-    const float delta = value - setpoint;
-    if (fabsf(delta) <= nearLimit) return 0;
-    if (delta > nearLimit && delta <= farLimit) return 1;
-    if (delta < -nearLimit && delta >= -farLimit) return -1;
-    return (delta > 0.0f) ? 2 : -2;
-}
-
-static uint8_t nextionV2PsiNeedle_(float psi, float lowThreshold, float highThreshold)
-{
-    if (psi <= lowThreshold) return 0U;
-    if (psi > highThreshold) return 4U;
-    return 2U;
-}
-
 static inline uint8_t normalizeLedPage_(uint8_t page)
 {
     return (page == 2U) ? 2U : 1U;
+}
+
+static bool isHomePageCode_(uint8_t pageId)
+{
+    return pageId == 0U || pageId == 1U;
 }
 
 static bool isRtcDateTimeValid_(const HmiRtcDateTime& rtc)
@@ -448,6 +450,9 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     applyOutputConfig_();
     driverReady_ = false;
     nextionDisabledByVersion_ = false;
+    homePageVisible_ = false;
+    menuSessionActive_ = false;
+    menuPageVisible_ = false;
     configMenuReady_ = false;
     configMenuActive_ = false;
     viewDirty_ = true;
@@ -458,6 +463,8 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     lastLedPageToggleMs_ = millis();
     lastWifiBlinkToggleMs_ = millis();
     lastClockCheckMs_ = 0;
+    lastLegacyV2FullRefreshMs_ = 0;
+    lastDisplayVersionProbeMs_ = 0;
     lastClockMinuteStamp_ = kInvalidClockStamp;
     lastClockDayStamp_ = kInvalidClockStamp;
     lastRtcFallbackAttemptMs_ = 0;
@@ -466,6 +473,8 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     rtcFallbackCompleted_ = false;
     nextionVersionDetected_ = false;
     nextionVersion_ = 0U;
+    activeConfigContextToken_ = 0U;
+    nextConfigContextToken_ = 1U;
     phIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPh].ioId;
     orpIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotOrp].ioId;
     psiIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPsi].ioId;
@@ -800,9 +809,13 @@ bool HMIModule::publishHomeText_(HmiHomeTextField field)
     uint8_t runtimeIndex = kInvalidRuntimeIndex;
     char value[32]{};
     if (field == HmiHomeTextField::ErrorMessage) {
-        return driver_->publishHomeText(field, homeErrorMessage_);
+        snprintf(value, sizeof(value), "%s", homeErrorMessage_);
+        return driver_->publishHomeText(field, value);
     }
     if (field == HmiHomeTextField::Time || field == HmiHomeTextField::Date) {
+        return true;
+    }
+    if (field == HmiHomeTextField::DayText || field == HmiHomeTextField::MonthText) {
         struct tm local{};
         bool hasTime = timeSvc_ &&
                        timeSvc_->isSynced &&
@@ -813,14 +826,17 @@ bool HMIModule::publishHomeText_(HmiHomeTextField field)
             hasTime = localtime_r(&epoch, &local) != nullptr;
         }
 
-        if (field == HmiHomeTextField::Time) {
-            if (hasTime) snprintf(value, sizeof(value), "%02d:%02d", local.tm_hour, local.tm_min);
-            else snprintf(value, sizeof(value), "--:--");
+        if (field == HmiHomeTextField::DayText) {
+            if (hasTime && local.tm_wday >= 0 && local.tm_wday < 7) {
+                snprintf(value, sizeof(value), "%s", kDayNamesFr[local.tm_wday]);
+            } else {
+                snprintf(value, sizeof(value), "--");
+            }
         } else {
             if (hasTime && local.tm_mon >= 0 && local.tm_mon < 12) {
-                snprintf(value, sizeof(value), "%d %s", local.tm_mday, kMonthNamesFr[local.tm_mon]);
+                snprintf(value, sizeof(value), "%s", kMonthNamesFr[local.tm_mon]);
             } else {
-                snprintf(value, sizeof(value), "-- ----");
+                snprintf(value, sizeof(value), "----");
             }
         }
         return driver_->publishHomeText(field, value);
@@ -851,12 +867,12 @@ bool HMIModule::publishHomeText_(HmiHomeTextField field)
 
     switch (field) {
         case HmiHomeTextField::WaterTemp:
-            if (hasValue) snprintf(value, sizeof(value), "%.1f\xB0""C", (double)rawValue);
-            else snprintf(value, sizeof(value), "--.-\xB0""C");
+            if (hasValue) snprintf(value, sizeof(value), "%.1f%s", (double)rawValue, kNextionDegreeC);
+            else snprintf(value, sizeof(value), "--.-%s", kNextionDegreeC);
             break;
         case HmiHomeTextField::AirTemp:
-            if (hasValue) snprintf(value, sizeof(value), "%.1f\xB0""C", (double)rawValue);
-            else snprintf(value, sizeof(value), "--.-\xB0""C");
+            if (hasValue) snprintf(value, sizeof(value), "%.1f%s", (double)rawValue, kNextionDegreeC);
+            else snprintf(value, sizeof(value), "--.-%s", kNextionDegreeC);
             break;
         case HmiHomeTextField::Ph:
             if (hasValue) snprintf(value, sizeof(value), "%.2f", (double)rawValue);
@@ -916,77 +932,6 @@ bool HMIModule::publishHomeAlarmBits_()
     return driver_ && driver_->publishHomeAlarmBits(buildHomeAlarmBits_());
 }
 
-bool HMIModule::publishNextionV2Needles_(uint32_t pending, uint32_t& sent)
-{
-    sent = 0U;
-    if (!driver_ || !driverReady_) return false;
-    if (!driver_->isLegacyV2()) return false;
-
-    NextionV2NeedlePublish publish{};
-    publish.ph = (pending & kHomePublishPhGauge) != 0U;
-    publish.orp = (pending & kHomePublishOrpGauge) != 0U;
-    publish.psi = (pending & kHomePublishPsi) != 0U;
-    if (!publish.ph && !publish.orp && !publish.psi) return true;
-
-    float phSetpoint = PoolDefaults::PhSetpoint;
-    float orpSetpoint = PoolDefaults::OrpSetpoint;
-    float psiLowThreshold = PoolDefaults::PsiLow;
-    float psiHighThreshold = PoolDefaults::PsiHigh;
-    if (cfgSvc_ && cfgSvc_->toJsonModule) {
-        char jsonBuf[kPoolLogicPidJsonBufSize]{};
-        bool truncated = false;
-        if (cfgSvc_->toJsonModule(cfgSvc_->ctx,
-                                  kPoolLogicPidModule,
-                                  jsonBuf,
-                                  sizeof(jsonBuf),
-                                  &truncated)) {
-            float f = 0.0f;
-            if (findJsonFloat_(jsonBuf, "ph_setpoint", f)) phSetpoint = f;
-            if (findJsonFloat_(jsonBuf, "orp_setpoint", f)) orpSetpoint = f;
-            if (findJsonFloat_(jsonBuf, "psi_low_th", f)) psiLowThreshold = f;
-            if (findJsonFloat_(jsonBuf, "psi_high_th", f)) psiHighThreshold = f;
-        }
-    }
-
-    uint32_t needleSent = 0U;
-    if (publish.ph) {
-        float ph = 0.0f;
-        if (dsSvc_ &&
-            dsSvc_->store &&
-            phRuntimeIndex_ != kInvalidRuntimeIndex &&
-            ioEndpointFloat(*dsSvc_->store, phRuntimeIndex_, ph)) {
-            publish.phNeedle = nextionV2SignedNeedle_(ph, phSetpoint, 0.1f, 0.3f);
-        }
-        needleSent |= kHomePublishPhGauge;
-    }
-    if (publish.orp) {
-        float orp = 0.0f;
-        if (dsSvc_ &&
-            dsSvc_->store &&
-            orpRuntimeIndex_ != kInvalidRuntimeIndex &&
-            ioEndpointFloat(*dsSvc_->store, orpRuntimeIndex_, orp)) {
-            publish.orpNeedle = nextionV2SignedNeedle_(orp, orpSetpoint, 70.0f, 200.0f);
-        }
-        needleSent |= kHomePublishOrpGauge;
-    }
-    if (publish.psi) {
-        float psi = 0.0f;
-        if (dsSvc_ &&
-            dsSvc_->store &&
-            psiRuntimeIndex_ != kInvalidRuntimeIndex &&
-            ioEndpointFloat(*dsSvc_->store, psiRuntimeIndex_, psi)) {
-            publish.psiNeedle = nextionV2PsiNeedle_(psi, psiLowThreshold, psiHighThreshold);
-        }
-        needleSent |= kHomePublishPsi;
-    }
-
-    if (needleSent == 0U) return false;
-    if (!driver_->publishV2Needles(publish)) return false;
-
-    sent = needleSent;
-    return true;
-}
-
 bool HMIModule::validateDriverDisplayVersion_(bool requireDetection)
 {
     if (!driver_) return true;
@@ -1020,7 +965,7 @@ bool HMIModule::validateDriverDisplayVersion_(bool requireDetection)
     }
 
     if (driver_->isLegacyV2()) {
-        LOGI("Ecran Nextion V2 detecte: rendu Home V1 avec aiguilles active.");
+        LOGI("Ecran Nextion V2 detecte: rendu Home aligne V1 avec jauges percent.");
     }
     viewDirty_ = true;
     queueHomePublish_(kHomePublishAll);
@@ -1199,6 +1144,7 @@ void HMIModule::queueClockPublishIfDue_(uint32_t nowMs)
 void HMIModule::flushHomePublish_()
 {
     if (!driver_ || !driverReady_) return;
+    if (!homePageVisible_) return;
 
     uint32_t pending = 0U;
     portENTER_CRITICAL(&homePublishMux_);
@@ -1207,8 +1153,6 @@ void HMIModule::flushHomePublish_()
     if (pending == 0U) return;
 
     uint32_t sent = 0U;
-    const bool nextionV2 = driver_->isLegacyV2();
-
     if ((pending & kHomePublishWaterTemp) != 0U && publishHomeText_(HmiHomeTextField::WaterTemp)) {
         sent |= kHomePublishWaterTemp;
     }
@@ -1221,13 +1165,11 @@ void HMIModule::flushHomePublish_()
     if ((pending & kHomePublishOrp) != 0U && publishHomeText_(HmiHomeTextField::Orp)) {
         sent |= kHomePublishOrp;
     }
-    if (!nextionV2 &&
-        (pending & kHomePublishPhGauge) != 0U &&
+    if ((pending & kHomePublishPhGauge) != 0U &&
         publishHomeGaugePercent_(HmiHomeGaugeField::PhPercent)) {
         sent |= kHomePublishPhGauge;
     }
-    if (!nextionV2 &&
-        (pending & kHomePublishOrpGauge) != 0U &&
+    if ((pending & kHomePublishOrpGauge) != 0U &&
         publishHomeGaugePercent_(HmiHomeGaugeField::OrpPercent)) {
         sent |= kHomePublishOrpGauge;
     }
@@ -1240,18 +1182,15 @@ void HMIModule::flushHomePublish_()
     if ((pending & kHomePublishTime) != 0U && publishHomeText_(HmiHomeTextField::Time)) {
         sent |= kHomePublishTime;
     }
-    if ((pending & kHomePublishDate) != 0U && publishHomeText_(HmiHomeTextField::Date)) {
+    if ((pending & kHomePublishDate) != 0U &&
+        publishHomeText_(HmiHomeTextField::DayText) &&
+        publishHomeText_(HmiHomeTextField::MonthText)) {
         sent |= kHomePublishDate;
     }
     if ((pending & kHomePublishErrorMessage) != 0U && publishHomeText_(HmiHomeTextField::ErrorMessage)) {
         sent |= kHomePublishErrorMessage;
     }
-    if (nextionV2) {
-        uint32_t needleSent = 0U;
-        if (publishNextionV2Needles_(pending, needleSent)) {
-            sent |= needleSent;
-        }
-    } else if ((pending & kHomePublishPsi) != 0U) {
+    if ((pending & kHomePublishPsi) != 0U) {
         sent |= kHomePublishPsi;
     }
 
@@ -1450,20 +1389,59 @@ void HMIModule::onEvent_(const Event& e)
 void HMIModule::handleDriverEvent_(const HmiEvent& e)
 {
     if (e.type == HmiEventType::Command) {
+        if (e.command == HmiCommandId::HomeConfigOpen) {
+            return;
+        }
         if (executeHmiCommand_(e.command, e.value)) {
             setHomeErrorMessage_("", true);
         }
         return;
     }
 
+    if (e.type == HmiEventType::Home) {
+        homePageVisible_ = true;
+        menuSessionActive_ = false;
+        menuPageVisible_ = false;
+        configMenuActive_ = false;
+        viewDirty_ = false;
+        resetClockPublishStamps_();
+        queueHomePublish_(kHomePublishAll);
+    } else if (e.type == HmiEventType::Page) {
+        homePageVisible_ = false;
+        menuPageVisible_ = false;
+        configMenuActive_ = false;
+    }
+
     if (e.type == HmiEventType::ConfigEnter) {
+        menuSessionActive_ = true;
+        menuPageVisible_ = true;
+        homePageVisible_ = false;
+        if (e.contextRef != 0U && restoreConfigContext_(e.contextRef)) {
+            configMenuActive_ = true;
+            viewDirty_ = true;
+            return;
+        }
         (void)openConfigHome_();
         return;
     }
 
     if (e.type == HmiEventType::ConfigExit) {
+        menuPageVisible_ = false;
         configMenuActive_ = false;
         viewDirty_ = false;
+        homePageVisible_ = false;
+        if (e.pageId == 0xFFU) {
+            // Explicit NAV exit: end menu session.
+            menuSessionActive_ = false;
+        } else if (isHomePageCode_(e.pageId)) {
+            menuSessionActive_ = false;
+            homePageVisible_ = true;
+            resetClockPublishStamps_();
+            queueHomePublish_(kHomePublishAll);
+        } else {
+            // Leaving Config to keyboard/overlay keeps session alive but hides menu refresh.
+            menuSessionActive_ = true;
+        }
         return;
     }
 
@@ -1678,6 +1656,10 @@ bool HMIModule::executeHmiCommand_(HmiCommandId command, uint8_t value)
             }
             return executePoolDeviceWrite_(robotDeviceSlot_, !current);
 
+        case HmiCommandId::DisplayWifiFactoryReset:
+            setHomeErrorMessage_("DisplayOnly", true);
+            return true;
+
         case HmiCommandId::None:
         default:
             setHomeErrorMessage_("UnknownCmd", true);
@@ -1762,6 +1744,39 @@ bool HMIModule::executePoolLogicModePatch_(const char* key, bool value)
     return true;
 }
 
+uint32_t HMIModule::cacheCurrentConfigContext_()
+{
+#if !FLOW_HMI_CONFIG_MENU_ENABLED
+    return 0U;
+#else
+    uint32_t token = nextConfigContextToken_++;
+    if (token == 0U) {
+        token = 1U;
+        nextConfigContextToken_ = 2U;
+    }
+    activeConfigContextToken_ = token;
+    return token;
+#endif
+}
+
+bool HMIModule::restoreConfigContext_(uint32_t token)
+{
+#if !FLOW_HMI_CONFIG_MENU_ENABLED
+    (void)token;
+    return false;
+#else
+    if (token == 0U) return false;
+    if (token != activeConfigContextToken_) return false;
+    if (!ensureConfigMenuReady_()) return false;
+    LOGI("HMI resumed config context token=%lu mode=%s page=%u module='%s'",
+         (unsigned long)token,
+         menu_.isEditing() ? "edit" : "browse",
+         (unsigned)(menu_.pageIndex() + 1U),
+         menu_.currentModule());
+    return true;
+#endif
+}
+
 bool HMIModule::render_()
 {
     if (!driver_) return false;
@@ -1770,10 +1785,12 @@ bool HMIModule::render_()
     {
         if (!ensureConfigMenuReady_()) return false;
         menu_.buildView(view);
+        view.contextRef = cacheCurrentConfigContext_();
     }
 #else
     {
         snprintf(view.breadcrumb, sizeof(view.breadcrumb), "Configuration indisponible");
+        view.contextRef = 0U;
         view.pageIndex = 0;
         view.pageCount = 1;
         view.canHome = false;
@@ -1805,6 +1822,7 @@ bool HMIModule::refreshConfigMenuValues_()
         if (!ensureConfigMenuReady_()) return false;
         ConfigMenuView view{};
         menu_.buildView(view);
+        view.contextRef = cacheCurrentConfigContext_();
         const bool ok = driver_->refreshConfigMenuValues(view);
         if (ok) lastConfigValueRefreshMs_ = millis();
         return ok;
@@ -1839,12 +1857,14 @@ bool HMIModule::buildMenuJson_(char* out, size_t outLen)
     if (!ensureConfigMenuReady_()) return false;
     ConfigMenuView view{};
     menu_.buildView(view);
+    view.contextRef = cacheCurrentConfigContext_();
 
     DynamicJsonDocument doc(2048);
     JsonObject root = doc.to<JsonObject>();
     root["ok"] = true;
     root["driver"] = driver_ ? driver_->driverId() : "";
     root["path"] = view.breadcrumb;
+    root["ctx_ref"] = view.contextRef;
     root["page"] = (uint32_t)view.pageIndex + 1U;
     root["pages"] = (uint32_t)view.pageCount;
     root["rows"] = (uint32_t)view.rowCountOnPage;
@@ -1892,6 +1912,7 @@ void HMIModule::loop()
             resetClockPublishStamps_();
             viewDirty_ = true;
             queueHomePublish_(kHomePublishAll);
+            lastLegacyV2FullRefreshMs_ = millis();
         }
 
         if (!validateDriverDisplayVersion_(false)) {
@@ -1903,6 +1924,7 @@ void HMIModule::loop()
             remoteUdpServer_ && remoteUdpServer_->consumeFullRefreshRequested()) {
             resetClockPublishStamps_();
             queueHomePublish_(kHomePublishAll);
+            lastLegacyV2FullRefreshMs_ = millis();
             viewDirty_ = true;
         }
 
@@ -1915,6 +1937,23 @@ void HMIModule::loop()
     }
 
     const uint32_t now = millis();
+    if (driverReady_ &&
+        driver_ == static_cast<IHmiDriver*>(&nextion_) &&
+        !configMenuActive_ &&
+        (uint32_t)(now - lastDisplayVersionProbeMs_) >= kDisplayVersionProbePeriodMs) {
+        lastDisplayVersionProbeMs_ = now;
+        const bool hadVersion = nextion_.hasDisplayVersion();
+        const uint32_t previousVersion = nextion_.displayVersion();
+        if (nextion_.detectDisplayVersion(0U, true)) {
+            const uint32_t currentVersion = nextion_.displayVersion();
+            if (!hadVersion || currentVersion != previousVersion) {
+                LOGI("Ecran Nextion version relue: %lu -> %lu",
+                     (unsigned long)(hadVersion ? previousVersion : 0U),
+                     (unsigned long)currentVersion);
+            }
+            (void)validateDriverDisplayVersion_(false);
+        }
+    }
     if (cfgData_.ledsEnabled) {
         bool wifiConnected = false;
         bool mqttConnected = false;
@@ -1948,7 +1987,15 @@ void HMIModule::loop()
     }
     serviceRtcBridge_(now);
     queueClockPublishIfDue_(now);
-    flushHomePublish_();
+    if (driverReady_ &&
+        driver_ &&
+        driver_->isLegacyV2() &&
+        !configMenuActive_ &&
+        (uint32_t)(now - lastLegacyV2FullRefreshMs_) >= kLegacyV2FullRefreshPeriodMs) {
+        lastLegacyV2FullRefreshMs_ = now;
+        queueHomePublish_(kHomePublishAll);
+        LOGD("HMI Legacy V2 periodic Home full refresh queued");
+    }
     if (kConfigMenuEnabled && configMenuActive_ && driver_ && viewDirty_) {
         if (render_()) {
             viewDirty_ = false;
@@ -1958,6 +2005,9 @@ void HMIModule::loop()
                driver_ &&
                (uint32_t)(now - lastConfigValueRefreshMs_) >= 5000U) {
         (void)refreshConfigMenuValues_();
+    }
+    if (homePageVisible_) {
+        flushHomePublish_();
     }
 
     if (driver_) driver_->tick(now);
