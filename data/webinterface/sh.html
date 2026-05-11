@@ -44,9 +44,7 @@
           <span class="ui-msr menu-btn-msr" aria-hidden="true">menu</span>
         </button>
         <div class="mobile-title" aria-label="Flow.io">
-          <span class="mobile-wordmark" aria-hidden="true">
-            <span class="brand-flow">Flow</span><span class="brand-io">.io</span>
-          </span>
+          <span id="mobileTopbarTitle" class="mobile-page-title">Tableau de Bord</span>
         </div>
       </div>
       <section id="page-pool-measures" class="page active">
@@ -374,8 +372,8 @@
           </div>
           <div class="topbar-actions control-topbar-actions">
             <button id="flowCfgRefresh" class="btn-tonal btn-icon-only btn-refresh-icon" aria-label="Rafraîchir la configuration" title="Rafraîchir la configuration"><span class="refresh-icon-glyph" aria-hidden="true"></span></button>
-            <button id="flowCfgExport" class="btn-tonal btn-compact"><span class="ui-msr btn-msr" aria-hidden="true">download</span>Exporter ConfigStore</button>
-            <button id="flowCfgImport" class="btn-tonal btn-compact"><span class="ui-msr btn-msr" aria-hidden="true">upload</span>Importer ConfigStore</button>
+            <button id="flowCfgExport" class="btn-tonal btn-compact"><span class="ui-msr btn-msr" aria-hidden="true">download</span>Backup Config</button>
+            <button id="flowCfgImport" class="btn-tonal btn-compact"><span class="ui-msr btn-msr" aria-hidden="true">upload</span>Restore Config</button>
             <input id="flowCfgImportFile" type="file" accept=".json,application/json" hidden />
           </div>
         </div>

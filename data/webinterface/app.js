@@ -6,6 +6,7 @@
     const appMeta = document.querySelector('.app-meta');
     const appRuntimeMeta = document.getElementById('appRuntimeMeta');
     const appHeapSummary = document.getElementById('appHeapSummary');
+    const mobileTopbarTitle = document.getElementById('mobileTopbarTitle');
     const flowWebAssetVersionStorageKey = 'flow_web_asset_version';
     const deferredVisualAssetsStateKey = 'flow_web_deferred_visual_assets';
     const upgradeUiSessionStorageKey = 'flow_upgrade_ui_session';
@@ -737,6 +738,19 @@
       return window.innerWidth <= 900;
     }
 
+    function resolvePageMenuLabel(pageId) {
+      const item = document.querySelector('[data-page="' + pageId + '"]');
+      if (!item) return '';
+      const label = item.querySelector('.label');
+      return String(label && label.textContent ? label.textContent : '').trim();
+    }
+
+    function syncMobileTopbarTitle(pageId) {
+      if (!mobileTopbarTitle) return;
+      const label = resolvePageMenuLabel(pageId) || webProfileName;
+      mobileTopbarTitle.textContent = label;
+    }
+
     function isDrawerExpanded() {
       return isMobileLayout()
         ? drawer.classList.contains('mobile-open')
@@ -838,6 +852,7 @@
       const pageToken = ++pageLoadToken;
       pages.forEach((el) => el.classList.toggle('active', el.id === pageId));
       menuItems.forEach((el) => el.classList.toggle('active', el.dataset.page === pageId));
+      syncMobileTopbarTitle(pageId);
       terminalActive = pageId === 'page-terminal';
       if (terminalActive) {
         connectLogSocket();

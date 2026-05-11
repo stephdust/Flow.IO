@@ -426,6 +426,19 @@
       min-width: 0;
       min-height: 24px;
     }
+    .mobile-page-title {
+      display: inline-flex;
+      align-items: center;
+      min-width: 0;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 700;
+      color: #102B4C;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: min(72vw, 320px);
+    }
     .mobile-wordmark {
       display: inline-flex;
       align-items: baseline;
@@ -491,6 +504,8 @@
       justify-content: center;
     }
     .status-chip {
+      display: inline-flex;
+      align-items: center;
       font-size: 12px; padding: 7px 10px; border-radius: 999px;
       background: #F7FAFC;
       color: #5D7288;
@@ -724,8 +739,8 @@
     }
     .log-source-select {
       width: auto;
-      min-width: 188px;
-      max-width: 240px;
+      min-width: 172px;
+      max-width: 220px;
       height: 30px;
       padding: 0 30px 0 10px;
       border-radius: 999px;
@@ -735,6 +750,22 @@
       font-weight: 600;
       background: #F7FAFC;
       color: #5D7288;
+    }
+    #page-terminal .topbar-actions {
+      align-items: stretch;
+      flex-wrap: nowrap;
+      gap: 6px;
+    }
+    #page-terminal .status-chip,
+    #page-terminal .autoscroll-chip,
+    #page-terminal .log-source-select {
+      height: 30px;
+      min-height: 30px;
+      box-sizing: border-box;
+    }
+    #page-terminal .autoscroll-chip {
+      padding-top: 0;
+      padding-bottom: 0;
     }
     .status-grid {
       margin-top: 10px;
@@ -1571,6 +1602,23 @@
     .refresh-icon-glyph::before {
       content: "↻";
     }
+    body.menu-icons-remote .refresh-icon-glyph {
+      font-family: "Material Symbols Rounded";
+      font-size: 18px;
+      font-weight: normal;
+      font-style: normal;
+      letter-spacing: normal;
+      text-transform: none;
+      white-space: nowrap;
+      direction: ltr;
+      font-feature-settings: "liga";
+      font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    body.menu-icons-remote .refresh-icon-glyph::before {
+      content: "refresh";
+    }
     .btn-compact {
       min-height: 36px;
       padding: 8px 10px;
@@ -2142,6 +2190,7 @@
     }
     .control-topbar-actions {
       flex: 0 1 auto;
+      flex-wrap: nowrap;
     }
     .control-topbar-actions .btn-compact {
       min-height: 30px;
@@ -2149,6 +2198,7 @@
       font-size: 12px;
       font-weight: 600;
       border-radius: 10px;
+      white-space: nowrap;
     }
     .control-topbar-actions button:disabled {
       opacity: 0.62;
@@ -2953,10 +3003,24 @@
       .mobile-topbar .mobile-title {
         font-size: 15px;
       }
+      .mobile-page-title {
+        font-size: 16px;
+        max-width: min(72vw, 300px);
+      }
       .mobile-topbar .menu-btn {
         width: 36px;
         height: 36px;
         border-radius: 10px;
+      }
+      .topbar h1 {
+        display: none;
+      }
+      .topbar {
+        justify-content: flex-end;
+      }
+      .topbar > .topbar-actions {
+        margin-left: auto;
+        justify-content: flex-end;
       }
       .form-grid { grid-template-columns: 1fr; }
       .field-inline-action {
@@ -3029,7 +3093,8 @@
         width: 100%;
       }
       .log-source-select {
-        min-width: 156px;
+        min-width: 142px;
+        max-width: 168px;
       }
       .status-kv div {
         flex-direction: column;
