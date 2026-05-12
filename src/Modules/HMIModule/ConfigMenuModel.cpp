@@ -9,6 +9,7 @@
 #include "Core/SystemLimits.h"
 
 #include <ArduinoJson.h>
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,6 +76,37 @@ static bool parseIntText_(const char* text, bool hexDisplay, int32_t& out)
     const long v = strtol(text, &end, base);
     if (!end || *end != '\0') return false;
     out = (int32_t)v;
+    return true;
+}
+
+static bool parseFloatText_(const char* text, float& out)
+{
+    if (!text) return false;
+
+    char normalized[64]{};
+    const size_t maxCopy = sizeof(normalized) - 1U;
+    size_t len = strnlen(text, maxCopy);
+    memcpy(normalized, text, len);
+    normalized[len] = '\0';
+
+    size_t start = 0U;
+    while (normalized[start] != '\0' && isspace((unsigned char)normalized[start])) ++start;
+
+    while (len > start && isspace((unsigned char)normalized[len - 1U])) {
+        normalized[len - 1U] = '\0';
+        --len;
+    }
+    if (normalized[start] == '\0') return false;
+
+    if (start > 0U) memmove(normalized, normalized + start, strlen(normalized + start) + 1U);
+    for (size_t i = 0U; normalized[i] != '\0'; ++i) {
+        if (normalized[i] == ',') normalized[i] = '.';
+    }
+
+    char* end = nullptr;
+    const float v = strtof(normalized, &end);
+    if (!end || *end != '\0') return false;
+    out = v;
     return true;
 }
 
@@ -658,9 +690,8 @@ bool ConfigMenuModel::setRowValueFromText_(Row& row, const char* value) const
         case ConfigMenuValueType::Int:
             return parseIntText_(value, row.hexDisplay, row.intCur);
         case ConfigMenuValueType::Float: {
-            char* end = nullptr;
-            const float v = strtof(value, &end);
-            if (!end || *end != '\0') return false;
+            float v = 0.0f;
+            if (!parseFloatText_(value, v)) return false;
             row.floatCur = v;
             return true;
         }

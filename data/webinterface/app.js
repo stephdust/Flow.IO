@@ -5794,6 +5794,7 @@
       let hasInvalid = false;
       fields.forEach((el) => {
         if (!el || typeof el !== 'object') return;
+        if (el.dataset.runtimeHidden === '1') return;
         if (!validateConfigFieldValue(el, { silent: true })) {
           hasInvalid = true;
         }
@@ -5911,6 +5912,44 @@
       return !!(meta && meta.apply_per_field === true);
     }
 
+    function isDigitalInputConfigModule(moduleName) {
+      const modulePath = String(moduleName || '').trim().toLowerCase().replace(/\/+$/, '');
+      return /^io\/input\/i\d{2}$/.test(modulePath);
+    }
+
+    function normalizeDigitalInputConfigKey(moduleName, key) {
+      const rawKey = String(key || '').trim().toLowerCase();
+      if (!rawKey) return '';
+      const modulePath = String(moduleName || '').trim().toLowerCase().replace(/\/+$/, '');
+      if (modulePath && rawKey.startsWith(modulePath + '/')) {
+        return rawKey.slice(modulePath.length + 1);
+      }
+      const slashIdx = rawKey.lastIndexOf('/');
+      return slashIdx >= 0 ? rawKey.slice(slashIdx + 1) : rawKey;
+    }
+
+    function parseDigitalInputModeValue(rawValue) {
+      if (typeof rawValue === 'number' && Number.isFinite(rawValue)) return rawValue;
+      const txt = String(rawValue ?? '').trim().toLowerCase();
+      if (!txt) return NaN;
+      if (txt === '0') return 0;
+      if (txt === '1') return 1;
+      if (txt.includes('etat')) return 0;
+      if (txt.includes('compteur')) return 1;
+      return NaN;
+    }
+
+    function isCounterModeOnlyConfigField(moduleName, key, doc) {
+      if (!isDigitalInputConfigModule(moduleName)) return false;
+      const cleanKey = normalizeDigitalInputConfigKey(moduleName, key);
+      if (!cleanKey || cleanKey === 'mode') return false;
+      if (cleanKey === 'counter_total' || cleanKey === 'edge_mode') return true;
+      if (/^i\d{2}_(?:c0|prec)$/.test(cleanKey)) return true;
+      const helpTxt = String((doc && doc.help) || '').toLowerCase();
+      if (!helpTxt) return false;
+      return helpTxt.includes('mode compteur') || helpTxt.includes('compteur d\'impulsion');
+    }
+
     function resetPrimaryCfgEditor(message) {
       flowCfgFields.innerHTML = '';
       flowCfgApplyBtn.hidden = false;
@@ -5998,6 +6037,8 @@
       const perFieldApply = !!opts.perFieldApply;
       const controlsPrimaryPane = !!opts.controlsPrimaryPane;
       const onApplyField = typeof opts.onApplyField === 'function' ? opts.onApplyField : null;
+      let modeFieldInputEl = null;
+      const visibilityEntries = [];
       if (controlsPrimaryPane) {
         flowCfgApplyBtn.hidden = perFieldApply;
       }
@@ -6163,6 +6204,10 @@
           valueWrap.appendChild(input);
         }
 
+        if (normalizeDigitalInputConfigKey(moduleName, key) === 'mode') {
+          modeFieldInputEl = inputEl;
+        }
+
         if (perFieldApply && inputEl) {
           const applyBtn = document.createElement('button');
           applyBtn.type = 'button';
@@ -6194,6 +6239,50 @@
 
         row.appendChild(valueWrap);
         containerEl.appendChild(row);
+        visibilityEntries.push({ row, inputEl, key, doc });
+      }
+
+      if (isDigitalInputConfigModule(moduleName) && visibilityEntries.length > 0) {
+        const readModeValue = () => {
+          if (modeFieldInputEl) {
+            const parsedInputMode = parseDigitalInputModeValue(readConfigFieldValue(modeFieldInputEl));
+            if (Number.isFinite(parsedInputMode)) return parsedInputMode;
+            if (modeFieldInputEl.tagName === 'SELECT' && modeFieldInputEl.selectedIndex >= 0) {
+              const selectedOption = modeFieldInputEl.options[modeFieldInputEl.selectedIndex];
+              const parsedLabelMode = parseDigitalInputModeValue(selectedOption ? selectedOption.textContent : '');
+              if (Number.isFinite(parsedLabelMode)) return parsedLabelMode;
+            }
+          }
+          const directMode = parseDigitalInputModeValue(data.mode);
+          if (Number.isFinite(directMode)) return directMode;
+          const modeCandidateKey = Object.keys(data).find((candidateKey) =>
+            normalizeDigitalInputConfigKey(moduleName, candidateKey) === 'mode'
+          );
+          if (modeCandidateKey) {
+            return parseDigitalInputModeValue(data[modeCandidateKey]);
+          }
+          return NaN;
+        };
+        const applyConditionalVisibility = () => {
+          const modeValue = readModeValue();
+          const hideCounterOnly = Number.isFinite(modeValue) && modeValue === 0;
+          visibilityEntries.forEach((entry) => {
+            const shouldHide = hideCounterOnly && isCounterModeOnlyConfigField(moduleName, entry.key, entry.doc);
+            entry.row.hidden = shouldHide;
+            if (entry.inputEl) {
+              entry.inputEl.dataset.runtimeHidden = shouldHide ? '1' : '0';
+              entry.inputEl.disabled = !!shouldHide;
+            }
+          });
+          if (controlsPrimaryPane && !perFieldApply) {
+            updatePrimaryCfgApplyState();
+          }
+        };
+        applyConditionalVisibility();
+        if (modeFieldInputEl) {
+          modeFieldInputEl.addEventListener('input', applyConditionalVisibility);
+          modeFieldInputEl.addEventListener('change', applyConditionalVisibility);
+        }
       }
 
       if (controlsPrimaryPane && !perFieldApply) {
@@ -6222,6 +6311,7 @@
       const modulePatch = {};
       const fields = fieldsContainer.querySelectorAll('[data-key]');
       fields.forEach((el) => {
+        if (el.dataset.runtimeHidden === '1') return;
         const key = el.dataset.key;
         const kind = el.dataset.kind;
         if (!key || !kind) return;

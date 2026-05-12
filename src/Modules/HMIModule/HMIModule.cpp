@@ -471,6 +471,7 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     lastRtcPushAttemptMs_ = 0;
     lastRtcPushDayStamp_ = kInvalidClockStamp;
     rtcFallbackCompleted_ = false;
+    rtcPushPending_ = false;
     nextionVersionDetected_ = false;
     nextionVersion_ = 0U;
     activeConfigContextToken_ = 0U;
@@ -968,6 +969,8 @@ bool HMIModule::validateDriverDisplayVersion_(bool requireDetection)
         LOGI("Ecran Nextion V2 detecte: rendu Home aligne V1 avec jauges percent.");
     }
     viewDirty_ = true;
+    rtcPushPending_ = true;
+    lastRtcPushAttemptMs_ = 0;
     queueHomePublish_(kHomePublishAll);
     return true;
 }
@@ -1055,7 +1058,9 @@ void HMIModule::serviceRtcBridge_(uint32_t nowMs)
 
         const uint64_t epoch = timeSvc_->epoch(timeSvc_->ctx);
         const uint32_t dayStamp = rtcDayStamp_(epoch);
-        if (dayStamp == kInvalidClockStamp || dayStamp == lastRtcPushDayStamp_) return;
+        if (dayStamp == kInvalidClockStamp) return;
+        const bool dayChanged = dayStamp != lastRtcPushDayStamp_;
+        if (!rtcPushPending_ && !dayChanged) return;
         if (lastRtcPushAttemptMs_ != 0U &&
             (uint32_t)(nowMs - lastRtcPushAttemptMs_) < kRtcPushRetryMs) {
             return;
@@ -1064,6 +1069,7 @@ void HMIModule::serviceRtcBridge_(uint32_t nowMs)
         lastRtcPushAttemptMs_ = nowMs;
         if (pushEspTimeToNextionRtc_()) {
             lastRtcPushDayStamp_ = dayStamp;
+            rtcPushPending_ = false;
         }
         return;
     }
@@ -1335,6 +1341,8 @@ void HMIModule::onEvent_(const Event& e)
             homePublishMask |= kHomePublishStateBits;
         } else if (p->id == DATAKEY_TIME_READY) {
             homePublishMask |= kHomePublishTime | kHomePublishDate;
+            rtcPushPending_ = true;
+            lastRtcPushAttemptMs_ = 0;
         } else if (poolLevelRuntimeIndex_ != kInvalidRuntimeIndex &&
                    p->id == (DataKey)(DATAKEY_IO_BASE + poolLevelRuntimeIndex_)) {
             ledDirty = true;
@@ -1523,6 +1531,23 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
             break;
         case HmiEventType::RowSetText:
             changed = menu_.setText(e.row, e.text);
+            if (!changed) {
+                ConfigMenuView view{};
+                menu_.buildView(view);
+                if (e.row < ConfigMenuModel::RowsPerPage && view.rows[e.row].visible) {
+                    const ConfigMenuRowView& rv = view.rows[e.row];
+                    LOGW("Config RowSetText rejected row=%u key=%s editType=%u value='%s' text='%s'",
+                         (unsigned)e.row,
+                         rv.key,
+                         (unsigned)rv.editType,
+                         rv.value,
+                         e.text);
+                } else {
+                    LOGW("Config RowSetText rejected row=%u text='%s' (row not visible)",
+                         (unsigned)e.row,
+                         e.text);
+                }
+            }
             break;
         case HmiEventType::RowSetSlider:
             changed = menu_.setSlider(e.row, e.sliderValue);
@@ -1913,6 +1938,8 @@ void HMIModule::loop()
             viewDirty_ = true;
             queueHomePublish_(kHomePublishAll);
             lastLegacyV2FullRefreshMs_ = millis();
+            rtcPushPending_ = true;
+            lastRtcPushAttemptMs_ = 0;
         }
 
         if (!validateDriverDisplayVersion_(false)) {
@@ -1925,6 +1952,8 @@ void HMIModule::loop()
             resetClockPublishStamps_();
             queueHomePublish_(kHomePublishAll);
             lastLegacyV2FullRefreshMs_ = millis();
+            rtcPushPending_ = true;
+            lastRtcPushAttemptMs_ = 0;
             viewDirty_ = true;
         }
 

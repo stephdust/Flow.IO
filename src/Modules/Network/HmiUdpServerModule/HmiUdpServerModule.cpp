@@ -21,7 +21,7 @@ bool HmiUdpServerModule::begin()
         return false;
     }
     started_ = true;
-    LOGI("HMI UDP server listening port=%u", (unsigned)HMI_UDP_PORT);
+    LOGD("HMI UDP server listening port=%u", (unsigned)HMI_UDP_PORT);
     return true;
 }
 
@@ -77,7 +77,7 @@ bool HmiUdpServerModule::sendHomeStateBits(uint32_t stateBits)
     payload.stateBits = stateBits;
     const bool ok = sendPacket_(HmiUdpMsgType::HomeStateBits, &payload, sizeof(payload), HMI_UDP_FLAG_ACK_REQUIRED);
     if (ok) {
-        LOGI("HMI UDP send HomeStateBits stateBits=0x%08lX", (unsigned long)stateBits);
+        LOGD("HMI UDP send HomeStateBits stateBits=0x%08lX", (unsigned long)stateBits);
     }
     return ok;
 }
@@ -298,7 +298,7 @@ void HmiUdpServerModule::serviceReliableTx_(uint32_t nowMs)
     if (written == reliablePendingLen_ && udp_.endPacket() == 1) {
         ++reliableAttempts_;
         reliableLastSendMs_ = nowMs;
-        LOGI("HMI UDP reliable TX type=%u seq=%u attempt=%u len=%u",
+        LOGD("HMI UDP reliable TX type=%u seq=%u attempt=%u len=%u",
              (unsigned)reliablePendingType_,
              (unsigned)reliablePendingSeq_,
              (unsigned)reliableAttempts_,
@@ -327,7 +327,7 @@ void HmiUdpServerModule::markDisplayOffline_(const char* reason, bool clearPendi
     displayVersion_ = 0U;
     clearReliableQueue_(clearPending);
     if (wasOnline) {
-        LOGW("HMI UDP display offline reason=%s", reason && reason[0] ? reason : "unknown");
+        LOGI("HMI UDP display offline reason=%s", reason && reason[0] ? reason : "unknown");
     }
 }
 
@@ -387,7 +387,7 @@ void HmiUdpServerModule::handlePacket_(const HmiUdpHeader& header, const uint8_t
     const HmiUdpMsgType type = (HmiUdpMsgType)header.type;
     if ((header.flags & HMI_UDP_FLAG_IS_ACK) != 0U || type == HmiUdpMsgType::Ack) {
         if (reliablePendingLen_ > 0 && header.ack == reliablePendingSeq_) {
-            LOGI("HMI UDP reliable ACK type=%u seq=%u attempts=%u",
+            LOGD("HMI UDP reliable ACK type=%u seq=%u attempts=%u",
                  (unsigned)reliablePendingType_,
                  (unsigned)reliablePendingSeq_,
                  (unsigned)reliableAttempts_);
@@ -424,6 +424,7 @@ void HmiUdpServerModule::handlePacket_(const HmiUdpHeader& header, const uint8_t
             const bool wasOnline = displayOnline_;
             const bool previousVersionDetected = displayVersionDetected_;
             const uint32_t previousVersion = displayVersion_;
+            const bool freshDisplaySession = wasOnline && header.ack == 0U;
             displayVersionDetected_ = haveDisplayVersion;
             displayVersion_ = haveDisplayVersion ? hello->nextionVersion : 0U;
             const bool versionChanged = previousVersionDetected != displayVersionDetected_ ||
@@ -443,8 +444,11 @@ void HmiUdpServerModule::handlePacket_(const HmiUdpHeader& header, const uint8_t
                 }
             }
             displayOnline_ = true;
-            if (!wasOnline || versionChanged) {
+            if (!wasOnline || versionChanged || freshDisplaySession) {
                 fullRefreshRequested_ = true;
+                if (freshDisplaySession) {
+                    LOGI("HMI UDP Flow Connect Display fresh session detected");
+                }
             }
             (void)sendPacket_(HmiUdpMsgType::Welcome, &welcome, sizeof(welcome));
             break;
@@ -454,12 +458,12 @@ void HmiUdpServerModule::handlePacket_(const HmiUdpHeader& header, const uint8_t
             break;
         case HmiUdpMsgType::FullRefresh:
             fullRefreshRequested_ = true;
-            LOGI("HMI UDP full refresh requested by Flow Connect Display seq=%u", (unsigned)header.seq);
+            LOGD("HMI UDP full refresh requested by Flow Connect Display seq=%u", (unsigned)header.seq);
             break;
         case HmiUdpMsgType::HmiEvent: {
             if (header.len != sizeof(HmiUdpEventPayload) || !payload) return;
             if (hasLastEventSeq_ && header.seq == lastEventSeq_) {
-                LOGI("HMI UDP duplicate event ignored seq=%u", (unsigned)header.seq);
+                LOGD("HMI UDP duplicate event ignored seq=%u", (unsigned)header.seq);
                 return;
             }
             HmiEvent event{};
@@ -467,7 +471,7 @@ void HmiUdpServerModule::handlePacket_(const HmiUdpHeader& header, const uint8_t
             if (pushEvent_(event)) {
                 lastEventSeq_ = header.seq;
                 hasLastEventSeq_ = true;
-                LOGI("HMI UDP event queued seq=%u type=%u command=%u value=%u row=%u",
+                LOGD("HMI UDP event queued seq=%u type=%u command=%u value=%u row=%u",
                      (unsigned)header.seq,
                      (unsigned)event.type,
                      (unsigned)event.command,
@@ -485,7 +489,7 @@ void HmiUdpServerModule::handlePacket_(const HmiUdpHeader& header, const uint8_t
             if (header.len != sizeof(HmiUdpRtcPayload) || !payload) return;
             hmiUdpPayloadToRtc(*reinterpret_cast<const HmiUdpRtcPayload*>(payload), rtcResponse_);
             rtcResponseReady_ = true;
-            LOGI("HMI UDP RTC response %u-%02u-%02u %02u:%02u:%02u",
+            LOGD("HMI UDP RTC response %u-%02u-%02u %02u:%02u:%02u",
                  (unsigned)rtcResponse_.year,
                  (unsigned)rtcResponse_.month,
                  (unsigned)rtcResponse_.day,
