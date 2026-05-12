@@ -49,6 +49,10 @@ public:
     uint32_t displayVersion() const override { return displayVersion_; }
     bool isLegacyV2() const override { return versionDetected_ && displayVersion_ == 2U; }
     bool detectDisplayVersion(uint16_t timeoutMs = 0U, bool force = false);
+    bool configureSleep(uint16_t noTouchSeconds, bool wakeOnTouch, bool wakeOnSerial);
+    bool refreshSleepState(uint16_t timeoutMs = 0U);
+    bool isSleeping() const { return sleeping_; }
+    bool wakeFromSleep();
     bool requestPageReport();
     bool currentPage(uint8_t& out) const;
     bool isHomePage() const;
@@ -72,6 +76,7 @@ private:
     bool versionDetected_ = false;
     uint32_t displayVersion_ = 0U;
     uint32_t lastRenderMs_ = 0;
+    bool sleeping_ = false;
 
     bool customFrameActive_ = false;
     uint8_t customExpectedLen_ = 0;

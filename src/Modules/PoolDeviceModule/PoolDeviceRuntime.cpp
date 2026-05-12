@@ -8,6 +8,7 @@
 #include "Core/ErrorCodes.h"
 #include "Core/SystemLimits.h"
 #include "Domain/Pool/PoolBindings.h"
+#include "Domain/Pool/PoolDeviceSlots.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
 #include "Core/ModuleLog.h"
 #include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
@@ -50,8 +51,8 @@ bool PoolDeviceModule::defineDevice(const PoolDeviceDefinition& def)
     }
 
     s.used = true;
+    s.id = PoolDeviceSlots::kSlots[def.slot].id;
     s.def = def;
-    snprintf(s.id, sizeof(s.id), "pd%u", (unsigned)def.slot);
 
     if (s.def.label[0] == '\0') {
         strncpy(s.def.label, s.id, sizeof(s.def.label) - 1);
@@ -388,7 +389,7 @@ MqttBuildResult PoolDeviceModule::buildCfgBasePdm_(MqttBuildContext& buildCtx)
 
         char moduleJson[640] = {0};
         bool truncatedModule = false;
-        const bool hasAny = cfgStore_->toJsonModule(cfgModuleName_[i],
+        const bool hasAny = cfgStore_->toJsonModule(PoolDeviceSlots::kSlots[i].configModuleName,
                                                     moduleJson,
                                                     sizeof(moduleJson),
                                                     &truncatedModule);
@@ -469,7 +470,7 @@ MqttBuildResult PoolDeviceModule::buildCfgBasePdmrt_(MqttBuildContext& buildCtx)
 
         char moduleJson[640] = {0};
         bool truncatedModule = false;
-        const bool hasAny = cfgStore_->toJsonModule(cfgRuntimeModuleName_[i],
+        const bool hasAny = cfgStore_->toJsonModule(PoolDeviceSlots::kSlots[i].runtimeModuleName,
                                                     moduleJson,
                                                     sizeof(moduleJson),
                                                     &truncatedModule);

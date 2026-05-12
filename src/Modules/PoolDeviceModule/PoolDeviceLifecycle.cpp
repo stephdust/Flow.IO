@@ -6,8 +6,8 @@
 #include "PoolDeviceModule.h"
 #include "Core/BufferUsageTracker.h"
 #include "Core/MqttTopics.h"
-#include "Core/NvsKeys.h"
 #include "Domain/Pool/PoolBindings.h"
+#include "Domain/Pool/PoolDeviceSlots.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::PoolDeviceModule)
 #include "Core/ModuleLog.h"
 #include <new>
@@ -98,7 +98,6 @@ void PoolDeviceModule::onEvent_(const Event& e)
 void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
     constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::PoolDevice;
-    const uint8_t cfgRouteCap = (uint8_t)(2U + POOL_DEVICE_MAX * 2U);
     cfgStore_ = &cfg;
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);
     mqttSvc_ = services.get<MqttService>(ServiceId::Mqtt);
@@ -123,31 +122,6 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         eventBus_->subscribe(EventId::ConfigChanged, &PoolDeviceModule::onEventStatic_, this);
     }
 
-    if (!cfgRoutes_) {
-        cfgRoutes_ = new (std::nothrow) MqttConfigRouteProducer::Route[cfgRouteCap];
-    }
-    cfgRouteCount_ = 0;
-    if (cfgRoutes_ && cfgRouteCount_ < cfgRouteCap) {
-        MqttConfigRouteProducer::Route& cfgBaseRoute = cfgRoutes_[cfgRouteCount_++];
-        cfgBaseRoute = MqttConfigRouteProducer::Route{};
-        cfgBaseRoute.messageId = kCfgMsgBasePdm;
-        cfgBaseRoute.branch = {(uint8_t)ConfigModuleId::PoolDevice, ConfigBranchRef::UnknownLocalBranch};
-        cfgBaseRoute.topicSuffix = "";
-        cfgBaseRoute.changePriority = (uint8_t)MqttPublishPriority::Low;
-        cfgBaseRoute.customBuild = &PoolDeviceModule::buildCfgBasePdmStatic_;
-        cfgBaseRoute.topicBase = kPoolDeviceCfgTopicBase;
-    }
-    if (cfgRoutes_ && cfgRouteCount_ < cfgRouteCap) {
-        MqttConfigRouteProducer::Route& cfgRuntimeBaseRoute = cfgRoutes_[cfgRouteCount_++];
-        cfgRuntimeBaseRoute = MqttConfigRouteProducer::Route{};
-        cfgRuntimeBaseRoute.messageId = kCfgMsgBasePdmrt;
-        cfgRuntimeBaseRoute.branch = {(uint8_t)ConfigModuleId::PoolDevice, ConfigBranchRef::UnknownLocalBranch};
-        cfgRuntimeBaseRoute.topicSuffix = "";
-        cfgRuntimeBaseRoute.changePriority = (uint8_t)MqttPublishPriority::Low;
-        cfgRuntimeBaseRoute.customBuild = &PoolDeviceModule::buildCfgBasePdmrtStatic_;
-        cfgRuntimeBaseRoute.topicBase = kPoolDeviceCfgRuntimeTopicBase;
-    }
-
     // Each slot owns one config branch and one runtime-persist branch.
     for (uint8_t i = 0; i < POOL_DEVICE_MAX; ++i) {
         PoolDeviceSlot& s = slots_[i];
@@ -155,94 +129,65 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         const uint8_t localBranchId = poolDeviceCfgBranchFromSlot_(i);
         const uint8_t runtimeBranchId = poolDeviceCfgRuntimeBranchFromSlot_(i);
 
-        snprintf(cfgModuleName_[i], sizeof(cfgModuleName_[i]), "pdm/pd%u", (unsigned)i);
-        snprintf(nvsEnabledKey_[i], sizeof(nvsEnabledKey_[i]), NvsKeys::PoolDevice::EnabledFmt, (unsigned)i);
-        snprintf(nvsDependsKey_[i], sizeof(nvsDependsKey_[i]), NvsKeys::PoolDevice::DependsFmt, (unsigned)i);
-        snprintf(nvsFlowKey_[i], sizeof(nvsFlowKey_[i]), NvsKeys::PoolDevice::FlowFmt, (unsigned)i);
-        snprintf(nvsTankCapKey_[i], sizeof(nvsTankCapKey_[i]), NvsKeys::PoolDevice::TankCapFmt, (unsigned)i);
-        snprintf(nvsTankInitKey_[i], sizeof(nvsTankInitKey_[i]), NvsKeys::PoolDevice::TankInitFmt, (unsigned)i);
-        snprintf(nvsMaxUptimeKey_[i], sizeof(nvsMaxUptimeKey_[i]), NvsKeys::PoolDevice::MaxUptimeFmt, (unsigned)i);
-        snprintf(nvsRuntimeKey_[i], sizeof(nvsRuntimeKey_[i]), NvsKeys::PoolDevice::RuntimeFmt, (unsigned)i);
-        snprintf(cfgRuntimeModuleName_[i], sizeof(cfgRuntimeModuleName_[i]), "pdmrt/pd%u", (unsigned)i);
+        const PoolDeviceSlotDescriptor& slot = PoolDeviceSlots::kSlots[i];
 
-        if (cfgRoutes_ && cfgRouteCount_ < cfgRouteCap) {
-            MqttConfigRouteProducer::Route& cfgRoute = cfgRoutes_[cfgRouteCount_++];
-            cfgRoute = MqttConfigRouteProducer::Route{};
-            cfgRoute.messageId = (uint16_t)(kCfgMsgPdmSlotBase + i);
-            cfgRoute.branch = {(uint8_t)ConfigModuleId::PoolDevice, localBranchId};
-            cfgRoute.moduleName = cfgModuleName_[i];
-            cfgRoute.topicSuffix = s.id;
-            cfgRoute.topicBase = kPoolDeviceCfgTopicBase;
-            cfgRoute.changePriority = (uint8_t)MqttPublishPriority::Normal;
-        }
-        if (cfgRoutes_ && cfgRouteCount_ < cfgRouteCap) {
-            MqttConfigRouteProducer::Route& cfgRuntimeRoute = cfgRoutes_[cfgRouteCount_++];
-            cfgRuntimeRoute = MqttConfigRouteProducer::Route{};
-            cfgRuntimeRoute.messageId = (uint16_t)(kCfgMsgPdmrtSlotBase + i);
-            cfgRuntimeRoute.branch = {(uint8_t)ConfigModuleId::PoolDevice, runtimeBranchId};
-            cfgRuntimeRoute.moduleName = cfgRuntimeModuleName_[i];
-            cfgRuntimeRoute.topicSuffix = s.id;
-            cfgRuntimeRoute.topicBase = kPoolDeviceCfgRuntimeTopicBase;
-            cfgRuntimeRoute.changePriority = (uint8_t)MqttPublishPriority::Normal;
-        }
-
-        cfgEnabledVar_[i].nvsKey = nvsEnabledKey_[i];
+        cfgEnabledVar_[i].nvsKey = slot.enabledKey;
         cfgEnabledVar_[i].jsonName = "enabled";
-        cfgEnabledVar_[i].moduleName = cfgModuleName_[i];
+        cfgEnabledVar_[i].moduleName = slot.configModuleName;
         cfgEnabledVar_[i].type = ConfigType::Bool;
         cfgEnabledVar_[i].value = &s.def.enabled;
         cfgEnabledVar_[i].persistence = ConfigPersistence::Persistent;
         cfgEnabledVar_[i].size = 0;
         cfg.registerVar(cfgEnabledVar_[i], kCfgModuleId, localBranchId);
 
-        cfgDependsVar_[i].nvsKey = nvsDependsKey_[i];
+        cfgDependsVar_[i].nvsKey = slot.dependsKey;
         cfgDependsVar_[i].jsonName = "depends_on_mask";
-        cfgDependsVar_[i].moduleName = cfgModuleName_[i];
+        cfgDependsVar_[i].moduleName = slot.configModuleName;
         cfgDependsVar_[i].type = ConfigType::UInt8;
         cfgDependsVar_[i].value = &s.def.dependsOnMask;
         cfgDependsVar_[i].persistence = ConfigPersistence::Persistent;
         cfgDependsVar_[i].size = 0;
         cfg.registerVar(cfgDependsVar_[i], kCfgModuleId, localBranchId);
 
-        cfgFlowVar_[i].nvsKey = nvsFlowKey_[i];
+        cfgFlowVar_[i].nvsKey = slot.flowKey;
         cfgFlowVar_[i].jsonName = "flow_l_h";
-        cfgFlowVar_[i].moduleName = cfgModuleName_[i];
+        cfgFlowVar_[i].moduleName = slot.configModuleName;
         cfgFlowVar_[i].type = ConfigType::Float;
         cfgFlowVar_[i].value = &s.def.flowLPerHour;
         cfgFlowVar_[i].persistence = ConfigPersistence::Persistent;
         cfgFlowVar_[i].size = 0;
         cfg.registerVar(cfgFlowVar_[i], kCfgModuleId, localBranchId);
 
-        cfgTankCapVar_[i].nvsKey = nvsTankCapKey_[i];
+        cfgTankCapVar_[i].nvsKey = slot.tankCapKey;
         cfgTankCapVar_[i].jsonName = "tank_cap_ml";
-        cfgTankCapVar_[i].moduleName = cfgModuleName_[i];
+        cfgTankCapVar_[i].moduleName = slot.configModuleName;
         cfgTankCapVar_[i].type = ConfigType::Float;
         cfgTankCapVar_[i].value = &s.def.tankCapacityMl;
         cfgTankCapVar_[i].persistence = ConfigPersistence::Persistent;
         cfgTankCapVar_[i].size = 0;
         cfg.registerVar(cfgTankCapVar_[i], kCfgModuleId, localBranchId);
 
-        cfgTankInitVar_[i].nvsKey = nvsTankInitKey_[i];
+        cfgTankInitVar_[i].nvsKey = slot.tankInitKey;
         cfgTankInitVar_[i].jsonName = "tank_init_ml";
-        cfgTankInitVar_[i].moduleName = cfgModuleName_[i];
+        cfgTankInitVar_[i].moduleName = slot.configModuleName;
         cfgTankInitVar_[i].type = ConfigType::Float;
         cfgTankInitVar_[i].value = &s.def.tankInitialMl;
         cfgTankInitVar_[i].persistence = ConfigPersistence::Persistent;
         cfgTankInitVar_[i].size = 0;
         cfg.registerVar(cfgTankInitVar_[i], kCfgModuleId, localBranchId);
 
-        cfgMaxUptimeVar_[i].nvsKey = nvsMaxUptimeKey_[i];
+        cfgMaxUptimeVar_[i].nvsKey = slot.maxUptimeKey;
         cfgMaxUptimeVar_[i].jsonName = "max_uptime_day_s";
-        cfgMaxUptimeVar_[i].moduleName = cfgModuleName_[i];
+        cfgMaxUptimeVar_[i].moduleName = slot.configModuleName;
         cfgMaxUptimeVar_[i].type = ConfigType::Int32;
         cfgMaxUptimeVar_[i].value = &s.def.maxUptimeDaySec;
         cfgMaxUptimeVar_[i].persistence = ConfigPersistence::Persistent;
         cfgMaxUptimeVar_[i].size = 0;
         cfg.registerVar(cfgMaxUptimeVar_[i], kCfgModuleId, localBranchId);
 
-        cfgRuntimeVar_[i].nvsKey = nvsRuntimeKey_[i];
+        cfgRuntimeVar_[i].nvsKey = slot.runtimeKey;
         cfgRuntimeVar_[i].jsonName = "metrics_blob";
-        cfgRuntimeVar_[i].moduleName = cfgRuntimeModuleName_[i];
+        cfgRuntimeVar_[i].moduleName = slot.runtimeModuleName;
         cfgRuntimeVar_[i].type = ConfigType::CharArray;
         cfgRuntimeVar_[i].value = runtimePersistBuf_[i];
         cfgRuntimeVar_[i].persistence = ConfigPersistence::Persistent;
@@ -498,15 +443,58 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
 void PoolDeviceModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
 {
+    static constexpr MqttConfigRouteProducer::Route kPoolDeviceCfgRoutes[] = {
+        {kCfgMsgBasePdm,
+         {(uint8_t)ConfigModuleId::PoolDevice, ConfigBranchRef::UnknownLocalBranch},
+         nullptr,
+         "",
+         (uint8_t)MqttPublishPriority::Low,
+         &PoolDeviceModule::buildCfgBasePdmStatic_,
+         kPoolDeviceCfgTopicBase},
+        {kCfgMsgBasePdmrt,
+         {(uint8_t)ConfigModuleId::PoolDevice, ConfigBranchRef::UnknownLocalBranch},
+         nullptr,
+         "",
+         (uint8_t)MqttPublishPriority::Low,
+         &PoolDeviceModule::buildCfgBasePdmrtStatic_,
+         kPoolDeviceCfgRuntimeTopicBase},
+#define FLOW_POOLDEVICE_CFG_ROUTES(SLOT) \
+        {(uint16_t)(kCfgMsgPdmSlotBase + (SLOT)), \
+         {(uint8_t)ConfigModuleId::PoolDevice, poolDeviceCfgBranchFromSlot_(SLOT)}, \
+         PoolDeviceSlots::kSlots[SLOT].configModuleName, \
+         PoolDeviceSlots::kSlots[SLOT].id, \
+         (uint8_t)MqttPublishPriority::Normal, \
+         nullptr, \
+         kPoolDeviceCfgTopicBase}, \
+        {(uint16_t)(kCfgMsgPdmrtSlotBase + (SLOT)), \
+         {(uint8_t)ConfigModuleId::PoolDevice, poolDeviceCfgRuntimeBranchFromSlot_(SLOT)}, \
+         PoolDeviceSlots::kSlots[SLOT].runtimeModuleName, \
+         PoolDeviceSlots::kSlots[SLOT].id, \
+         (uint8_t)MqttPublishPriority::Normal, \
+         nullptr, \
+         kPoolDeviceCfgRuntimeTopicBase}
+        FLOW_POOLDEVICE_CFG_ROUTES(0),
+        FLOW_POOLDEVICE_CFG_ROUTES(1),
+        FLOW_POOLDEVICE_CFG_ROUTES(2),
+        FLOW_POOLDEVICE_CFG_ROUTES(3),
+        FLOW_POOLDEVICE_CFG_ROUTES(4),
+        FLOW_POOLDEVICE_CFG_ROUTES(5),
+        FLOW_POOLDEVICE_CFG_ROUTES(6),
+        FLOW_POOLDEVICE_CFG_ROUTES(7),
+#undef FLOW_POOLDEVICE_CFG_ROUTES
+    };
+    static_assert((sizeof(kPoolDeviceCfgRoutes) / sizeof(kPoolDeviceCfgRoutes[0])) <= MqttConfigRouteProducer::MaxRoutes,
+                  "PoolDevice MQTT config route table exceeds producer capacity");
+
     mqttSvc_ = services.get<MqttService>(ServiceId::Mqtt);
     if (!cfgMqttPub_) {
         cfgMqttPub_ = new (std::nothrow) MqttConfigRouteProducer();
     }
-    if (cfgMqttPub_ && cfgRoutes_ && cfgRouteCount_ > 0U) {
+    if (cfgMqttPub_) {
         cfgMqttPub_->configure(this,
                                kPoolDeviceCfgProducerId,
-                               cfgRoutes_,
-                               cfgRouteCount_,
+                               kPoolDeviceCfgRoutes,
+                               (uint8_t)(sizeof(kPoolDeviceCfgRoutes) / sizeof(kPoolDeviceCfgRoutes[0])),
                                services);
     }
 

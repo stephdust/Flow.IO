@@ -1,9 +1,9 @@
 {
   "_meta": {
     "generated": true,
-    "total": 397,
-    "decl_total": 231,
-    "decl_with_cfgdoc": 125,
+    "total": 398,
+    "decl_total": 232,
+    "decl_with_cfgdoc": 126,
     "missing_cfgdoc_count": 106,
     "manual_overrides_total": 23,
     "manual_overrides_applied": 5
@@ -910,6 +910,15 @@
       "label": "Hôte serveur MAJ",
       "help": "Adresse du serveur HTTP hébergeant les firmwares.",
       "var": "updateHostVar_",
+      "source": "cfgdoc"
+    },
+    "fwupdate/update_path": {
+      "module": "fwupdate",
+      "name": "update_path",
+      "type": "CharArray",
+      "label": "Répertoire MAJ",
+      "help": "Chemin de base des mises à jour sur le serveur HTTP, concaténé avec les chemins des images.",
+      "var": "updatePathVar_",
       "source": "cfgdoc"
     },
     "ha/device_id": {

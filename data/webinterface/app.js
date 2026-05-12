@@ -309,15 +309,6 @@
       if (!document.body) return;
       setBrandWordmark(isMicronovaProfile() ? 'Pellet' : 'Flow');
       if (!isMicronovaProfile()) return;
-      setLabelForInput('supervisorPath', 'Chemin image Micronova');
-      setLabelForInput('spiffsPath', 'Chemin image assets Micronova (spiffs)');
-      if (supervisorPath) supervisorPath.placeholder = '/build/Micronova/firmware.bin';
-      if (spiffsPath) spiffsPath.placeholder = '/build/Micronova/spiffs.bin';
-      if (applySupervisorPathBtn) {
-        applySupervisorPathBtn.setAttribute('aria-label', 'Appliquer le chemin Micronova');
-      }
-      hideFieldForInput('flowPath', true);
-      hideFieldForInput('nextionPath', true);
       setPageMenuVisible('page-calibration', false);
       setSystemActionVisible('rebootFlow', false);
       setSystemActionVisible('rebootFlowHardware', false);
@@ -953,19 +944,11 @@
     const lineDefaultPlaceholder = line ? line.placeholder : '';
 
     const updateHost = document.getElementById('updateHost');
-    const flowPath = document.getElementById('flowPath');
-    const nextionPath = document.getElementById('nextionPath');
-    const supervisorPath = document.getElementById('supervisorPath');
-    const spiffsPath = document.getElementById('spiffsPath');
+    const updatePath = document.getElementById('updatePath');
     const applyUpdateHostBtn = document.getElementById('applyUpdateHost');
-    const applyFlowPathBtn = document.getElementById('applyFlowPath');
-    const applyNextionPathBtn = document.getElementById('applyNextionPath');
-    const applySupervisorPathBtn = document.getElementById('applySupervisorPath');
-    const applySpiffsPathBtn = document.getElementById('applySpiffsPath');
-    const upSupervisorBtn = document.getElementById('upSupervisor');
-    const upFlowBtn = document.getElementById('upFlow');
-    const upNextionBtn = document.getElementById('upNextion');
-    const upSpiffsBtn = document.getElementById('upSpiffs');
+    const applyUpdatePathBtn = document.getElementById('applyUpdatePath');
+    const checkUpdatesBtn = document.getElementById('checkUpdates');
+    const upgradeCards = document.getElementById('upgradeCards');
     const upgradeProgressBar = document.getElementById('upgradeProgressBar');
     const upgradePct = document.getElementById('upgradePct');
     const upgradeJourneyLabel = document.getElementById('upgradeJourneyLabel');
@@ -1054,6 +1037,7 @@
     let calibrationLoadedOnce = false;
     let calibrationContext = null;
     let calibrationComputed = null;
+    let upgradeManifestState = { manifest: null, manifestUrl: '', baseUrl: '' };
     let cfgTreeAliases = [];
     let cfgTreeVirtualBranches = [];
     let supCfgCurrentModule = '';
@@ -1148,11 +1132,15 @@
     const upgradeReconnectFetchTimeoutMs = 1400;
     const upgradeConfigFieldDefs = [
       { key: 'update_host', input: updateHost, button: applyUpdateHostBtn, successMessage: 'Serveur HTTP enregistré.' },
-      { key: 'flowio_path', input: flowPath, button: applyFlowPathBtn, successMessage: 'Chemin Flow.io enregistré.' },
-      { key: 'nextion_path', input: nextionPath, button: applyNextionPathBtn, successMessage: 'Chemin Nextion enregistré.' },
-      { key: 'supervisor_path', input: supervisorPath, button: applySupervisorPathBtn, successMessage: 'Chemin Supervisor enregistré.' },
-      { key: 'spiffs_path', input: spiffsPath, button: applySpiffsPathBtn, successMessage: 'Chemin SPIFFS enregistré.' }
+      { key: 'update_path', input: updatePath, button: applyUpdatePathBtn, successMessage: 'Chemin des mises à jour enregistré.' }
     ];
+    const upgradeTargetDefs = {
+      flowio: { manifestKey: 'flowio', target: 'flowio', endpoint: '/fwupdate/flowio', label: 'Flow.io', order: 10 },
+      supervisor: { manifestKey: 'supervisor', target: 'supervisor', endpoint: '/fwupdate/supervisor', label: 'Supervisor', order: 20 },
+      nextion: { manifestKey: 'nextion', target: 'nextion', endpoint: '/fwupdate/nextion', label: 'Nextion 800x480', order: 30 },
+      spiffs: { manifestKey: 'spiffs', target: 'spiffs', endpoint: '/fwupdate/spiffs', label: 'Assets Supervisor', order: 40 },
+      cfgdocs: { manifestKey: 'cfgdocs', target: 'spiffs', endpoint: '/fwupdate/spiffs', label: 'Assets Supervisor', order: 41 }
+    };
 
     const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
     let logSource = 'flow';
@@ -1822,10 +1810,8 @@
       try {
         const data = await fetchOkJson('/api/fwupdate/config', { cache: 'no-store' }, 'configuration firmware indisponible');
         updateHost.value = data.update_host || '';
-        flowPath.value = data.flowio_path || '';
-        supervisorPath.value = data.supervisor_path || '';
-        nextionPath.value = data.nextion_path || '';
-        spiffsPath.value = data.spiffs_path || data.cfgdocs_path || '';
+        updatePath.value = data.update_path || '';
+        resetUpgradeManifestSelections('Vérification requise');
         syncUpgradeConfigFieldInitialValues();
       } catch (err) {
         setUpgradeMessage('Échec du chargement de la configuration : ' + err);
@@ -1835,11 +1821,264 @@
     function buildUpgradeConfigPayload() {
       return {
         update_host: updateHost.value.trim(),
-        flowio_path: flowPath.value.trim(),
-        supervisor_path: supervisorPath.value.trim(),
-        nextion_path: nextionPath.value.trim(),
-        spiffs_path: spiffsPath.value.trim()
+        update_path: updatePath.value.trim()
       };
+    }
+
+    function normalizeFirmwareVersionForCompare(value) {
+      return String(value || '').trim().split('+')[0].replace(/^v/i, '');
+    }
+
+    function compareFirmwareVersions(a, b) {
+      const left = normalizeFirmwareVersionForCompare(a).split(/[.-]/).map((part) => Number.parseInt(part, 10));
+      const right = normalizeFirmwareVersionForCompare(b).split(/[.-]/).map((part) => Number.parseInt(part, 10));
+      const len = Math.max(left.length, right.length);
+      for (let i = 0; i < len; ++i) {
+        const av = Number.isFinite(left[i]) ? left[i] : 0;
+        const bv = Number.isFinite(right[i]) ? right[i] : 0;
+        if (av > bv) return 1;
+        if (av < bv) return -1;
+      }
+      return 0;
+    }
+
+    function manifestArtifactList(manifest, key) {
+      if (!manifest || typeof manifest !== 'object') return [];
+      const artifacts = (manifest.artifacts && typeof manifest.artifacts === 'object') ? manifest.artifacts : manifest;
+      const artifact = artifacts[key];
+      if (Array.isArray(artifact)) {
+        return artifact.filter((entry) => entry && typeof entry === 'object');
+      }
+      if (artifact && typeof artifact === 'object' && Array.isArray(artifact.versions)) {
+        return artifact.versions
+          .filter((entry) => entry && typeof entry === 'object')
+          .map((entry) => Object.assign({}, artifact, entry, { versions: undefined }));
+      }
+      if (artifact && typeof artifact === 'object' && (artifact.version || artifact.path || artifact.url)) {
+        return [artifact];
+      }
+      if (artifact && typeof artifact === 'object') {
+        return Object.keys(artifact)
+          .map((version) => {
+            const entry = artifact[version];
+            return entry && typeof entry === 'object' ? Object.assign({ version: version }, entry) : null;
+          })
+          .filter(Boolean);
+      }
+      return [];
+    }
+
+    function manifestBaseUrl(manifestUrl) {
+      const url = String(manifestUrl || '').trim();
+      const idx = url.lastIndexOf('/');
+      return idx >= 0 ? url.slice(0, idx + 1) : '';
+    }
+
+    function joinManifestArtifactUrl(baseUrl, artifact) {
+      if (!artifact || typeof artifact !== 'object') return '';
+      const raw = String(artifact.url || artifact.path || '').trim();
+      if (!raw) return '';
+      if (/^https?:\/\//i.test(raw)) return raw;
+      return String(baseUrl || '') + raw.replace(/^\/+/, '');
+    }
+
+    function formatManifestBuildDate(artifact) {
+      if (!artifact || typeof artifact !== 'object') return '';
+      return String(artifact.build_date || artifact.built_at || artifact.date || '').trim();
+    }
+
+    function endpointForUpgradeTarget(target) {
+      const key = String(target || '').trim().toLowerCase();
+      if (key === 'flowio') return '/fwupdate/flowio';
+      if (key === 'supervisor') return '/fwupdate/supervisor';
+      if (key === 'nextion') return '/fwupdate/nextion';
+      if (key === 'spiffs' || key === 'cfgdocs') return '/fwupdate/spiffs';
+      return '';
+    }
+
+    function manifestTargetDef(key) {
+      return upgradeTargetDefs[String(key || '').trim().toLowerCase()] || null;
+    }
+
+    function resolveArtifactTarget(category, artifact) {
+      const explicit = String(artifact && (artifact.target || artifact.update_target) ? (artifact.target || artifact.update_target) : '').trim().toLowerCase();
+      if (explicit) return explicit;
+      const def = manifestTargetDef(category);
+      return def && def.target ? def.target : String(category || '').trim().toLowerCase();
+    }
+
+    function resolveArtifactEndpoint(category, artifact, target) {
+      const explicit = String(artifact && (artifact.route || artifact.endpoint || artifact.update_route) ? (artifact.route || artifact.endpoint || artifact.update_route) : '').trim();
+      if (explicit) {
+        if (/^\/fwupdate\//.test(explicit)) return explicit;
+        if (/^fwupdate\//.test(explicit)) return '/' + explicit;
+        return endpointForUpgradeTarget(explicit);
+      }
+      const def = manifestTargetDef(category);
+      return def && def.endpoint ? def.endpoint : endpointForUpgradeTarget(target);
+    }
+
+    function formatManifestArtifactTitle(category, artifact) {
+      const def = manifestTargetDef(category);
+      const title = String(artifact && (artifact.title || artifact.name) ? (artifact.title || artifact.name) : '').trim();
+      if (title) return title;
+      const label = String(artifact && artifact.label ? artifact.label : '').trim();
+      if (label) return label;
+      return def && def.label ? def.label : String(category || 'Firmware');
+    }
+
+    function manifestArtifactEntries(manifest, manifestUrl) {
+      if (!manifest || typeof manifest !== 'object') return [];
+      const baseUrl = manifestBaseUrl(manifestUrl);
+      const artifacts = (manifest.artifacts && typeof manifest.artifacts === 'object') ? manifest.artifacts : manifest;
+      return Object.keys(artifacts)
+        .reduce((entries, category) => {
+          const def = manifestTargetDef(category);
+          const orderBase = def && Number.isFinite(def.order) ? def.order : 1000;
+          manifestArtifactList(manifest, category)
+            .filter((artifact) => joinManifestArtifactUrl(baseUrl, artifact))
+            .sort((a, b) => compareFirmwareVersions(String(b.version || ''), String(a.version || '')))
+            .forEach((artifact, index) => {
+              const target = resolveArtifactTarget(category, artifact);
+              entries.push({
+                category: category,
+                artifact: artifact,
+                title: formatManifestArtifactTitle(category, artifact),
+                version: String(artifact.version || '').trim() || 'version inconnue',
+                buildDate: formatManifestBuildDate(artifact) || '-',
+                notes: String(artifact.notes || artifact.release_notes || '').trim() || 'Notes de version indisponibles.',
+                url: joinManifestArtifactUrl(baseUrl, artifact),
+                target: target,
+                endpoint: resolveArtifactEndpoint(category, artifact, target),
+                order: orderBase + index / 100
+              });
+            });
+          return entries;
+        }, [])
+        .sort((a, b) => {
+          if (a.order !== b.order) return a.order - b.order;
+          return compareFirmwareVersions(String(b.version || ''), String(a.version || ''));
+        });
+    }
+
+    function setUpgradeCardsEmpty(text) {
+      if (!upgradeCards) return;
+      upgradeCards.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = 'upgrade-empty';
+      empty.textContent = text || 'Cliquez sur Vérifier les mises à jour.';
+      upgradeCards.appendChild(empty);
+    }
+
+    function appendUpgradeCardField(parent, label, value) {
+      const field = document.createElement('div');
+      field.className = 'upgrade-card-field';
+      const strong = document.createElement('strong');
+      strong.textContent = label;
+      const span = document.createElement('span');
+      span.textContent = value || '-';
+      field.appendChild(strong);
+      field.appendChild(span);
+      parent.appendChild(field);
+    }
+
+    function renderUpgradeCards(entries) {
+      if (!upgradeCards) return;
+      upgradeCards.innerHTML = '';
+      if (!Array.isArray(entries) || entries.length === 0) {
+        setUpgradeCardsEmpty('Aucune mise à jour disponible dans le manifest.');
+        return;
+      }
+      entries.forEach((entry) => {
+        const card = document.createElement('article');
+        card.className = 'upgrade-card';
+
+        const title = document.createElement('h3');
+        title.textContent = entry.title;
+        card.appendChild(title);
+
+        const fields = document.createElement('div');
+        fields.className = 'upgrade-card-fields';
+        appendUpgradeCardField(fields, 'Version', entry.version);
+        appendUpgradeCardField(fields, 'Build', entry.buildDate);
+        appendUpgradeCardField(fields, 'Notes', entry.notes);
+        card.appendChild(fields);
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn-primary';
+        button.textContent = 'Install';
+        button.disabled = !entry.endpoint || !entry.url;
+        if (button.disabled) button.title = 'Route de mise à jour indisponible';
+        bindClickAction(button, () => startUpgrade(entry.target, entry.url, entry.endpoint));
+        card.appendChild(button);
+
+        upgradeCards.appendChild(card);
+      });
+    }
+
+    function resetUpgradeManifestSelections(text) {
+      upgradeManifestState = { manifest: null, manifestUrl: '', baseUrl: '' };
+      setUpgradeCardsEmpty(text || 'Cliquez sur Vérifier les mises à jour.');
+    }
+
+    function populateUpgradeManifestSelections(data) {
+      const manifest = data && data.manifest && typeof data.manifest === 'object' ? data.manifest : null;
+      const manifestUrl = String(data && data.manifest_url ? data.manifest_url : '').trim();
+      upgradeManifestState = { manifest: manifest, manifestUrl: manifestUrl, baseUrl: manifestBaseUrl(manifestUrl) };
+      renderUpgradeCards(manifestArtifactEntries(manifest, manifestUrl));
+    }
+
+    function describeManifestUpdates(data) {
+      const manifest = data && data.manifest && typeof data.manifest === 'object' ? data.manifest : null;
+      if (!manifest) return 'Manifest indisponible.';
+      const manifestUrl = String(data && data.manifest_url ? data.manifest_url : '').trim();
+      const entries = manifestArtifactEntries(manifest, manifestUrl);
+      const currentByTarget = {
+        supervisor: supervisorFirmwareVersion,
+        flowio: window.__flowIoFirmwareVersion || '-',
+        nextion: '-',
+        spiffs: '-'
+      };
+      const available = [];
+      const listed = [];
+      entries.forEach((entry) => {
+        const version = String(entry.version || '').trim();
+        if (!version) return;
+        const current = currentByTarget[entry.target] || '-';
+        listed.push(entry.title + ' ' + version);
+        if (current && current !== '-' && compareFirmwareVersions(version, current) > 0) {
+          available.push(entry.title + ' ' + current + ' -> ' + version);
+        }
+      });
+      if (available.length > 0) {
+        return 'Mise(s) à jour disponible(s) : ' + available.join(', ') + '.';
+      }
+      if (listed.length > 0) {
+        return 'Manifest vérifié. Versions disponibles : ' + listed.join(', ') + '.';
+      }
+      return 'Manifest vérifié, aucun firmware listé.';
+    }
+
+    async function checkFirmwareUpdates() {
+      if (checkUpdatesBtn) {
+        checkUpdatesBtn.disabled = true;
+        checkUpdatesBtn.classList.add('is-pending');
+      }
+      try {
+        await saveUpgradeConfig();
+        setUpgradeMessage('Vérification du manifest...');
+        const data = await fetchOkJson('/api/fwupdate/check', { cache: 'no-store' }, 'échec vérification');
+        populateUpgradeManifestSelections(data);
+        setUpgradeMessage(describeManifestUpdates(data));
+      } catch (err) {
+        setUpgradeMessage('Échec de la vérification : ' + err);
+      } finally {
+        if (checkUpdatesBtn) {
+          checkUpdatesBtn.disabled = false;
+          checkUpdatesBtn.classList.remove('is-pending');
+        }
+      }
     }
 
     function syncUpgradeConfigFieldInitialValues(keys) {
@@ -1883,8 +2122,6 @@
       def.button.classList.add('is-pending');
       try {
         let success = def.successMessage;
-        if (isMicronovaProfile() && def.key === 'supervisor_path') success = 'Chemin Micronova enregistré.';
-        if (isMicronovaProfile() && def.key === 'spiffs_path') success = 'Chemin assets Micronova enregistré.';
         await saveUpgradeConfig({ [def.key]: def.input.value.trim() }, success);
       } finally {
         updateUpgradeConfigFieldApplyState(def);
@@ -1904,16 +2141,20 @@
       }
     }
 
-    async function startUpgrade(target) {
+    async function startUpgrade(target, url, endpoint) {
       try {
         startUpgradeUiSession(target);
         startUpgradeStatusPolling(true);
         await saveUpgradeConfig();
-        let endpoint = '/fwupdate/nextion';
-        if (target === 'supervisor') endpoint = '/fwupdate/supervisor';
-        else if (target === 'flowio') endpoint = '/fwupdate/flowio';
-        else if (target === 'spiffs') endpoint = '/fwupdate/spiffs';
-        await fetchOkJson(endpoint, { method: 'POST' }, 'échec démarrage');
+        const selectedUrl = String(url || '').trim();
+        if (!selectedUrl) {
+          throw new Error('aucune image sélectionnée, lancez Vérifier');
+        }
+        const route = String(endpoint || endpointForUpgradeTarget(target)).trim();
+        if (!route) {
+          throw new Error('route de mise à jour indisponible');
+        }
+        await fetchOkJson(route, createFormPostOptions({ url: selectedUrl }), 'échec démarrage');
         await refreshUpgradeStatus();
       } catch (err) {
         stopUpgradeReconnectFlow();
@@ -2681,6 +2922,7 @@
       const heap = (data && data.heap && typeof data.heap === 'object') ? data.heap : {};
       const i2c = (data && data.i2c && typeof data.i2c === 'object') ? data.i2c : {};
       const firmware = fmtFlowStatusVal(data.fw);
+      window.__flowIoFirmwareVersion = firmware;
       const uptimeMs = Number(data.upms) || 0;
       const wifiReady = !!wifi.rdy;
       const wifiIp = normalizeIpValue(wifi.ip);
@@ -7361,10 +7603,7 @@
           }
         });
       });
-      bindClickAction(upSupervisorBtn, () => startUpgrade('supervisor'));
-      bindClickAction(upFlowBtn, () => startUpgrade('flowio'));
-      bindClickAction(upNextionBtn, () => startUpgrade('nextion'));
-      bindClickAction(upSpiffsBtn, () => startUpgrade('spiffs'));
+      bindClickAction(checkUpdatesBtn, () => checkFirmwareUpdates());
     }
 
     function initStatusBindings() {

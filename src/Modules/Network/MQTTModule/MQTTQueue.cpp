@@ -376,7 +376,7 @@ bool MQTTModule::tryPublishNow_(const char* topic, const char* payload, uint8_t 
         if (outboxBytes >= kMaxOutboxBytes) return false;
     }
 
-    const int packetId = esp_mqtt_client_publish(client_, topic, payload, 0, qos, retain ? 1 : 0);
+    const int packetId = esp_mqtt_client_enqueue(client_, topic, payload, 0, qos, retain ? 1 : 0, true);
     return packetId >= 0;
 }
 

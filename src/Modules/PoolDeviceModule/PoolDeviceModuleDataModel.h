@@ -46,6 +46,19 @@ struct PoolDeviceRuntimeMetricsEntry {
     uint32_t tsMs = 0;
 };
 
+struct PoolDeviceSlotDescriptor {
+    const char* id;
+    const char* configModuleName;
+    const char* runtimeModuleName;
+    const char* enabledKey;
+    const char* dependsKey;
+    const char* flowKey;
+    const char* tankCapKey;
+    const char* tankInitKey;
+    const char* maxUptimeKey;
+    const char* runtimeKey;
+};
+
 struct PoolDeviceRuntimeData {
     PoolDeviceRuntimeStateEntry state[POOL_DEVICE_MAX];
     PoolDeviceRuntimeMetricsEntry metrics[POOL_DEVICE_MAX];

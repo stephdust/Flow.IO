@@ -1438,7 +1438,8 @@
       flex-wrap: nowrap;
     }
     .upgrade-form-grid > .field > .field-inline-entry,
-    .field-upgrade-row > .field-inline-entry {
+    .field-upgrade-row > .field-inline-entry,
+    .field-upgrade-row > select {
       flex: 0 1 50ch;
       width: min(100%, 50ch);
       min-width: 0;
@@ -1447,6 +1448,81 @@
       flex: 0 0 auto;
       min-width: 54px;
       white-space: nowrap;
+    }
+    .field-upgrade-row > .btn-tonal {
+      flex: 0 0 auto;
+      min-width: 86px;
+      white-space: nowrap;
+    }
+    .upgrade-config-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(180px, 0.7fr);
+      gap: 12px;
+      align-items: end;
+    }
+    .upgrade-check-row {
+      display: flex;
+      justify-content: flex-start;
+    }
+    .upgrade-check-row .btn-tonal {
+      min-width: 180px;
+    }
+    .upgrade-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+    .upgrade-empty {
+      grid-column: 1 / -1;
+      color: var(--panel-frame-text);
+      font-size: 0.92rem;
+      padding: 10px 0;
+    }
+    .upgrade-card {
+      display: flex;
+      min-width: 0;
+      min-height: 174px;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--panel-frame-border);
+      border-radius: 8px;
+      background: var(--panel-soft-bg);
+    }
+    .upgrade-card h3 {
+      margin: 0;
+      color: var(--panel-frame-title);
+      font-size: 0.98rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .upgrade-card-fields {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .upgrade-card-field {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+      color: var(--panel-frame-text);
+      font-size: 0.78rem;
+      line-height: 1.3;
+    }
+    .upgrade-card-field strong {
+      color: var(--panel-frame-title);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .upgrade-card-field span {
+      overflow-wrap: anywhere;
+    }
+    .upgrade-card .btn-primary {
+      align-self: flex-start;
+      min-width: 72px;
     }
     .field-switch {
       display: flex;
@@ -3047,6 +3123,15 @@
       }
       .field-upgrade-row {
         align-items: center;
+      }
+      .upgrade-config-row {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .upgrade-check-row .btn-tonal {
+        width: 100%;
+      }
+      .upgrade-cards {
+        grid-template-columns: minmax(0, 1fr);
       }
       .field-inline-entry .control-field-apply {
         width: 30px;

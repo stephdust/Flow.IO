@@ -41,8 +41,13 @@ void FlowConnectDisplayUdpClientModule::loop()
 bool FlowConnectDisplayUdpClientModule::begin()
 {
     if (!nextion_.begin()) return false;
+    if (!sleepConfigured_ && !nextion_.isSleeping()) {
+        sleepConfigured_ = nextion_.configureSleep(NextionSleepNoTouchSeconds, true, false);
+    }
     if (!flowConnectInitialized_) {
-        setFlowConnectionVisible_(false, "boot", true);
+        if (!nextion_.isSleeping()) {
+            setFlowConnectionVisible_(false, "boot", true);
+        }
         flowConnectInitialized_ = true;
     }
     if (started_) return true;
@@ -67,7 +72,9 @@ void FlowConnectDisplayUdpClientModule::tick(uint32_t nowMs)
 
     if (!wifiConnected_()) {
         linked_ = false;
-        setFlowConnectionVisible_(false, "wifi-offline");
+        if (!nextion_.isSleeping()) {
+            setFlowConnectionVisible_(false, "wifi-offline");
+        }
         return;
     }
     if (!started_) return;
@@ -83,9 +90,30 @@ void FlowConnectDisplayUdpClientModule::tick(uint32_t nowMs)
         setInputLocked_(false, "watchdog", nowMs);
     }
 
+    const bool nextionSleeping = nextion_.isSleeping();
     if (!linked_) {
-        sendHello_(nowMs);
+        if (nextionSleeping) {
+            pollNextion_();
+            if (!nextion_.isSleeping()) {
+                sendHello_(nowMs, true);
+                return;
+            }
+            if ((uint32_t)(nowMs - lastHelloMs_) >= SleepHelloPeriodMs) {
+                sendHello_(nowMs, true);
+            }
+        } else {
+            sendHello_(nowMs);
+        }
     } else {
+        if (nextionSleeping) {
+            pollNextion_();
+            serviceEventTx_();
+            sendPing_(nowMs, SleepPingPeriodMs);
+            if ((uint32_t)(nowMs - lastSeenMs_) > SleepLinkTimeoutMs) {
+                handleLinkLost_();
+            }
+            return;
+        }
         const bool versionProbeSafe = !inputLocked_ &&
                                       !configPageActive_ &&
                                       !configRenderPending_ &&
@@ -119,6 +147,9 @@ void FlowConnectDisplayUdpClientModule::sendHello_(uint32_t nowMs, bool force)
     if (nextion_.hasDisplayVersion()) {
         payload.nextionVersion = nextion_.displayVersion();
         payload.flags |= HMI_UDP_HELLO_FLAG_NEXTION_VERSION_VALID;
+    }
+    if (nextion_.isSleeping()) {
+        payload.flags |= HMI_UDP_HELLO_FLAG_NEXTION_SLEEPING;
     }
 
     size_t packetLen = 0;
@@ -158,9 +189,9 @@ void FlowConnectDisplayUdpClientModule::probeNextionVersion_(uint32_t nowMs, boo
     }
 }
 
-void FlowConnectDisplayUdpClientModule::sendPing_(uint32_t nowMs)
+void FlowConnectDisplayUdpClientModule::sendPing_(uint32_t nowMs, uint32_t periodMs)
 {
-    if ((uint32_t)(nowMs - lastPingMs_) < PingPeriodMs) return;
+    if ((uint32_t)(nowMs - lastPingMs_) < periodMs) return;
     lastPingMs_ = nowMs;
     (void)sendPacket_(HmiUdpMsgType::Ping, nullptr, 0U);
 }
@@ -190,6 +221,7 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
     lastRxSeq_ = header.seq;
     markSeen_(nowMs);
     const HmiUdpMsgType msgType = (HmiUdpMsgType)header.type;
+    const bool nextionSleeping = nextion_.isSleeping();
     LOGD("FlowIO -> FCD msg=%s seq=%u ack=%u flags=0x%02X len=%u",
          msgTypeName_(msgType),
          (unsigned)header.seq,
@@ -213,6 +245,14 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
         return;
     }
 
+    if (nextionSleeping &&
+        msgType != HmiUdpMsgType::Welcome &&
+        msgType != HmiUdpMsgType::Pong &&
+        msgType != HmiUdpMsgType::FullRefresh) {
+        LOGD("FCD ignore %s while Nextion is sleeping", msgTypeName_(msgType));
+        return;
+    }
+
     switch (msgType) {
         case HmiUdpMsgType::Welcome: {
             if (header.len != sizeof(HmiUdpWelcomePayload) || !payload) return;
@@ -221,14 +261,20 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
             linked_ = welcome->accepted != 0U;
             lostShown_ = false;
             if (linked_) {
-                setFlowConnectionVisible_(true, "welcome");
-                (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "");
+                if (!nextionSleeping) {
+                    setFlowConnectionVisible_(true, "welcome");
+                    (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "");
+                }
                 if (!wasLinked) {
                     LOGI("FCD linked to FlowIO proto=%u fw=%u", (unsigned)welcome->protoVersion, (unsigned)welcome->flowFw);
-                    requestFullRefresh_("welcome");
+                    if (!nextionSleeping) {
+                        requestFullRefresh_("welcome");
+                    }
                 }
             } else {
-                setFlowConnectionVisible_(false, "welcome-rejected");
+                if (!nextionSleeping) {
+                    setFlowConnectionVisible_(false, "welcome-rejected");
+                }
             }
             break;
         }
@@ -421,6 +467,36 @@ void FlowConnectDisplayUdpClientModule::pollNextion_()
     HmiEvent event{};
     while (drained < 4U && nextion_.pollEvent(event)) {
         logEvent_("Nextion -> FCD", event);
+        if (event.type == HmiEventType::DisplaySleep) {
+            configPageActive_ = false;
+            configBatchActive_ = false;
+            configRenderPending_ = false;
+            configValuesPending_ = false;
+            pendingLen_ = 0;
+            pendingAttempts_ = 0;
+            inputLocked_ = false;
+            if (linked_) {
+                (void)enqueueEvent_(event);
+            }
+            ++drained;
+            continue;
+        }
+        if (event.type == HmiEventType::DisplayWake) {
+            sleepConfigured_ = false;
+            lastHomeRefreshRequestMs_ = 0;
+            if (!sleepConfigured_) {
+                sleepConfigured_ = nextion_.configureSleep(NextionSleepNoTouchSeconds, true, false);
+            }
+            setFlowConnectionVisible_(linked_, "nextion-wake", true);
+            if (linked_) {
+                requestFullRefresh_("nextion-wake", true);
+            }
+            if (linked_) {
+                (void)enqueueEvent_(event);
+            }
+            ++drained;
+            continue;
+        }
         if (handleLocalCommand_(event)) {
             ++drained;
             continue;
@@ -850,11 +926,17 @@ void FlowConnectDisplayUdpClientModule::handleLinkLost_()
     eventHead_ = 0;
     eventTail_ = 0;
     configPageActive_ = false;
-    setFlowConnectionVisible_(false, "link-lost");
-    setInputLocked_(false, "link-lost", millis());
+    if (!nextion_.isSleeping()) {
+        setFlowConnectionVisible_(false, "link-lost");
+        setInputLocked_(false, "link-lost", millis());
+    } else {
+        inputLocked_ = false;
+    }
     if (!lostShown_) {
         lostShown_ = true;
-        (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "Connexion Flow.io perdue");
+        if (!nextion_.isSleeping()) {
+            (void)nextion_.publishHomeText(HmiHomeTextField::ErrorMessage, "Connexion Flow.io perdue");
+        }
         LOGI("FCD lost FlowIO link");
     }
 }
@@ -948,6 +1030,8 @@ const char* FlowConnectDisplayUdpClientModule::eventTypeName_(HmiEventType type)
         case HmiEventType::Page: return "Page";
         case HmiEventType::ConfigEnter: return "ConfigEnter";
         case HmiEventType::ConfigExit: return "ConfigExit";
+        case HmiEventType::DisplaySleep: return "DisplaySleep";
+        case HmiEventType::DisplayWake: return "DisplayWake";
         default: return "?";
     }
 }

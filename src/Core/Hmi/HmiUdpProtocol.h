@@ -70,6 +70,7 @@ struct HmiUdpHelloPayload {
 };
 
 static constexpr uint8_t HMI_UDP_HELLO_FLAG_NEXTION_VERSION_VALID = 0x01;
+static constexpr uint8_t HMI_UDP_HELLO_FLAG_NEXTION_SLEEPING = 0x02;
 
 struct HmiUdpWelcomePayload {
     uint16_t flowFw;

@@ -16,6 +16,8 @@ static constexpr uint8_t NEXTION_FF = 0xFF;
 static constexpr uint8_t NEXTION_RSP_NUMBER = 0x71;
 static constexpr uint8_t NEXTION_RSP_PAGE = 0x66;
 static constexpr uint8_t NEXTION_RSP_TOUCH = 0x65;
+static constexpr uint8_t NEXTION_RSP_SLEEP = 0x86;
+static constexpr uint8_t NEXTION_RSP_WAKE = 0x87;
 static constexpr uint8_t NEXTION_CUSTOM_START = '#';
 static constexpr uint8_t NEXTION_CMD_PAGE = 0x50;
 static constexpr uint8_t NEXTION_CMD_NAV = 0x51;
@@ -85,6 +87,7 @@ bool NextionDriver::begin()
     versionDetected_ = false;
     displayVersion_ = 0U;
     lastRenderMs_ = 0;
+    sleeping_ = false;
     customFrameActive_ = false;
     customExpectedLen_ = 0;
     customLen_ = 0;
@@ -95,6 +98,7 @@ bool NextionDriver::begin()
     currentPageKnown_ = false;
     currentPage_ = 0;
 
+    (void)refreshSleepState();
     (void)detectDisplayVersion();
     return true;
 }
@@ -115,6 +119,7 @@ bool NextionDriver::sendCmd_(const char* cmd)
 
 bool NextionDriver::requestPageReport()
 {
+    if (sleeping_) return false;
     return sendCmd_("sendme");
 }
 
@@ -137,17 +142,20 @@ bool NextionDriver::isConfigPage() const
 
 bool NextionDriver::setTouchEnabled(bool enabled)
 {
+    if (sleeping_) return false;
     return sendCmdFmt_("tsw 255,%u", enabled ? 1U : 0U);
 }
 
 bool NextionDriver::setObjectVisible(const char* objectName, bool visible)
 {
     if (!started_ || !objectName || objectName[0] == '\0') return false;
+    if (sleeping_) return false;
     return sendCmdFmt_("vis %s,%u", objectName, visible ? 1U : 0U);
 }
 
 bool NextionDriver::showConfigLoading(const char* title)
 {
+    if (sleeping_) return false;
     if (!started_ || !pageReady_) return false;
 
     bool ok = true;
@@ -293,30 +301,35 @@ const char* NextionDriver::homeGaugeObjectName_(HmiHomeGaugeField field) const
 bool NextionDriver::publishHomeText(HmiHomeTextField field, const char* text)
 {
     if (!started_) return false;
+    if (sleeping_) return false;
     return sendText_(homeTextObjectName_(field), text);
 }
 
 bool NextionDriver::publishHomeGaugePercent(HmiHomeGaugeField field, uint16_t percent)
 {
     if (!started_) return false;
+    if (sleeping_) return false;
     return sendNum_(homeGaugeObjectName_(field), percent);
 }
 
 bool NextionDriver::publishHomeStateBits(uint32_t stateBits)
 {
     if (!started_) return false;
+    if (sleeping_) return false;
     return sendNum_(NextionObject::StateBits, stateBits);
 }
 
 bool NextionDriver::publishHomeAlarmBits(uint32_t alarmBits)
 {
     if (!started_) return false;
+    if (sleeping_) return false;
     return sendNum_(NextionObject::AlarmBits, alarmBits);
 }
 
 bool NextionDriver::publishV2Needles(const NextionV2NeedlePublish& publish)
 {
     if (!started_ || !isLegacyV2()) return false;
+    if (sleeping_) return false;
 
     bool ok = true;
     if (publish.ph) ok = sendInt_("vaPHNiddle", publish.phNeedle) && ok;
@@ -407,6 +420,36 @@ bool NextionDriver::detectDisplayVersion(uint16_t timeoutMs, bool force)
     return true;
 }
 
+bool NextionDriver::configureSleep(uint16_t noTouchSeconds, bool wakeOnTouch, bool wakeOnSerial)
+{
+    if (!started_ || sleeping_) return false;
+    bool ok = true;
+    ok = sendCmdFmt_("thsp=%u", (unsigned)noTouchSeconds) && ok;
+    ok = sendCmdFmt_("thup=%u", wakeOnTouch ? 1U : 0U) && ok;
+    ok = sendCmdFmt_("usup=%u", wakeOnSerial ? 1U : 0U) && ok;
+    ok = sendCmd_("ussp=0") && ok;
+    ok = sendCmd_("wup=255") && ok;
+    return ok;
+}
+
+bool NextionDriver::refreshSleepState(uint16_t timeoutMs)
+{
+    if (!started_) return false;
+    uint32_t value = 0U;
+    const uint16_t effectiveTimeout = timeoutMs != 0U ? timeoutMs : cfg_.displayVersionReadTimeoutMs;
+    if (!readNumber_("sleep", value, effectiveTimeout)) return false;
+    sleeping_ = value != 0U;
+    return true;
+}
+
+bool NextionDriver::wakeFromSleep()
+{
+    if (!started_) return false;
+    if (!sendCmd_("sleep=0")) return false;
+    sleeping_ = false;
+    return true;
+}
+
 bool NextionDriver::readRtc(HmiRtcDateTime& out, uint16_t timeoutMs)
 {
     out = HmiRtcDateTime{};
@@ -431,6 +474,7 @@ bool NextionDriver::readRtc(HmiRtcDateTime& out, uint16_t timeoutMs)
 bool NextionDriver::writeRtc(const HmiRtcDateTime& value)
 {
     if (!started_) return false;
+    if (sleeping_) return false;
 
     bool ok = true;
     ok = sendCmdFmt_("rtc0=%u", (unsigned)value.year) && ok;
@@ -445,6 +489,7 @@ bool NextionDriver::writeRtc(const HmiRtcDateTime& value)
 bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
 {
     if (!started_) return false;
+    if (sleeping_) return false;
     if (!pageReady_) return false;
     const uint32_t now = millis();
     if (cfg_.minRenderGapMs > 0 && (uint32_t)(now - lastRenderMs_) < cfg_.minRenderGapMs) {
@@ -524,6 +569,7 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
 bool NextionDriver::refreshConfigMenuValues(const ConfigMenuView& view)
 {
     if (!started_ || !pageReady_) return false;
+    if (sleeping_) return false;
     (void)sendCmdFmt_("vaCtxRef.val=%lu", (unsigned long)view.contextRef);
 
     for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
@@ -858,6 +904,18 @@ bool NextionDriver::pollEvent(HmiEvent& out)
             touchResponseActive_ = true;
             touchResponseLen_ = 0U;
             continue;
+        }
+
+        if (b == NEXTION_RSP_SLEEP) {
+            sleeping_ = true;
+            out.type = HmiEventType::DisplaySleep;
+            return true;
+        }
+
+        if (b == NEXTION_RSP_WAKE) {
+            sleeping_ = false;
+            out.type = HmiEventType::DisplayWake;
+            return true;
         }
     }
 

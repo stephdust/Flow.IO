@@ -24,7 +24,9 @@ enum class HmiEventType : uint8_t {
     Command = 12,
     Page = 13,
     ConfigEnter = 14,
-    ConfigExit = 15
+    ConfigExit = 15,
+    DisplaySleep = 16,
+    DisplayWake = 17
 };
 
 enum class HmiCommandId : uint8_t {

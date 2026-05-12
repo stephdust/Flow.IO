@@ -35,8 +35,11 @@ public:
 
 private:
     static constexpr uint32_t HelloPeriodMs = 1000U;
+    static constexpr uint32_t SleepHelloPeriodMs = 30000U;
     static constexpr uint32_t PingPeriodMs = 2000U;
+    static constexpr uint32_t SleepPingPeriodMs = 30000U;
     static constexpr uint32_t LinkTimeoutMs = 9000U;
+    static constexpr uint32_t SleepLinkTimeoutMs = 120000U;
     static constexpr uint32_t AckRetryMs = 150U;
     static constexpr uint8_t AckMaxAttempts = 3U;
     static constexpr uint32_t HomeRefreshThrottleMs = 10000U;
@@ -50,6 +53,7 @@ private:
     static constexpr uint8_t ConfigValuesPasses = 2U;
     static constexpr uint8_t NEXTION_EVENT_QUEUE_SIZE = 6U;
     static constexpr uint32_t InputLockMaxMs = 5000U;
+    static constexpr uint16_t NextionSleepNoTouchSeconds = 30U;
     static constexpr const char* FlowConnectionStateObject = "tFConnectState";
 
     struct ConfigData {
@@ -77,6 +81,7 @@ private:
     bool lostShown_ = false;
     bool inputLocked_ = false;
     bool flowConnectInitialized_ = false;
+    bool sleepConfigured_ = false;
     bool flowConnectVisible_ = false;
     bool configPageActive_ = false;
     bool wifiFactoryResetPending_ = false;
@@ -124,7 +129,7 @@ private:
 
     void sendHello_(uint32_t nowMs, bool force = false);
     void probeNextionVersion_(uint32_t nowMs, bool force = false);
-    void sendPing_(uint32_t nowMs);
+    void sendPing_(uint32_t nowMs, uint32_t periodMs = PingPeriodMs);
     void readUdp_(uint32_t nowMs);
     void handlePacket_(const HmiUdpHeader& header, const uint8_t* payload, uint32_t nowMs);
     bool sendPacket_(HmiUdpMsgType type, const void* payload, uint8_t payloadLen, uint8_t flags = 0);

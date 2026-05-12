@@ -124,7 +124,7 @@ static bool copyRequestParamValue_(AsyncWebServerRequest* request,
         snprintf(out, outLen, "%s", fallback ? fallback : "");
         return false;
     }
-    const String value = param->value();
+    const String& value = param->value();
     snprintf(out, outLen, "%s", value.c_str());
     return true;
 }
@@ -518,7 +518,7 @@ bool isCurrentWebAssetVersionRequest_(AsyncWebServerRequest* request)
     if (!versionParam) return false;
     const char* currentVersion = webAssetVersion_();
     if (!currentVersion || currentVersion[0] == '\0') return false;
-    const String requestedVersion = versionParam->value();
+    const String& requestedVersion = versionParam->value();
     return requestedVersion.length() == strlen(currentVersion) &&
            strcmp(requestedVersion.c_str(), currentVersion) == 0;
 }
@@ -1579,6 +1579,17 @@ void WebInterfaceModule::startServer_()
         LOGI("SPIFFS mounted for web assets");
     }
 
+    auto spiffsAssetExists = [this](const char* assetPath, const char* gzipOverridePath = nullptr) -> bool {
+        if (!spiffsReady_ || !assetPath || assetPath[0] == '\0') return false;
+        if (SPIFFS.exists(assetPath)) return true;
+        if (gzipOverridePath && gzipOverridePath[0] != '\0') {
+            return SPIFFS.exists(gzipOverridePath);
+        }
+        char gzipPath[128] = {0};
+        const int gzipPathLen = snprintf(gzipPath, sizeof(gzipPath), "%s.gz", assetPath);
+        return (gzipPathLen > 0) && ((size_t)gzipPathLen < sizeof(gzipPath)) && SPIFFS.exists(gzipPath);
+    };
+
     auto beginSpiffsAssetResponse =
         [this](AsyncWebServerRequest* request,
                const char* assetPath,
@@ -1907,7 +1918,7 @@ void WebInterfaceModule::startServer_()
         addNoCacheHeaders_(response);
         request->send(response);
     });
-    server_.on("/webinterface", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
+    server_.on("/webinterface", HTTP_GET, [this, spiffsAssetExists, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/webinterface");
         NetworkAccessMode mode = NetworkAccessMode::None;
         if (!netAccessSvc_ && services_) {
@@ -1926,7 +1937,7 @@ void WebInterfaceModule::startServer_()
 #endif
             );
         if (useLightUi) {
-            if (spiffsReady_ && SPIFFS.exists("/webinterface/light.html")) {
+            if (spiffsAssetExists("/webinterface/light.html")) {
                 SpiffsAssetForensicMeta forensicMeta{};
                 bool heapRejected = false;
                 AsyncWebServerResponse* response =
@@ -1953,7 +1964,7 @@ void WebInterfaceModule::startServer_()
                 return;
             }
         }
-        if (spiffsReady_ && SPIFFS.exists("/webinterface/index.html")) {
+        if (spiffsAssetExists("/webinterface/index.html")) {
             SpiffsAssetForensicMeta forensicMeta{};
             bool heapRejected = false;
             AsyncWebServerResponse* response =
@@ -2079,6 +2090,37 @@ void WebInterfaceModule::startServer_()
         request->send(200, "application/json", out);
     });
 
+    server_.on("/api/fwupdate/check", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/fwupdate/check");
+        if (!fwUpdateSvc_ && services_) {
+            fwUpdateSvc_ = services_->get<FirmwareUpdateService>(ServiceId::FirmwareUpdate);
+        }
+        if (!fwUpdateSvc_ || !fwUpdateSvc_->checkManifestJson) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"fwupdate.check\"}}");
+            return;
+        }
+
+        char out[4096] = {0};
+        char err[128] = {0};
+        if (!fwUpdateSvc_->checkManifestJson(fwUpdateSvc_->ctx, out, sizeof(out), err, sizeof(err))) {
+            sanitizeJsonString_(err);
+            char msg[320] = {0};
+            const int n = snprintf(msg,
+                                   sizeof(msg),
+                                   "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"fwupdate.check\",\"msg\":\"%s\"}}",
+                                   err[0] ? err : "failed");
+            request->send(409,
+                          "application/json",
+                          (n > 0 && (size_t)n < sizeof(msg))
+                              ? msg
+                              : "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"fwupdate.check\"}}");
+            return;
+        }
+
+        request->send(200, "application/json", out);
+    });
+
     server_.on("/api/fwupdate/config", HTTP_POST, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/fwupdate/config");
         if (!fwUpdateSvc_ && services_) {
@@ -2091,11 +2133,14 @@ void WebInterfaceModule::startServer_()
         }
 
         char hostStr[192] = {0};
+        char updatePathStr[192] = {0};
         char flowStr[192] = {0};
         char supStr[192] = {0};
         char nxStr[192] = {0};
         char spiffsStr[192] = {0};
         const bool hasHost = copyRequestParamValue_(request, "update_host", true, hostStr, sizeof(hostStr), "");
+        const bool hasUpdatePath =
+            copyRequestParamValue_(request, "update_path", true, updatePathStr, sizeof(updatePathStr), "");
         const bool hasFlow = copyRequestParamValue_(request, "flowio_path", true, flowStr, sizeof(flowStr), "");
         const bool hasSupervisor =
             copyRequestParamValue_(request, "supervisor_path", true, supStr, sizeof(supStr), "");
@@ -2110,6 +2155,7 @@ void WebInterfaceModule::startServer_()
         char err[96] = {0};
         if (!fwUpdateSvc_->setConfig(fwUpdateSvc_->ctx,
                                      hasHost ? hostStr : nullptr,
+                                     hasUpdatePath ? updatePathStr : nullptr,
                                      hasFlow ? flowStr : nullptr,
                                      hasSupervisor ? supStr : nullptr,
                                      hasNextion ? nxStr : nullptr,

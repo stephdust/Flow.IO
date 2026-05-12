@@ -1,0 +1,77 @@
+{
+  "schema": "flowio.firmware-manifest.v1",
+    "generated_at": "2026-05-13T00:47:40+02:00",
+  "release": "2026.05.13",
+  "artifacts": {
+    "supervisor": [
+            {
+                "title": "Supervisor",
+                "label": "Supervisor ESP32",
+                "version": "1.0.1",
+                "build_date": "2026-05-13T00:32:32+02:00",
+                "target": "supervisor",
+                "path": "firmware-supervisor.bin",
+                "kind": "esp32-firmware",
+                "sha256": "35d3e71a9cc41755bdd7409b38b26da3db7d12ba87045de564fcbcf3c0cbc8ee",
+        "size": 1399904,
+        "notes": "Firmware principal Supervisor."
+      }
+    ],
+    "flowio": [
+            {
+                "title": "Flow.io",
+                "label": "Flow.io ESP32",
+                "version": "1.0.1",
+                "build_date": "2026-05-13",
+                "target": "flowio",
+                "path": "firmware-flowio.bin",
+                "kind": "esp32-firmware",
+        "sha256": "2146d1b65000b0e9865523dafb19560ada4b26d090bc9022d81ae2edf142a21e",
+        "size": 1287872,
+        "notes": "Firmware de la carte Flow.io distante."
+      }
+    ],
+    "flow_connect_display": [
+            {
+                "title": "Flow Connect Display",
+                "label": "Flow Connect Display",
+                "version": "0.7.1",
+                "build_date": "2026-05-13",
+                "target": "flowio",
+                "path": "firmware-flow-connect-display.bin",
+                "kind": "esp32-firmware",
+        "sha256": "d7bc78ad26afd55707c6b156a462cf526e968e91285abfc8d707e57ba51fb6a9",
+        "size": 912688,
+        "notes": "Firmware du module Flow Connect Display."
+      }
+    ],
+    "nextion": [
+            {
+                "title": "Nextion 800x480",
+                "label": "Nextion 800x480",
+                "version": "6.0.0",
+                "build_date": "2026-05-13",
+                "target": "nextion",
+                "path": "Nextion_Flowio_Intelligent_800x480.tft",
+                "kind": "nextion-tft",
+        "sha256": "ffcc13fef56bb245612d0ba1ffcd5900246bffadd1bc32f7a71df700bfd5dac9",
+        "size": 1016956,
+        "notes": "Image TFT pour l'écran Nextion."
+      }
+    ],
+    "spiffs": [
+            {
+                "title": "Assets Supervisor",
+                "label": "Assets web Supervisor",
+                "version": "1.0.1",
+                "build_date": "2026-05-13T00:47:40+02:00",
+                "target": "spiffs",
+                "path": "spiffs-supervisor.bin",
+                "kind": "esp32-spiffs",
+                "sha256": "45cb5e08f040372a8987f9fd871672ef48f5a3e14822a7564567537c2c5d70fd",
+        "size": 974848,
+        "notes": "Image SPIFFS contenant l'interface web Supervisor."
+      }
+    ]
+  }
+}

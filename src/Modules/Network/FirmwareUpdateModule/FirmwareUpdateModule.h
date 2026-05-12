@@ -65,16 +65,22 @@ private:
 
     struct ConfigData {
         char updateHost[64] = "";
-        char flowioPath[64] = "/build/FlowIO/firmware.bin";
-        char supervisorPath[64] = "/build/Supervisor/firmware.bin";
-        char nextionPath[64] = "/build/Nextion.tft";
-        char spiffsPath[64] = "/build/Supervisor/spiffs.bin";
+        char updatePath[64] = "/binary";
+        char flowioPath[64] = "/firmware-flowio.bin";
+        char supervisorPath[64] = "/firmware-supervisor.bin";
+        char nextionPath[64] = "/Nextion_Flowio_Intelligent_800x480.tft";
+        char spiffsPath[64] = "/spiffs-supervisor.bin";
     } cfgData_{};
 
     // CFGDOC: {"label":"Hôte serveur MAJ","help":"Adresse du serveur HTTP hébergeant les firmwares."}
     ConfigVariable<char, 2> updateHostVar_{
         NVS_KEY("up_host"), "update_host", "fwupdate",
         ConfigType::CharArray, cfgData_.updateHost, ConfigPersistence::Persistent, sizeof(cfgData_.updateHost)
+    };
+    // CFGDOC: {"label":"Répertoire MAJ","help":"Chemin de base des mises à jour sur le serveur HTTP, concaténé avec les chemins des images."}
+    ConfigVariable<char, 2> updatePathVar_{
+        NVS_KEY("up_base_path"), "update_path", "fwupdate",
+        ConfigType::CharArray, cfgData_.updatePath, ConfigPersistence::Persistent, sizeof(cfgData_.updatePath)
     };
     // CFGDOC: {"label":"Chemin firmware Flow.io","help":"Chemin du binaire firmware Flow.io sur le serveur MAJ."}
     ConfigVariable<char, 2> flowioPathVar_{
@@ -133,7 +139,9 @@ private:
     bool queueFlowIoHardwareReboot_(char* errOut, size_t errOutLen);
     bool statusJson_(char* out, size_t outLen);
     bool configJson_(char* out, size_t outLen) const;
+    bool checkManifestJson_(char* out, size_t outLen, char* errOut, size_t errOutLen);
     bool setConfig_(const char* updateHost,
+                    const char* updatePath,
                     const char* flowioPath,
                     const char* supervisorPath,
                     const char* nextionPath,
@@ -153,6 +161,11 @@ private:
                      size_t outLen,
                      char* errOut,
                      size_t errOutLen) const;
+    bool resolveUpdateUrl_(const char* path,
+                           char* out,
+                           size_t outLen,
+                           char* errOut,
+                           size_t errOutLen) const;
     bool parseUrlArg_(const CommandRequest& req, char* out, size_t outLen) const;
     void setStatus_(UpdateState state, FirmwareUpdateTarget target, uint8_t progress, const char* msg);
     void setError_(FirmwareUpdateTarget target, const char* msg);
@@ -165,6 +178,7 @@ private:
         ServiceBinding::bind<&FirmwareUpdateModule::startUpdate_>,
         ServiceBinding::bind<&FirmwareUpdateModule::statusJson_>,
         ServiceBinding::bind<&FirmwareUpdateModule::configJson_>,
+        ServiceBinding::bind<&FirmwareUpdateModule::checkManifestJson_>,
         ServiceBinding::bind<&FirmwareUpdateModule::setConfig_>,
         this
     };

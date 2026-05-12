@@ -1055,6 +1055,11 @@ void HMIModule::serviceRtcBridge_(uint32_t nowMs)
     if (timeSynced && !fromExternalRtc) {
         rtcFallbackCompleted_ = true;
         if (!timeSvc_->epoch) return;
+        if (driver_ == static_cast<IHmiDriver*>(&remoteUdp_) &&
+            remoteUdpServer_ &&
+            remoteUdpServer_->isDisplaySleeping()) {
+            return;
+        }
 
         const uint64_t epoch = timeSvc_->epoch(timeSvc_->ctx);
         const uint32_t dayStamp = rtcDayStamp_(epoch);

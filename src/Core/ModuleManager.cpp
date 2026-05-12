@@ -4,6 +4,7 @@
  */
 #include "ModuleManager.h"
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include "Board/BoardSerialMap.h"
 #include "Core/Log.h"
 #include "Core/LogModuleIds.h"
@@ -287,10 +288,20 @@ bool ModuleManager::startModule_(uint8_t orderedIdx, ConfigStore& cfg, ServiceRe
                 spec.coreId
             );
             if (ok != pdPASS || !handle) {
-                Log::error(LOG_MODULE_ID, "startTask failed module=%s task=%s err=%ld",
+                const uint32_t free8 = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+                const uint32_t largest8 = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+                const uint32_t freeInternal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+                const uint32_t largestInternal = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+                Log::error(LOG_MODULE_ID,
+                           "startTask failed module=%s task=%s err=%ld stack=%lu heap8=%lu largest8=%lu internal=%lu largest_internal=%lu",
                            toString(module->moduleId()),
                            spec.name,
-                           (long)ok);
+                           (long)ok,
+                           (unsigned long)spec.stackSize,
+                           (unsigned long)free8,
+                           (unsigned long)largest8,
+                           (unsigned long)freeInternal,
+                           (unsigned long)largestInternal);
                 return false;
             }
 

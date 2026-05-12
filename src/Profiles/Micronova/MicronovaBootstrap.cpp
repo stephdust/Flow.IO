@@ -11,6 +11,7 @@
 #include "Core/DataStore/DataStore.h"
 #include "Core/MqttTopics.h"
 #include "Core/NvsKeys.h"
+#include "Core/SystemLimits.h"
 #include "Core/Services/IHA.h"
 #include "Core/SnprintfCheck.h"
 #include "Core/SystemStats.h"
@@ -44,19 +45,23 @@ void requireSetup(bool ok, const char* step)
     while (true) delay(1000);
 }
 
-bool prefHasNonEmptyString_(Preferences& prefs, const char* key)
+bool prefHasNonEmptyString_(Preferences& prefs, const char* key, char* out, size_t outLen)
 {
-    const String value = prefs.getString(key, "");
-    return value.length() > 0U;
+    if (!key || !out || outLen == 0U) return false;
+    out[0] = '\0';
+    const size_t n = prefs.getString(key, out, outLen);
+    return (n > 1U) && (out[0] != '\0');
 }
 
 MicronovaBootConfigState readBootConfigState_(Preferences& prefs)
 {
     MicronovaBootConfigState st{};
+    char wifiSsid[33] = {0};
+    char mqttHost[Limits::Mqtt::Buffers::Host] = {0};
     st.wifiEnabled = prefs.getBool(NvsKeys::Wifi::Enabled, true);
-    st.wifiHasSsid = prefHasNonEmptyString_(prefs, NvsKeys::Wifi::Ssid);
+    st.wifiHasSsid = prefHasNonEmptyString_(prefs, NvsKeys::Wifi::Ssid, wifiSsid, sizeof(wifiSsid));
     st.mqttEnabled = prefs.getBool(NvsKeys::Mqtt::Enabled, false);
-    st.mqttHasHost = prefHasNonEmptyString_(prefs, NvsKeys::Mqtt::Host);
+    st.mqttHasHost = prefHasNonEmptyString_(prefs, NvsKeys::Mqtt::Host, mqttHost, sizeof(mqttHost));
     return st;
 }
 

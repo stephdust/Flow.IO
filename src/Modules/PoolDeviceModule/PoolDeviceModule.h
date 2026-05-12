@@ -88,7 +88,7 @@ private:
 
     struct PoolDeviceSlot {
         bool used = false;
-        char id[8] = {0};          // stable runtime id: pdN
+        const char* id = nullptr;  // stable runtime id: pdN
         PoolDeviceDefinition def{};
         /** Cached hardware endpoint id (copied from definition at registration). */
         IoId ioId = IO_ID_INVALID;
@@ -182,15 +182,6 @@ private:
     uint8_t resetPendingMask_ = 0;
     bool periodReconcilePending_ = true;
 
-    char cfgModuleName_[POOL_DEVICE_MAX][16]{};
-    char cfgRuntimeModuleName_[POOL_DEVICE_MAX][16]{};
-    char nvsEnabledKey_[POOL_DEVICE_MAX][16]{};
-    char nvsDependsKey_[POOL_DEVICE_MAX][16]{};
-    char nvsFlowKey_[POOL_DEVICE_MAX][16]{};
-    char nvsTankCapKey_[POOL_DEVICE_MAX][16]{};
-    char nvsTankInitKey_[POOL_DEVICE_MAX][16]{};
-    char nvsMaxUptimeKey_[POOL_DEVICE_MAX][16]{};
-    char nvsRuntimeKey_[POOL_DEVICE_MAX][16]{};
     char runtimePersistBuf_[POOL_DEVICE_MAX][192]{};
     PoolDeviceSlot slots_[POOL_DEVICE_MAX]{};
 
@@ -212,8 +203,6 @@ private:
     DataStore* dataStore_ = nullptr;
     ConfigStore* cfgStore_ = nullptr;
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
-    MqttConfigRouteProducer::Route* cfgRoutes_ = nullptr;
-    uint8_t cfgRouteCount_ = 0;
 
     // CFGDOC: {"label":"Activation appareil","help":"Active ou désactive l'appareil du pool concerne."}
     ConfigVariable<bool,0> cfgEnabledVar_[POOL_DEVICE_MAX]{};

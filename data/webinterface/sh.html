@@ -107,52 +107,27 @@
             <div class="config-section">
               <h2 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">browser_updated</span>Mise à jour Firmware</h2>
               <div class="form-grid upgrade-form-grid">
-                <div class="field full">
-                  <label for="updateHost">Serveur HTTP (nom d'hôte ou IP, protocole optionnel)</label>
-                  <div class="field-inline-entry">
-                    <input id="updateHost" placeholder="ex. 192.168.1.20 ou http://192.168.1.20" />
-                    <button id="applyUpdateHost" type="button" class="control-field-apply" aria-label="Appliquer le serveur HTTP" title="Aucun changement a appliquer">✓</button>
+                <div class="upgrade-config-row full">
+                  <div class="field">
+                    <label for="updateHost">Serveur HTTP (nom d'hôte ou IP, protocole optionnel)</label>
+                    <div class="field-inline-entry">
+                      <input id="updateHost" placeholder="ex. 192.168.1.20 ou http://192.168.1.20" />
+                      <button id="applyUpdateHost" type="button" class="control-field-apply" aria-label="Appliquer le serveur HTTP" title="Aucun changement a appliquer">✓</button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="updatePath">Chemin des mises à jour</label>
+                    <div class="field-inline-entry">
+                      <input id="updatePath" placeholder="/binary" />
+                      <button id="applyUpdatePath" type="button" class="control-field-apply" aria-label="Appliquer le chemin des mises à jour" title="Aucun changement a appliquer">✓</button>
+                    </div>
                   </div>
                 </div>
-                <div class="field full">
-                  <label for="flowPath">Chemin image Flow.io</label>
-                  <div class="field-upgrade-row">
-                    <div class="field-inline-entry">
-                      <input id="flowPath" placeholder="/build/FlowIO.bin" />
-                      <button id="applyFlowPath" type="button" class="control-field-apply" aria-label="Appliquer le chemin Flow.io" title="Aucun changement a appliquer">✓</button>
-                    </div>
-                    <button id="upFlow" class="btn-primary">Install</button>
-                  </div>
+                <div class="upgrade-check-row full">
+                  <button id="checkUpdates" type="button" class="btn-tonal">Vérifier les mises à jour</button>
                 </div>
-                <div class="field full">
-                  <label for="nextionPath">Chemin image Nextion</label>
-                  <div class="field-upgrade-row">
-                    <div class="field-inline-entry">
-                      <input id="nextionPath" placeholder="/build/Nextion.tft" />
-                      <button id="applyNextionPath" type="button" class="control-field-apply" aria-label="Appliquer le chemin Nextion" title="Aucun changement a appliquer">✓</button>
-                    </div>
-                    <button id="upNextion" class="btn-primary">Install</button>
-                  </div>
-                </div>
-                <div class="field full">
-                  <label for="supervisorPath">Chemin image Supervisor</label>
-                  <div class="field-upgrade-row">
-                    <div class="field-inline-entry">
-                      <input id="supervisorPath" placeholder="/build/Supervisor/firmware.bin" />
-                      <button id="applySupervisorPath" type="button" class="control-field-apply" aria-label="Appliquer le chemin Supervisor" title="Aucun changement a appliquer">✓</button>
-                    </div>
-                    <button id="upSupervisor" class="btn-primary">Install</button>
-                  </div>
-                </div>
-                <div class="field full">
-                  <label for="spiffsPath">Chemin image assets Supervisor (spiffs)</label>
-                  <div class="field-upgrade-row">
-                    <div class="field-inline-entry">
-                      <input id="spiffsPath" placeholder="/build/Supervisor/spiffs.bin" />
-                      <button id="applySpiffsPath" type="button" class="control-field-apply" aria-label="Appliquer le chemin SPIFFS" title="Aucun changement a appliquer">✓</button>
-                    </div>
-                    <button id="upSpiffs" class="btn-primary">Install</button>
-                  </div>
+                <div id="upgradeCards" class="upgrade-cards full" aria-live="polite">
+                  <div class="upgrade-empty">Cliquez sur Vérifier les mises à jour.</div>
                 </div>
               </div>
               <div class="upgrade-journey" aria-label="Progression mise à jour firmware">

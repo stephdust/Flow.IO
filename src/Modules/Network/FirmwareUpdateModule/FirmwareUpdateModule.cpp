@@ -15,6 +15,7 @@
 
 #include "Board/BoardSpec.h"
 #include "Core/ErrorCodes.h"
+#include "Core/FirmwareVersion.h"
 #include "Core/SystemLimits.h"
 
 #include <ESPNexUpload.h>
@@ -167,6 +168,21 @@ static void configureDownloadHttp_(HTTPClient& http)
     http.setTimeout(Limits::FirmwareUpdate::Http::RequestTimeoutMs);
 }
 
+static bool appendUrlSegment_(char* out, size_t outLen, const char* segment)
+{
+    if (!out || outLen == 0) return false;
+    if (!segment || segment[0] == '\0') return true;
+
+    while (*segment == '/') ++segment;
+    if (*segment == '\0') return true;
+
+    const size_t len = strlen(out);
+    if (len >= outLen) return false;
+    const bool needSlash = len > 0 && out[len - 1] != '/';
+    const int n = snprintf(out + len, outLen - len, "%s%s", needSlash ? "/" : "", segment);
+    return n >= 0 && (size_t)n < (outLen - len);
+}
+
 const char* FirmwareUpdateModule::stateStr_(UpdateState s)
 {
     switch (s) {
@@ -276,15 +292,35 @@ bool FirmwareUpdateModule::resolveUrl_(FirmwareUpdateTarget target,
         return false;
     }
 
+    return resolveUpdateUrl_(path, out, outLen, errOut, errOutLen);
+}
+
+bool FirmwareUpdateModule::resolveUpdateUrl_(const char* path,
+                                             char* out,
+                                             size_t outLen,
+                                             char* errOut,
+                                             size_t errOutLen) const
+{
+    if (!out || outLen == 0) return false;
+    out[0] = '\0';
+
+    if (cfgData_.updateHost[0] == '\0') {
+        writeSimpleError_(errOut, errOutLen, "update_host empty");
+        return false;
+    }
+    if (!path || path[0] == '\0') {
+        writeSimpleError_(errOut, errOutLen, "path empty");
+        return false;
+    }
+
     const bool hasProto =
         (strncmp(cfgData_.updateHost, "http://", 7) == 0) || (strncmp(cfgData_.updateHost, "https://", 8) == 0);
-    const char slash = (path[0] == '/') ? '\0' : '/';
     const int n = hasProto
-                      ? ((slash != '\0') ? snprintf(out, outLen, "%s%c%s", cfgData_.updateHost, slash, path)
-                                         : snprintf(out, outLen, "%s%s", cfgData_.updateHost, path))
-                      : ((slash != '\0') ? snprintf(out, outLen, "http://%s%c%s", cfgData_.updateHost, slash, path)
-                                         : snprintf(out, outLen, "http://%s%s", cfgData_.updateHost, path));
-    if (n <= 0 || (size_t)n >= outLen) {
+                      ? snprintf(out, outLen, "%s", cfgData_.updateHost)
+                      : snprintf(out, outLen, "http://%s", cfgData_.updateHost);
+    if (n <= 0 || (size_t)n >= outLen ||
+        !appendUrlSegment_(out, outLen, cfgData_.updatePath) ||
+        !appendUrlSegment_(out, outLen, path)) {
         writeSimpleError_(errOut, errOutLen, "resolved url too long");
         return false;
     }
@@ -359,16 +395,19 @@ bool FirmwareUpdateModule::configJson_(char* out, size_t outLen) const
     if (!out || outLen == 0) return false;
 
     char host[sizeof(cfgData_.updateHost)] = {0};
+    char updatePath[sizeof(cfgData_.updatePath)] = {0};
     char flowPath[sizeof(cfgData_.flowioPath)] = {0};
     char supPath[sizeof(cfgData_.supervisorPath)] = {0};
     char nxPath[sizeof(cfgData_.nextionPath)] = {0};
     char spiffsPath[sizeof(cfgData_.spiffsPath)] = {0};
     snprintf(host, sizeof(host), "%s", cfgData_.updateHost);
+    snprintf(updatePath, sizeof(updatePath), "%s", cfgData_.updatePath);
     snprintf(flowPath, sizeof(flowPath), "%s", cfgData_.flowioPath);
     snprintf(supPath, sizeof(supPath), "%s", cfgData_.supervisorPath);
     snprintf(nxPath, sizeof(nxPath), "%s", cfgData_.nextionPath);
     snprintf(spiffsPath, sizeof(spiffsPath), "%s", cfgData_.spiffsPath);
     sanitizeJsonString_(host);
+    sanitizeJsonString_(updatePath);
     sanitizeJsonString_(flowPath);
     sanitizeJsonString_(supPath);
     sanitizeJsonString_(nxPath);
@@ -376,10 +415,11 @@ bool FirmwareUpdateModule::configJson_(char* out, size_t outLen) const
 
     const int n = snprintf(out,
                            outLen,
-                           "{\"ok\":true,\"update_host\":\"%s\",\"flowio_path\":\"%s\","
+                           "{\"ok\":true,\"update_host\":\"%s\",\"update_path\":\"%s\",\"flowio_path\":\"%s\","
                            "\"supervisor_path\":\"%s\",\"nextion_path\":\"%s\","
                            "\"spiffs_path\":\"%s\",\"cfgdocs_path\":\"%s\"}",
                            host,
+                           updatePath,
                            flowPath,
                            supPath,
                            nxPath,
@@ -388,7 +428,79 @@ bool FirmwareUpdateModule::configJson_(char* out, size_t outLen) const
     return n > 0 && (size_t)n < outLen;
 }
 
+bool FirmwareUpdateModule::checkManifestJson_(char* out, size_t outLen, char* errOut, size_t errOutLen)
+{
+    if (!out || outLen == 0) return false;
+    out[0] = '\0';
+
+    bool isBusy = false;
+    bool hasPending = false;
+    portENTER_CRITICAL(&lock_);
+    isBusy = busy_;
+    hasPending = queuedJob_.pending;
+    portEXIT_CRITICAL(&lock_);
+    if (isBusy || hasPending) {
+        writeSimpleError_(errOut, errOutLen, "updater busy");
+        return false;
+    }
+
+    char url[kUrlLen] = {0};
+    if (!resolveUpdateUrl_("manifest.json", url, sizeof(url), errOut, errOutLen)) {
+        return false;
+    }
+
+    HTTPClient http;
+    configureDownloadHttp_(http);
+    if (!http.begin(url)) {
+        writeSimpleError_(errOut, errOutLen, "http begin failed");
+        return false;
+    }
+
+    const int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        char msg[96] = {0};
+        snprintf(msg, sizeof(msg), "http %d: %s", code, http.errorToString(code).c_str());
+        writeSimpleError_(errOut, errOutLen, msg);
+        http.end();
+        return false;
+    }
+
+    const String payload = http.getString();
+    http.end();
+    if (payload.length() == 0U) {
+        writeSimpleError_(errOut, errOutLen, "manifest empty");
+        return false;
+    }
+
+    DynamicJsonDocument doc(4096);
+    const DeserializationError jsonErr = deserializeJson(doc, payload);
+    if (jsonErr || !doc.is<JsonObjectConst>()) {
+        writeSimpleError_(errOut, errOutLen, "manifest invalid json");
+        return false;
+    }
+
+    char safeUrl[kUrlLen] = {0};
+    char current[48] = {0};
+    snprintf(safeUrl, sizeof(safeUrl), "%s", url);
+    snprintf(current, sizeof(current), "%s", FirmwareVersion::Full);
+    sanitizeJsonString_(safeUrl);
+    sanitizeJsonString_(current);
+
+    const int n = snprintf(out,
+                           outLen,
+                           "{\"ok\":true,\"manifest_url\":\"%s\",\"current\":{\"supervisor\":\"%s\"},\"manifest\":%s}",
+                           safeUrl,
+                           current,
+                           payload.c_str());
+    if (n <= 0 || (size_t)n >= outLen) {
+        writeSimpleError_(errOut, errOutLen, "manifest response too long");
+        return false;
+    }
+    return true;
+}
+
 bool FirmwareUpdateModule::setConfig_(const char* updateHost,
+                                      const char* updatePath,
                                       const char* flowioPath,
                                       const char* supervisorPath,
                                       const char* nextionPath,
@@ -415,6 +527,12 @@ bool FirmwareUpdateModule::setConfig_(const char* updateHost,
     if (updateHost) {
         if (!cfgStore_->set(updateHostVar_, updateHost)) {
             writeSimpleError_(errOut, errOutLen, "set update_host failed");
+            return false;
+        }
+    }
+    if (updatePath) {
+        if (!cfgStore_->set(updatePathVar_, updatePath)) {
+            writeSimpleError_(errOut, errOutLen, "set update_path failed");
             return false;
         }
     }
@@ -1105,6 +1223,7 @@ void FirmwareUpdateModule::init(ConfigStore& cfg, ServiceRegistry& services)
     webInterfaceSvc_ = services.get<WebInterfaceService>(ServiceId::WebInterface);
 
     cfg.registerVar(updateHostVar_);
+    cfg.registerVar(updatePathVar_);
     cfg.registerVar(flowioPathVar_);
     cfg.registerVar(supervisorPathVar_);
     cfg.registerVar(nextionPathVar_);

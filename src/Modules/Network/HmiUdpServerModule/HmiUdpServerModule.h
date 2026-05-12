@@ -29,6 +29,7 @@ public:
     void tick(uint32_t nowMs);
 
     bool isDisplayOnline() const { return displayOnline_; }
+    bool isDisplaySleeping() const { return displaySleeping_; }
     bool hasDisplayVersion() const { return displayVersionDetected_; }
     uint32_t displayVersion() const { return displayVersion_; }
     bool isLegacyV2() const { return displayVersionDetected_ && displayVersion_ == 2U; }
@@ -55,6 +56,7 @@ private:
     static constexpr uint8_t HMI_UDP_OUT_QUEUE_SIZE = 12;
     static constexpr uint8_t HMI_UDP_OUT_PAYLOAD_MAX = 64;
     static constexpr uint32_t OfflineTimeoutMs = 9000U;
+    static constexpr uint32_t SleepOfflineTimeoutMs = 120000U;
     static constexpr uint32_t ReliableRetryMs = 150U;
     static constexpr uint8_t ReliableMaxAttempts = 5U;
 
@@ -84,6 +86,7 @@ private:
     uint16_t remotePort_ = HMI_UDP_PORT;
     bool started_ = false;
     bool displayOnline_ = false;
+    bool displaySleeping_ = false;
     bool fullRefreshRequested_ = false;
     bool displayVersionDetected_ = false;
     uint32_t displayVersion_ = 0U;
@@ -118,6 +121,7 @@ private:
     void clearReliableQueue_(bool clearPending);
     void markDisplayOffline_(const char* reason, bool clearPending);
     bool isConfigMsg_(HmiUdpMsgType type) const;
+    bool shouldSuppressUiTx_() const;
     bool sendAck_(uint16_t seq);
     void readUdp_(uint32_t nowMs);
     void handlePacket_(const HmiUdpHeader& header, const uint8_t* payload, uint32_t nowMs);
