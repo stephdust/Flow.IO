@@ -1401,6 +1401,17 @@ void HMIModule::onEvent_(const Event& e)
 
 void HMIModule::handleDriverEvent_(const HmiEvent& e)
 {
+    const bool configInputEvent = e.type == HmiEventType::Back ||
+                                  e.type == HmiEventType::Validate ||
+                                  e.type == HmiEventType::NextPage ||
+                                  e.type == HmiEventType::PrevPage ||
+                                  e.type == HmiEventType::RowActivate ||
+                                  e.type == HmiEventType::RowToggle ||
+                                  e.type == HmiEventType::RowCycle ||
+                                  e.type == HmiEventType::RowSetText ||
+                                  e.type == HmiEventType::RowSetSlider ||
+                                  e.type == HmiEventType::RowEdit;
+
     if (e.type == HmiEventType::Command) {
         if (e.command == HmiCommandId::HomeConfigOpen) {
             return;
@@ -1473,6 +1484,38 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
     }
 #else
     if (!configMenuActive_) {
+        if (configInputEvent) {
+            bool restored = false;
+            if (e.contextRef != 0U) {
+                restored = restoreConfigContext_(e.contextRef);
+            }
+            if (!restored && menuSessionActive_) {
+                restored = ensureConfigMenuReady_();
+                if (restored) {
+                    LOGI("HMI config event resumed active session type=%u row=%u",
+                         (unsigned)e.type,
+                         (unsigned)e.row);
+                }
+            }
+            if (restored) {
+                configMenuActive_ = true;
+                menuPageVisible_ = true;
+                homePageVisible_ = false;
+            } else {
+                LOGW("HMI config event ignored inactive type=%u row=%u value=%u session=%d ctxRef=%lu",
+                     (unsigned)e.type,
+                     (unsigned)e.row,
+                     (unsigned)e.value,
+                     menuSessionActive_ ? 1 : 0,
+                     (unsigned long)e.contextRef);
+            }
+        }
+        if (configMenuActive_) {
+            LOGI("HMI config event restored inactive menu type=%u row=%u value=%u",
+                 (unsigned)e.type,
+                 (unsigned)e.row,
+                 (unsigned)e.value);
+        } else {
         if (e.type == HmiEventType::NextPage) {
             ledPage_ = 2U;
             applyLedMask_(true);
@@ -1483,6 +1526,14 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
             applyLedMask_(true);
         }
         return;
+        }
+    }
+
+    if (configInputEvent) {
+        LOGI("HMI config event received type=%u row=%u value=%u",
+             (unsigned)e.type,
+             (unsigned)e.row,
+             (unsigned)e.value);
     }
 
     bool changed = false;
@@ -1565,7 +1616,16 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
             break;
     }
 
-    if (changed) viewDirty_ = true;
+    if (changed) {
+        viewDirty_ = true;
+    }
+    if (configInputEvent) {
+        LOGI("HMI config event handled type=%u row=%u changed=%d dirty=%d",
+             (unsigned)e.type,
+             (unsigned)e.row,
+             changed ? 1 : 0,
+             viewDirty_ ? 1 : 0);
+    }
 #endif
 }
 

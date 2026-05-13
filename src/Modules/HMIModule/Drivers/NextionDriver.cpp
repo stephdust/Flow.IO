@@ -498,10 +498,17 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
 
     (void)sendText_("tPath", view.breadcrumb);
     (void)sendCmdFmt_("vis bHome,%u", view.canHome ? 1U : 0U);
+    (void)sendCmdFmt_("tsw bHome,%u", view.canHome ? 1U : 0U);
     (void)sendCmdFmt_("vis bBack,%u", view.canBack ? 1U : 0U);
+    (void)sendCmdFmt_("tsw bBack,%u", view.canBack ? 1U : 0U);
     (void)sendCmdFmt_("vis bValid,%u", view.canValidate ? 1U : 0U);
-    (void)sendCmdFmt_("vis bPrev,%u", (view.pageIndex > 0U) ? 1U : 0U);
-    (void)sendCmdFmt_("vis bNext,%u", (view.pageIndex + 1U < view.pageCount) ? 1U : 0U);
+    (void)sendCmdFmt_("tsw bValid,%u", view.canValidate ? 1U : 0U);
+    const bool canPrev = view.pageIndex > 0U;
+    const bool canNext = view.pageIndex + 1U < view.pageCount;
+    (void)sendCmdFmt_("vis bPrev,%u", canPrev ? 1U : 0U);
+    (void)sendCmdFmt_("tsw bPrev,%u", canPrev ? 1U : 0U);
+    (void)sendCmdFmt_("vis bNext,%u", canNext ? 1U : 0U);
+    (void)sendCmdFmt_("tsw bNext,%u", canNext ? 1U : 0U);
     (void)sendCmdFmt_("nPage.val=%u", (unsigned)(view.pageIndex + 1U));
     (void)sendCmdFmt_("nPages.val=%u", (unsigned)view.pageCount);
     (void)sendCmdFmt_("vaCtxRef.val=%lu", (unsigned long)view.contextRef);
@@ -523,7 +530,7 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
         const bool showValue = row.visible && row.valueVisible;
         const bool showRowButton = row.visible &&
                                    view.mode == ConfigMenuMode::Browse &&
-                                   row.canEdit;
+                                   (row.canEdit || row.canEnter);
         const bool leftTouchable = row.visible && view.mode == ConfigMenuMode::Browse;
         uint8_t editType = row.editType;
         if (editType > 3U) editType = 0U;
@@ -533,6 +540,7 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
         (void)sendCmdFmt_("tsw %s,%u", leftObj, leftTouchable ? 1U : 0U);
         (void)sendCmdFmt_("vis %s,%u", rightObj, showValue ? 1U : 0U);
         (void)sendCmdFmt_("vis %s,%u", rowButtonObj, showRowButton ? 1U : 0U);
+        (void)sendCmdFmt_("tsw %s,%u", rowButtonObj, showRowButton ? 1U : 0U);
         (void)sendCmdFmt_("%s.val=%u", editTypeObj, (unsigned)editType);
         if (!showValue) {
             (void)sendCmdFmt_("tsw %s,0", rightObj);

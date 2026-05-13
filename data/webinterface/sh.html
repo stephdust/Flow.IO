@@ -17,9 +17,9 @@
         </div>
       </div>
       <nav class="menu-group">
-        <button class="menu-item active" data-page="page-pool-measures"><span class="ico icon-measures" aria-hidden="true"></span><span class="label">Tableau de Bord</span></button>
+        <button class="menu-item active" data-page="page-pool-measures"><span class="ico icon-measures" aria-hidden="true"></span><span class="label">Tableau de bord</span></button>
         <button class="menu-item" data-page="page-calibration"><span class="ico icon-calibration" aria-hidden="true"></span><span class="label">Étalonnage</span></button>
-        <button class="menu-item" data-page="page-terminal"><span class="ico icon-terminal" aria-hidden="true"></span><span class="label">Journaux</span></button>
+        <button class="menu-item" data-page="page-terminal"><span class="ico icon-terminal" aria-hidden="true"></span><span class="label">Journal d’activité</span></button>
         <button class="menu-item" data-page="page-system"><span class="ico icon-system" aria-hidden="true"></span><span class="label">Mises à Jour</span></button>
         <button class="menu-item" data-page="page-control"><span class="ico icon-flowcfg" aria-hidden="true"></span><span class="label">Configuration</span></button>
       </nav>
@@ -44,12 +44,12 @@
           <span class="ui-msr menu-btn-msr" aria-hidden="true">menu</span>
         </button>
         <div class="mobile-title" aria-label="Flow.io">
-          <span id="mobileTopbarTitle" class="mobile-page-title">Tableau de Bord</span>
+          <span id="mobileTopbarTitle" class="mobile-page-title">Tableau de bord</span>
         </div>
       </div>
       <section id="page-pool-measures" class="page active">
         <div class="topbar">
-          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">dashboard</span>Tableau de Bord</h1>
+          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">water_damage</span>Tableau de bord</h1>
           <div class="topbar-actions">
             <span id="poolMeasuresStatus" class="status-chip measure-status-badge">en attente...</span>
             <button id="poolMeasuresRefresh" class="btn-tonal btn-icon-only btn-refresh-icon" aria-label="Rafraîchir les mesures actives" title="Rafraîchir les mesures actives"><span class="refresh-icon-glyph" aria-hidden="true"></span></button>
@@ -68,7 +68,7 @@
 
       <section id="page-terminal" class="page">
         <div class="topbar">
-          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">terminal_2</span>Journaux</h1>
+          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">list_alt</span>Journal d’activité</h1>
           <div class="topbar-actions">
             <select id="logSourceSelect" class="log-source-select" aria-label="Source des journaux" title="Source des journaux affichés">
               <option value="flow">Flow.io (distant)</option>
@@ -97,7 +97,7 @@
 
       <section id="page-system" class="page">
         <div class="topbar">
-          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">system_update_alt</span>Mises à Jour</h1>
+          <h1 class="ui-heading-inline"><span class="ui-msr" aria-hidden="true">cloud_upload</span>Mises à Jour</h1>
           <div class="topbar-actions">
             <span id="systemStatusText" class="status-chip system-status-badge">Prêt</span>
           </div>
@@ -105,46 +105,22 @@
         <div class="system-groups">
           <div class="card system-card system-card-firmware">
             <div class="config-section">
-              <h2 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">browser_updated</span>Mise à jour Firmware</h2>
               <div class="form-grid upgrade-form-grid">
                 <div class="upgrade-config-row full">
                   <div class="field">
-                    <label for="updateHost">Serveur HTTP (nom d'hôte ou IP, protocole optionnel)</label>
-                    <div class="field-inline-entry">
-                      <input id="updateHost" placeholder="ex. 192.168.1.20 ou http://192.168.1.20" />
-                      <button id="applyUpdateHost" type="button" class="control-field-apply" aria-label="Appliquer le serveur HTTP" title="Aucun changement a appliquer">✓</button>
+                    <label for="updateServerPath">Serveur d’upgrade (serveur/chemin)</label>
+                    <div class="field-inline-entry upgrade-server-field">
+                      <span class="upgrade-input-prefix">http://</span>
+                      <input id="updateServerPath" placeholder="192.168.1.25:8080/api/upgrades" />
+                      <button id="applyUpdateServerPath" type="button" class="control-field-apply" aria-label="Appliquer l’URL du serveur d’upgrade" title="Aucun changement a appliquer">✓</button>
                     </div>
                   </div>
-                  <div class="field">
-                    <label for="updatePath">Chemin des mises à jour</label>
-                    <div class="field-inline-entry">
-                      <input id="updatePath" placeholder="/binary" />
-                      <button id="applyUpdatePath" type="button" class="control-field-apply" aria-label="Appliquer le chemin des mises à jour" title="Aucun changement a appliquer">✓</button>
-                    </div>
+                  <div class="upgrade-check-row">
+                    <button id="checkUpdates" type="button" class="btn-tonal"><span class="ui-msr btn-msr" aria-hidden="true">search</span>Rechercher les mises à jour</button>
                   </div>
-                </div>
-                <div class="upgrade-check-row full">
-                  <button id="checkUpdates" type="button" class="btn-tonal">Vérifier les mises à jour</button>
                 </div>
                 <div id="upgradeCards" class="upgrade-cards full" aria-live="polite">
-                  <div class="upgrade-empty">Cliquez sur Vérifier les mises à jour.</div>
-                </div>
-              </div>
-              <div class="upgrade-journey" aria-label="Progression mise à jour firmware">
-                <div class="ug-header">
-                  <span id="upgradeJourneyLabel" class="ug-label">Upgrade firmware</span>
-                  <span id="upgradePct" class="ug-pct">0%</span>
-                </div>
-                <div class="bar-shell">
-                  <div id="upgradeProgressBar" class="bar-fill" style="width:0%">
-                    <div class="bar-shimmer"></div>
-                    <div id="upgradeProgressDot" class="bar-dot"></div>
-                  </div>
-                </div>
-                <div id="upgradeSteps" class="steps"></div>
-                <div class="upgrade-footer">
-                  <span id="upgradeFooterStatus" class="status-txt"><span class="sdot"></span>Prêt</span>
-                  <span id="upgradeEta" class="eta-txt">En attente</span>
+                  <div class="upgrade-empty">Cliquez sur « Rechercher les mises à jour ».</div>
                 </div>
               </div>
               <div class="btn-row upgrade-secondary-actions">
@@ -154,35 +130,27 @@
 
           <div class="card system-card system-card-actions">
             <div class="config-section">
-              <h2 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">restart_alt</span>Redémarrage</h2>
-              <div class="system-actions">
-                <div class="system-action">
-                  <h3 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">restart_alt</span>Redémarrer le Superviseur</h3>
-                  <p>Redémarre uniquement le Superviseur pour relancer les services sans modifier la configuration.</p>
-                  <div class="btn-row system-action-actions">
-                    <button id="rebootSupervisor" class="btn-tonal system-reboot-btn">Redémarrer</button>
+              <div class="system-actions system-actions-redesign">
+                <div class="upgrade-journey" aria-label="Statut de l’upgrade">
+                  <div class="ug-header">
+                    <span id="upgradeJourneyLabel" class="ug-label">Statut de l’upgrade</span>
                   </div>
+                  <div id="upgradeSteps" class="steps"></div>
                 </div>
-                <div class="system-action">
-                  <h3 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">power_settings_new</span>Redémarrer Flow.io</h3>
-                  <p>Redémarre Flow.io proprement via le lien I2C, ou force un reset matériel avec la ligne EN.</p>
-                  <div class="btn-row system-action-actions">
-                    <button id="rebootFlow" class="btn-tonal system-reboot-btn">Redémarrer</button>
-                    <button id="rebootFlowHardware" class="btn-tonal system-reboot-btn">Reset matériel</button>
+                <div class="system-action reboot-selector-card">
+                  <h3 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">restart_alt</span>Redémarrage des devices</h3>
+                  <div class="field">
+                    <label for="rebootDeviceTarget">Sélectionner un device</label>
+                    <select id="rebootDeviceTarget">
+                      <option value="supervisor">Supervisor</option>
+                      <option value="flow_soft">Flow.io soft</option>
+                      <option value="flow_hard">Flow.io hard</option>
+                      <option value="nextion">Nextion</option>
+                      <option value="factory_reset">Init Usine</option>
+                    </select>
                   </div>
-                </div>
-                <div class="system-action">
-                  <h3 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">developer_board</span>Redémarrer Nextion</h3>
-                  <p>Relance uniquement l'écran Nextion via la séquence matérielle dédiée.</p>
                   <div class="btn-row system-action-actions">
-                    <button id="rebootNextion" class="btn-tonal system-reboot-btn">Redémarrer</button>
-                  </div>
-                </div>
-                <div class="system-action">
-                  <h3 class="ui-heading-inline"><span class="ui-msr ui-msr-sm" aria-hidden="true">settings_backup_restore</span>Réinitialisation</h3>
-                  <p>Efface la configuration de Flow.io puis redémarre l’équipement.</p>
-                  <div class="btn-row system-action-actions">
-                    <button id="flowFactoryReset" class="btn-primary">Réinitialiser</button>
+                    <button id="rebootDeviceAction" class="btn-tonal system-reboot-btn"><span class="ui-msr btn-msr" aria-hidden="true">restart_alt</span>Redémarrer</button>
                   </div>
                 </div>
               </div>

@@ -11,11 +11,12 @@
 
 static constexpr uint8_t HMI_UDP_MAGIC0 = 'F';
 static constexpr uint8_t HMI_UDP_MAGIC1 = 'H';
-static constexpr uint8_t HMI_UDP_VERSION = 5;
+static constexpr uint8_t HMI_UDP_VERSION = 6;
 
 static constexpr uint16_t HMI_UDP_PORT = 42110;
-static constexpr size_t HMI_UDP_MAX_PACKET = 192;
+static constexpr size_t HMI_UDP_MAX_PACKET = 512;
 static constexpr size_t HMI_UDP_HOME_TEXT_MAX = 32;
+static constexpr uint8_t HMI_UDP_CONFIG_SNAPSHOT_ROWS = ConfigMenuModel::RowsPerPage;
 
 static constexpr uint8_t HMI_UDP_FLAG_ACK_REQUIRED = 0x01;
 static constexpr uint8_t HMI_UDP_FLAG_IS_ACK = 0x02;
@@ -40,6 +41,7 @@ enum class HmiUdpMsgType : uint8_t {
     ConfigRow = 31,
     ConfigEnd = 32,
     ConfigValues = 33,
+    ConfigViewSnapshot = 34,
 
     RtcReadRequest = 40,
     RtcReadResponse = 41,
@@ -57,7 +59,7 @@ struct HmiUdpHeader {
     uint16_t seq;
     uint16_t ack;
     uint8_t flags;
-    uint8_t len;
+    uint16_t len;
     uint16_t crc;
 };
 
@@ -140,6 +142,17 @@ struct HmiUdpConfigEndPayload {
     uint8_t rowCount;
 };
 
+struct HmiUdpConfigViewSnapshotPayload {
+    uint8_t page;
+    uint8_t pageCount;
+    uint8_t flags;
+    uint8_t rowCount;
+    uint8_t mode;
+    uint32_t contextRef;
+    char title[24];
+    HmiUdpConfigRowPayload rows[HMI_UDP_CONFIG_SNAPSHOT_ROWS];
+};
+
 struct HmiUdpRtcPayload {
     uint16_t year;
     uint8_t month;
@@ -173,7 +186,7 @@ bool hmiUdpBuildPacket(uint8_t* out,
                        uint16_t ack,
                        uint8_t flags,
                        const void* payload,
-                       uint8_t payloadLen);
+                       size_t payloadLen);
 bool hmiUdpValidatePacket(const uint8_t* data, size_t len, const HmiUdpHeader*& header, const uint8_t*& payload);
 void hmiUdpEventToPayload(const HmiEvent& event, HmiUdpEventPayload& out);
 void hmiUdpPayloadToEvent(const HmiUdpEventPayload& payload, HmiEvent& out);

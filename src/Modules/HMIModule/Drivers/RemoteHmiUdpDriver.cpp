@@ -74,12 +74,7 @@ bool RemoteHmiUdpDriver::writeRtc(const HmiRtcDateTime& value)
 bool RemoteHmiUdpDriver::renderConfigMenu(const ConfigMenuView& view)
 {
     if (!udpServer_) return false;
-    bool ok = udpServer_->sendConfigStart(view);
-    for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
-        ok = udpServer_->sendConfigRow(i, view.rows[i], view.mode) && ok;
-    }
-    ok = udpServer_->sendConfigEnd(view.rowCountOnPage) && ok;
-    return ok;
+    return udpServer_->sendConfigViewSnapshot(view);
 }
 
 bool RemoteHmiUdpDriver::refreshConfigMenuValues(const ConfigMenuView& view)

@@ -58,10 +58,11 @@ bool hmiUdpBuildPacket(uint8_t* out,
                        uint16_t ack,
                        uint8_t flags,
                        const void* payload,
-                       uint8_t payloadLen)
+                       size_t payloadLen)
 {
     outLen = 0;
     if (!out || outCapacity < sizeof(HmiUdpHeader)) return false;
+    if (payloadLen > 0xFFFFU) return false;
     if ((size_t)payloadLen + sizeof(HmiUdpHeader) > outCapacity) return false;
     if (payloadLen > 0U && !payload) return false;
 
@@ -73,7 +74,7 @@ bool hmiUdpBuildPacket(uint8_t* out,
     header.seq = seq;
     header.ack = ack;
     header.flags = flags;
-    header.len = payloadLen;
+    header.len = (uint16_t)payloadLen;
     header.crc = packetCrc_(header, reinterpret_cast<const uint8_t*>(payload));
 
     memcpy(out, &header, sizeof(header));

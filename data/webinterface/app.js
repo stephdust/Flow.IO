@@ -24,10 +24,10 @@
     const remoteMenuIconFontLinkId = 'flowMenuIconFontRemote';
     const remoteMenuIconFontHref = 'https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded&display=block';
     const remoteMenuIconLigatures = {
-      'icon-measures': 'dashboard',
+      'icon-measures': 'water_damage',
       'icon-calibration': 'science',
-      'icon-terminal': 'terminal_2',
-      'icon-system': 'system_update_alt',
+      'icon-terminal': 'list_alt',
+      'icon-system': 'cloud_upload',
       'icon-flowcfg': 'settings'
     };
     let webAssetVersion = '';
@@ -240,12 +240,8 @@
     async function applyMenuIconModeFromMeta(data) {
       const mode = normalizeNetworkMode(data && data.network_mode);
       networkMode = mode;
-      if (isAccessPointMode()) {
-        applyMenuIconSourcePreference(false);
-        return;
-      }
-      const fontReady = await ensureRemoteMenuIconFontLoaded();
-      applyMenuIconSourcePreference(fontReady);
+      await ensureRemoteMenuIconFontLoaded().catch(() => false);
+      applyMenuIconSourcePreference(true);
     }
 
     function isMicronovaProfile() {
@@ -308,18 +304,23 @@
     function applyProfileUiText() {
       if (!document.body) return;
       setBrandWordmark(isMicronovaProfile() ? 'Pellet' : 'Flow');
-      if (!isMicronovaProfile()) return;
-      setPageMenuVisible('page-calibration', false);
-      setSystemActionVisible('rebootFlow', false);
-      setSystemActionVisible('rebootFlowHardware', false);
-      setSystemActionVisible('rebootNextion', false);
-      setSystemActionVisible('flowFactoryReset', false);
-      const rebootAction = rebootSupervisorBtn ? rebootSupervisorBtn.closest('.system-action') : null;
-      if (rebootAction) {
-        const h3 = rebootAction.querySelector('h3');
-        const p = rebootAction.querySelector('p');
-        if (h3) h3.textContent = 'Redémarrer Micronova';
-        if (p) p.textContent = 'Redémarre le firmware Micronova sans modifier la configuration.';
+      if (isMicronovaProfile()) {
+        setPageMenuVisible('page-calibration', false);
+      }
+      if (rebootDeviceTargetSelect) {
+        const blockValues = isMicronovaProfile()
+          ? new Set(['flow_soft', 'flow_hard', 'nextion', 'factory_reset'])
+          : new Set();
+        Array.from(rebootDeviceTargetSelect.options || []).forEach((option) => {
+          if (!option) return;
+          option.disabled = blockValues.has(option.value);
+        });
+        if (rebootDeviceTargetSelect.options[0]) {
+          rebootDeviceTargetSelect.options[0].text = isMicronovaProfile() ? 'Micronova' : 'Supervisor';
+        }
+        if (blockValues.has(rebootDeviceTargetSelect.value)) {
+          rebootDeviceTargetSelect.value = 'supervisor';
+        }
       }
     }
 
@@ -695,8 +696,8 @@
             }
           }
         }
-        applyIconUsagePreference(!!data.disable_icons);
-        applyMenuIconPreference(!!data.hide_menu_svg);
+        applyIconUsagePreference(false);
+        applyMenuIconPreference(false);
         applyStatusIconPreference(!!data.unify_status_card_icons);
         await applyMenuIconModeFromMeta(data);
         if (!disableWebIcons && hasWarmDeferredVisualAssets()) {
@@ -943,10 +944,8 @@
     let terminalActive = false;
     const lineDefaultPlaceholder = line ? line.placeholder : '';
 
-    const updateHost = document.getElementById('updateHost');
-    const updatePath = document.getElementById('updatePath');
-    const applyUpdateHostBtn = document.getElementById('applyUpdateHost');
-    const applyUpdatePathBtn = document.getElementById('applyUpdatePath');
+    const updateServerPath = document.getElementById('updateServerPath');
+    const applyUpdateServerPathBtn = document.getElementById('applyUpdateServerPath');
     const checkUpdatesBtn = document.getElementById('checkUpdates');
     const upgradeCards = document.getElementById('upgradeCards');
     const upgradeProgressBar = document.getElementById('upgradeProgressBar');
@@ -965,11 +964,8 @@
     const scanWifiBtn = document.getElementById('scanWifi');
     const applyWifiCfgBtn = document.getElementById('applyWifiCfg');
     const wifiConfigStatus = document.getElementById('wifiConfigStatus');
-    const rebootSupervisorBtn = document.getElementById('rebootSupervisor');
-    const rebootFlowBtn = document.getElementById('rebootFlow');
-    const rebootFlowHardwareBtn = document.getElementById('rebootFlowHardware');
-    const rebootNextionBtn = document.getElementById('rebootNextion');
-    const flowFactoryResetBtn = document.getElementById('flowFactoryReset');
+    const rebootDeviceTargetSelect = document.getElementById('rebootDeviceTarget');
+    const rebootDeviceActionBtn = document.getElementById('rebootDeviceAction');
     const systemStatusText = document.getElementById('systemStatusText');
     const flowStatusRefreshBtn = document.getElementById('flowStatusRefresh');
     const flowStatusChip = document.getElementById('flowStatusChip');
@@ -1131,8 +1127,12 @@
     const poolMeasureDomainAnimations = {};
     const upgradeReconnectFetchTimeoutMs = 1400;
     const upgradeConfigFieldDefs = [
-      { key: 'update_host', input: updateHost, button: applyUpdateHostBtn, successMessage: 'Serveur HTTP enregistré.' },
-      { key: 'update_path', input: updatePath, button: applyUpdatePathBtn, successMessage: 'Chemin des mises à jour enregistré.' }
+      {
+        key: 'update_server_path',
+        input: updateServerPath,
+        button: applyUpdateServerPathBtn,
+        successMessage: 'Serveur d’upgrade enregistré.'
+      }
     ];
     const upgradeTargetDefs = {
       flowio: { manifestKey: 'flowio', target: 'flowio', endpoint: '/fwupdate/flowio', label: 'Flow.io', order: 10 },
@@ -1327,8 +1327,10 @@
 
     function setUpgradeProgress(value) {
       const p = Math.max(0, Math.min(100, Number(value) || 0));
-      upgradeProgressBar.style.width = p + '%';
-      upgradeProgressBar.classList.toggle('is-complete', p >= 100);
+      if (upgradeProgressBar) {
+        upgradeProgressBar.style.width = p + '%';
+        upgradeProgressBar.classList.toggle('is-complete', p >= 100);
+      }
       if (upgradePct) {
         upgradePct.textContent = p + '%';
       }
@@ -1381,12 +1383,11 @@
 
     function upgradeStepDefinitions(target) {
       return [
-        { id: 'target', label: 'Sélection de la cible ' + upgradeTargetLabel(target) },
-        { id: 'download', label: 'Connexion au serveur' },
+        { id: 'target', label: 'Initialisation' },
+        { id: 'download', label: 'Connexion' },
         { id: 'flash', label: 'Mise à jour' },
         { id: 'reboot', label: 'Redémarrage' },
-        { id: 'reconnect', label: 'Attente de Reconnection' },
-        { id: 'done', label: 'Mise à jour terminée' }
+        { id: 'reconnect', label: 'Reconnexion' }
       ];
     }
 
@@ -1432,11 +1433,14 @@
     }
 
     function upgradeStepStatusLabel(stepId, state, session) {
-      if (state === 'done') return 'OK';
+      if (state === 'done') return 'Terminé';
       const progress = upgradeStepProgress(stepId, state, session);
-      if (progress !== null) return progress + '%';
-      if (state === 'error') return 'erreur';
-      return '';
+      if (state === 'active') {
+        return progress !== null ? ('En cours (' + progress + '%)') : 'En cours';
+      }
+      if (state === 'pending') return 'En attente';
+      if (state === 'error') return 'Erreur';
+      return 'En attente';
     }
 
     function upgradeStepState(stepId, session) {
@@ -1469,28 +1473,45 @@
         const icon = document.createElement('span');
         icon.className = 'step-ic ' + state;
         if (state === 'active') {
-          const refreshIcon = document.createElement('span');
-          refreshIcon.className = 'step-refresh-icon';
-          refreshIcon.setAttribute('aria-hidden', 'true');
-          icon.appendChild(refreshIcon);
+          const activeDot = document.createElement('span');
+          activeDot.className = 'step-active-dot';
+          activeDot.setAttribute('aria-hidden', 'true');
+          icon.appendChild(activeDot);
         } else if (state === 'done') {
-          icon.textContent = iconCheckText();
+          const doneIcon = document.createElement('span');
+          doneIcon.className = 'ui-msr';
+          doneIcon.setAttribute('aria-hidden', 'true');
+          doneIcon.textContent = 'check';
+          icon.appendChild(doneIcon);
         } else if (state === 'error') {
-          icon.textContent = '!';
+          const errIcon = document.createElement('span');
+          errIcon.className = 'ui-msr';
+          errIcon.setAttribute('aria-hidden', 'true');
+          errIcon.textContent = 'close';
+          icon.appendChild(errIcon);
         } else {
-          icon.textContent = '○';
+          const pendingIcon = document.createElement('span');
+          pendingIcon.className = 'ui-msr';
+          pendingIcon.setAttribute('aria-hidden', 'true');
+          pendingIcon.textContent = 'radio_button_unchecked';
+          icon.appendChild(pendingIcon);
         }
         row.appendChild(icon);
+
+        const meta = document.createElement('span');
+        meta.className = 'step-meta';
 
         const label = document.createElement('span');
         label.className = 'step-lbl ' + state;
         label.textContent = step.label;
-        row.appendChild(label);
+        meta.appendChild(label);
 
-        const trailing = document.createElement('span');
-        trailing.className = 'step-t';
-        trailing.textContent = upgradeStepStatusLabel(step.id, state, session);
-        row.appendChild(trailing);
+        const sub = document.createElement('span');
+        sub.className = 'step-sub ' + state;
+        sub.textContent = upgradeStepStatusLabel(step.id, state, session);
+        meta.appendChild(sub);
+
+        row.appendChild(meta);
 
         upgradeSteps.appendChild(row);
       });
@@ -1518,7 +1539,9 @@
                     : 'Erreur';
 
       if (upgradeJourneyLabel) {
-        upgradeJourneyLabel.textContent = safeSession.target ? ('Upgrade ' + targetLabel) : 'Upgrade firmware';
+        upgradeJourneyLabel.textContent = safeSession.target
+          ? ('Statut de l’upgrade · ' + targetLabel)
+          : 'Statut de l’upgrade';
       }
       setUpgradeProgress(upgradePhasePercent(safeSession));
       setUpgradeMessage(detail || (phase === 'idle' ? 'Aucune opération en cours.' : stateLabel));
@@ -1809,19 +1832,42 @@
     async function loadUpgradeConfig() {
       try {
         const data = await fetchOkJson('/api/fwupdate/config', { cache: 'no-store' }, 'configuration firmware indisponible');
-        updateHost.value = data.update_host || '';
-        updatePath.value = data.update_path || '';
-        resetUpgradeManifestSelections('Vérification requise');
+        if (updateServerPath) {
+          updateServerPath.value = composeUpgradeServerPath(data.update_host || '', data.update_path || '');
+        }
+        resetUpgradeManifestSelections('Cliquez sur « Rechercher les mises à jour ».');
         syncUpgradeConfigFieldInitialValues();
       } catch (err) {
         setUpgradeMessage('Échec du chargement de la configuration : ' + err);
       }
     }
 
+    function composeUpgradeServerPath(hostRaw, pathRaw) {
+      const host = String(hostRaw || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+      let path = String(pathRaw || '').trim();
+      if (path && !path.startsWith('/')) path = '/' + path;
+      if (!host) return path.replace(/^\/+/, '');
+      return host + path;
+    }
+
+    function splitUpgradeServerPath(rawValue) {
+      const raw = String(rawValue || '').trim().replace(/^https?:\/\//i, '');
+      if (!raw) return { host: '', path: '' };
+      const slashIndex = raw.indexOf('/');
+      if (slashIndex < 0) {
+        return { host: raw.replace(/\/+$/, ''), path: '' };
+      }
+      const host = raw.slice(0, slashIndex).trim().replace(/\/+$/, '');
+      let path = raw.slice(slashIndex).trim();
+      if (path && !path.startsWith('/')) path = '/' + path;
+      return { host: host, path: path };
+    }
+
     function buildUpgradeConfigPayload() {
+      const parts = splitUpgradeServerPath(updateServerPath ? updateServerPath.value : '');
       return {
-        update_host: updateHost.value.trim(),
-        update_path: updatePath.value.trim()
+        update_host: parts.host,
+        update_path: parts.path
       };
     }
 
@@ -1966,18 +2012,22 @@
       upgradeCards.innerHTML = '';
       const empty = document.createElement('div');
       empty.className = 'upgrade-empty';
-      empty.textContent = text || 'Cliquez sur Vérifier les mises à jour.';
+      empty.textContent = text || 'Cliquez sur « Rechercher les mises à jour ».';
       upgradeCards.appendChild(empty);
     }
 
-    function appendUpgradeCardField(parent, label, value) {
+    function appendUpgradeCardField(parent, iconName, value) {
       const field = document.createElement('div');
       field.className = 'upgrade-card-field';
-      const strong = document.createElement('strong');
-      strong.textContent = label;
+
+      const icon = document.createElement('span');
+      icon.className = 'ui-msr upgrade-card-field-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = iconName || 'info';
+
       const span = document.createElement('span');
       span.textContent = value || '-';
-      field.appendChild(strong);
+      field.appendChild(icon);
       field.appendChild(span);
       parent.appendChild(field);
     }
@@ -1993,25 +2043,35 @@
         const card = document.createElement('article');
         card.className = 'upgrade-card';
 
+        const head = document.createElement('div');
+        head.className = 'upgrade-card-head';
+
         const title = document.createElement('h3');
         title.textContent = entry.title;
-        card.appendChild(title);
-
-        const fields = document.createElement('div');
-        fields.className = 'upgrade-card-fields';
-        appendUpgradeCardField(fields, 'Version', entry.version);
-        appendUpgradeCardField(fields, 'Build', entry.buildDate);
-        appendUpgradeCardField(fields, 'Notes', entry.notes);
-        card.appendChild(fields);
+        head.appendChild(title);
 
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'btn-primary';
-        button.textContent = 'Install';
+        button.className = 'upgrade-card-install';
+        button.setAttribute('aria-label', 'Installer ' + entry.title + ' ' + entry.version);
+        button.title = 'Installer ' + entry.title + ' ' + entry.version;
         button.disabled = !entry.endpoint || !entry.url;
         if (button.disabled) button.title = 'Route de mise à jour indisponible';
+        const icon = document.createElement('span');
+        icon.className = 'ui-msr';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = 'upload';
+        button.appendChild(icon);
         bindClickAction(button, () => startUpgrade(entry.target, entry.url, entry.endpoint));
-        card.appendChild(button);
+        head.appendChild(button);
+        card.appendChild(head);
+
+        const fields = document.createElement('div');
+        fields.className = 'upgrade-card-fields';
+        appendUpgradeCardField(fields, 'deployed_code', 'Version ' + entry.version);
+        appendUpgradeCardField(fields, 'event', entry.buildDate);
+        appendUpgradeCardField(fields, 'description', entry.notes);
+        card.appendChild(fields);
 
         upgradeCards.appendChild(card);
       });
@@ -2019,7 +2079,7 @@
 
     function resetUpgradeManifestSelections(text) {
       upgradeManifestState = { manifest: null, manifestUrl: '', baseUrl: '' };
-      setUpgradeCardsEmpty(text || 'Cliquez sur Vérifier les mises à jour.');
+      setUpgradeCardsEmpty(text || 'Cliquez sur « Rechercher les mises à jour ».');
     }
 
     function populateUpgradeManifestSelections(data) {
@@ -2085,7 +2145,11 @@
       const changedKeys = Array.isArray(keys) ? new Set(keys) : null;
       upgradeConfigFieldDefs.forEach((def) => {
         if (!def || !def.input || !def.button) return;
-        if (changedKeys && !changedKeys.has(def.key)) return;
+        if (changedKeys) {
+          const isCombinedUpgradeField = def.key === 'update_server_path'
+            && (changedKeys.has('update_host') || changedKeys.has('update_path'));
+          if (!changedKeys.has(def.key) && !isCombinedUpgradeField) return;
+        }
         def.input.dataset.initialValue = def.input.value.trim();
         updateUpgradeConfigFieldApplyState(def);
       });
@@ -2121,8 +2185,12 @@
       def.button.disabled = true;
       def.button.classList.add('is-pending');
       try {
-        let success = def.successMessage;
-        await saveUpgradeConfig({ [def.key]: def.input.value.trim() }, success);
+        const success = def.successMessage;
+        if (def.key === 'update_server_path') {
+          await saveUpgradeConfig(buildUpgradeConfigPayload(), success);
+        } else {
+          await saveUpgradeConfig({ [def.key]: def.input.value.trim() }, success);
+        }
       } finally {
         updateUpgradeConfigFieldApplyState(def);
       }
@@ -7680,46 +7748,46 @@
     }
 
     function initSystemBindings() {
-      bindClickAction(rebootSupervisorBtn, () => {
-        const label = isMicronovaProfile() ? 'Micronova' : 'superviseur';
+      bindClickAction(rebootDeviceActionBtn, () => {
+        if (!rebootDeviceTargetSelect || !rebootDeviceActionBtn) return;
+        const selected = String(rebootDeviceTargetSelect.value || 'supervisor');
+        const actionMap = {
+          supervisor: {
+            countdown: isMicronovaProfile() ? 'Reboot Micronova' : 'Reboot Supervisor',
+            failure: isMicronovaProfile() ? 'Reboot Micronova échoué' : 'Reboot Supervisor échoué',
+            runner: () => callSystemAction('supervisor', 'reboot')
+          },
+          flow_soft: {
+            countdown: 'Reboot Flow.io',
+            failure: 'Reboot Flow.io échoué',
+            runner: () => callSystemAction('flow', 'reboot')
+          },
+          flow_hard: {
+            countdown: 'Reset matériel Flow.io',
+            failure: 'Reset matériel Flow.io échoué',
+            runner: () => callSystemAction('flow', 'hardware_reboot')
+          },
+          nextion: {
+            countdown: 'Reboot Nextion',
+            failure: 'Reboot Nextion échoué',
+            runner: () => callSystemAction('nextion', 'reboot')
+          },
+          factory_reset: {
+            countdown: 'Init usine Flow.io',
+            failure: 'Init usine Flow.io échouée',
+            runner: async () => {
+              if (!confirm('Confirmer la réinitialisation usine de Flow.io ? Cette action efface la configuration distante.')) return;
+              await callSystemAction('flow', 'factory_reset');
+            }
+          }
+        };
+        const chosen = actionMap[selected] || actionMap.supervisor;
         startDelayedSystemAction(
-          rebootSupervisorBtn,
-          'Reboot ' + label,
-          () => callSystemAction('supervisor', 'reboot'),
-          'Reboot ' + label + ' échoué'
+          rebootDeviceActionBtn,
+          chosen.countdown,
+          chosen.runner,
+          chosen.failure
         );
-      });
-      bindClickAction(rebootFlowBtn, () => {
-        startDelayedSystemAction(
-          rebootFlowBtn,
-          'Reboot Flow.io',
-          () => callSystemAction('flow', 'reboot'),
-          'Reboot Flow.io échoué'
-        );
-      });
-      bindClickAction(rebootFlowHardwareBtn, () => {
-        startDelayedSystemAction(
-          rebootFlowHardwareBtn,
-          'Reset matériel Flow.io',
-          () => callSystemAction('flow', 'hardware_reboot'),
-          'Reset matériel Flow.io échoué'
-        );
-      });
-      bindClickAction(rebootNextionBtn, () => {
-        startDelayedSystemAction(
-          rebootNextionBtn,
-          'Reboot Nextion',
-          () => callSystemAction('nextion', 'reboot'),
-          'Reboot Nextion échoué'
-        );
-      });
-      bindClickAction(flowFactoryResetBtn, async () => {
-        if (!confirm('Confirmer la réinitialisation usine de Flow.io ? Cette action efface la configuration distante.')) return;
-        try {
-          await callSystemAction('flow', 'factory_reset');
-        } catch (err) {
-          systemStatusText.textContent = 'Reset Flow.io échoué';
-        }
       });
     }
 

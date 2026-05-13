@@ -235,7 +235,7 @@
       background: transparent;
       color: var(--menu-inactive-fg);
       text-align: left;
-      font-size: 14px; font-weight: 500; white-space: nowrap;
+      font-size: 13px; font-weight: 500; white-space: nowrap;
       transition: background 0.16s ease, color 0.16s ease, border-left-color 0.16s ease;
     }
     .menu-item:hover {
@@ -1444,6 +1444,9 @@
       width: min(100%, 50ch);
       min-width: 0;
     }
+    .upgrade-form-grid > .full {
+      grid-column: 1 / -1;
+    }
     .field-upgrade-row > .btn-primary {
       flex: 0 0 auto;
       min-width: 54px;
@@ -1456,73 +1459,141 @@
     }
     .upgrade-config-row {
       display: grid;
-      grid-template-columns: minmax(0, 1.3fr) minmax(180px, 0.7fr);
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 12px;
       align-items: end;
+    }
+    .upgrade-server-field {
+      position: relative;
+    }
+    .upgrade-input-prefix {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #6C8196;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.2;
+      pointer-events: none;
+      user-select: none;
+      z-index: 1;
+    }
+    .upgrade-server-field input {
+      padding-left: 58px;
+      padding-right: 44px;
     }
     .upgrade-check-row {
       display: flex;
       justify-content: flex-start;
+      align-items: flex-end;
     }
     .upgrade-check-row .btn-tonal {
-      min-width: 180px;
+      min-width: 240px;
+      min-height: 42px;
+      border-radius: 12px;
     }
     .upgrade-cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
       align-items: stretch;
+      min-height: 220px;
+      align-content: start;
     }
     .upgrade-empty {
       grid-column: 1 / -1;
       color: var(--panel-frame-text);
       font-size: 0.92rem;
-      padding: 10px 0;
+      padding: 28px 12px;
+      border: 1px dashed #C7D5E4;
+      border-radius: 12px;
+      background: #F8FBFF;
+      text-align: center;
     }
     .upgrade-card {
       display: flex;
       min-width: 0;
-      min-height: 174px;
+      min-height: 138px;
       flex-direction: column;
-      gap: 10px;
-      padding: 12px;
+      gap: 2px;
+      padding: 10px 10px 9px;
       border: 1px solid var(--panel-frame-border);
-      border-radius: 8px;
-      background: var(--panel-soft-bg);
+      border-radius: 14px;
+      background: #FFFFFF;
+      box-shadow: 0 4px 16px rgba(12, 41, 67, 0.06);
+    }
+    .upgrade-card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
     }
     .upgrade-card h3 {
       margin: 0;
       color: var(--panel-frame-title);
-      font-size: 0.98rem;
+      font-size: 0.83rem;
       font-weight: 700;
-      line-height: 1.2;
+      line-height: 1.1;
+    }
+    .upgrade-card-install {
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      border-radius: 10px;
+      padding: 0;
+      border: 1px solid #CFDAE7;
+      background: #F4F8FE;
+      color: #2B76B4;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .upgrade-card-install,
+    .upgrade-card-install:hover,
+    .upgrade-card-install:active {
+      border: 1px solid #CFDAE7;
+      background: #F4F8FE;
+      color: #2B76B4;
+    }
+    .upgrade-card-install .ui-msr {
+      display: inline-flex;
+      font-size: 20px;
+      font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+    }
+    .upgrade-card-install:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
     .upgrade-card-fields {
       display: grid;
-      gap: 6px;
+      gap: 0;
       min-width: 0;
       flex: 1 1 auto;
     }
     .upgrade-card-field {
       display: grid;
-      gap: 2px;
+      grid-template-columns: 14px minmax(0, 1fr);
+      align-items: start;
+      column-gap: 5px;
       min-width: 0;
       color: var(--panel-frame-text);
-      font-size: 0.78rem;
-      line-height: 1.3;
+      font-size: 0.64rem;
+      line-height: 0.92;
     }
-    .upgrade-card-field strong {
-      color: var(--panel-frame-title);
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
+    .upgrade-card-field + .upgrade-card-field {
+      margin-top: -2px;
+    }
+    .upgrade-card-field-icon {
+      font-size: 12px;
+      color: #7A8FA5;
+      line-height: 1;
+      margin-top: 0;
     }
     .upgrade-card-field span {
+      line-height: 0.92;
       overflow-wrap: anywhere;
-    }
-    .upgrade-card .btn-primary {
-      align-self: flex-start;
-      min-width: 72px;
     }
     .field-switch {
       display: flex;
@@ -1638,6 +1709,7 @@
       cursor: pointer;
       border-radius: 12px;
       font: inherit;
+      font-size: 13px;
       padding: 10px 12px;
     }
     button:active {
@@ -1698,7 +1770,7 @@
     .btn-compact {
       min-height: 36px;
       padding: 8px 10px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       display: inline-flex;
       align-items: center;
@@ -1724,27 +1796,26 @@
       margin-top: 10px;
     }
     .upgrade-journey {
-      margin-top: 12px;
-      width: min(100%, 440px);
-      padding: 18px 18px 16px;
-      border-radius: 16px;
+      margin-top: 0;
+      width: 100%;
+      padding: 16px;
+      border-radius: 14px;
       background: #FFFFFF;
-      border: 1px solid #D3D1C7;
-      box-shadow: 0 4px 28px rgba(44, 44, 42, 0.07);
+      border: 1px solid var(--panel-frame-border);
+      box-shadow: 0 4px 20px rgba(12, 41, 67, 0.05);
     }
     .ug-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: 12px;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
     .ug-label {
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #888780;
+      letter-spacing: 0.01em;
+      color: #1E3E62;
     }
     .ug-pct {
       font-family: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
@@ -1757,14 +1828,14 @@
       border-radius: 999px;
       overflow: hidden;
       position: relative;
-      background: #E5E4DC;
-      border: 1px solid #D3D1C7;
+      background: #E5EEF8;
+      border: 1px solid #CDDAE8;
     }
     .bar-fill {
       height: 100%;
       width: 0%;
       border-radius: inherit;
-      background: #534AB7;
+      background: #2B76B4;
       position: relative;
       overflow: hidden;
       transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1793,25 +1864,38 @@
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: #534AB7;
-      box-shadow: 0 0 0 3px rgba(83,74,183,0.18);
+      background: #2B76B4;
+      box-shadow: 0 0 0 3px rgba(43,118,180,0.18);
       animation: pdot 1.2s ease-in-out infinite;
     }
     @keyframes pdot {
-      0%, 100% { box-shadow: 0 0 0 3px rgba(83,74,183,0.18); }
-      50% { box-shadow: 0 0 0 7px rgba(83,74,183,0.07); }
+      0%, 100% { box-shadow: 0 0 0 3px rgba(43,118,180,0.18); }
+      50% { box-shadow: 0 0 0 7px rgba(43,118,180,0.07); }
     }
     .steps {
-      margin-top: 16px;
+      margin-top: 8px;
       display: flex;
       flex-direction: column;
-      gap: 9px;
+      gap: 8px;
     }
     .step-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 10px;
       min-width: 0;
+      position: relative;
+    }
+    .step-row::after {
+      content: "";
+      position: absolute;
+      left: 10px;
+      top: 22px;
+      width: 2px;
+      height: calc(100% + 8px);
+      background: #D4DEEA;
+    }
+    .step-row:last-child::after {
+      display: none;
     }
     .step-ic {
       width: 22px;
@@ -1825,8 +1909,9 @@
       font-weight: 700;
     }
     .step-ic.done {
-      background: #EAF3DE;
-      color: #3B6D11;
+      background: #E7F6EE;
+      color: #2A8B58;
+      border: 1px solid rgba(42, 139, 88, 0.22);
     }
     body.web-icons-disabled .step-ic.done {
       font-size: 12px;
@@ -1834,63 +1919,49 @@
       letter-spacing: 0.02em;
     }
     .step-ic.active {
-      background: #EEEDFE;
-      color: #534AB7;
+      background: #FFFFFF;
+      border: 2px solid #2B76B4;
+      color: #2B76B4;
     }
-    .step-refresh-icon {
-      width: 10px;
-      height: 10px;
-      display: block;
-      background-color: currentColor;
-      -webkit-mask-image: var(--ui-refresh-icon-url);
-      -webkit-mask-position: center;
-      -webkit-mask-repeat: no-repeat;
-      -webkit-mask-size: contain;
-      mask-image: var(--ui-refresh-icon-url);
-      mask-position: center;
-      mask-repeat: no-repeat;
-      mask-size: contain;
-      animation: spin 1s linear infinite;
-    }
-    body.web-icons-disabled .step-refresh-icon {
-      width: 14px;
-      height: 14px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
+    .step-active-dot {
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      background: currentColor;
-      color: #FFFFFF;
-      font-size: 9px;
-      font-weight: 800;
-      line-height: 1;
-      -webkit-mask-image: none;
-      mask-image: none;
-      animation: none;
+      background: #2B76B4;
+      box-shadow: 0 0 0 0 rgba(43, 118, 180, 0.42);
+      animation: step-active-pulse 1.2s ease-in-out infinite;
     }
-    body.web-icons-disabled .step-refresh-icon::before {
-      content: "R";
+    @keyframes step-active-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(43, 118, 180, 0.4); }
+      50% { box-shadow: 0 0 0 6px rgba(43, 118, 180, 0.12); }
+    }
+    .step-ic .ui-msr {
+      display: inline-flex;
+      font-size: 16px;
+      font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 20;
     }
     .step-ic.pending {
-      background: #E5E4DC;
-      color: #B4B2A9;
-      border: 1px solid #D3D1C7;
+      background: #FFFFFF;
+      color: #A5B6C8;
+      border: 2px solid #D3DFEB;
     }
     .step-ic.error {
       background: rgba(209, 76, 102, 0.12);
       color: #D14C66;
       border: 1px solid rgba(209, 76, 102, 0.18);
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    .step-meta {
+      display: grid;
+      gap: 1px;
+      min-width: 0;
+      flex: 1;
     }
     .step-lbl {
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 400;
-      flex: 1;
       min-width: 0;
-      color: #888780;
-      line-height: 1.35;
+      color: #667D93;
+      line-height: 1.2;
     }
     .step-lbl.done {
       color: #2C2C2A;
@@ -1903,12 +1974,22 @@
     .step-lbl.error {
       color: #A33A4E;
     }
-    .step-t {
-      font-family: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
-      font-size: 11px;
-      color: #B4B2A9;
-      flex: 0 0 auto;
+    .step-sub {
+      font-size: 10px;
+      font-weight: 500;
+      color: #8B9CB0;
+      line-height: 1.2;
       white-space: nowrap;
+    }
+    .step-sub.done {
+      color: #2A8B58;
+    }
+    .step-sub.active,
+    .step-sub.pending {
+      color: #8B9CB0;
+    }
+    .step-sub.error {
+      color: #A33A4E;
     }
     .upgrade-footer {
       margin-top: 14px;
@@ -1932,8 +2013,8 @@
       50% { opacity: 0.25; }
     }
     .status-txt {
-      font-size: 12px;
-      color: #888780;
+      font-size: 11px;
+      color: #5E7891;
       min-width: 0;
     }
     .eta-txt {
@@ -1999,12 +2080,45 @@
       display: grid;
       gap: 12px;
     }
+    .system-actions-redesign {
+      gap: 14px;
+    }
+    .system-actions-redesign .upgrade-journey {
+      margin: 0;
+      max-width: 256px;
+    }
+    .reboot-selector-card {
+      background: #FFFFFF;
+      gap: 10px;
+      width: 100%;
+      max-width: 256px;
+    }
+    .reboot-selector-card h3 {
+      margin-bottom: 0;
+    }
+    .reboot-selector-card .field {
+      gap: 6px;
+    }
+    .reboot-selector-card .system-action-actions {
+      margin-top: 0;
+      justify-content: stretch;
+    }
+    .reboot-selector-card .system-reboot-btn {
+      width: 100%;
+      min-width: 0;
+    }
     .system-groups {
       display: grid;
       gap: 16px;
+      align-items: start;
     }
     .system-card {
       min-width: 0;
+    }
+    .system-card-actions {
+      width: auto;
+      justify-self: start;
+      align-self: start;
     }
     .system-card .config-section {
       margin-bottom: 0;
@@ -2969,6 +3083,26 @@
     }
     .overlay { position: fixed; inset: 0; background: rgba(1,10,22,0.62); display: none; z-index: 10; }
     @media (max-width: 900px) {
+      .system-card-actions {
+        display: contents;
+      }
+      .system-card-actions .config-section {
+        display: contents;
+      }
+      .system-actions-redesign {
+        display: contents;
+      }
+      .reboot-selector-card {
+        order: 1;
+        max-width: none;
+      }
+      .system-card-firmware {
+        order: 2;
+      }
+      .system-card-actions .upgrade-journey {
+        order: 3;
+        max-width: none;
+      }
       .status-grid {
         grid-template-columns: 1fr;
       }
@@ -3127,8 +3261,12 @@
       .upgrade-config-row {
         grid-template-columns: minmax(0, 1fr);
       }
+      .upgrade-check-row {
+        justify-content: stretch;
+      }
       .upgrade-check-row .btn-tonal {
         width: 100%;
+        min-width: 0;
       }
       .upgrade-cards {
         grid-template-columns: minmax(0, 1fr);
@@ -3153,15 +3291,13 @@
       }
       .step-row {
         display: grid;
-        grid-template-columns: 22px minmax(0, 1fr) auto;
+        grid-template-columns: 22px minmax(0, 1fr);
         align-items: center;
         column-gap: 10px;
         row-gap: 0;
       }
-      .step-t {
-        grid-column: 3;
-        white-space: nowrap;
-        text-align: right;
+      .step-row::after {
+        left: 10px;
       }
       .upgrade-footer {
         flex-direction: column;
@@ -3176,6 +3312,12 @@
       }
       .upgrade-secondary-actions button {
         width: 100%;
+      }
+      .system-actions-redesign .upgrade-journey {
+        order: 2;
+      }
+      .reboot-selector-card {
+        order: 1;
       }
       .log-source-select {
         min-width: 142px;
@@ -3224,9 +3366,6 @@
         padding: 13px 12px 12px;
       }
       .ug-label {
-        font-size: 11px;
-      }
-      .ug-pct {
         font-size: 12px;
       }
       .steps {
@@ -3235,7 +3374,7 @@
       .step-lbl {
         font-size: 12px;
       }
-      .step-t,
+      .step-sub,
       .status-txt,
       .eta-txt {
         font-size: 10px;

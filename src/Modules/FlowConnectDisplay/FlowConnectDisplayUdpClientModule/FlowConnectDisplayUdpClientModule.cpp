@@ -41,9 +41,6 @@ void FlowConnectDisplayUdpClientModule::loop()
 bool FlowConnectDisplayUdpClientModule::begin()
 {
     if (!nextion_.begin()) return false;
-    if (!sleepConfigured_ && !nextion_.isSleeping()) {
-        sleepConfigured_ = nextion_.configureSleep(NextionSleepNoTouchSeconds, true, false);
-    }
     if (!flowConnectInitialized_) {
         if (!nextion_.isSleeping()) {
             setFlowConnectionVisible_(false, "boot", true);
@@ -173,6 +170,7 @@ void FlowConnectDisplayUdpClientModule::sendHello_(uint32_t nowMs, bool force)
 
 void FlowConnectDisplayUdpClientModule::probeNextionVersion_(uint32_t nowMs, bool force)
 {
+    if (nextion_.isSleeping()) return;
     const bool hadVersion = nextion_.hasDisplayVersion();
     const uint32_t previousVersion = nextion_.displayVersion();
     const uint32_t period = hadVersion ? VersionRecheckPeriodMs : VersionProbeRetryMs;
@@ -338,6 +336,54 @@ void FlowConnectDisplayUdpClientModule::handlePacket_(const HmiUdpHeader& header
             (void)nextion_.publishHomeAlarmBits(p->alarmBits);
             break;
         }
+        case HmiUdpMsgType::ConfigViewSnapshot: {
+            if (header.len != sizeof(HmiUdpConfigViewSnapshotPayload) || !payload) return;
+            const auto* p = reinterpret_cast<const HmiUdpConfigViewSnapshotPayload*>(payload);
+            configView_ = ConfigMenuView{};
+            configView_.pageIndex = p->page > 0U ? (uint8_t)(p->page - 1U) : 0U;
+            configView_.pageCount = p->pageCount;
+            configView_.rowCountOnPage = p->rowCount;
+            configView_.contextRef = p->contextRef;
+            configView_.canHome = (p->flags & HMI_UDP_CONFIG_VIEW_CAN_HOME) != 0U;
+            configView_.canBack = (p->flags & HMI_UDP_CONFIG_VIEW_CAN_BACK) != 0U;
+            configView_.canValidate = (p->flags & HMI_UDP_CONFIG_VIEW_CAN_VALIDATE) != 0U;
+            configView_.isHome = (p->flags & HMI_UDP_CONFIG_VIEW_IS_HOME) != 0U;
+            configView_.mode = p->mode == (uint8_t)ConfigMenuMode::Edit ? ConfigMenuMode::Edit : ConfigMenuMode::Browse;
+            copyText_(configView_.breadcrumb, sizeof(configView_.breadcrumb), p->title);
+            for (uint8_t i = 0; i < HMI_UDP_CONFIG_SNAPSHOT_ROWS; ++i) {
+                const HmiUdpConfigRowPayload& src = p->rows[i];
+                const uint8_t rowIndex = src.row < ConfigMenuModel::RowsPerPage ? src.row : i;
+                if (rowIndex >= ConfigMenuModel::RowsPerPage) continue;
+                ConfigMenuRowView& row = configView_.rows[rowIndex];
+                row.visible = (src.flags & HMI_UDP_CONFIG_ROW_VISIBLE) != 0U;
+                row.valueVisible = (src.flags & HMI_UDP_CONFIG_ROW_VALUE_VISIBLE) != 0U;
+                row.editable = (src.flags & HMI_UDP_CONFIG_ROW_EDITABLE) != 0U;
+                row.dirty = (src.flags & HMI_UDP_CONFIG_ROW_DIRTY) != 0U;
+                row.canEnter = (src.flags & HMI_UDP_CONFIG_ROW_CAN_ENTER) != 0U;
+                row.canEdit = (src.flags & HMI_UDP_CONFIG_ROW_CAN_EDIT) != 0U;
+                row.widget = (ConfigMenuWidget)src.widget;
+                row.editType = src.editType;
+                copyText_(row.label, sizeof(row.label), src.label);
+                copyText_(row.value, sizeof(row.value), src.value);
+            }
+            configPageActive_ = true;
+            configBatchActive_ = false;
+            configRenderPending_ = false;
+            configValuesPending_ = false;
+            setInputLocked_(true, "config-snapshot", nowMs);
+            const bool loadingOk = nextion_.showConfigLoading(configView_.breadcrumb);
+            LOGI("FCD config snapshot page=%u/%u ctxRef=%lu flags=0x%02X rows=%u mode=%s loading=%d",
+                 (unsigned)p->page,
+                 (unsigned)p->pageCount,
+                 (unsigned long)p->contextRef,
+                 (unsigned)p->flags,
+                 (unsigned)p->rowCount,
+                 menuModeName_(configView_.mode),
+                 loadingOk ? 1 : 0);
+            logDisplayState_("config-snapshot", true);
+            scheduleConfigRender_(nowMs, "config-snapshot");
+            break;
+        }
         case HmiUdpMsgType::ConfigStart: {
             if (header.len != sizeof(HmiUdpConfigStartPayload) || !payload) return;
             const auto* p = reinterpret_cast<const HmiUdpConfigStartPayload*>(payload);
@@ -482,11 +528,7 @@ void FlowConnectDisplayUdpClientModule::pollNextion_()
             continue;
         }
         if (event.type == HmiEventType::DisplayWake) {
-            sleepConfigured_ = false;
             lastHomeRefreshRequestMs_ = 0;
-            if (!sleepConfigured_) {
-                sleepConfigured_ = nextion_.configureSleep(NextionSleepNoTouchSeconds, true, false);
-            }
             setFlowConnectionVisible_(linked_, "nextion-wake", true);
             if (linked_) {
                 requestFullRefresh_("nextion-wake", true);
@@ -501,6 +543,11 @@ void FlowConnectDisplayUdpClientModule::pollNextion_()
             ++drained;
             continue;
         }
+        const bool menuEvent = isMenuEvent_(event.type);
+        if (menuEvent && event.contextRef == 0U && configView_.contextRef != 0U) {
+            event.contextRef = configView_.contextRef;
+        }
+
         const bool actualHomePage = event.type == HmiEventType::Home && nextion_.isHomePage();
         if (actualHomePage) {
             configPageActive_ = false;
@@ -518,7 +565,7 @@ void FlowConnectDisplayUdpClientModule::pollNextion_()
             requestFullRefresh_("nextion-home", true);
         }
         if (inputLocked_) {
-            LOGD("FCD drops Nextion event while input locked event=%s command=%s",
+            LOGI("FCD drops Nextion event while input locked event=%s command=%s",
                  eventTypeName_(event.type),
                  commandName_(event.command));
             ++drained;
@@ -533,8 +580,10 @@ void FlowConnectDisplayUdpClientModule::serviceEventTx_()
 {
     if (pendingLen_ > 0) return;
     HmiEvent event{};
-    if (!dequeueEvent_(event)) return;
-    (void)sendEvent_(event);
+    if (!peekEvent_(event)) return;
+    if (sendEvent_(event)) {
+        popEvent_();
+    }
 }
 
 bool FlowConnectDisplayUdpClientModule::enqueueEvent_(const HmiEvent& event)
@@ -560,17 +609,47 @@ bool FlowConnectDisplayUdpClientModule::dequeueEvent_(HmiEvent& out)
     return true;
 }
 
+bool FlowConnectDisplayUdpClientModule::peekEvent_(HmiEvent& out) const
+{
+    out = HmiEvent{};
+    if (eventHead_ == eventTail_) return false;
+    out = eventQueue_[eventTail_];
+    return true;
+}
+
+void FlowConnectDisplayUdpClientModule::popEvent_()
+{
+    if (eventHead_ == eventTail_) return;
+    eventTail_ = (uint8_t)((eventTail_ + 1U) % NEXTION_EVENT_QUEUE_SIZE);
+}
+
 bool FlowConnectDisplayUdpClientModule::sendEvent_(const HmiEvent& event)
 {
     HmiUdpEventPayload payload{};
     hmiUdpEventToPayload(event, payload);
-    logEvent_("FCD -> FlowIO", event);
-    return queueReliablePacket_(HmiUdpMsgType::HmiEvent, &payload, sizeof(payload));
+    const bool ok = queueReliablePacket_(HmiUdpMsgType::HmiEvent, &payload, sizeof(payload));
+    if (ok) {
+        logEvent_("FCD -> FlowIO", event);
+    } else {
+        LOGW("FCD failed to queue event for FlowIO event=%s command=%s row=%u pending=%s seq=%u",
+             eventTypeName_(event.type),
+             commandName_(event.command),
+             (unsigned)event.row,
+             pendingLen_ > 0U ? msgTypeName_(pendingType_) : "none",
+             (unsigned)pendingSeq_);
+    }
+    return ok;
 }
 
 bool FlowConnectDisplayUdpClientModule::queueReliablePacket_(HmiUdpMsgType type, const void* payload, uint8_t payloadLen)
 {
-    if (pendingLen_ > 0) return false;
+    if (pendingLen_ > 0) {
+        LOGW("FCD reliable TX busy drop refused type=%s pending=%s seq=%u",
+             msgTypeName_(type),
+             msgTypeName_(pendingType_),
+             (unsigned)pendingSeq_);
+        return false;
+    }
     pendingSeq_ = txSeq_;
     pendingType_ = type;
     size_t packetLen = 0;
@@ -770,6 +849,9 @@ void FlowConnectDisplayUdpClientModule::serviceConfigRendering_(uint32_t nowMs)
         if (configRenderRemaining_ == 0U) {
             configRenderPending_ = false;
             setInputLocked_(false, "config-render-complete", nowMs);
+            LOGI("FCD config render complete page=%u rows=%u",
+                 (unsigned)(configView_.pageIndex + 1U),
+                 (unsigned)configView_.rowCountOnPage);
         } else {
             configRenderDueMs_ = nowMs + ConfigRenderRetryMs;
         }
@@ -863,6 +945,19 @@ void FlowConnectDisplayUdpClientModule::logDisplayState_(const char* reason, boo
 
 void FlowConnectDisplayUdpClientModule::logEvent_(const char* prefix, const HmiEvent& event) const
 {
+    if (isMenuEvent_(event.type)) {
+        LOGI("%s event=%s command=%s ctxRef=%lu row=%u value=%u dir=%d slider=%.2f text='%s'",
+             prefix ? prefix : "HMI",
+             eventTypeName_(event.type),
+             commandName_(event.command),
+             (unsigned long)event.contextRef,
+             (unsigned)event.row,
+             (unsigned)event.value,
+             (int)event.direction,
+             (double)event.sliderValue,
+             event.text);
+        return;
+    }
     LOGD("%s event=%s command=%s ctxRef=%lu row=%u value=%u dir=%d slider=%.2f text='%s'",
          prefix ? prefix : "HMI",
          eventTypeName_(event.type),
@@ -875,11 +970,27 @@ void FlowConnectDisplayUdpClientModule::logEvent_(const char* prefix, const HmiE
          event.text);
 }
 
+bool FlowConnectDisplayUdpClientModule::isMenuEvent_(HmiEventType type)
+{
+    return type == HmiEventType::Back ||
+           type == HmiEventType::Validate ||
+           type == HmiEventType::NextPage ||
+           type == HmiEventType::PrevPage ||
+           type == HmiEventType::RowActivate ||
+           type == HmiEventType::RowToggle ||
+           type == HmiEventType::RowCycle ||
+           type == HmiEventType::RowSetText ||
+           type == HmiEventType::RowSetSlider ||
+           type == HmiEventType::RowEdit ||
+           type == HmiEventType::ConfigEnter ||
+           type == HmiEventType::ConfigExit;
+}
+
 void FlowConnectDisplayUdpClientModule::servicePendingAck_(uint32_t nowMs)
 {
     if (pendingLen_ == 0 || !linked_) return;
     if (pendingAttempts_ >= AckMaxAttempts) {
-        LOGW("FCD %s ACK timeout seq=%u attempts=%u",
+        LOGW("FCD %s ACK timeout seq=%u attempts=%u; dropping packet and resuming",
              msgTypeName_(pendingType_),
              (unsigned)pendingSeq_,
              (unsigned)pendingAttempts_);
@@ -1003,6 +1114,7 @@ const char* FlowConnectDisplayUdpClientModule::msgTypeName_(HmiUdpMsgType type)
         case HmiUdpMsgType::ConfigRow: return "ConfigRow";
         case HmiUdpMsgType::ConfigEnd: return "ConfigEnd";
         case HmiUdpMsgType::ConfigValues: return "ConfigValues";
+        case HmiUdpMsgType::ConfigViewSnapshot: return "ConfigViewSnapshot";
         case HmiUdpMsgType::RtcReadRequest: return "RtcReadRequest";
         case HmiUdpMsgType::RtcReadResponse: return "RtcReadResponse";
         case HmiUdpMsgType::RtcWrite: return "RtcWrite";

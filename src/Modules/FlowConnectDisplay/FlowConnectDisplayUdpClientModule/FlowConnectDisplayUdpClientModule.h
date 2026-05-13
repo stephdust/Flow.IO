@@ -41,7 +41,7 @@ private:
     static constexpr uint32_t LinkTimeoutMs = 9000U;
     static constexpr uint32_t SleepLinkTimeoutMs = 120000U;
     static constexpr uint32_t AckRetryMs = 150U;
-    static constexpr uint8_t AckMaxAttempts = 3U;
+    static constexpr uint8_t AckMaxAttempts = 7U;
     static constexpr uint32_t HomeRefreshThrottleMs = 10000U;
     static constexpr uint32_t PageProbePeriodMs = 5000U;
     static constexpr uint32_t VersionProbeRetryMs = 2000U;
@@ -81,7 +81,6 @@ private:
     bool lostShown_ = false;
     bool inputLocked_ = false;
     bool flowConnectInitialized_ = false;
-    bool sleepConfigured_ = false;
     bool flowConnectVisible_ = false;
     bool configPageActive_ = false;
     bool wifiFactoryResetPending_ = false;
@@ -138,6 +137,8 @@ private:
     void serviceEventTx_();
     bool enqueueEvent_(const HmiEvent& event);
     bool dequeueEvent_(HmiEvent& out);
+    bool peekEvent_(HmiEvent& out) const;
+    void popEvent_();
     bool sendEvent_(const HmiEvent& event);
     bool queueReliablePacket_(HmiUdpMsgType type, const void* payload, uint8_t payloadLen);
     bool sendRtcReadResponse_();
@@ -152,6 +153,7 @@ private:
     void setInputLocked_(bool locked, const char* reason, uint32_t nowMs);
     void logDisplayState_(const char* reason, bool force = false);
     void logEvent_(const char* prefix, const HmiEvent& event) const;
+    static bool isMenuEvent_(HmiEventType type);
     void servicePendingAck_(uint32_t nowMs);
     void setFlowConnectionVisible_(bool visible, const char* reason, bool force = false);
     void markSeen_(uint32_t nowMs);
