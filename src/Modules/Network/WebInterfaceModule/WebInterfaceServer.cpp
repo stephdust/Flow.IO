@@ -36,16 +36,8 @@
 #include "Core/EventBus/EventPayloads.h"
 #include "Modules/Network/WifiModule/WifiRuntime.h"
 
-#ifndef FLOW_WEB_HIDE_MENU_SVG
-#define FLOW_WEB_HIDE_MENU_SVG 0
-#endif
-
 #ifndef FLOW_WEB_UNIFY_STATUS_CARD_ICONS
 #define FLOW_WEB_UNIFY_STATUS_CARD_ICONS 0
-#endif
-
-#ifndef FLOW_WEB_DISABLE_ICONS
-#define FLOW_WEB_DISABLE_ICONS 0
 #endif
 
 #ifndef FLOW_WEB_HEAP_FORENSICS
@@ -1688,40 +1680,6 @@ void WebInterfaceModule::startServer_()
 #endif
     };
 
-    server_.on("/assets/favicon.png", HTTP_GET, [this](AsyncWebServerRequest* request) {
-#if FLOW_WEB_DISABLE_ICONS
-        request->send(204);
-        return;
-#else
-        char redirectPath[96] = {0};
-        const int n = snprintf(redirectPath,
-                               sizeof(redirectPath),
-                               "/webinterface/i/f.svg?v=%s",
-                               webAssetVersion_());
-        if (n <= 0 || (size_t)n >= sizeof(redirectPath)) {
-            request->send(500, "text/plain", "Failed");
-            return;
-        }
-        request->redirect(redirectPath);
-#endif
-    });
-    server_.on("/favicon.ico", HTTP_GET, [this](AsyncWebServerRequest* request) {
-#if FLOW_WEB_DISABLE_ICONS
-        request->send(204);
-        return;
-#else
-        char redirectPath[96] = {0};
-        const int n = snprintf(redirectPath,
-                               sizeof(redirectPath),
-                               "/webinterface/i/f.svg?v=%s",
-                               webAssetVersion_());
-        if (n <= 0 || (size_t)n >= sizeof(redirectPath)) {
-            request->send(500, "text/plain", "Failed");
-            return;
-        }
-        request->redirect(redirectPath);
-#endif
-    });
     auto webInterfaceLandingUrl = []() -> const char* {
         return "/webinterface";
     };
@@ -1796,33 +1754,6 @@ void WebInterfaceModule::startServer_()
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
     });
-    auto registerWebSvgRoute = [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](const char* assetPath) {
-        server_.on(assetPath, HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse, assetPath](AsyncWebServerRequest* request) {
-#if FLOW_WEB_DISABLE_ICONS
-            request->send(204);
-            return;
-#else
-            SpiffsAssetForensicMeta forensicMeta{};
-            bool heapRejected = false;
-            AsyncWebServerResponse* response =
-                beginSpiffsAssetResponse(request, assetPath, "image/svg+xml", true, nullptr, &forensicMeta, &heapRejected);
-            if (!response) {
-                request->send(heapRejected ? 503 : 404, "text/plain", heapRejected ? "Busy" : "Not found");
-                return;
-            }
-            sendPreparedAssetResponse(request, response, &forensicMeta);
-#endif
-        });
-    };
-    registerWebSvgRoute("/webinterface/i/m.svg");
-    registerWebSvgRoute("/webinterface/i/c.svg");
-    registerWebSvgRoute("/webinterface/i/t.svg");
-    registerWebSvgRoute("/webinterface/i/s.svg");
-    registerWebSvgRoute("/webinterface/i/d.svg");
-    registerWebSvgRoute("/webinterface/i/e.svg");
-    registerWebSvgRoute("/webinterface/i/r.svg");
-    registerWebSvgRoute("/webinterface/i/u.svg");
-    registerWebSvgRoute("/webinterface/i/f.svg");
     server_.on("/webinterface/cfgdocs.fr.json", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
@@ -1893,9 +1824,7 @@ void WebInterfaceModule::startServer_()
         doc["local_config_label"] = "Config Store Supervisor";
         doc["remote_config_enabled"] = true;
 #endif
-        doc["hide_menu_svg"] = (FLOW_WEB_HIDE_MENU_SVG != 0);
         doc["unify_status_card_icons"] = (FLOW_WEB_UNIFY_STATUS_CARD_ICONS != 0);
-        doc["disable_icons"] = (FLOW_WEB_DISABLE_ICONS != 0);
         SystemStatsSnapshot snap{};
         SystemStats::collect(snap);
 

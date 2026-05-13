@@ -20,12 +20,6 @@ for asset in "${assets[@]}"; do
   fi
 done
 
-for asset in data/webinterface/i/*.svg; do
-  if [[ -f "$asset" ]]; then
-    gzip -n -9 -c "$asset" > "$asset.gz"
-  fi
-done
-
 if [[ -f "data/webinterface/cfgdocs.fr.json" ]]; then
   gzip -n -9 -c "data/webinterface/cfgdocs.fr.json" > "data/webinterface/cfgdocs.jz"
 fi

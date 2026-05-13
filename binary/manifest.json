@@ -47,8 +47,8 @@
     ],
     "nextion": [
             {
-                "title": "Nextion 800x480",
-                "label": "Nextion 800x480",
+                "title": "Nextion",
+                "label": "Nextion",
                 "version": "6.0.0",
                 "build_date": "2026-05-13",
                 "target": "nextion",

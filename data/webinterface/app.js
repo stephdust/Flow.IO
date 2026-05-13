@@ -356,10 +356,6 @@
       return path + '?v=' + encodeURIComponent(webAssetVersion);
     }
 
-    function iconAssetUrl(iconName) {
-      return assetUrl('/webinterface/i/' + iconName + '.svg');
-    }
-
     function getStorageValue(storage, key) {
       try {
         return String(storage.getItem(key) || '').trim();
@@ -529,130 +525,22 @@
       return navigationType() === 'reload';
     }
 
-    function setDeferredVisualAssetUrl(varName, url) {
-      document.documentElement.style.setProperty(varName, "url('" + url + "')");
-    }
-
-    function setDeferredFaviconUrl(url) {
-      if (!url) return;
-      const resolvedUrl = url.indexOf('?') >= 0 ? (url + '&slot=favicon') : (url + '?slot=favicon');
-      let link = document.getElementById('appFavicon');
-      if (!link) {
-        link = document.createElement('link');
-        link.id = 'appFavicon';
-        document.head.appendChild(link);
-      }
-      link.setAttribute('data-flow-favicon', '1');
-      link.rel = 'icon';
-      link.type = 'image/svg+xml';
-      link.sizes = 'any';
-      if (link.href !== resolvedUrl) {
-        link.href = resolvedUrl;
-      }
-
-      let shortcutLink = document.getElementById('appFaviconShortcut');
-      if (!shortcutLink) {
-        shortcutLink = document.createElement('link');
-        shortcutLink.id = 'appFaviconShortcut';
-        document.head.appendChild(shortcutLink);
-      }
-      shortcutLink.setAttribute('data-flow-favicon', '1');
-      shortcutLink.rel = 'shortcut icon';
-      shortcutLink.type = 'image/svg+xml';
-      shortcutLink.sizes = 'any';
-      if (shortcutLink.href !== resolvedUrl) {
-        shortcutLink.href = resolvedUrl;
-      }
-    }
-
-    function applyDeferredVisualAsset(entry) {
-      if (!entry || !entry[0]) return;
-      if (entry[0] === 'favicon') {
-        setDeferredFaviconUrl(entry[1]);
-        return;
-      }
-      setDeferredVisualAssetUrl(entry[0], entry[1]);
-    }
-
-    function activateMenuAssets(deferred, stepDelayMs) {
+    function activateMenuAssets() {
       if (menuAssetsActivated) return;
       menuAssetsActivated = true;
-      if (disableWebIcons) {
-        markDeferredVisualAssetsWarm();
-        return;
-      }
-      const stepMs = Math.max(0, Number(stepDelayMs) || deferredMenuAssetStepMs);
-      const steps = [];
-      if (!hideMenuSvg && isAccessPointMode() && !useRemoteMenuIcons) {
-        steps.push(
-          ['--menu-icon-measures-url', iconAssetUrl('m')],
-          ['--menu-icon-calibration-url', iconAssetUrl('c')],
-          ['--menu-icon-terminal-url', iconAssetUrl('t')],
-          ['--menu-icon-system-url', iconAssetUrl('d')],
-          ['--menu-icon-flowcfg-url', iconAssetUrl('s')]
-        );
-      }
-      steps.push(
-        ['--ui-refresh-icon-url', iconAssetUrl('r')],
-        ['--ui-crumb-arrow-icon-url', iconAssetUrl('u')],
-        ['favicon', iconAssetUrl('f')]
-      );
-      if (!deferred) {
-        steps.forEach((entry) => {
-          applyDeferredVisualAsset(entry);
-        });
-        markDeferredVisualAssetsWarm();
-        return;
-      }
-      steps.forEach((entry, index) => {
-        setTimeout(() => {
-          applyDeferredVisualAsset(entry);
-          if (index === steps.length - 1) {
-            markDeferredVisualAssetsWarm();
-          }
-        }, deferred ? (index * stepMs) : 0);
-      });
+      markDeferredVisualAssetsWarm();
     }
 
-    function armDeferredMenuAssets(startDelayMs, stepDelayMs, fallbackDelayMs) {
-      if (deferredMenuAssetsArmed || menuAssetsActivated || hideMenuSvg || disableWebIcons || useRemoteMenuIcons || !isAccessPointMode() || !drawer) return;
+    function armDeferredMenuAssets() {
+      if (deferredMenuAssetsArmed || menuAssetsActivated) return;
       deferredMenuAssetsArmed = true;
-      let triggered = false;
-      const trigger = () => {
-        if (triggered) return;
-        triggered = true;
-        setTimeout(() => {
-          activateMenuAssets(true, stepDelayMs);
-        }, Math.max(0, Number(startDelayMs) || 0));
-      };
-      drawer.addEventListener('pointerenter', trigger, { once: true });
-      drawer.addEventListener('touchstart', trigger, { once: true, passive: true });
-      drawer.addEventListener('click', trigger, { once: true });
-      setTimeout(trigger, Math.max(0, Number(fallbackDelayMs) || 0));
+      activateMenuAssets();
     }
 
     function scheduleDeferredVisualAssets() {
       if (deferredVisualAssetsScheduled) return;
       deferredVisualAssetsScheduled = true;
-      if (disableWebIcons) return;
-      if (hasWarmDeferredVisualAssets() && !isReloadNavigation()) {
-        activateMenuAssets(false);
-        return;
-      }
-
-      const isReload = isReloadNavigation();
-      if (isReload) {
-        armDeferredMenuAssets(
-          deferredMenuAssetReloadDelayMs,
-          deferredMenuAssetReloadStepMs,
-          deferredMenuAssetReloadFallbackDelayMs
-        );
-        return;
-      }
-
-      setTimeout(() => {
-        activateMenuAssets(true, deferredMenuAssetStepMs);
-      }, deferredMenuAssetStartDelayMs);
+      armDeferredMenuAssets();
     }
 
     async function loadWebMeta(options) {
@@ -2062,7 +1950,10 @@
         icon.setAttribute('aria-hidden', 'true');
         icon.textContent = 'upload';
         button.appendChild(icon);
-        bindClickAction(button, () => startUpgrade(entry.target, entry.url, entry.endpoint));
+        bindClickAction(button, () => {
+          if (!confirmUpgradeLaunch(entry)) return;
+          return startUpgrade(entry.target, entry.url, entry.endpoint);
+        });
         head.appendChild(button);
         card.appendChild(head);
 
@@ -2080,6 +1971,30 @@
     function resetUpgradeManifestSelections(text) {
       upgradeManifestState = { manifest: null, manifestUrl: '', baseUrl: '' };
       setUpgradeCardsEmpty(text || 'Cliquez sur « Rechercher les mises à jour ».');
+    }
+
+    function confirmUpgradeLaunch(entry) {
+      const title = String(entry && entry.title ? entry.title : 'firmware').trim();
+      const version = String(entry && entry.version ? entry.version : '').trim();
+      const target = upgradeTargetLabel(entry && entry.target ? entry.target : '');
+      const suffix = version ? (' ' + version) : '';
+      return confirm(
+        'Confirmer le lancement de la mise à jour ' + title + suffix + ' vers ' + target + ' ?'
+      );
+    }
+
+    function confirmRebootLaunch(selectedAction) {
+      const action = String(selectedAction || 'supervisor');
+      const messages = {
+        supervisor: isMicronovaProfile()
+          ? 'Confirmer le redémarrage de Micronova ?'
+          : 'Confirmer le redémarrage du Supervisor ?',
+        flow_soft: 'Confirmer le redémarrage logiciel de Flow.io ?',
+        flow_hard: 'Confirmer le redémarrage matériel de Flow.io ?',
+        nextion: 'Confirmer le redémarrage de Nextion ?',
+        factory_reset: 'Confirmer l\'initialisation usine de Flow.io ? Cette action efface la configuration distante.'
+      };
+      return confirm(messages[action] || messages.supervisor);
     }
 
     function populateUpgradeManifestSelections(data) {
@@ -7751,6 +7666,7 @@
       bindClickAction(rebootDeviceActionBtn, () => {
         if (!rebootDeviceTargetSelect || !rebootDeviceActionBtn) return;
         const selected = String(rebootDeviceTargetSelect.value || 'supervisor');
+        if (!confirmRebootLaunch(selected)) return;
         const actionMap = {
           supervisor: {
             countdown: isMicronovaProfile() ? 'Reboot Micronova' : 'Reboot Supervisor',
@@ -7775,10 +7691,7 @@
           factory_reset: {
             countdown: 'Init usine Flow.io',
             failure: 'Init usine Flow.io échouée',
-            runner: async () => {
-              if (!confirm('Confirmer la réinitialisation usine de Flow.io ? Cette action efface la configuration distante.')) return;
-              await callSystemAction('flow', 'factory_reset');
-            }
+            runner: () => callSystemAction('flow', 'factory_reset')
           }
         };
         const chosen = actionMap[selected] || actionMap.supervisor;
