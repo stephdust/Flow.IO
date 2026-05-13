@@ -926,16 +926,6 @@
     let cfgTreeVirtualBranches = [];
     const cfgTreeNodeTextNames = { supervisor: {}, flow: {} };
     const cfgTreeNodeTextNamePending = { supervisor: new Set(), flow: new Set() };
-    const cfgTreePoolDeviceNames = Object.freeze({
-      pd0: 'Filtration Pump',
-      pd1: 'pH Pump',
-      pd2: 'Chlorine Pump',
-      pd3: 'Robot',
-      pd4: 'Fill Pump',
-      pd5: 'Chlorine Generator',
-      pd6: 'Lights',
-      pd7: 'Water Heater'
-    });
     let supCfgCurrentModule = '';
     let supCfgCurrentData = {};
     let supCfgTreePath = '';
@@ -5172,9 +5162,9 @@
     function cfgTreeNodeRefInfo(pathValue) {
       const cleanPath = nettoyerNomFlowCfg(pathValue);
       if (!cleanPath) return null;
-      const matchIo = cleanPath.match(/^io\/input\/(a\d{2}|i\d{2})$/i);
+      const matchIo = cleanPath.match(/^io\/(input|output)\/((?:a|i|d)\d{2})$/i);
       if (matchIo) {
-        const ref = String(matchIo[1] || '').toLowerCase();
+        const ref = String(matchIo[2] || '').toLowerCase();
         if (!ref) return null;
         return {
           type: 'io',
@@ -5182,12 +5172,6 @@
           modulePath: cleanPath,
           nameKey: ref + '_name'
         };
-      }
-      const matchPd = cleanPath.match(/^pdm\/(pd\d{1,2})$/i);
-      if (matchPd) {
-        const ref = String(matchPd[1] || '').toLowerCase();
-        if (!ref) return null;
-        return { type: 'pooldev', ref: ref };
       }
       return null;
     }
@@ -5236,20 +5220,12 @@
       const ref = info.ref || String(baseLabel || '').trim();
       if (!ref) return baseLabel;
 
-      if (source !== 'supervisor') {
-        return ref;
-      }
-
-      if (info.type === 'pooldev') {
-        const pdName = cfgTreePoolDeviceNames[ref] || '';
-        return pdName ? (ref + ' [' + pdName + ']') : ref;
-      }
-
-      const cached = cfgTreeNodeTextNames.supervisor[cleanPath];
+      const sourceCache = cfgTreeNodeTextNames[source] || {};
+      const cached = sourceCache[cleanPath];
       if (typeof cached !== 'undefined') {
         return (typeof cached === 'string' && cached.length > 0) ? (ref + ' [' + cached + ']') : ref;
       }
-      fetchCfgTreeNodeTextName('supervisor', cleanPath).catch(() => {});
+      fetchCfgTreeNodeTextName(source, cleanPath).catch(() => {});
       return ref;
     }
 
