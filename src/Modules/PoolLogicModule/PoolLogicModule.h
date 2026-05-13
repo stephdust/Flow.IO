@@ -116,6 +116,7 @@ private:
     bool winterMode_ = false;
     bool phAutoMode_ = false;
     bool orpAutoMode_ = false;
+    bool heaterAutoMode_ = false;
     bool phDosePlus_ = false;
     bool electrolyseMode_ = false;
     bool electroRunMode_ = false;
@@ -146,6 +147,7 @@ private:
     float secureElectroTempC_ = 15.0f;
     float phSetpoint_ = PoolDefaults::PhSetpoint;
     float orpSetpoint_ = PoolDefaults::OrpSetpoint;
+    float heaterSetpoint_ = PoolDefaults::HeaterSetpoint;
     float phKp_ = PoolDefaults::PhKp;
     float phKi_ = PoolDefaults::PhKi;
     float phKd_ = PoolDefaults::PhKd;
@@ -170,6 +172,7 @@ private:
     uint8_t fillingDeviceSlot_ = PoolBinding::kDeviceSlotFillPump;
     uint8_t phPumpDeviceSlot_ = PoolBinding::kDeviceSlotPhPump;
     uint8_t orpPumpDeviceSlot_ = PoolBinding::kDeviceSlotChlorinePump;
+    uint8_t heaterDeviceSlot_ = PoolBinding::kDeviceSlotWaterHeater;
 
     // Runtime flags
     DeviceFsm filtrationFsm_{};
@@ -178,6 +181,7 @@ private:
     DeviceFsm fillingFsm_{};
     DeviceFsm phPumpFsm_{};
     DeviceFsm orpPumpFsm_{};
+    DeviceFsm heaterFsm_{};
     TemporalPidState phPidState_{};
     TemporalPidState orpPidState_{};
 
@@ -211,6 +215,9 @@ private:
     // CFGDOC: {"label":"Mode auto ORP","help":"Active la régulation automatique ORP/chlore."}
     ConfigVariable<bool,0> orpAutoModeVar_{NVS_KEY(NvsKeys::PoolLogic::OrpAutoMode), "orp_auto_mode", "poollogic/mode", ConfigType::Bool,
                                            &orpAutoMode_, ConfigPersistence::Persistent, 0};
+    // CFGDOC: {"label":"Mode auto chauffage","help":"Active la régulation automatique de la température d'eau via le chauffage."}
+    ConfigVariable<bool,0> heaterAutoModeVar_{NVS_KEY(NvsKeys::PoolLogic::HeaterAutoMode), "heater_auto_mode", "poollogic/mode", ConfigType::Bool,
+                                              &heaterAutoMode_, ConfigPersistence::Persistent, 0};
     // CFGDOC: {"label":"Injection pH+","help":"Si activé, la pompe pH injecte du pH+ (sinon pH-)."}
     ConfigVariable<bool,0> phDosePlusVar_{NVS_KEY(NvsKeys::PoolLogic::PhDosePlus), "ph_dose_plus", "poollogic/mode", ConfigType::Bool,
                                           &phDosePlus_, ConfigPersistence::Persistent, 0};
@@ -286,6 +293,9 @@ private:
     // CFGDOC: {"label":"Consigne ORP","help":"Valeur cible ORP pour la régulation chlore."}
     ConfigVariable<float,0> orpSetpointVar_{NVS_KEY(NvsKeys::PoolLogic::OrpSetpoint), "orp_setpoint", "poollogic/pid", ConfigType::Float,
                                             &orpSetpoint_, ConfigPersistence::Persistent, 0};
+    // CFGDOC: {"label":"Consigne chauffage (C)","help":"Température cible eau pour la régulation du chauffage.","unit":"C"}
+    ConfigVariable<float,0> heaterSetpointVar_{NVS_KEY(NvsKeys::PoolLogic::HeaterSetpoint), "heater_setpoint", "poollogic/pid", ConfigType::Float,
+                                               &heaterSetpoint_, ConfigPersistence::Persistent, 0};
     // CFGDOC: {"label":"pH Kp","help":"Gain proportionnel du régulateur pH."}
     ConfigVariable<float,0> phKpVar_{NVS_KEY(NvsKeys::PoolLogic::PhKp), "ph_kp", "poollogic/pid", ConfigType::Float,
                                      &phKp_, ConfigPersistence::Persistent, 0};
@@ -354,6 +364,9 @@ private:
     // CFGDOC: {"label":"Slot pompe chlore liquide","help":"Numéro de slot PDM associé à la pompe ORP/chlore liquide."}
     ConfigVariable<uint8_t,0> orpPumpDeviceVar_{NVS_KEY(NvsKeys::PoolLogic::OrpPumpSlot), "orp_pump_slot", "poollogic/device", ConfigType::UInt8,
                                                 &orpPumpDeviceSlot_, ConfigPersistence::Persistent, 0};
+    // CFGDOC: {"label":"Slot chauffage","help":"Numéro de slot PDM associé au chauffage eau."}
+    ConfigVariable<uint8_t,0> heaterDeviceVar_{NVS_KEY(NvsKeys::PoolLogic::HeaterSlot), "heater_slot", "poollogic/device", ConfigType::UInt8,
+                                               &heaterDeviceSlot_, ConfigPersistence::Persistent, 0};
 
     // Services and adapters
     ConfigStore* cfgStore_ = nullptr;

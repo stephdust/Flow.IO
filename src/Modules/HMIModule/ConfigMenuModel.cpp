@@ -4,6 +4,7 @@
  */
 
 #include "Modules/HMIModule/ConfigMenuModel.h"
+#include "Domain/Pool/PoolDomain.h"
 
 #include "Core/BufferUsageTracker.h"
 #include "Core/SystemLimits.h"
@@ -571,13 +572,113 @@ bool ConfigMenuModel::branchRowAt_(const char* branch,
         }
 
         copyStr_(fullPath, fullPathLen, path);
-        copyStr_(label, labelLen, child);
+        if (!decorateBranchLabel_(path, child, label, labelLen)) {
+            copyStr_(label, labelLen, child);
+        }
         hasModule = moduleExists_(path);
         hasChildren = moduleHasChildren_(path);
         hasAttributes = hasModule && moduleRowCount_(path) > 0;
         return fullPath[0] != '\0' && label[0] != '\0';
     }
     return false;
+}
+
+bool ConfigMenuModel::decorateBranchLabel_(const char* fullPath,
+                                           const char* child,
+                                           char* out,
+                                           size_t outLen) const
+{
+    if (!fullPath || !child || !out || outLen == 0) return false;
+    out[0] = '\0';
+
+    const char* slash = strrchr(fullPath, '/');
+    const char* ref = slash ? (slash + 1) : child;
+    if (!ref || ref[0] == '\0') ref = child;
+    if (!ref || ref[0] == '\0') return false;
+
+    char textName[40]{};
+    bool hasName = false;
+
+    if (strncmp(fullPath, "io/input/", 9) == 0 && strlen(ref) == 3 &&
+        (ref[0] == 'a' || ref[0] == 'i') &&
+        isdigit((unsigned char)ref[1]) &&
+        isdigit((unsigned char)ref[2])) {
+        char nameKey[16]{};
+        snprintf(nameKey, sizeof(nameKey), "%c%c%c_name", ref[0], ref[1], ref[2]);
+        hasName = readModuleNameField_(fullPath, nameKey, textName, sizeof(textName));
+    } else if (strncmp(fullPath, "pdm/pd", 6) == 0 && strlen(ref) >= 3 && strncmp(ref, "pd", 2) == 0) {
+        const char* pdName = poolDeviceDisplayNameByRef_(ref);
+        if (pdName && pdName[0] != '\0') {
+            copyStr_(textName, sizeof(textName), pdName);
+            hasName = true;
+        }
+    }
+
+    if (hasName && textName[0] != '\0') {
+        const int n = snprintf(out, outLen, "%s [%s]", ref, textName);
+        if (n > 0 && (size_t)n < outLen) return true;
+    }
+
+    copyStr_(out, outLen, ref);
+    return true;
+}
+
+bool ConfigMenuModel::readModuleNameField_(const char* modulePath,
+                                           const char* key,
+                                           char* out,
+                                           size_t outLen) const
+{
+    if (!modulePath || !key || !out || outLen == 0) return false;
+    out[0] = '\0';
+    if (!cfgSvc_ || !cfgSvc_->toJsonModule) return false;
+
+    char* jsonBuf = (char*)malloc(Limits::Mqtt::Buffers::StateCfg);
+    if (!jsonBuf) return false;
+    jsonBuf[0] = '\0';
+
+    bool truncated = false;
+    const bool ok = cfgSvc_->toJsonModule(cfgSvc_->ctx,
+                                          modulePath,
+                                          jsonBuf,
+                                          Limits::Mqtt::Buffers::StateCfg,
+                                          &truncated);
+    if (!ok || truncated) {
+        free(jsonBuf);
+        return false;
+    }
+
+    DynamicJsonDocument doc(kMenuJsonDocCapacity);
+    const DeserializationError err = deserializeJson(doc, jsonBuf);
+    free(jsonBuf);
+    if (err || !doc.is<JsonObjectConst>()) return false;
+
+    JsonObjectConst obj = doc.as<JsonObjectConst>();
+    JsonVariantConst nameVar = obj[key];
+    if (!nameVar.is<const char*>()) return false;
+
+    const char* raw = nameVar.as<const char*>();
+    if (!raw) return false;
+    while (*raw == ' ' || *raw == '\t') ++raw;
+    if (*raw == '\0') return false;
+    copyStr_(out, outLen, raw);
+    return out[0] != '\0';
+}
+
+const char* ConfigMenuModel::poolDeviceDisplayNameByRef_(const char* ref) const
+{
+    if (!ref || strncmp(ref, "pd", 2) != 0) return nullptr;
+    const int slot = atoi(ref + 2);
+    if (slot < 0) return nullptr;
+    const uint8_t uSlot = (uint8_t)slot;
+
+    const uint8_t count = (uint8_t)(sizeof(PoolDomain::kPoolDevices) / sizeof(PoolDomain::kPoolDevices[0]));
+    for (uint8_t i = 0; i < count; ++i) {
+        const PoolDevicePreset& preset = PoolDomain::kPoolDevices[i];
+        if (preset.legacySlot == uSlot) {
+            return preset.displayName;
+        }
+    }
+    return nullptr;
 }
 
 bool ConfigMenuModel::moduleExists_(const char* module) const

@@ -1,9 +1,9 @@
 {
   "_meta": {
     "generated": true,
-    "total": 398,
-    "decl_total": 232,
-    "decl_with_cfgdoc": 126,
+    "total": 401,
+    "decl_total": 235,
+    "decl_with_cfgdoc": 129,
     "missing_cfgdoc_count": 106,
     "manual_overrides_total": 23,
     "manual_overrides_applied": 5
@@ -3593,6 +3593,15 @@
       "source": "cfgdoc-alias",
       "enum_set": "poollogic_device_slot"
     },
+    "poollogic/device/heater_slot": {
+      "module": "poollogic/device",
+      "name": "heater_slot",
+      "type": "UInt8",
+      "label": "Slot chauffage",
+      "help": "Numéro de slot PDM associé au chauffage eau.",
+      "var": "heaterDeviceVar_",
+      "source": "cfgdoc-alias"
+    },
     "poollogic/device/orp_pump_slot": {
       "module": "poollogic/device",
       "name": "orp_pump_slot",
@@ -3725,6 +3734,15 @@
       "var": "enabledVar_",
       "source": "cfgdoc-alias"
     },
+    "poollogic/mode/heater_auto_mode": {
+      "module": "poollogic/mode",
+      "name": "heater_auto_mode",
+      "type": "Bool",
+      "label": "Mode auto chauffage",
+      "help": "Active la régulation automatique de la température d'eau via le chauffage.",
+      "var": "heaterAutoModeVar_",
+      "source": "cfgdoc-alias"
+    },
     "poollogic/mode/orp_auto_mode": {
       "module": "poollogic/mode",
       "name": "orp_auto_mode",
@@ -3768,6 +3786,16 @@
       "label": "Seuil maintien hors gel (C)",
       "help": "Temperature de maintien pour la protection hors gel.",
       "var": "freezeHoldVar_",
+      "source": "cfgdoc-alias",
+      "unit": "C"
+    },
+    "poollogic/pid/heater_setpoint": {
+      "module": "poollogic/pid",
+      "name": "heater_setpoint",
+      "type": "Float",
+      "label": "Consigne chauffage (C)",
+      "help": "Température cible eau pour la régulation du chauffage.",
+      "var": "heaterSetpointVar_",
       "source": "cfgdoc-alias",
       "unit": "C"
     },

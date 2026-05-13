@@ -162,6 +162,9 @@ private:
                       bool& hasChildren,
                       bool& hasModule,
                       bool& hasAttributes) const;
+    bool decorateBranchLabel_(const char* fullPath, const char* child, char* out, size_t outLen) const;
+    bool readModuleNameField_(const char* modulePath, const char* key, char* out, size_t outLen) const;
+    const char* poolDeviceDisplayNameByRef_(const char* ref) const;
     bool moduleExists_(const char* module) const;
     bool moduleHasChildren_(const char* module) const;
     bool configRowAt_(const char* module, uint8_t index, Row& out) const;

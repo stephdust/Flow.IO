@@ -361,6 +361,12 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
     if (strcmp(cmdName, "poollogic.orp_auto_mode.toggle") == 0) {
         return toggleModeValue("poollogic.orp_auto_mode.toggle", orpAutoModeVar_, orpAutoMode_);
     }
+    if (strcmp(cmdName, "poollogic.heater_auto_mode.set") == 0) {
+        return setModeValue("poollogic.heater_auto_mode.set", heaterAutoModeVar_, heaterAutoMode_);
+    }
+    if (strcmp(cmdName, "poollogic.heater_auto_mode.toggle") == 0) {
+        return toggleModeValue("poollogic.heater_auto_mode.toggle", heaterAutoModeVar_, heaterAutoMode_);
+    }
     if (strcmp(cmdName, "poollogic.winter_mode.set") == 0) {
         return setModeValue("poollogic.winter_mode.set", winterModeVar_, winterMode_);
     }
@@ -395,10 +401,10 @@ bool PoolLogicModule::cmdMqttControl_(const CommandRequest& req, char* reply, si
         return toggleDeviceValue("poollogic.robot.toggle", robotDeviceSlot_, false, nullptr);
     }
     if (strcmp(cmdName, "poollogic.heater.write") == 0) {
-        return writeDeviceFromArgs("poollogic.heater.write", PoolBinding::kDeviceSlotWaterHeater, false, nullptr);
+        return writeDeviceFromArgs("poollogic.heater.write", heaterDeviceSlot_, false, nullptr);
     }
     if (strcmp(cmdName, "poollogic.heater.toggle") == 0) {
-        return toggleDeviceValue("poollogic.heater.toggle", PoolBinding::kDeviceSlotWaterHeater, false, nullptr);
+        return toggleDeviceValue("poollogic.heater.toggle", heaterDeviceSlot_, false, nullptr);
     }
     if (strcmp(cmdName, "poollogic.chlorine_generator.write") == 0 || strcmp(cmdName, "poollogic.swg.write") == 0) {
         return writeDeviceFromArgs("poollogic.chlorine_generator.write", swgDeviceSlot_, false, nullptr);

@@ -27,6 +27,7 @@ constexpr float SecureElectroTempC = 15.0f;
 
 constexpr float PhSetpoint = 7.4f;
 constexpr float OrpSetpoint = 700.0f;
+constexpr float HeaterSetpoint = 27.0f;
 
 constexpr float PhKp = 2000000.0f;
 constexpr float PhKi = 0.0f;
@@ -83,4 +84,3 @@ inline constexpr PoolLogicDefaultsSpec kLogicDefaults{
 };
 
 }  // namespace PoolDefaults
-

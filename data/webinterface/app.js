@@ -924,6 +924,18 @@
     let upgradeManifestState = { manifest: null, manifestUrl: '', baseUrl: '' };
     let cfgTreeAliases = [];
     let cfgTreeVirtualBranches = [];
+    const cfgTreeNodeTextNames = { supervisor: {}, flow: {} };
+    const cfgTreeNodeTextNamePending = { supervisor: new Set(), flow: new Set() };
+    const cfgTreePoolDeviceNames = Object.freeze({
+      pd0: 'Filtration Pump',
+      pd1: 'pH Pump',
+      pd2: 'Chlorine Pump',
+      pd3: 'Robot',
+      pd4: 'Fill Pump',
+      pd5: 'Chlorine Generator',
+      pd6: 'Lights',
+      pd7: 'Water Heater'
+    });
     let supCfgCurrentModule = '';
     let supCfgCurrentData = {};
     let supCfgTreePath = '';
@@ -5157,6 +5169,96 @@
       return segs[segs.length - 1] || cleanPath;
     }
 
+    function cfgTreeNodeRefInfo(pathValue) {
+      const cleanPath = nettoyerNomFlowCfg(pathValue);
+      if (!cleanPath) return null;
+      const matchIo = cleanPath.match(/^io\/input\/(a\d{2}|i\d{2})$/i);
+      if (matchIo) {
+        const ref = String(matchIo[1] || '').toLowerCase();
+        if (!ref) return null;
+        return {
+          type: 'io',
+          ref: ref,
+          modulePath: cleanPath,
+          nameKey: ref + '_name'
+        };
+      }
+      const matchPd = cleanPath.match(/^pdm\/(pd\d{1,2})$/i);
+      if (matchPd) {
+        const ref = String(matchPd[1] || '').toLowerCase();
+        if (!ref) return null;
+        return { type: 'pooldev', ref: ref };
+      }
+      return null;
+    }
+
+    async function fetchCfgTreeNodeTextName(source, pathValue) {
+      const cleanPath = nettoyerNomFlowCfg(pathValue);
+      const info = cfgTreeNodeRefInfo(cleanPath);
+      if (!info || info.type !== 'io') return;
+      if (!cfgTreeNodeTextNames[source]) cfgTreeNodeTextNames[source] = {};
+      if (!cfgTreeNodeTextNamePending[source]) cfgTreeNodeTextNamePending[source] = new Set();
+
+      const existing = cfgTreeNodeTextNames[source][cleanPath];
+      if (typeof existing !== 'undefined') return;
+      if (cfgTreeNodeTextNamePending[source].has(cleanPath)) return;
+
+      cfgTreeNodeTextNamePending[source].add(cleanPath);
+      try {
+        const storePath = cfgStorePathFromDisplayPath(cleanPath) || info.modulePath;
+        if (!storePath) return;
+        const url = source === 'supervisor'
+          ? ('/api/supervisorcfg/module?name=' + encodeURIComponent(storePath))
+          : ('/api/flowcfg/module?name=' + encodeURIComponent(storePath));
+        const fetchFn = source === 'supervisor' ? fetch : fetchFlowRemoteQueued;
+        const res = await fetchFn(url, { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || data.ok !== true || typeof data.data !== 'object') {
+          cfgTreeNodeTextNames[source][cleanPath] = '';
+          return;
+        }
+        const raw = data.data[info.nameKey];
+        const textName = (typeof raw === 'string') ? raw.trim() : '';
+        cfgTreeNodeTextNames[source][cleanPath] = textName;
+      } catch (err) {
+        cfgTreeNodeTextNames[source][cleanPath] = '';
+      } finally {
+        cfgTreeNodeTextNamePending[source].delete(cleanPath);
+        renderFlowCfgTree();
+      }
+    }
+
+    function cfgTreeDecoratedNodeLabel(source, pathValue, baseLabel) {
+      const cleanPath = nettoyerNomFlowCfg(pathValue);
+      const info = cfgTreeNodeRefInfo(cleanPath);
+      if (!info) return baseLabel;
+
+      const ref = info.ref || String(baseLabel || '').trim();
+      if (!ref) return baseLabel;
+
+      if (source !== 'supervisor') {
+        return ref;
+      }
+
+      if (info.type === 'pooldev') {
+        const pdName = cfgTreePoolDeviceNames[ref] || '';
+        return pdName ? (ref + ' [' + pdName + ']') : ref;
+      }
+
+      const cached = cfgTreeNodeTextNames.supervisor[cleanPath];
+      if (typeof cached !== 'undefined') {
+        return (typeof cached === 'string' && cached.length > 0) ? (ref + ' [' + cached + ']') : ref;
+      }
+      fetchCfgTreeNodeTextName('supervisor', cleanPath).catch(() => {});
+      return ref;
+    }
+
+    function clearCfgTreeNodeTextNameCache(source) {
+      if (source !== 'flow' && source !== 'supervisor') return;
+      cfgTreeNodeTextNames[source] = {};
+      cfgTreeNodeTextNamePending[source] = new Set();
+    }
+
     function flowCfgTitreDepuisChemin(pathValue) {
       const cleanPath = nettoyerNomFlowCfg(pathValue);
       if (!cleanPath) return 'Racine';
@@ -5315,7 +5417,7 @@
 
     function buildFlowCfgTreeItem(source, pathValue) {
       const cleanPath = nettoyerNomFlowCfg(pathValue);
-      const label = cfgPathLabel(cleanPath);
+      const label = cfgTreeDecoratedNodeLabel(source, cleanPath, cfgPathLabel(cleanPath));
       const cachedNode = cfgNodeForPath(source, cleanPath);
       const children = cfgFilteredChildren(source, cleanPath);
       const isExpanded = source === 'supervisor' ? supCfgExpandedNodes.has(cleanPath) : flowCfgExpandedNodes.has(cleanPath);
@@ -6919,7 +7021,9 @@
             throw new Error('apply refusé');
           }
           flowCfgStatus.textContent = 'Configuration locale appliquée.';
+          clearCfgTreeNodeTextNameCache('supervisor');
           await chargerPrimarySupervisorCfgModule(supCfgCurrentModule);
+          renderFlowCfgTree();
         } catch (err) {
           flowCfgStatus.textContent = 'Application cfg locale échouée: ' + err;
         }

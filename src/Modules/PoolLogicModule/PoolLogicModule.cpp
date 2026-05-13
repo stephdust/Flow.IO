@@ -28,6 +28,7 @@ static void poolLogicCfgDocsAnchor_(PoolLogicModule& self)
     self.winterModeVar_.moduleName = kCfgModuleMode;
     self.phAutoModeVar_.moduleName = kCfgModuleMode;
     self.orpAutoModeVar_.moduleName = kCfgModuleMode;
+    self.heaterAutoModeVar_.moduleName = kCfgModuleMode;
     self.phDosePlusVar_.moduleName = kCfgModuleMode;
     self.electrolyseModeVar_.moduleName = kCfgModuleMode;
     self.electroRunModeVar_.moduleName = kCfgModuleMode;
@@ -55,6 +56,7 @@ static void poolLogicCfgDocsAnchor_(PoolLogicModule& self)
     self.secureElectroVar_.moduleName = kCfgModulePid;
     self.phSetpointVar_.moduleName = kCfgModulePid;
     self.orpSetpointVar_.moduleName = kCfgModulePid;
+    self.heaterSetpointVar_.moduleName = kCfgModulePid;
     self.phKpVar_.moduleName = kCfgModulePid;
     self.phKiVar_.moduleName = kCfgModulePid;
     self.phKdVar_.moduleName = kCfgModulePid;
@@ -79,5 +81,6 @@ static void poolLogicCfgDocsAnchor_(PoolLogicModule& self)
     self.fillingDeviceVar_.moduleName = kCfgModuleDevice;
     self.phPumpDeviceVar_.moduleName = kCfgModuleDevice;
     self.orpPumpDeviceVar_.moduleName = kCfgModuleDevice;
+    self.heaterDeviceVar_.moduleName = kCfgModuleDevice;
 }
 #endif
