@@ -36,6 +36,7 @@ constexpr uint8_t kI2cRuntimeUiValueSeen = 2;
 constexpr uint8_t kI2cRuntimeUiValueReqCount = 3;
 constexpr uint8_t kI2cRuntimeUiValueBadReqCount = 4;
 constexpr uint8_t kI2cRuntimeUiValueLastReqAgoMs = 5;
+constexpr uint8_t kI2cRuntimeUiValueSupervisorIp = 6;
 
 size_t tokenLenToSlash_(const char* s)
 {
@@ -653,13 +654,21 @@ bool I2CCfgServerModule::buildRuntimeStatusI2cJson_(bool& truncatedOut)
     const bool hasSupervisorSeen = reqCount_ > 0;
     const uint32_t lastReqAgoMs = hasSupervisorSeen ? (nowMs - lastReqMs_) : 0U;
     const bool supervisorLinkOk = started_ && hasSupervisorSeen && (lastReqAgoMs <= 15000U);
+    uint8_t supervisorIp[4] = {0U, 0U, 0U, 0U};
+    bool supervisorIpValid = false;
+    snapshotSupervisorPeerIp_(supervisorIp, supervisorIpValid);
+    IpV4 supervisorIpV4 = {{supervisorIp[0], supervisorIp[1], supervisorIp[2], supervisorIp[3]}};
+    char supervisorIpTxt[20] = {0};
+    if (!supervisorIpValid || !ipToText_(supervisorIpV4, supervisorIpTxt, sizeof(supervisorIpTxt))) {
+        snprintf(supervisorIpTxt, sizeof(supervisorIpTxt), "0.0.0.0");
+    }
 
     size_t pos = 0;
     statusJson_[0] = '\0';
     if (!appendFormat_(statusJson_,
                        sizeof(statusJson_),
                        pos,
-                       "{\"ok\":true,\"i2c\":{\"ena\":%s,\"sta\":%s,\"adr\":%u,\"req\":%lu,\"breq\":%lu,\"bcrc\":%lu,\"bfmt\":%lu,\"seen\":%s,\"ago\":%lu,\"lnk\":%s}}",
+                       "{\"ok\":true,\"i2c\":{\"ena\":%s,\"sta\":%s,\"adr\":%u,\"req\":%lu,\"breq\":%lu,\"bcrc\":%lu,\"bfmt\":%lu,\"seen\":%s,\"ago\":%lu,\"lnk\":%s,\"sup_ip\":",
                        cfgData_.enabled ? "true" : "false",
                        started_ ? "true" : "false",
                        (unsigned)cfgData_.address,
@@ -670,6 +679,9 @@ bool I2CCfgServerModule::buildRuntimeStatusI2cJson_(bool& truncatedOut)
                        hasSupervisorSeen ? "true" : "false",
                        (unsigned long)lastReqAgoMs,
                        supervisorLinkOk ? "true" : "false")) return false;
+    if (!appendEscapedJsonString_(statusJson_, sizeof(statusJson_), pos, supervisorIpTxt)) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, "}")) return false;
+    if (!appendText_(statusJson_, sizeof(statusJson_), pos, "}")) return false;
     return true;
 }
 
@@ -782,6 +794,14 @@ bool I2CCfgServerModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& 
     const uint32_t nowMs = millis();
     const uint32_t lastReqAgoMs = hasSupervisorSeen ? (nowMs - lastReqMs_) : 0U;
     const bool supervisorLinkOk = started_ && hasSupervisorSeen && (lastReqAgoMs <= 15000U);
+    uint8_t supervisorIp[4] = {0U, 0U, 0U, 0U};
+    bool supervisorIpValid = false;
+    snapshotSupervisorPeerIp_(supervisorIp, supervisorIpValid);
+    IpV4 supervisorIpV4 = {{supervisorIp[0], supervisorIp[1], supervisorIp[2], supervisorIp[3]}};
+    char supervisorIpTxt[20] = {0};
+    if (supervisorIpValid) {
+        supervisorIpValid = ipToText_(supervisorIpV4, supervisorIpTxt, sizeof(supervisorIpTxt));
+    }
 
     switch (valueId) {
         case kI2cRuntimeUiValueLinkOk:
@@ -796,9 +816,41 @@ bool I2CCfgServerModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& 
             return hasSupervisorSeen
                 ? writer.writeU32(runtimeId, lastReqAgoMs)
                 : writer.writeUnavailable(runtimeId);
+        case kI2cRuntimeUiValueSupervisorIp:
+            return supervisorIpValid
+                ? writer.writeString(runtimeId, supervisorIpTxt)
+                : writer.writeUnavailable(runtimeId);
         default:
             return false;
     }
+}
+
+bool I2CCfgServerModule::snapshotSupervisorPeerIp_(uint8_t out[4], bool& validOut) const
+{
+    if (!out) return false;
+    portENTER_CRITICAL(&peerStateMux_);
+    out[0] = supervisorIp_[0];
+    out[1] = supervisorIp_[1];
+    out[2] = supervisorIp_[2];
+    out[3] = supervisorIp_[3];
+    validOut = supervisorIpValid_;
+    portEXIT_CRITICAL(&peerStateMux_);
+    return true;
+}
+
+bool I2CCfgServerModule::supervisorPeerIpText(char* out, size_t outLen, bool* validOut) const
+{
+    if (!out || outLen == 0U) return false;
+    out[0] = '\0';
+
+    uint8_t ipRaw[4] = {0U, 0U, 0U, 0U};
+    bool valid = false;
+    if (!snapshotSupervisorPeerIp_(ipRaw, valid)) return false;
+    if (validOut) *validOut = valid;
+    if (!valid) return false;
+
+    const IpV4 ip = {{ipRaw[0], ipRaw[1], ipRaw[2], ipRaw[3]}};
+    return ipToText_(ip, out, outLen);
 }
 
 bool I2CCfgServerModule::buildRuntimeAlarmSnapshotJson_(bool& truncatedOut)
@@ -999,6 +1051,18 @@ void I2CCfgServerModule::handleRequest_(uint8_t op, uint8_t seq, const uint8_t* 
     }
 
     if (op == I2cCfgProtocol::OpPing) {
+        if (payloadLen != 4U) {
+            buildResponse_(op, seq, I2cCfgProtocol::StatusBadRequest, nullptr, 0);
+            return;
+        }
+        const bool hasNonZeroIp = payload[0] != 0U || payload[1] != 0U || payload[2] != 0U || payload[3] != 0U;
+        portENTER_CRITICAL(&peerStateMux_);
+        supervisorIp_[0] = payload[0];
+        supervisorIp_[1] = payload[1];
+        supervisorIp_[2] = payload[2];
+        supervisorIp_[3] = payload[3];
+        supervisorIpValid_ = hasNonZeroIp;
+        portEXIT_CRITICAL(&peerStateMux_);
         const uint8_t pong[2] = {I2cCfgProtocol::CapabilityVersionFrameCrc, (uint8_t)cfgData_.address};
         buildResponse_(op, seq, I2cCfgProtocol::StatusOk, pong, sizeof(pong));
         return;

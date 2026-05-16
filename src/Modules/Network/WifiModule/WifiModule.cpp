@@ -716,11 +716,25 @@ void WifiModule::registerHaEntities_(ServiceRegistry& services)
         kWifiAvailabilityTpl,
         false
     };
+    const HASensorEntry supervisorIp{
+        "wifi",
+        "supervisor_ip",
+        "Supervisor IP",
+        "rt/network/state",
+        "{{ value_json.sup_ip | default('', true) }}",
+        "diagnostic",
+        "mdi:lan-connect",
+        nullptr,
+        false,
+        kWifiAvailabilityTpl,
+        true
+    };
 
     bool ok = true;
     ok = haSvc_->addSensor(haSvc_->ctx, &wifiIp) && ok;
     ok = haSvc_->addSensor(haSvc_->ctx, &wifiMac) && ok;
     ok = haSvc_->addSensor(haSvc_->ctx, &wifiRssi) && ok;
+    ok = haSvc_->addSensor(haSvc_->ctx, &supervisorIp) && ok;
     if (ok) {
         haEntitiesRegistered_ = true;
     } else {

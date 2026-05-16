@@ -40,6 +40,7 @@ static constexpr HaDiscoveryCleanupEntry kLegacyDiscoveryCleanupEntries[] = {
 static constexpr MqttConfigRouteProducer::Route kHaCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::Ha, kHaCfgBranch}, "ha", "ha", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
+static constexpr const char* kHaDeviceConfigUrl = "http://flowio.local";
 static_assert(Limits::Ha::Capacity::MaxDiscoveryCleanups <=
                   (uint8_t)(sizeof(kLegacyDiscoveryCleanupEntries) / sizeof(kLegacyDiscoveryCleanupEntries[0])),
               "Board HA cleanup capacity exceeds built-in legacy cleanup entries");
@@ -520,11 +521,11 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
              "\"stat_t\":\"%s\",\"val_tpl\":\"%s\"%s%s%s%s%s%s,"
              "\"o\":{\"name\":\"%s\"},"
              "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
-             "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
+             "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
              name, objectId, defaultEntityId, uniqueId,
              stateTopic, valueTemplate,
              stateClassField, entityCategoryField, iconField, unitField, hasEntityNameField, availabilityField,
-             originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
+             originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
         LOGW("HA sensor payload truncated object=%s", objectId);
         return false;
     }
@@ -567,10 +568,10 @@ bool HAModule::publishBinarySensor(const char* objectId, const char* name,
              "\"has_entity_name\":false%s%s%s%s,"
              "\"o\":{\"name\":\"%s\"},"
              "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
-             "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
+             "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
              name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
              deviceClassField, entityCategoryField, iconField, availabilityField,
-             originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
+             originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
         LOGW("HA binary_sensor payload truncated object=%s", objectId);
         return false;
     }
@@ -608,11 +609,11 @@ bool HAModule::publishSwitch(const char* objectId, const char* name,
                  "\"ic\":\"%s\"%s%s,"
                  "\"o\":{\"name\":\"%s\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
-                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
                  commandTopic, payloadOn, payloadOff, icon,
                  entityCategoryField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
+                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA switch payload truncated object=%s", objectId);
             return false;
         }
@@ -623,10 +624,10 @@ bool HAModule::publishSwitch(const char* objectId, const char* name,
                  "\"cmd_t\":\"%s\",\"pl_on\":\"%s\",\"pl_off\":\"%s\"%s%s,"
                  "\"o\":{\"name\":\"%s\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
-                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
                  commandTopic, payloadOn, payloadOff, entityCategoryField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
+                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA switch payload truncated object=%s", objectId);
             return false;
         }
@@ -672,10 +673,10 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
                  "%s,\"mode\":\"%s\",\"ic\":\"%s\"%s%s%s,"
                  "\"o\":{\"name\":\"%s\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
-                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
                  rangeField, mode ? mode : "slider", icon, entityCategoryField, unitField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
+                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA number payload truncated object=%s", objectId);
             return false;
         }
@@ -686,10 +687,10 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
                  "%s,\"mode\":\"%s\"%s%s%s,"
                  "\"o\":{\"name\":\"%s\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
-                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
                  rangeField, mode ? mode : "slider", entityCategoryField, unitField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
+                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA number payload truncated object=%s", objectId);
             return false;
         }
@@ -722,11 +723,11 @@ bool HAModule::publishButton(const char* objectId, const char* name,
                  "\"cmd_t\":\"%s\",\"pl_prs\":\"%s\",\"ic\":\"%s\"%s%s,"
                  "\"o\":{\"name\":\"%s\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
-                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId,
                  commandTopic, payloadPress, icon,
                  entityCategoryField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
+                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA button payload truncated object=%s", objectId);
             return false;
         }
@@ -736,11 +737,11 @@ bool HAModule::publishButton(const char* objectId, const char* name,
                  "\"cmd_t\":\"%s\",\"pl_prs\":\"%s\"%s%s,"
                  "\"o\":{\"name\":\"%s\"},"
                  "\"dev\":{\"ids\":[\"%s\"],\"name\":\"%s\","
-                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\"}}",
+                 "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId,
                  commandTopic, payloadPress,
                  entityCategoryField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full)) {
+                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA button payload truncated object=%s", objectId);
             return false;
         }

@@ -166,6 +166,7 @@
     "log/levels/m42_lvl": { "label": "core.configstore", "help": "Niveau minimal de logs pour le stockage de configuration.", "enum_set": "log_levels" },
     "log/levels/m43_lvl": { "label": "core.eventbus", "help": "Niveau minimal de logs pour l'EventBus coeur.", "enum_set": "log_levels" },
 
+    "pdm": { "hidden": true },
     "pdmrt": { "hidden": true },
     "time/scheduler": { "hidden": true }
   }

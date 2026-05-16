@@ -197,12 +197,9 @@ void PoolDeviceModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
     if (cmdSvc_ && cmdSvc_->registerHandler) {
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.write", cmdPoolWrite_, this);
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.write", cmdPoolWrite_, this); // backward compatibility
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.refill", cmdPoolRefill_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.uptime.reset", cmdPoolResetUptime_, this);
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.uptime.reset", cmdPoolResetUptime_, this);
         cmdSvc_->registerHandler(cmdSvc_->ctx, "pooldevice.uptime.reset_all", cmdPoolResetUptimeAll_, this);
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "pool.uptime.reset_all", cmdPoolResetUptimeAll_, this);
     }
     if (haSvc_ && haSvc_->addSensor) {
         if (slots_[PoolBinding::kDeviceSlotChlorinePump].used) {

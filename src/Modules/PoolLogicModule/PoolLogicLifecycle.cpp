@@ -316,12 +316,38 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:beaker-plus-outline",
             "config"
         };
+        const HASwitchEntry chlorineGeneratorModeSwitch{
+            "poollogic",
+            "pl_chl_gen_mode",
+            "Chlorine Generator Enabled",
+            "cfg/poollogic/mode",
+            "{% if value_json.elec_mode %}ON{% else %}OFF{% endif %}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/mode\\\":{\\\"elec_mode\\\":true}}",
+            "{\\\"poollogic/mode\\\":{\\\"elec_mode\\\":false}}",
+            "mdi:flash",
+            "config"
+        };
+        const HASwitchEntry chlorineGeneratorOrpControlSwitch{
+            "poollogic",
+            "pl_chl_gen_orp",
+            "Chlorine Generator ORP Control",
+            "cfg/poollogic/mode",
+            "{% if value_json.elec_run %}ON{% else %}OFF{% endif %}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/mode\\\":{\\\"elec_run\\\":true}}",
+            "{\\\"poollogic/mode\\\":{\\\"elec_run\\\":false}}",
+            "mdi:chart-timeline-variant",
+            "config"
+        };
         (void)haSvc_->addSwitch(haSvc_->ctx, &autoModeSwitch);
         (void)haSvc_->addSwitch(haSvc_->ctx, &winterModeSwitch);
         (void)haSvc_->addSwitch(haSvc_->ctx, &phAutoModeSwitch);
         (void)haSvc_->addSwitch(haSvc_->ctx, &orpAutoModeSwitch);
         (void)haSvc_->addSwitch(haSvc_->ctx, &heaterAutoModeSwitch);
         (void)haSvc_->addSwitch(haSvc_->ctx, &phDosePlusSwitch);
+        (void)haSvc_->addSwitch(haSvc_->ctx, &chlorineGeneratorModeSwitch);
+        (void)haSvc_->addSwitch(haSvc_->ctx, &chlorineGeneratorOrpControlSwitch);
     }
     if (haSvc_ && haSvc_->addSensor) {
         const HASensorEntry filtrationStart{
@@ -348,6 +374,22 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         (void)haSvc_->addSensor(haSvc_->ctx, &filtrationStop);
     }
     if (haSvc_ && haSvc_->addNumber) {
+        const HANumberEntry waterTempSetpoint{
+            "poollogic",
+            "pl_wat_temp_sp",
+            "Water Temperature Setpoint",
+            "cfg/poollogic/filtration",
+            "{{ value_json.wat_temp_setpt | float(0) }}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/filtration\\\":{\\\"wat_temp_setpt\\\":{{ value | float(0) }}}}",
+            5.0f,
+            35.0f,
+            0.1f,
+            "slider",
+            "config",
+            "mdi:thermometer-water",
+            "C"
+        };
         const HANumberEntry filtrationStartMin{
             "poollogic",
             "pl_flt_start_min",
@@ -390,6 +432,22 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "{\\\"poollogic/delay\\\":{\\\"dly_pid_min\\\":{{ value | int(0) }}}}",
             0.0f,
             30.0f,
+            1.0f,
+            "slider",
+            "config",
+            "mdi:timer-sand",
+            "min"
+        };
+        const HANumberEntry delayElectroMin{
+            "poollogic",
+            "pl_dly_elec",
+            "Delay Chlorine Generator",
+            "cfg/poollogic/delay",
+            "{{ value_json.dly_electro_min | int(0) }}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/delay\\\":{\\\"dly_electro_min\\\":{{ value | int(0) }}}}",
+            0.0f,
+            120.0f,
             1.0f,
             "slider",
             "config",
@@ -460,6 +518,22 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:thermometer-water",
             "C"
         };
+        const HANumberEntry chlorineGeneratorMinTemp{
+            "poollogic",
+            "pl_chl_gen_min_temp",
+            "Min Temperature Chlorine Generator",
+            "cfg/poollogic/pid",
+            "{{ value_json.secure_elec_t | float(0) }}",
+            MqttTopics::SuffixCfgSet,
+            "{\\\"poollogic/pid\\\":{\\\"secure_elec_t\\\":{{ value | float(0) }}}}",
+            5.0f,
+            35.0f,
+            0.1f,
+            "slider",
+            "config",
+            "mdi:thermometer-alert",
+            "C"
+        };
         const HANumberEntry phWindowMin{
             "poollogic",
             "pl_ph_win",
@@ -524,13 +598,16 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:gauge-full",
             "bar"
         };
+        (void)haSvc_->addNumber(haSvc_->ctx, &waterTempSetpoint);
         (void)haSvc_->addNumber(haSvc_->ctx, &filtrationStartMin);
         (void)haSvc_->addNumber(haSvc_->ctx, &filtrationStopMax);
         (void)haSvc_->addNumber(haSvc_->ctx, &delayPidsMin);
+        (void)haSvc_->addNumber(haSvc_->ctx, &delayElectroMin);
         (void)haSvc_->addNumber(haSvc_->ctx, &fillMinUptime);
         (void)haSvc_->addNumber(haSvc_->ctx, &phSetpoint);
         (void)haSvc_->addNumber(haSvc_->ctx, &orpSetpoint);
         (void)haSvc_->addNumber(haSvc_->ctx, &heaterSetpoint);
+        (void)haSvc_->addNumber(haSvc_->ctx, &chlorineGeneratorMinTemp);
         (void)haSvc_->addNumber(haSvc_->ctx, &phWindowMin);
         (void)haSvc_->addNumber(haSvc_->ctx, &orpWindowMin);
         (void)haSvc_->addNumber(haSvc_->ctx, &psiLowThreshold);
@@ -567,8 +644,6 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "poollogic.ph_pump.toggle",
             "poollogic.orp_pump.write",
             "poollogic.orp_pump.toggle",
-            "poollogic.light.write",
-            "poollogic.light.toggle",
             "poollogic.lights.write",
             "poollogic.lights.toggle",
             "poollogic.robot.write",
@@ -576,9 +651,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "poollogic.heater.write",
             "poollogic.heater.toggle",
             "poollogic.chlorine_generator.write",
-            "poollogic.chlorine_generator.toggle",
-            "poollogic.swg.write",
-            "poollogic.swg.toggle"
+            "poollogic.chlorine_generator.toggle"
         };
         for (uint8_t i = 0; i < (uint8_t)(sizeof(kMqttControlCmds) / sizeof(kMqttControlCmds[0])); ++i) {
             cmdSvc_->registerHandler(cmdSvc_->ctx, kMqttControlCmds[i], &PoolLogicModule::cmdMqttControlStatic_, this);

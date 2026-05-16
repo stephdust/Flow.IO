@@ -27,6 +27,7 @@
 namespace {
 
 using Profiles::FlowIO::ModuleInstances;
+I2CCfgServerModule* gI2cCfgServerForNetworkSnapshot = nullptr;
 
 const PoolDevicePreset* findPoolPresetByRole(const DomainSpec& domain, DomainRole role)
 {
@@ -57,6 +58,11 @@ bool buildNetworkSnapshot(MQTTModule* mqtt, char* out, size_t len)
     const bool netReady = wifiReady(*ds);
     const bool mqttOk = mqttReady(*ds);
     const int rssi = WiFi.isConnected() ? WiFi.RSSI() : -127;
+    char supervisorIp[20] = {0};
+    if (!gI2cCfgServerForNetworkSnapshot ||
+        !gI2cCfgServerForNetworkSnapshot->supervisorPeerIpText(supervisorIp, sizeof(supervisorIp), nullptr)) {
+        snprintf(supervisorIp, sizeof(supervisorIp), "");
+    }
     uint8_t mac[6] = {0};
     char macText[18] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
@@ -71,9 +77,10 @@ bool buildNetworkSnapshot(MQTTModule* mqtt, char* out, size_t len)
              (unsigned)mac[5]);
 
     const int wrote = snprintf(out, len,
-                               "{\"ready\":%s,\"ip\":\"%s\",\"mac\":\"%s\",\"rssi\":%d,\"mqtt\":%s,\"ts\":%lu}",
+                               "{\"ready\":%s,\"ip\":\"%s\",\"sup_ip\":\"%s\",\"mac\":\"%s\",\"rssi\":%d,\"mqtt\":%s,\"ts\":%lu}",
                                netReady ? "true" : "false",
                                ip,
+                               supervisorIp,
                                macText,
                                rssi,
                                mqttOk ? "true" : "false",
@@ -173,6 +180,7 @@ void postInit(AppContext& ctx, ModuleInstances& modules)
 
     modules.mqttModule.formatTopic(modules.topicNetworkState, sizeof(modules.topicNetworkState), "rt/network/state");
     modules.mqttModule.formatTopic(modules.topicSystemState, sizeof(modules.topicSystemState), "rt/system/state");
+    gI2cCfgServerForNetworkSnapshot = &modules.i2cCfgServerModule;
     modules.mqttModule.addRuntimePublisher(modules.topicNetworkState, 60000, 0, false, buildNetworkSnapshot);
     modules.mqttModule.addRuntimePublisher(modules.topicSystemState, 60000, 0, false, buildSystemSnapshot);
     registerIoHomeAssistant(ctx, modules);

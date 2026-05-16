@@ -221,10 +221,10 @@ private:
     // CFGDOC: {"label":"Injection pH+","help":"Si activé, la pompe pH injecte du pH+ (sinon pH-)."}
     ConfigVariable<bool,0> phDosePlusVar_{NVS_KEY(NvsKeys::PoolLogic::PhDosePlus), "ph_dose_plus", "poollogic/mode", ConfigType::Bool,
                                           &phDosePlus_, ConfigPersistence::Persistent, 0};
-    // CFGDOC: {"label":"Electrolyse active","help":"Autorise l'usage de l'electrolyseur."}
+    // CFGDOC: {"label":"Electrolyse active","help":"Active la logique electrolyse. En auto, elle ne peut tourner que si la filtration est active (fenêtre horaire filtration), après délai et température mini."}
     ConfigVariable<bool,0> electrolyseModeVar_{NVS_KEY(NvsKeys::PoolLogic::ElectrolyseMode), "elec_mode", "poollogic/mode", ConfigType::Bool,
                                                &electrolyseMode_, ConfigPersistence::Persistent, 0};
-    // CFGDOC: {"label":"Electrolyse en service","help":"Autorise la commande de marche de l'electrolyseur."}
+    // CFGDOC: {"label":"Electrolyse en service","help":"Choisit le mode de pilotage: OFF=marche non asservie (selon filtration+délai+température). ON=marche asservie ORP (démarre sous 90% de consigne, s'arrête à la consigne)."}
     ConfigVariable<bool,0> electroRunModeVar_{NVS_KEY(NvsKeys::PoolLogic::ElectroRunMode), "elec_run", "poollogic/mode", ConfigType::Bool,
                                               &electroRunMode_, ConfigPersistence::Persistent, 0};
 

@@ -26,7 +26,7 @@ Aucune variable `ConfigStore`.
 
 ## Capacité
 
-La registry statique actuelle contient `MAX_COMMANDS = 24` entrées (`src/Core/CommandRegistry.h`).
+La registry statique actuelle contient `MAX_COMMANDS = 48` entrées (`src/Core/CommandRegistry.h`).
 `registerHandler(...)` retourne `false` si cette capacité est atteinte ou si une commande est déjà enregistrée.
 
 ## EventBus / DataStore / MQTT
@@ -39,20 +39,30 @@ Le `CommandModule` n'ajoute pas de commande métier lui-même; il sert d'infrast
 Commandes que les modules tentent d'enregistrer selon le profil compilé:
 - `system.ping`, `system.reboot`, `system.factory_reset`
 - `alarms.list`, `alarms.reset`, `alarms.reset_slot`, `alarms.reset_all`
-- `time.resync`, `ntp.resync`
+- `time.resync`
 - `time.scheduler.info/get/set/clear/clear_all`
 - `wifi.dump_cfg`
-- `pooldevice.write`, `pool.write`, `pool.refill`
-- `pooldevice.uptime.reset`, `pool.uptime.reset`
-- `pooldevice.uptime.reset_all`, `pool.uptime.reset_all`
+- `pooldevice.write`, `pool.refill`
+- `pooldevice.uptime.reset`
+- `pooldevice.uptime.reset_all`
 - `poollogic.filtration.write`, `poollogic.filtration.recalc`
 - `poollogic.auto_mode.set`, `poollogic.auto_mode.toggle`
 - `poollogic.ph_auto_mode.set/toggle`, `poollogic.orp_auto_mode.set/toggle`, `poollogic.winter_mode.set/toggle`
 - `poollogic.filtration.toggle`
 - `poollogic.ph_pump.write/toggle`, `poollogic.orp_pump.write/toggle`
-- `poollogic.light.write/toggle`, `poollogic.lights.write/toggle`
+- `poollogic.lights.write/toggle`
 - `poollogic.robot.write/toggle`, `poollogic.heater.write/toggle`
-- `poollogic.chlorine_generator.write/toggle`, `poollogic.swg.write/toggle`
+- `poollogic.chlorine_generator.write/toggle`
 - `flow.system.reboot`, `flow.system.factory_reset` (profil `Supervisor`)
 - `fw.update.status`, `fw.update.flowio`, `fw.update.supervisor`, `fw.update.nextion`
 - `fw.nextion.reboot`, `fw.update.spiffs`, `fw.update.cfgdocs` (profil `Supervisor`)
+
+Alias pris en charge a l'execution (sans enregistrement dedie):
+- `ntp.resync` -> `time.resync`
+- `pool.write` -> `pooldevice.write`
+- `pool.uptime.reset` -> `pooldevice.uptime.reset`
+- `pool.uptime.reset_all` -> `pooldevice.uptime.reset_all`
+- `poollogic.light.write` -> `poollogic.lights.write`
+- `poollogic.light.toggle` -> `poollogic.lights.toggle`
+- `poollogic.swg.write` -> `poollogic.chlorine_generator.write`
+- `poollogic.swg.toggle` -> `poollogic.chlorine_generator.toggle`

@@ -8,6 +8,7 @@
 #include "Core/ErrorCodes.h"
 #include "Core/Generated/RuntimeUiManifest_Generated.h"
 #include "Modules/Network/I2CCfgClientModule/I2CCfgClientRuntime.h"
+#include "Modules/Network/WifiModule/WifiRuntime.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::I2cCfgClientModule)
 #include "Core/ModuleLog.h"
 
@@ -1200,7 +1201,15 @@ bool I2CCfgClientModule::pingFlow_(uint8_t& statusOut)
 {
     uint8_t resp[8] = {0};
     size_t respLen = 0;
-    const bool ok = transact_(I2cCfgProtocol::OpPing, nullptr, 0, statusOut, resp, sizeof(resp), respLen);
+    uint8_t pingPayload[4] = {0U, 0U, 0U, 0U};
+    if (dsSvc_ && dsSvc_->store) {
+        const IpV4 ip = wifiIp(*dsSvc_->store);
+        pingPayload[0] = ip.b[0];
+        pingPayload[1] = ip.b[1];
+        pingPayload[2] = ip.b[2];
+        pingPayload[3] = ip.b[3];
+    }
+    const bool ok = transact_(I2cCfgProtocol::OpPing, pingPayload, sizeof(pingPayload), statusOut, resp, sizeof(resp), respLen);
     if (ok && statusOut == I2cCfgProtocol::StatusOk) {
         const unsigned protoVer = (respLen > 0) ? (unsigned)resp[0] : 0U;
         const unsigned echoAddr = (respLen > 1) ? (unsigned)resp[1] : 0U;

@@ -32,6 +32,13 @@ static const char* resolveCommandAlias_(const char* cmd)
 {
     if (!cmd) return cmd;
     if (strcmp(cmd, "ntp.resync") == 0) return "time.resync";
+    if (strcmp(cmd, "pool.write") == 0) return "pooldevice.write";
+    if (strcmp(cmd, "pool.uptime.reset") == 0) return "pooldevice.uptime.reset";
+    if (strcmp(cmd, "pool.uptime.reset_all") == 0) return "pooldevice.uptime.reset_all";
+    if (strcmp(cmd, "poollogic.light.write") == 0) return "poollogic.lights.write";
+    if (strcmp(cmd, "poollogic.light.toggle") == 0) return "poollogic.lights.toggle";
+    if (strcmp(cmd, "poollogic.swg.write") == 0) return "poollogic.chlorine_generator.write";
+    if (strcmp(cmd, "poollogic.swg.toggle") == 0) return "poollogic.chlorine_generator.toggle";
     return cmd;
 }
 

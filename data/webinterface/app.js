@@ -865,15 +865,17 @@
     const poolMeasuresGrid = document.getElementById('poolMeasuresGrid');
     const calibrationSensorSelect = document.getElementById('calibrationSensorSelect');
     const calibrationLoadBtn = document.getElementById('calibrationLoadBtn');
-    const calibrationPrefillBtn = document.getElementById('calibrationPrefillBtn');
     const calibrationComputeBtn = document.getElementById('calibrationComputeBtn');
     const calibrationApplyBtn = document.getElementById('calibrationApplyBtn');
     const calibrationPoint1Measured = document.getElementById('calibrationPoint1Measured');
     const calibrationPoint1Reference = document.getElementById('calibrationPoint1Reference');
+    const calibrationPoint1LiveBtn = document.getElementById('calibrationPoint1LiveBtn');
     const calibrationPoint2Measured = document.getElementById('calibrationPoint2Measured');
     const calibrationPoint2Reference = document.getElementById('calibrationPoint2Reference');
+    const calibrationPoint2LiveBtn = document.getElementById('calibrationPoint2LiveBtn');
     const calibrationSingleMeasured = document.getElementById('calibrationSingleMeasured');
     const calibrationSingleReference = document.getElementById('calibrationSingleReference');
+    const calibrationSingleLiveBtn = document.getElementById('calibrationSingleLiveBtn');
     const calibrationTwoPointFields = document.getElementById('calibrationTwoPointFields');
     const calibrationOnePointFields = document.getElementById('calibrationOnePointFields');
     const calibrationModeHint = document.getElementById('calibrationModeHint');
@@ -932,6 +934,16 @@
     let supCfgChildrenCache = {};
     let supCfgExpandedNodes = new Set();
     let supCfgRootExpanded = true;
+    const ioOutputPdmLabels = Object.freeze({
+      0: 'Filtration',
+      1: 'Pompe pH',
+      2: 'Pompe chlore',
+      3: 'Robot',
+      4: 'Pompe remplissage',
+      5: 'Electrolyse',
+      6: 'Eclairage',
+      7: 'Chauffage eau'
+    });
     let wifiScanAutoRequested = false;
     let flowStatusReqSeq = 0;
     fieldApplyCheckIcon = iconCheckText();
@@ -4575,7 +4587,13 @@
         calibrationContext = null;
         calibrationSetSummary('-', NaN, NaN);
       }
-      if (calibrationPrefillBtn) calibrationPrefillBtn.disabled = !calibrationContext;
+      calibrationSetLiveFillButtonsDisabled(!calibrationContext);
+    }
+
+    function calibrationSetLiveFillButtonsDisabled(disabled) {
+      if (calibrationPoint1LiveBtn) calibrationPoint1LiveBtn.disabled = disabled;
+      if (calibrationPoint2LiveBtn) calibrationPoint2LiveBtn.disabled = disabled;
+      if (calibrationSingleLiveBtn) calibrationSingleLiveBtn.disabled = disabled;
     }
 
     async function loadCalibrationSensorConfig(prefillLive) {
@@ -4587,7 +4605,7 @@
       calibrationResetComputedUi();
       calibrationSetStatus('Chargement de la configuration sonde...', 'busy');
       if (calibrationLoadBtn) calibrationLoadBtn.disabled = true;
-      if (calibrationPrefillBtn) calibrationPrefillBtn.disabled = true;
+      calibrationSetLiveFillButtonsDisabled(true);
 
       try {
         await calibrationEnsureDocSourcesLoaded();
@@ -4625,7 +4643,7 @@
 
         calibrationSetSummary(ioModule, c0, c1);
         calibrationSetStatus('Sonde ' + def.label + ' chargée.', 'ok');
-        if (calibrationPrefillBtn) calibrationPrefillBtn.disabled = false;
+        calibrationSetLiveFillButtonsDisabled(false);
 
         if (prefillLive) {
           await calibrationPrefillLiveValue({ silent: true });
@@ -4658,7 +4676,9 @@
         throw new Error('mesure live invalide');
       }
 
-      if (calibrationContext.mode === 'two') {
+      if (opts.targetInput && typeof opts.targetInput.value === 'string') {
+        opts.targetInput.value = String(measured);
+      } else if (calibrationContext.mode === 'two') {
         const p1Empty = !String(calibrationPoint1Measured && calibrationPoint1Measured.value || '').trim();
         const p2Empty = !String(calibrationPoint2Measured && calibrationPoint2Measured.value || '').trim();
         if (calibrationPoint1Measured && (p1Empty || !p2Empty)) {
@@ -6325,8 +6345,10 @@
       if (!moduleName || !inputEl) throw new Error('champ non disponible');
       const key = String(inputEl.dataset.key || '').trim();
       if (!key) throw new Error('cle de configuration absente');
+      const targetModule = nettoyerNomFlowCfg(inputEl.dataset.module || moduleName);
+      if (!targetModule) throw new Error('branche de configuration absente');
       const patch = {};
-      patch[moduleName] = {
+      patch[targetModule] = {
         [key]: readConfigFieldValueStrict(inputEl)
       };
       return JSON.stringify(patch);
@@ -6334,19 +6356,34 @@
 
     function renderConfigFields(containerEl, moduleName, dataObj, options) {
       const opts = options || {};
-      closeColorPickerPopover();
-      containerEl.innerHTML = '';
+      const appendMode = !!opts.append;
+      if (!appendMode) {
+        closeColorPickerPopover();
+        containerEl.innerHTML = '';
+      }
       const data = (dataObj && typeof dataObj === 'object') ? dataObj : {};
       const perFieldApply = !!opts.perFieldApply;
       const controlsPrimaryPane = !!opts.controlsPrimaryPane;
       const onApplyField = typeof opts.onApplyField === 'function' ? opts.onApplyField : null;
+      const sectionTitle = String(opts.sectionTitle || '').trim();
       let modeFieldInputEl = null;
       const visibilityEntries = [];
       if (controlsPrimaryPane) {
         flowCfgApplyBtn.hidden = perFieldApply;
       }
       const keys = Object.keys(data).sort();
+      if (sectionTitle && keys.length > 0) {
+        const sectionEl = document.createElement('div');
+        sectionEl.className = 'control-section-title';
+        sectionEl.textContent = sectionTitle;
+        containerEl.appendChild(sectionEl);
+
+        const dividerEl = document.createElement('div');
+        dividerEl.className = 'control-divider';
+        containerEl.appendChild(dividerEl);
+      }
       if (keys.length === 0) {
+        if (appendMode) return;
         const row = document.createElement('div');
         row.className = 'control-row';
         const label = document.createElement('span');
@@ -6406,11 +6443,13 @@
           sw.appendChild(track);
           sw.appendChild(thumb);
           inputEl = input;
+          inputEl.dataset.module = moduleName;
           valueWrap.classList.add('control-value-wrap-bool');
           valueWrap.appendChild(sw);
         } else if (enumOptions && enumOptions.length > 0 && enumOptions.some((opt) => opt && typeof opt.color === 'string' && opt.color.trim().length > 0)) {
           const colorControl = createColorPickerControl(doc, key, value, enumOptions);
           inputEl = colorControl.input;
+          inputEl.dataset.module = moduleName;
           valueWrap.classList.add('control-value-wrap-color');
           valueWrap.appendChild(colorControl.input);
           valueWrap.appendChild(colorControl.trigger);
@@ -6462,6 +6501,7 @@
           }
           storeConfigFieldInitialValue(select, value);
           inputEl = select;
+          inputEl.dataset.module = moduleName;
           valueWrap.appendChild(select);
         } else if (configNumericKind(doc, value) !== 'string') {
           const input = document.createElement('input');
@@ -6484,6 +6524,7 @@
           }
           storeConfigFieldInitialValue(input, configFieldNormalizedInitialValue(doc, value));
           inputEl = input;
+          inputEl.dataset.module = moduleName;
           valueWrap.appendChild(input);
         } else {
           const isSecret = /pass|token|secret/i.test(key);
@@ -6504,6 +6545,7 @@
           input.dataset.label = label.textContent || key;
           storeConfigFieldInitialValue(input, value);
           inputEl = input;
+          inputEl.dataset.module = moduleName;
           valueWrap.appendChild(input);
         }
 
@@ -6601,6 +6643,50 @@
       });
     }
 
+    function flowCfgIoOutputSlotIndex(moduleName) {
+      const cleanModule = nettoyerNomFlowCfg(moduleName).toLowerCase();
+      const match = cleanModule.match(/^io\/output\/d(\d{2})$/);
+      if (!match) return -1;
+      const slot = Number.parseInt(match[1], 10);
+      if (!Number.isFinite(slot) || slot < 0 || slot > 7) return -1;
+      return slot;
+    }
+
+    function flowCfgPdmModuleForIoOutput(moduleName) {
+      const slot = flowCfgIoOutputSlotIndex(moduleName);
+      if (slot < 0) return '';
+      return 'pdm/pd' + String(slot);
+    }
+
+    function flowCfgPdmSectionTitle(moduleName) {
+      const slot = flowCfgIoOutputSlotIndex(moduleName);
+      if (slot < 0) return 'Extension PoolDevice';
+      const label = String(ioOutputPdmLabels[slot] || '').trim();
+      if (!label) return 'Extension PoolDevice (pd' + String(slot) + ')';
+      return 'Extension PoolDevice - ' + label + ' (pd' + String(slot) + ')';
+    }
+
+    async function loadFlowCfgPdmExtensionData(moduleName) {
+      const pdmModule = flowCfgPdmModuleForIoOutput(moduleName);
+      if (!pdmModule) return null;
+      try {
+        const res = await fetchFlowRemoteQueued(
+          '/api/flowcfg/module?name=' + encodeURIComponent(pdmModule),
+          { cache: 'no-store' }
+        );
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || data.ok !== true || typeof data.data !== 'object') {
+          return null;
+        }
+        return {
+          module: pdmModule,
+          data: data.data
+        };
+      } catch (err) {
+        return null;
+      }
+    }
+
     function renderPrimarySupervisorCfgFields(dataObj) {
       renderConfigFields(flowCfgFields, supCfgCurrentModule, dataObj, {
         controlsPrimaryPane: true,
@@ -6611,13 +6697,16 @@
     function buildPatchJsonFromFields(fieldsContainer, moduleName) {
       if (!moduleName) throw new Error('branche non sélectionnée');
       const patch = {};
-      const modulePatch = {};
       const fields = fieldsContainer.querySelectorAll('[data-key]');
       fields.forEach((el) => {
         if (el.dataset.runtimeHidden === '1') return;
+        const targetModule = nettoyerNomFlowCfg(el.dataset.module || moduleName);
+        if (!targetModule) return;
         const key = el.dataset.key;
         const kind = el.dataset.kind;
         if (!key || !kind) return;
+        if (!patch[targetModule]) patch[targetModule] = {};
+        const modulePatch = patch[targetModule];
         if (kind === 'bool') {
           modulePatch[key] = !!el.checked;
           return;
@@ -6635,7 +6724,6 @@
         if (masked && raw.length === 0) return;
         modulePatch[key] = raw;
       });
-      patch[moduleName] = modulePatch;
       return JSON.stringify(patch);
     }
 
@@ -6669,6 +6757,16 @@
         flowCfgCurrentModule = m;
         flowCfgCurrentData = data.data;
         renderFlowCfgFields(flowCfgCurrentData);
+        const pdmExtension = await loadFlowCfgPdmExtensionData(m);
+        if (pdmExtension && pdmExtension.data && Object.keys(pdmExtension.data).length > 0) {
+          renderConfigFields(flowCfgFields, pdmExtension.module, pdmExtension.data, {
+            append: true,
+            sectionTitle: flowCfgPdmSectionTitle(m),
+            controlsPrimaryPane: true,
+            perFieldApply: flowCfgApplyPerFieldEnabled(flowCfgCurrentModule),
+            onApplyField: appliquerFlowCfgField
+          });
+        }
         updatePrimaryCfgApplyState();
         flowCfgStatus.textContent = data.truncated
           ? 'Branche chargée (tronquée, buffer distant atteint).'
@@ -7695,13 +7793,20 @@
       });
 
       bindClickAction(calibrationLoadBtn, () => loadCalibrationSensorConfig(true));
-      bindClickAction(calibrationPrefillBtn, async () => {
+
+      const bindLiveFill = (button, targetInput, label) => bindClickAction(button, async () => {
         try {
-          await calibrationPrefillLiveValue({ silent: false });
+          await calibrationPrefillLiveValue({
+            silent: false,
+            targetInput: targetInput
+          });
         } catch (err) {
-          calibrationSetStatus('Préremplissage live échoué: ' + err, 'error');
+          calibrationSetStatus('Mesure live échouée (' + label + '): ' + err, 'error');
         }
       });
+      bindLiveFill(calibrationPoint1LiveBtn, calibrationPoint1Measured, 'Point 1');
+      bindLiveFill(calibrationPoint2LiveBtn, calibrationPoint2Measured, 'Point 2');
+      bindLiveFill(calibrationSingleLiveBtn, calibrationSingleMeasured, 'Mesure');
       bindClickAction(calibrationComputeBtn, () => runCalibrationCompute());
       bindClickAction(calibrationApplyBtn, () => applyCalibrationResult());
 

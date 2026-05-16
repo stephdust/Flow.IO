@@ -237,7 +237,6 @@
                   <label>&nbsp;</label>
                   <div class="btn-row calibration-actions-row">
                     <button id="calibrationLoadBtn" class="btn-tonal">Charger la sonde</button>
-                    <button id="calibrationPrefillBtn" class="btn-tonal">Préremplir mesure live</button>
                   </div>
                 </div>
               </div>
@@ -264,7 +263,10 @@
                 <div class="calibration-grid calibration-grid-points">
                   <div class="field">
                     <label for="calibrationPoint1Measured">Point 1 - Mesure affichée</label>
-                    <input id="calibrationPoint1Measured" inputmode="decimal" placeholder="ex: 7.42" />
+                    <div class="calibration-measured-input-row">
+                      <input id="calibrationPoint1Measured" inputmode="decimal" placeholder="ex: 7.42" />
+                      <button id="calibrationPoint1LiveBtn" type="button" class="btn-tonal btn-icon-only btn-refresh-icon calibration-live-fill-btn" aria-label="Reporter la mesure live sur Point 1" title="Reporter la mesure live"><span class="refresh-icon-glyph" aria-hidden="true"></span></button>
+                    </div>
                   </div>
                   <div class="field">
                     <label for="calibrationPoint1Reference">Point 1 - Référence connue (solution tampon, manomètre, etc.)</label>
@@ -272,7 +274,10 @@
                   </div>
                   <div class="field">
                     <label for="calibrationPoint2Measured">Point 2 - Mesure affichée</label>
-                    <input id="calibrationPoint2Measured" inputmode="decimal" placeholder="ex: 9.68" />
+                    <div class="calibration-measured-input-row">
+                      <input id="calibrationPoint2Measured" inputmode="decimal" placeholder="ex: 9.68" />
+                      <button id="calibrationPoint2LiveBtn" type="button" class="btn-tonal btn-icon-only btn-refresh-icon calibration-live-fill-btn" aria-label="Reporter la mesure live sur Point 2" title="Reporter la mesure live"><span class="refresh-icon-glyph" aria-hidden="true"></span></button>
+                    </div>
                   </div>
                   <div class="field">
                     <label for="calibrationPoint2Reference">Point 2 - Référence connue (solution tampon, manomètre, etc.)</label>
@@ -286,7 +291,10 @@
                 <div class="calibration-grid calibration-grid-points">
                   <div class="field">
                     <label for="calibrationSingleMeasured">Mesure affichée</label>
-                    <input id="calibrationSingleMeasured" inputmode="decimal" placeholder="ex: 24.4" />
+                    <div class="calibration-measured-input-row">
+                      <input id="calibrationSingleMeasured" inputmode="decimal" placeholder="ex: 24.4" />
+                      <button id="calibrationSingleLiveBtn" type="button" class="btn-tonal btn-icon-only btn-refresh-icon calibration-live-fill-btn" aria-label="Reporter la mesure live" title="Reporter la mesure live"><span class="refresh-icon-glyph" aria-hidden="true"></span></button>
+                    </div>
                   </div>
                   <div class="field">
                     <label for="calibrationSingleReference">Référence connue (solution tampon, manomètre, etc.)</label>

@@ -2267,6 +2267,27 @@
     .calibration-grid-points .field label {
       font-size: 12px;
     }
+    .calibration-measured-input-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+    }
+    .calibration-measured-input-row input {
+      min-width: 0;
+      width: 100%;
+    }
+    .calibration-live-fill-btn {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      padding: 0;
+    }
+    .calibration-live-fill-btn .refresh-icon-glyph {
+      width: 14px;
+      height: 14px;
+      font-size: 14px;
+    }
     .calibration-main-actions {
       margin-top: 12px;
       justify-content: flex-end;

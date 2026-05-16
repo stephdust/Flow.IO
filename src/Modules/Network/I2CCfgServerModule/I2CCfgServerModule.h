@@ -42,6 +42,7 @@ public:
     const ModuleTaskSpec* taskSpecs() const override;
     bool registerRuntimeUiProvider(const IRuntimeUiValueProvider* provider);
     bool writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) const override;
+    bool supervisorPeerIpText(char* out, size_t outLen, bool* validOut = nullptr) const;
 
 private:
     struct ConfigData {
@@ -112,6 +113,9 @@ private:
     uint32_t badReqCrcCount_ = 0;
     uint32_t badReqFormatCount_ = 0;
     bool rxFrameCrcEnabled_ = false;
+    uint8_t supervisorIp_[4] = {0U, 0U, 0U, 0U};
+    bool supervisorIpValid_ = false;
+    mutable portMUX_TYPE peerStateMux_ = portMUX_INITIALIZER_UNLOCKED;
 
     uint8_t txFrame_[I2cCfgProtocol::MaxRespFrame] = {0};
     size_t txFrameLen_ = 0;
@@ -144,6 +148,7 @@ private:
     bool buildRuntimeStatusPoolJson_(bool& truncatedOut);
     bool buildRuntimeStatusAlarmJson_(bool& truncatedOut);
     bool buildRuntimeAlarmSnapshotJson_(bool& truncatedOut);
+    bool snapshotSupervisorPeerIp_(uint8_t out[4], bool& validOut) const;
     void queueSystemAction_(PendingSystemAction action);
     PendingSystemAction takePendingSystemAction_();
     void actionLoop_();
