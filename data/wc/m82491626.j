@@ -1,0 +1,1 @@
+{"ok":true,"module":"io/drivers/ds18b20","docs":{"io/drivers/ds18b20/poll_ms":{"module":"io/drivers/ds18b20","name":"poll_ms","type":"Int32","label":"Période lecture DS18B20 (ms)","help":"Intervalle entre deux lectures des sondes DS18B20.","var":"dsPollVar_","source":"auto-hint","unit":"ms"}},"meta":{}}

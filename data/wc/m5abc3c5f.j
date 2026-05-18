@@ -1,0 +1,1 @@
+{"ok":true,"module":"__root","docs":{"network":{"label":"network"},"hmi":{"label":"affichage"},"pdm":{"hidden":true},"pdmrt":{"hidden":true}},"meta":{}}

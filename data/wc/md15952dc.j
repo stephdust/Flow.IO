@@ -1,0 +1,1 @@
+{"ok":true,"module":"pdmrt/pd7","docs":{"pdmrt/pd7/metrics_blob":{"module":"pdmrt/pd7","name":"metrics_blob","type":"char","label":"Blob métriques","help":"État/métriques persistees de l'appareil pour reprise.","var":"cfgRuntimeVar_","source":"cfgdoc-series"}},"meta":{}}

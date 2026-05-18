@@ -242,6 +242,17 @@ bool isLightWebAssetPath_(const char* path)
     return path && strstr(path, "/webinterface/light.") != nullptr;
 }
 
+uint32_t fnv1a32_(const char* text)
+{
+    uint32_t h = 0x811C9DC5u;
+    if (!text) return h;
+    for (const unsigned char* p = (const unsigned char*)text; *p; ++p) {
+        h ^= (uint32_t)(*p);
+        h *= 0x01000193u;
+    }
+    return h;
+}
+
 bool tryAcquireAssetBuildSlot_()
 {
     bool acquired = false;
@@ -1771,7 +1782,23 @@ void WebInterfaceModule::startServer_()
         bool heapRejected = false;
         bool buildBusy = false;
         AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/app.css", "text/css", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+            beginSpiffsAssetResponse(request, "/webinterface/app-core.css", "text/css", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+        if (!response) {
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "text/plain", "Not found");
+            return;
+        }
+        sendPreparedAssetResponse(request, response, &forensicMeta);
+    });
+    server_.on("/webinterface/app-core.css", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
+        SpiffsAssetForensicMeta forensicMeta{};
+        bool heapRejected = false;
+        bool buildBusy = false;
+        AsyncWebServerResponse* response =
+            beginSpiffsAssetResponse(request, "/webinterface/app-core.css", "text/css", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
         if (!response) {
             if (heapRejected || buildBusy) {
                 sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
@@ -1805,6 +1832,23 @@ void WebInterfaceModule::startServer_()
         AsyncWebServerResponse* response =
             beginSpiffsAssetResponse(
                 request, "/webinterface/app.js", "application/javascript", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+        if (!response) {
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "text/plain", "Not found");
+            return;
+        }
+        sendPreparedAssetResponse(request, response, &forensicMeta);
+    });
+    server_.on("/webinterface/app-core.js", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
+        SpiffsAssetForensicMeta forensicMeta{};
+        bool heapRejected = false;
+        bool buildBusy = false;
+        AsyncWebServerResponse* response =
+            beginSpiffsAssetResponse(
+                request, "/webinterface/app-core.js", "application/javascript", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
         if (!response) {
             if (heapRejected || buildBusy) {
                 sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
@@ -1904,6 +1948,87 @@ void WebInterfaceModule::startServer_()
             request->beginResponse(200, "application/json", "{\"_meta\":{\"generated\":false},\"docs\":{}}");
         addNoCacheHeaders_(fallbackResponse);
         request->send(fallbackResponse);
+    });
+    server_.on("/api/cfgdoc/index", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/cfgdoc/index");
+        SpiffsAssetForensicMeta forensicMeta{};
+        bool heapRejected = false;
+        bool buildBusy = false;
+        AsyncWebServerResponse* response =
+            beginSpiffsAssetResponse(
+                request, "/wc/i.j", "application/json", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+        if (response) {
+            sendPreparedAssetResponse(request, response, &forensicMeta);
+            return;
+        }
+        if (heapRejected || buildBusy) {
+            sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+            return;
+        }
+        // Legacy fallback when segmented cfgdoc assets are not available yet.
+        AsyncWebServerResponse* legacy =
+            beginSpiffsAssetResponse(
+                request, "/webinterface/cfgdocs.fr.json", "application/json", true, "/webinterface/cfgdocs.jz", &forensicMeta, &heapRejected, &buildBusy);
+        if (legacy) {
+            sendPreparedAssetResponse(request, legacy, &forensicMeta);
+            return;
+        }
+        AsyncWebServerResponse* fallbackResponse =
+            request->beginResponse(200, "application/json", "{\"ok\":true,\"modules\":{},\"docs\":{},\"meta\":{}}");
+        addNoCacheHeaders_(fallbackResponse);
+        request->send(fallbackResponse);
+    });
+    server_.on("/api/cfgdoc/module", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/cfgdoc/module");
+        char moduleName[96] = {0};
+        copyRequestParamValue_(request, "name", false, moduleName, sizeof(moduleName), "");
+        for (size_t i = 0; moduleName[i] != '\0'; ++i) {
+            const char c = moduleName[i];
+            if (c >= 'A' && c <= 'Z') {
+                moduleName[i] = (char)(c - 'A' + 'a');
+            }
+        }
+        if (moduleName[0] == '\0') {
+            strncpy(moduleName, "__root", sizeof(moduleName) - 1);
+            moduleName[sizeof(moduleName) - 1] = '\0';
+        }
+
+        char normalized[96] = {0};
+        size_t wi = 0U;
+        for (size_t i = 0; moduleName[i] != '\0' && wi + 1U < sizeof(normalized); ++i) {
+            const char c = moduleName[i];
+            const bool allowed = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '/';
+            if (!allowed) continue;
+            normalized[wi++] = c;
+        }
+        normalized[wi] = '\0';
+        if (normalized[0] == '\0') {
+            strncpy(normalized, "__root", sizeof(normalized) - 1);
+            normalized[sizeof(normalized) - 1] = '\0';
+        }
+
+        const uint32_t digest = fnv1a32_(normalized);
+        char assetPath[48] = {0};
+        const int n = snprintf(assetPath, sizeof(assetPath), "/wc/m%08lx.j", (unsigned long)digest);
+        if (n <= 0 || (size_t)n >= sizeof(assetPath)) {
+            request->send(400, "application/json", "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"cfgdoc.module\"}}");
+            return;
+        }
+
+        SpiffsAssetForensicMeta forensicMeta{};
+        bool heapRejected = false;
+        bool buildBusy = false;
+        AsyncWebServerResponse* response =
+            beginSpiffsAssetResponse(request, assetPath, "application/json", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+        if (response) {
+            sendPreparedAssetResponse(request, response, &forensicMeta);
+            return;
+        }
+        if (heapRejected || buildBusy) {
+            sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+            return;
+        }
+        request->send(404, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotFound\",\"where\":\"cfgdoc.module\"}}");
     });
     server_.on("/api/web/meta", HTTP_GET, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/web/meta");

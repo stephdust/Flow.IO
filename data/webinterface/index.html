@@ -34,104 +34,12 @@
 </head>
 <body>
   <div id="app-root" class="is-booting"><div id="bootStatus" class="boot-status">Chargement de l'interface...</div></div>
+  <script src="/webinterface/app-core.js"></script>
   <script>
-    (function() {
-      var versionKey = 'flow_web_asset_version';
-      var root = document.getElementById('app-root');
-      var bootStatus = document.getElementById('bootStatus');
-
-      function setStatus(text, isError) {
-        if (!bootStatus) return;
-        bootStatus.textContent = text;
-        bootStatus.className = isError ? 'boot-status error' : 'boot-status';
+    (function () {
+      if (window.FlowWebCore && typeof window.FlowWebCore.bootstrap === 'function') {
+        window.FlowWebCore.bootstrap();
       }
-
-      function getStoredVersion() {
-        try {
-          return String(localStorage.getItem(versionKey) || '').trim();
-        } catch (err) {
-          return '';
-        }
-      }
-
-      function storeVersion(version) {
-        if (!version) return;
-        try {
-          localStorage.setItem(versionKey, version);
-        } catch (err) {
-        }
-      }
-
-      function assetUrl(path, version) {
-        if (!version) return path;
-        return path + '?v=' + encodeURIComponent(version);
-      }
-
-      function loadStyle(href) {
-        return new Promise(function(resolve, reject) {
-          var link = document.createElement('link');
-          link.rel = 'stylesheet';
-          link.href = href;
-          link.onload = resolve;
-          link.onerror = function() { reject(new Error('css')); };
-          document.head.appendChild(link);
-        });
-      }
-
-      function loadScript(src) {
-        return new Promise(function(resolve, reject) {
-          var script = document.createElement('script');
-          script.src = src;
-          script.onload = resolve;
-          script.onerror = function() { reject(new Error('js')); };
-          document.body.appendChild(script);
-        });
-      }
-
-      function fetchShellMarkup(href) {
-        return fetch(href).then(function(res) {
-          if (!res.ok) throw new Error('shell');
-          return res.text();
-        });
-      }
-
-      function fetchWebMetaVersion() {
-        return fetch('/api/web/meta', { cache: 'no-store' })
-          .then(function(res) {
-            if (!res.ok) throw new Error('meta');
-            return res.json();
-          })
-          .then(function(data) {
-            if (!data || data.ok !== true) throw new Error('meta');
-            window.__FLOW_WEB_META__ = data;
-            var version = '';
-            if (typeof data.web_asset_version === 'string') {
-              version = data.web_asset_version.trim();
-            }
-            return version;
-          });
-      }
-
-      (async function bootstrap() {
-        try {
-          var version = '';
-          try {
-            version = await fetchWebMetaVersion();
-          } catch (err) {
-            version = getStoredVersion();
-          }
-
-          window.__FLOW_WEB_ASSET_VERSION__ = version;
-          storeVersion(version);
-
-          await loadStyle(assetUrl('/webinterface/app.css', version));
-          root.className = '';
-          root.innerHTML = await fetchShellMarkup(assetUrl('/webinterface/sh.html', version));
-          await loadScript(assetUrl('/webinterface/app.js', version));
-        } catch (err) {
-          setStatus("Chargement de l'interface impossible.", true);
-        }
-      })();
     })();
   </script>
 </body>

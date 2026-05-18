@@ -1,0 +1,1 @@
+{"ok":true,"module":"io","docs":{"io/enabled":{"module":"io","name":"enabled","type":"Bool","label":"Module IO actif","help":"Active ou désactive la couche IO (entrées/sorties).","var":"enabledVar_","source":"auto-hint"}},"meta":{}}

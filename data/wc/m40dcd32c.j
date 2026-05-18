@@ -1,0 +1,1 @@
+{"ok":true,"module":"hmi/leds","docs":{"hmi/leds/enabled":{"module":"hmi/leds","name":"enabled","type":"Bool","label":"Pilotage LEDs facade","help":"Autorise le HMIModule a ecrire le masque logique des LEDs via StatusLedsService.","var":"ledsEnabledVar_","source":"cfgdoc"},"hmi/leds":{"label":"leds façade"}},"meta":{}}

@@ -1,0 +1,1 @@
+{"ok":true,"module":"elink/client","docs":{"elink/client/enabled":{"module":"elink/client","name":"enabled","type":"Bool","label":"Client eLink actif","help":"Active le client eLink cote Supervisor pour dialoguer avec Flow.io.","var":"enabledVar_","source":"cfgdoc"},"elink/client/target_addr":{"display_format":"hex"}},"meta":{}}

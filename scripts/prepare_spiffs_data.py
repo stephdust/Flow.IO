@@ -1,6 +1,7 @@
 from pathlib import Path
 import gzip
 import shutil
+import subprocess
 
 Import("env")
 
@@ -17,6 +18,13 @@ src_dir = project_dir / "data"
 staging_dir = build_dir / "spiffs_data"
 
 if src_dir.exists():
+    cfgdoc_generator = project_dir / "scripts" / "generate_cfgdoc_chunks.py"
+    if cfgdoc_generator.exists():
+        try:
+            subprocess.run([str(cfgdoc_generator)], cwd=str(project_dir), check=True)
+        except Exception as exc:
+            print(f"[prepare_spiffs_data] warning: cfgdoc chunk generation failed: {exc}")
+
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
     staging_dir.mkdir(parents=True, exist_ok=True)
@@ -24,8 +32,9 @@ if src_dir.exists():
     compressed_sources = {
         Path("webinterface/index.html"): Path("webinterface/index.html.gz"),
         Path("webinterface/sh.html"): Path("webinterface/sh.html.gz"),
-        Path("webinterface/app.css"): Path("webinterface/app.css.gz"),
         Path("webinterface/app.js"): Path("webinterface/app.js.gz"),
+        Path("webinterface/app-core.css"): Path("webinterface/app-core.css.gz"),
+        Path("webinterface/app-core.js"): Path("webinterface/app-core.js.gz"),
         Path("webinterface/light.html"): Path("webinterface/light.html.gz"),
         Path("webinterface/light.css"): Path("webinterface/light.css.gz"),
         Path("webinterface/light.js"): Path("webinterface/light.js.gz"),
@@ -33,12 +42,19 @@ if src_dir.exists():
         Path("webinterface/cfgdocs.fr.json"): Path("webinterface/cfgdocs.jz"),
         Path("webinterface/cfgmods.fr.json"): Path("webinterface/cfgmods.jz"),
     }
+    cfgdoc_dir = src_dir / "wc"
+    if cfgdoc_dir.exists():
+        for cfgdoc_src in sorted(cfgdoc_dir.glob("*.j")):
+            rel = cfgdoc_src.relative_to(src_dir)
+            compressed_sources[rel] = rel.with_suffix(".j.gz")
     generated_outputs = set(compressed_sources.values())
 
     for path in src_dir.rglob("*"):
         if not path.is_file():
             continue
         rel = path.relative_to(src_dir)
+        if rel.parts[:2] == ("webinterface", "cfgdoc"):
+            continue
         if rel in compressed_sources or rel in generated_outputs:
             continue
         dst = staging_dir / rel

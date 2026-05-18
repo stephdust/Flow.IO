@@ -1,0 +1,1 @@
+{"ok":true,"module":"time/scheduler","docs":{"time/scheduler/slots_blob":{"module":"time/scheduler","name":"slots_blob","type":"CharArray","label":"Blob planning","help":"Configuration sérialisée des slots du scheduler.","var":"scheduleBlobVar","source":"cfgdoc"},"time/scheduler":{"hidden":true}},"meta":{}}

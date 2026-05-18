@@ -1,0 +1,1 @@
+{"ok":true,"module":"hmi/nextion","docs":{"hmi/nextion/enabled":{"module":"hmi/nextion","name":"enabled","type":"Bool","label":"Nextion actif","help":"Autorise le HMIModule a envoyer le rendu et les commandes vers l'ecran Nextion local.","var":"nextionEnabledVar_","source":"cfgdoc"},"hmi/nextion":{"label":"nextion"}},"meta":{}}

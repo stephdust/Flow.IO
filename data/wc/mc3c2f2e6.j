@@ -1,0 +1,1 @@
+{"ok":true,"module":"fcd/udp","docs":{"fcd/udp/token":{"module":"fcd/udp","name":"token","type":"CharArray","label":"Token Flow Connect Display","help":"Token partage optionnel envoye en CRC dans Hello pour l'appairage FlowIO.","var":"tokenVar_","source":"cfgdoc"}},"meta":{}}

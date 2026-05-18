@@ -1,0 +1,1 @@
+{"ok":true,"module":"elink/server","docs":{"elink/server/address":{"display_format":"hex"},"elink/server/enabled":{"module":"elink/server","name":"enabled","type":"Bool","label":"Serveur eLink actif","help":"Active le serveur eLink cote Flow.io pour repondre au Supervisor.","var":"enabledVar_","source":"cfgdoc"}},"meta":{}}

@@ -168,6 +168,40 @@ static void configureDownloadHttp_(HTTPClient& http)
     http.setTimeout(Limits::FirmwareUpdate::Http::RequestTimeoutMs);
 }
 
+static bool writeHttpBeginFailedError_(const char* resourceLabel,
+                                       const char* url,
+                                       char* errOut,
+                                       size_t errOutLen)
+{
+    const char* resource = (resourceLabel && resourceLabel[0] != '\0') ? resourceLabel : "ressource";
+    LOGE("HTTP begin failed resource=%s url=%s", resource, url ? url : "-");
+    return writeSimpleError_(errOut, errOutLen, "serveur HTTP injoignable");
+}
+
+static bool writeHttpCodeFailedError_(const char* resourceLabel,
+                                      const char* url,
+                                      HTTPClient& http,
+                                      int code,
+                                      char* errOut,
+                                      size_t errOutLen)
+{
+    const char* resource = (resourceLabel && resourceLabel[0] != '\0') ? resourceLabel : "fichier";
+    const String raw = http.errorToString(code);
+    const char* rawErr = raw.c_str();
+    char msg[96] = {0};
+
+    if (code == 404) {
+        snprintf(msg, sizeof(msg), "%s introuvable (404)", resource);
+    } else if (code < 0) {
+        snprintf(msg, sizeof(msg), "serveur HTTP injoignable");
+    } else {
+        snprintf(msg, sizeof(msg), "erreur HTTP %d", code);
+    }
+
+    LOGE("HTTP request failed resource=%s code=%d err=%s url=%s", resource, code, rawErr, url ? url : "-");
+    return writeSimpleError_(errOut, errOutLen, msg);
+}
+
 static const char* flasherErrorText_(int code)
 {
     switch (code) {
@@ -492,15 +526,13 @@ bool FirmwareUpdateModule::checkManifestJson_(char* out, size_t outLen, char* er
     HTTPClient http;
     configureDownloadHttp_(http);
     if (!http.begin(url)) {
-        writeSimpleError_(errOut, errOutLen, "http begin failed");
+        writeHttpBeginFailedError_("manifest", url, errOut, errOutLen);
         return false;
     }
 
     const int code = http.GET();
     if (code != HTTP_CODE_OK) {
-        char msg[96] = {0};
-        snprintf(msg, sizeof(msg), "http %d: %s", code, http.errorToString(code).c_str());
-        writeSimpleError_(errOut, errOutLen, msg);
+        writeHttpCodeFailedError_("manifest", url, http, code, errOut, errOutLen);
         http.end();
         return false;
     }
@@ -682,16 +714,14 @@ bool FirmwareUpdateModule::runFlowIoUpdate_(const char* url, char* errOut, size_
     HTTPClient http;
     configureDownloadHttp_(http);
     if (!http.begin(url)) {
-        writeSimpleError_(errOut, errOutLen, "http begin failed");
+        writeHttpBeginFailedError_("fichier de mise a jour", url, errOut, errOutLen);
         return false;
     }
 
     const int code = http.GET();
     const int32_t contentLength = http.getSize();
     if (code != HTTP_CODE_OK) {
-        char msg[96] = {0};
-        snprintf(msg, sizeof(msg), "http %d: %s", code, http.errorToString(code).c_str());
-        writeSimpleError_(errOut, errOutLen, msg);
+        writeHttpCodeFailedError_("fichier de mise a jour", url, http, code, errOut, errOutLen);
         http.end();
         return false;
     }
@@ -765,16 +795,14 @@ bool FirmwareUpdateModule::runSupervisorUpdate_(const char* url, char* errOut, s
     HTTPClient http;
     configureDownloadHttp_(http);
     if (!http.begin(url)) {
-        writeSimpleError_(errOut, errOutLen, "http begin failed");
+        writeHttpBeginFailedError_("fichier de mise a jour", url, errOut, errOutLen);
         return false;
     }
 
     const int code = http.GET();
     const int32_t contentLength = http.getSize();
     if (code != HTTP_CODE_OK) {
-        char msg[96] = {0};
-        snprintf(msg, sizeof(msg), "http %d: %s", code, http.errorToString(code).c_str());
-        writeSimpleError_(errOut, errOutLen, msg);
+        writeHttpCodeFailedError_("fichier de mise a jour", url, http, code, errOut, errOutLen);
         http.end();
         return false;
     }
@@ -884,7 +912,7 @@ bool FirmwareUpdateModule::runNextionUpdate_(const char* url, char* errOut, size
     HTTPClient http;
     configureDownloadHttp_(http);
     if (!http.begin(url)) {
-        writeSimpleError_(errOut, errOutLen, "http begin failed");
+        writeHttpBeginFailedError_("fichier de mise a jour", url, errOut, errOutLen);
         digitalWrite(flowIoEnablePin_, HIGH);
         pinMode(flowIoEnablePin_, INPUT);
         return false;
@@ -893,9 +921,7 @@ bool FirmwareUpdateModule::runNextionUpdate_(const char* url, char* errOut, size
     const int code = http.GET();
     const int32_t contentLength = http.getSize();
     if (code != HTTP_CODE_OK) {
-        char msg[96] = {0};
-        snprintf(msg, sizeof(msg), "http %d: %s", code, http.errorToString(code).c_str());
-        writeSimpleError_(errOut, errOutLen, msg);
+        writeHttpCodeFailedError_("fichier de mise a jour", url, http, code, errOut, errOutLen);
         http.end();
         digitalWrite(flowIoEnablePin_, HIGH);
         pinMode(flowIoEnablePin_, INPUT);
@@ -1001,16 +1027,14 @@ bool FirmwareUpdateModule::runSpiffsUpdate_(const char* url, char* errOut, size_
     HTTPClient http;
     configureDownloadHttp_(http);
     if (!http.begin(url)) {
-        writeSimpleError_(errOut, errOutLen, "http begin failed");
+        writeHttpBeginFailedError_("fichier de mise a jour", url, errOut, errOutLen);
         return false;
     }
 
     const int code = http.GET();
     const int32_t contentLength = http.getSize();
     if (code != HTTP_CODE_OK) {
-        char msg[96] = {0};
-        snprintf(msg, sizeof(msg), "http %d: %s", code, http.errorToString(code).c_str());
-        writeSimpleError_(errOut, errOutLen, msg);
+        writeHttpCodeFailedError_("fichier de mise a jour", url, http, code, errOut, errOutLen);
         http.end();
         return false;
     }

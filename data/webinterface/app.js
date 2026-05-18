@@ -258,7 +258,7 @@
     }
 
     function createRuntimeDomainState() {
-      return { active: false, loading: false, entries: [], values: [], dashboardSlots: [], error: '', requestSeq: 0 };
+      return { active: false, loading: false, entries: [], values: [], sondeSlots: [], error: '', requestSeq: 0 };
     }
 
     function ensureRuntimeDomainState() {
@@ -359,6 +359,16 @@
       return path + '?v=' + encodeURIComponent(webAssetVersion);
     }
 
+    async function fetchWithBusyRetry(url, options, fetchImpl) {
+      if (typeof fetchImpl === 'function') {
+        return fetchImpl(url, options);
+      }
+      if (window.FlowWebCore && typeof window.FlowWebCore.supervisorFetch === 'function') {
+        return window.FlowWebCore.supervisorFetch(url, options, { retries: 4 });
+      }
+      return fetch(url, options);
+    }
+
     function getStorageValue(storage, key) {
       try {
         return String(storage.getItem(key) || '').trim();
@@ -375,8 +385,7 @@
     }
 
     async function fetchJsonResponse(url, options, fetchImpl) {
-      const resolvedFetch = typeof fetchImpl === 'function' ? fetchImpl : fetch;
-      const res = await resolvedFetch(url, options);
+      const res = await fetchWithBusyRetry(url, options, fetchImpl);
       const data = await res.json().catch(() => null);
       return { res, data };
     }
@@ -392,6 +401,30 @@
       const detail = msg || [code, where].filter(Boolean).join(' @ ');
       if (!detail) return fallback;
       return fallback ? (fallback + ' : ' + detail) : detail;
+    }
+
+    function normalizeUpgradeHttpErrorMessage(rawMessage, fallback) {
+      const raw = String(rawMessage || '').trim();
+      if (!raw) return String(fallback || '').trim();
+      const lower = raw.toLowerCase();
+
+      if (lower.includes('serveur http injoignable')) {
+        return 'Serveur HTTP d’upgrade non joignable.';
+      }
+
+      if (lower.includes('manifest introuvable (404)')) {
+        return 'Manifest d’upgrade introuvable sur le serveur (404).';
+      }
+
+      if (lower.includes('fichier de mise a jour introuvable (404)')) {
+        return 'Fichier de mise à jour introuvable sur le serveur (404).';
+      }
+
+      if (lower.includes('http 404')) {
+        return 'Fichier de mise à jour introuvable sur le serveur (404).';
+      }
+
+      return raw;
     }
 
     function ensureOkJsonResponse(response, message) {
@@ -782,7 +815,7 @@
     function fetchFlowRemoteQueued(url, options) {
       const queued = flowRemoteFetchQueue
         .catch(() => {})
-        .then(() => fetch(url, options));
+        .then(() => fetchWithBusyRetry(url, options));
       flowRemoteFetchQueue = queued.catch(() => {});
       return queued;
     }
@@ -1008,6 +1041,12 @@
     let cfgTreeSelectedSource = 'flow';
     let cfgDocSources = [];
     let flowCfgDocsLoaded = false;
+    let flowCfgDocsLegacyFallbackLoaded = false;
+    let flowCfgDocIndex = null;
+    let flowCfgDocIndexUnavailable = false;
+    const flowCfgDocModuleCache = new Map();
+    const flowCfgDocModuleLoadPromises = new Map();
+    let flowCfgDocIndexPromise = null;
     let flowCfgTreeLoadingDepth = 0;
     let flowCfgDetailLoadingDepth = 0;
     let flowCfgLoadPromise = null;
@@ -1049,12 +1088,6 @@
     const flowCfgBackupPatchTargetBytes = 1300;
     let flowCfgBackupBusy = false;
     const flowStatusDomainTtlMs = 20000;
-    const flowStatusDashboardRuntimeUiIds = Object.freeze({
-      waterTemp: 2101,
-      airTemp: 2102,
-      ph: 2103,
-      orp: 2104
-    });
     const calibrationSensorDefs = Object.freeze({
       ph: {
         key: 'ph',
@@ -1110,7 +1143,6 @@
       pool: { data: null, fetchedAt: 0 },
       i2c: { data: null, fetchedAt: 0 }
     };
-    const flowStatusDashboardSlotsCache = { data: [], fetchedAt: 0 };
     let runtimeMeasureDomainKeys = runtimeDomainsForProfile();
     let runtimeManifestDomainCache = null;
     let runtimeManifestDomainLoadPromise = null;
@@ -1816,7 +1848,7 @@
         updateUpgradeUiSession({
           phase: 'error',
           target: target,
-          detail: msg || 'Erreur de mise à jour.',
+          detail: normalizeUpgradeHttpErrorMessage(msg, 'Erreur de mise à jour.'),
           backendProgress: progress,
           awaitingReconnect: false,
           reconnectShown: false,
@@ -2156,7 +2188,8 @@
         populateUpgradeManifestSelections(data);
         setUpgradeMessage(describeManifestUpdates(data));
       } catch (err) {
-        setUpgradeMessage('Échec de la vérification : ' + err);
+        const errMsg = normalizeUpgradeHttpErrorMessage(String(err || ''), 'Échec de la vérification.');
+        setUpgradeMessage('Échec de la vérification : ' + errMsg);
       } finally {
         if (checkUpdatesBtn) {
           checkUpdatesBtn.disabled = false;
@@ -2520,60 +2553,10 @@
       return wrapper;
     }
 
-    function createFlowSvgElement(tagName, attrs) {
-      const el = document.createElementNS('http://www.w3.org/2000/svg', tagName);
-      Object.keys(attrs || {}).forEach((key) => {
-        if (attrs[key] === null || typeof attrs[key] === 'undefined') return;
-        el.setAttribute(key, String(attrs[key]));
-      });
-      return el;
-    }
-
-    function flowGaugePolarToCartesian(cx, cy, radius, angleDeg) {
-      const rad = ((angleDeg - 90) * Math.PI) / 180;
-      return {
-        x: cx + (radius * Math.cos(rad)),
-        y: cy + (radius * Math.sin(rad))
-      };
-    }
-
-    function buildFlowGaugeArcPath(cx, cy, radius, startAngle, endAngle) {
-      const start = flowGaugePolarToCartesian(cx, cy, radius, startAngle);
-      const end = flowGaugePolarToCartesian(cx, cy, radius, endAngle);
-      const largeArc = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
-      const sweep = endAngle >= startAngle ? 1 : 0;
-      return 'M ' + start.x.toFixed(2) + ' ' + start.y.toFixed(2) +
-        ' A ' + radius + ' ' + radius + ' 0 ' + largeArc + ' ' + sweep + ' ' +
-        end.x.toFixed(2) + ' ' + end.y.toFixed(2);
-    }
-
-    function buildFlowGaugeTrianglePoints(cx, cy, angleDeg, tipRadius, baseRadius, halfWidth) {
-      const tip = flowGaugePolarToCartesian(cx, cy, tipRadius, angleDeg);
-      const baseCenter = flowGaugePolarToCartesian(cx, cy, baseRadius, angleDeg);
-      const rad = ((angleDeg - 90) * Math.PI) / 180;
-      const tangentX = -Math.sin(rad);
-      const tangentY = Math.cos(rad);
-      const baseLeftX = baseCenter.x + (tangentX * halfWidth);
-      const baseLeftY = baseCenter.y + (tangentY * halfWidth);
-      const baseRightX = baseCenter.x - (tangentX * halfWidth);
-      const baseRightY = baseCenter.y - (tangentY * halfWidth);
-      return [
-        tip.x.toFixed(2) + ',' + tip.y.toFixed(2),
-        baseLeftX.toFixed(2) + ',' + baseLeftY.toFixed(2),
-        baseRightX.toFixed(2) + ',' + baseRightY.toFixed(2)
-      ].join(' ');
-    }
-
     function fmtFlowGaugeNumber(value, decimals) {
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
       return decimals > 0 ? n.toFixed(decimals) : String(Math.round(n));
-    }
-
-    function fmtFlowGaugeLabel(value, decimals, unit) {
-      const rendered = fmtFlowGaugeNumber(value, decimals);
-      if (rendered === '-') return rendered;
-      return unit ? (rendered + ' ' + unit) : rendered;
     }
 
     function createFlowFiveZoneBands(config) {
@@ -2637,100 +2620,37 @@
       return '#102B4C';
     }
 
-    function buildFlowArcGauge(config) {
+    function buildFlowThresholdValueNode(config) {
+      const value = Number(config && config.value);
+      const hasValue = Number.isFinite(value);
       const min = Number(config && config.min);
       const max = Number(config && config.max);
-      const rawValue = Number(config && config.value);
-      const hasValue = Number.isFinite(rawValue);
-      const decimals = Math.max(0, Number(config && config.decimals) || 0);
       const unit = typeof (config && config.unit) === 'string' ? config.unit.trim() : '';
-      const label = String((config && config.label) || 'Mesure');
-      const startAngle = -100;
-      const sweepAngle = 200;
-      const endAngle = startAngle + sweepAngle;
-      const cx = 120;
-      const cy = 84;
-      const radius = 60;
-      const gapAngle = 2.2;
-      const bands = (Array.isArray(config && config.bands) ? config.bands : [])
-        .map((band) => ({
-          from: clampFlowValue(Number(band.from), min, max),
-          to: clampFlowValue(Number(band.to), min, max),
-          color: band.color || '#AFC3D2'
-        }))
-        .filter((band) => Number.isFinite(band.from) && Number.isFinite(band.to) && band.to > band.from);
-      const activeBands = bands.length > 0 ? bands : [{ from: min, to: max, color: '#AFC3D2' }];
-      const gaugeColor = resolveFlowGaugeValueColor(rawValue, activeBands);
-      const valueToAngle = function(value) {
-        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return startAngle;
-        const ratio = (clampFlowValue(value, min, max) - min) / (max - min);
-        return startAngle + (ratio * sweepAngle);
-      };
+      const decimals = Math.max(0, Number(config && config.decimals) || 0);
+      const bands = Array.isArray(config && config.bands) ? config.bands : [];
 
-      const wrapper = document.createElement('div');
-      wrapper.className = 'status-arc-gauge' + (hasValue ? '' : ' is-empty');
-      wrapper.setAttribute('role', 'img');
-      wrapper.setAttribute(
-        'aria-label',
-        label + ' : ' + (hasValue ? fmtFlowGaugeLabel(rawValue, decimals, unit) : 'indisponible')
-      );
+      const node = document.createElement('span');
+      node.className = 'status-threshold-value' + (hasValue ? '' : ' is-empty');
+      if (!hasValue) {
+        node.textContent = 'Indisponible';
+        return node;
+      }
+      const text = fmtFlowGaugeNumber(value, decimals);
+      node.textContent = unit ? (text + ' ' + unit) : text;
 
-      const svg = createFlowSvgElement('svg', {
-        class: 'status-arc-gauge-svg',
-        viewBox: '0 0 240 118',
-        'aria-hidden': 'true'
-      });
-
-      svg.appendChild(createFlowSvgElement('path', {
-        class: 'status-arc-gauge-track',
-        d: buildFlowGaugeArcPath(cx, cy, radius, startAngle, endAngle)
-      }));
-
-      activeBands.forEach((band, index) => {
-        const segmentStart = valueToAngle(band.from) + (index > 0 ? (gapAngle / 2) : 0);
-        const segmentEnd = valueToAngle(band.to) - (index < (activeBands.length - 1) ? (gapAngle / 2) : 0);
-        if (!(segmentEnd > segmentStart)) return;
-        svg.appendChild(createFlowSvgElement('path', {
-          class: 'status-arc-gauge-band',
-          d: buildFlowGaugeArcPath(cx, cy, radius, segmentStart, segmentEnd),
-          stroke: band.color
-        }));
-      });
-
-      const markerAngle = hasValue ? valueToAngle(rawValue) : ((startAngle + endAngle) / 2);
-      svg.appendChild(createFlowSvgElement('polygon', {
-        class: 'status-arc-gauge-marker',
-        points: buildFlowGaugeTrianglePoints(cx, cy, markerAngle, radius + 6, radius + 18, 5),
-        fill: hasValue ? gaugeColor : '#8FA1B3'
-      }));
-
-      const valueText = createFlowSvgElement('text', {
-        class: 'status-arc-gauge-value',
-        x: cx,
-        y: 74,
-        fill: hasValue ? gaugeColor : '#8FA1B3'
-      });
-      valueText.textContent = hasValue ? fmtFlowGaugeLabel(rawValue, decimals, unit) : '--';
-      svg.appendChild(valueText);
-
-      wrapper.appendChild(svg);
-
-      const title = document.createElement('div');
-      title.className = 'status-arc-gauge-title';
-      title.textContent = label;
-      wrapper.appendChild(title);
-
-      return wrapper;
+      const activeBands = (Number.isFinite(min) && Number.isFinite(max) && max > min)
+        ? bands
+            .map((band) => ({
+              from: clampFlowValue(Number(band.from), min, max),
+              to: clampFlowValue(Number(band.to), min, max),
+              color: band.color || '#102B4C'
+            }))
+            .filter((band) => Number.isFinite(band.from) && Number.isFinite(band.to) && band.to > band.from)
+        : [];
+      const color = resolveFlowGaugeValueColor(value, activeBands);
+      if (color) node.style.color = color;
+      return node;
     }
-
-    function buildFlowArcGaugeGrid(items) {
-      return buildNodeGrid('status-arc-grid', items);
-    }
-
-    window.FlowWebComponents = Object.assign({}, window.FlowWebComponents, {
-      buildArcGauge: buildFlowArcGauge,
-      createFiveZoneBands: createFlowFiveZoneBands
-    });
 
     function appendFlowStatusRow(kv, label, value) {
       const line = document.createElement('div');
@@ -2845,7 +2765,7 @@
       return '-';
     }
 
-    function buildFlowStatusFromDomains(domainData, dashboardSlots) {
+    function buildFlowStatusFromDomains(domainData) {
       const merged = { ok: true };
       let anyDomainOk = false;
 
@@ -2881,10 +2801,6 @@
         merged.i2c = i2c.i2c;
       }
 
-      if (Array.isArray(dashboardSlots)) {
-        merged.dashboardSlots = dashboardSlots;
-      }
-
       return anyDomainOk ? merged : null;
     }
 
@@ -2893,7 +2809,7 @@
       flowStatusDomainKeys.forEach((domainKey) => {
         domainData[domainKey] = flowStatusDomainCache[domainKey].data;
       });
-      return buildFlowStatusFromDomains(domainData, flowStatusDashboardSlotsCache.data);
+      return buildFlowStatusFromDomains(domainData);
     }
 
     async function fetchFlowStatusDomain(domainKey, forceRefresh) {
@@ -3010,7 +2926,6 @@
       const wifi = (data && typeof data.wifi === 'object') ? data.wifi : {};
       const mqtt = (data && typeof data.mqtt === 'object') ? data.mqtt : {};
       const pool = (data && typeof data.pool === 'object') ? data.pool : {};
-      const dashboardSlots = Array.isArray(data && data.dashboardSlots) ? data.dashboardSlots : [];
       const heap = (data && data.heap && typeof data.heap === 'object') ? data.heap : {};
       const i2c = (data && data.i2c && typeof data.i2c === 'object') ? data.i2c : {};
       const firmware = fmtFlowStatusVal(data.fw);
@@ -3057,83 +2972,79 @@
         supervisorFirmwareVersion !== '-' ||
         supervisorUptimeMs > 0 ||
         supervisorHeapFree !== null;
-      const dashboardLabelByRuntimeUiId = new Map();
-      dashboardSlots.forEach((slot) => {
-        const runtimeUiId = dashboardSlotRuntimeUiId(slot);
-        const label = (slot && typeof slot.label === 'string') ? slot.label.trim() : '';
-        if (!runtimeUiId || !label || dashboardLabelByRuntimeUiId.has(runtimeUiId)) return;
-        dashboardLabelByRuntimeUiId.set(runtimeUiId, label);
-      });
-      const waterTempLabel = dashboardLabelByRuntimeUiId.get(flowStatusDashboardRuntimeUiIds.waterTemp) || 'Temperature eau';
-      const airTempLabel = dashboardLabelByRuntimeUiId.get(flowStatusDashboardRuntimeUiIds.airTemp) || 'Temperature air';
-      const phLabel = dashboardLabelByRuntimeUiId.get(flowStatusDashboardRuntimeUiIds.ph) || 'pH';
-      const orpLabel = dashboardLabelByRuntimeUiId.get(flowStatusDashboardRuntimeUiIds.orp) || 'ORP';
-      const poolGaugeNodes = [
-        buildFlowArcGauge({
-          label: waterTempLabel,
-          value: waterTemp,
-          min: 0,
-          max: 40,
-          unit: '°C',
-          decimals: 1,
-          bands: createFlowFiveZoneBands({
+      const poolMetricRows = [
+        [
+          'Temperature eau',
+          buildFlowThresholdValueNode({
+            value: waterTemp,
             min: 0,
-            criticalLowEnd: 8,
-            warningLowEnd: 14,
-            warningHighStart: 30,
-            criticalHighStart: 34,
-            max: 40
+            max: 40,
+            unit: '°C',
+            decimals: 1,
+            bands: createFlowFiveZoneBands({
+              min: 0,
+              criticalLowEnd: 8,
+              warningLowEnd: 14,
+              warningHighStart: 30,
+              criticalHighStart: 34,
+              max: 40
+            })
           })
-        }),
-        buildFlowArcGauge({
-          label: airTempLabel,
-          value: airTemp,
-          min: -10,
-          max: 45,
-          unit: '°C',
-          decimals: 1,
-          bands: createFlowFiveZoneBands({
+        ],
+        [
+          'Temperature air',
+          buildFlowThresholdValueNode({
+            value: airTemp,
             min: -10,
-            criticalLowEnd: 0,
-            warningLowEnd: 8,
-            warningHighStart: 28,
-            criticalHighStart: 35,
-            max: 45
+            max: 45,
+            unit: '°C',
+            decimals: 1,
+            bands: createFlowFiveZoneBands({
+              min: -10,
+              criticalLowEnd: 0,
+              warningLowEnd: 8,
+              warningHighStart: 28,
+              criticalHighStart: 35,
+              max: 45
+            })
           })
-        }),
-        buildFlowArcGauge({
-          label: phLabel,
-          value: phValue,
-          min: 6.4,
-          max: 8.4,
-          decimals: 2,
-          bands: createFlowFiveZoneBands({
+        ],
+        [
+          'pH',
+          buildFlowThresholdValueNode({
+            value: phValue,
             min: 6.4,
-            criticalLowEnd: 6.8,
-            warningLowEnd: 7.0,
-            warningHighStart: 7.6,
-            criticalHighStart: 7.8,
-            max: 8.4
+            max: 8.4,
+            decimals: 2,
+            bands: createFlowFiveZoneBands({
+              min: 6.4,
+              criticalLowEnd: 6.8,
+              warningLowEnd: 7.0,
+              warningHighStart: 7.6,
+              criticalHighStart: 7.8,
+              max: 8.4
+            })
           })
-        }),
-        buildFlowArcGauge({
-          label: orpLabel,
-          value: orpValue,
-          min: 350,
-          max: 900,
-          unit: 'mV',
-          decimals: 0,
-          bands: createFlowFiveZoneBands({
+        ],
+        [
+          'ORP',
+          buildFlowThresholdValueNode({
+            value: orpValue,
             min: 350,
-            criticalLowEnd: 500,
-            warningLowEnd: 620,
-            warningHighStart: 760,
-            criticalHighStart: 820,
-            max: 900
+            max: 900,
+            unit: 'mV',
+            decimals: 0,
+            bands: createFlowFiveZoneBands({
+              min: 350,
+              criticalLowEnd: 500,
+              warningLowEnd: 620,
+              warningHighStart: 760,
+              criticalHighStart: 820,
+              max: 900
+            })
           })
-        })
+        ]
       ];
-      const poolGaugeGrid = buildFlowArcGaugeGrid(poolGaugeNodes);
       const poolStateGrid = buildFlowReadonlyStateGrid([
         buildFlowReadonlyStateTile('Mode auto', autoModeOn, {
           activeText: 'Actif',
@@ -3200,8 +3111,7 @@
         icon: 'pool',
         ok: poolMetricsReady,
         iconLabel: poolMetricsReady ? 'Mesures bassin disponibles' : 'Mesures bassin indisponibles',
-        rows: [],
-        extras: poolGaugeGrid ? [poolGaugeGrid] : []
+        rows: poolMetricRows
       });
       appendFlowStatusCard({
         title: 'Etats Bassin',
@@ -3265,9 +3175,7 @@
           domainData[domainKey] = await fetchFlowStatusDomain(domainKey, !!forceRefresh);
           if (reqSeq !== flowStatusReqSeq) return;
         }
-        const dashboardSlots = await fetchFlowStatusDashboardSlots(!!forceRefresh).catch(() => []);
-        if (reqSeq !== flowStatusReqSeq) return;
-        const data = buildFlowStatusFromDomains(domainData, dashboardSlots);
+        const data = buildFlowStatusFromDomains(domainData);
         if (!data) throw new Error('statut indisponible');
         renderFlowStatus(data);
       } catch (err) {
@@ -3411,7 +3319,7 @@
       }
 
       runtimeManifestDomainLoadPromise = (async () => {
-        const response = await fetch(assetUrl('/api/runtime/manifest'), {
+        const response = await fetchWithBusyRetry(assetUrl('/api/runtime/manifest'), {
           cache: forceRefresh ? 'no-store' : 'default'
         });
         if (!response.ok) throw new Error('manifeste runtime indisponible');
@@ -3513,144 +3421,106 @@
       return data.values;
     }
 
-    async function fetchPoolDashboardSlots() {
+    async function fetchPoolSondeSlots() {
       const data = await fetchOkJson(
         '/api/runtime/dashboard_slots',
         { cache: 'no-store' },
         'lecture sondes supervisor indisponible'
       );
-      return Array.isArray(data.slots) ? data.slots : [];
+      const slots = Array.isArray(data && data.slots) ? data.slots : [];
+      return slots
+        .map((slot) => {
+          const idx = Number(slot && slot.slot);
+          return {
+            slot: Number.isFinite(idx) ? idx : 999,
+            label: String(slot && slot.label ? slot.label : '').trim(),
+            value: String(slot && slot.value ? slot.value : '').trim(),
+            unit: String(slot && slot.unit ? slot.unit : '').trim(),
+            bgColor: String(slot && slot.bg_color ? slot.bg_color : '').trim(),
+            available: !!(slot && slot.available)
+          };
+        })
+        .sort((a, b) => a.slot - b.slot)
+        .slice(0, 8);
     }
 
-    function dashboardSlotRuntimeUiId(slot) {
-      if (!slot || typeof slot !== 'object') return 0;
-      const raw = slot.runtime_ui_id ?? slot.runtimeUiId ?? 0;
-      const id = Number(raw);
-      return Number.isFinite(id) && id > 0 ? id : 0;
+    function runtimeMeasureDisplayLabel(entry) {
+      return entry.label || entry.key || String(entry.id);
     }
 
-    async function fetchFlowStatusDashboardSlots(forceRefresh) {
-      const now = Date.now();
-      const cacheValid = Array.isArray(flowStatusDashboardSlotsCache.data) &&
-        ((now - flowStatusDashboardSlotsCache.fetchedAt) < flowStatusDomainTtlMs);
-      if (!forceRefresh && cacheValid) {
-        return flowStatusDashboardSlotsCache.data;
-      }
-
-      try {
-        const slots = await fetchPoolDashboardSlots();
-        flowStatusDashboardSlotsCache.data = Array.isArray(slots) ? slots : [];
-        flowStatusDashboardSlotsCache.fetchedAt = Date.now();
-        return flowStatusDashboardSlotsCache.data;
-      } catch (err) {
-        if (Array.isArray(flowStatusDashboardSlotsCache.data) && flowStatusDashboardSlotsCache.data.length) {
-          return flowStatusDashboardSlotsCache.data;
-        }
-        throw err;
-      }
-    }
-
-    function isPoolDashboardSondesEntry(entry) {
+    function isPoolDashboardGroupEntry(entry) {
       if (!entry || String(entry.domain || '').trim().toLowerCase() !== 'pool') return false;
-      return String(entry.group || '').trim().localeCompare('Sondes', 'fr', { sensitivity: 'base' }) === 0;
+      return String(entry.group || '').trim().localeCompare('Dashboard', 'fr', { sensitivity: 'base' }) === 0;
     }
 
-    function poolDashboardSlotDisplayParts(slot) {
+    function isPoolSondesGroupKey(domainKey, groupKey) {
+      return String(domainKey || '').trim().toLowerCase() === 'pool'
+        && String(groupKey || '').trim().localeCompare('Sondes', 'fr', { sensitivity: 'base' }) === 0;
+    }
+
+    function isValidHexColor(color) {
+      return /^#[0-9A-Fa-f]{6}$/.test(String(color || '').trim());
+    }
+
+    function splitPoolSondeValue(slot) {
+      const unit = String(slot && slot.unit ? slot.unit : '').trim();
+      const valueRaw = String(slot && slot.value ? slot.value : '').trim();
       const available = !!(slot && slot.available);
-      const unit = (slot && typeof slot.unit === 'string') ? slot.unit.trim() : '';
-      const rawValue = (slot && typeof slot.value === 'string') ? slot.value.trim() : '';
-      if (!available) {
-        return { valueText: '--', unitText: '' };
-      }
-      if (!rawValue) {
-        return { valueText: '-', unitText: '' };
-      }
-      if (!unit) {
-        return { valueText: rawValue, unitText: '' };
-      }
+      if (!available) return { value: '--', unit: '' };
+      if (!valueRaw) return { value: '-', unit: '' };
+      if (!unit) return { value: valueRaw, unit: '' };
 
       const suffix = ' ' + unit;
-      if (rawValue.length > suffix.length && rawValue.endsWith(suffix)) {
+      if (valueRaw.length > suffix.length && valueRaw.endsWith(suffix)) {
         return {
-          valueText: rawValue.slice(0, rawValue.length - suffix.length).trim(),
-          unitText: unit
+          value: valueRaw.slice(0, valueRaw.length - suffix.length).trim(),
+          unit: unit
         };
       }
-      return { valueText: rawValue, unitText: unit };
+      return { value: valueRaw, unit: unit };
     }
 
-    function dashboardSlotBgColor(slot) {
-      const color = (slot && typeof slot.bg_color === 'string') ? slot.bg_color.trim() : '';
-      return /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '';
-    }
-
-    function buildPoolDashboardSlotsCard(slots) {
-      const cleanSlots = Array.isArray(slots) ? slots : [];
-      if (!cleanSlots.length) return null;
-
-      const card = document.createElement('div');
-      card.className = 'status-card status-card-runtime status-card-runtime-domain-pool status-card-runtime-group-sondes';
-
-      const heading = document.createElement('h3');
-      heading.textContent = formatRuntimeGroupCardTitle('pool', 'Sondes');
-      card.appendChild(heading);
-
+    function buildPoolSondeSlotsGrid(slots) {
+      const cleanSlots = Array.isArray(slots) ? slots.slice(0, 8) : [];
       const grid = document.createElement('div');
-      grid.className = 'status-dashboard-slot-grid';
-      cleanSlots.forEach((slot) => {
-        const label = (slot && typeof slot.label === 'string') ? slot.label.trim() : '';
-        const display = poolDashboardSlotDisplayParts(slot);
-        if (!label && !display.valueText && !display.unitText) return;
+      grid.className = 'status-sonde-slot-grid';
 
+      for (let i = 0; i < 8; i += 1) {
+        const slot = cleanSlots[i] || null;
         const tile = document.createElement('div');
-        tile.className = 'status-dashboard-slot';
-        if (!(slot && slot.available)) tile.classList.add('is-empty');
-        const bgColor = dashboardSlotBgColor(slot);
-        if (bgColor) {
-          tile.style.background = bgColor;
-        }
+        tile.className = 'status-sonde-slot';
+        const available = !!(slot && slot.available);
+        if (!available) tile.classList.add('is-empty');
+
+        const bgColor = slot && isValidHexColor(slot.bgColor) ? slot.bgColor : '';
+        if (bgColor) tile.style.background = bgColor;
 
         const title = document.createElement('div');
-        title.className = 'status-dashboard-slot-title';
-        title.textContent = label || 'Mesure';
+        title.className = 'status-sonde-slot-title';
+        title.textContent = slot && slot.label ? slot.label : 'Mesure';
         tile.appendChild(title);
 
         const metric = document.createElement('div');
-        metric.className = 'status-dashboard-slot-metric';
+        metric.className = 'status-sonde-slot-metric';
+        const display = splitPoolSondeValue(slot);
 
         const value = document.createElement('span');
-        value.className = 'status-dashboard-slot-value';
-        value.textContent = display.valueText || '-';
+        value.className = 'status-sonde-slot-value';
+        value.textContent = display.value || '-';
         metric.appendChild(value);
 
-        if (display.unitText) {
+        if (display.unit) {
           const unit = document.createElement('span');
-          unit.className = 'status-dashboard-slot-unit';
-          unit.textContent = display.unitText;
+          unit.className = 'status-sonde-slot-unit';
+          unit.textContent = display.unit;
           metric.appendChild(unit);
         }
 
         tile.appendChild(metric);
         grid.appendChild(tile);
-      });
-      if (!grid.childNodes.length) return null;
-      card.appendChild(grid);
-      return card;
-    }
+      }
 
-    function buildDashboardSlotLabelByRuntimeUiId(slots) {
-      const labelByRuntimeUiId = new Map();
-      (Array.isArray(slots) ? slots : []).forEach((slot) => {
-        const runtimeUiId = dashboardSlotRuntimeUiId(slot);
-        const label = (slot && typeof slot.label === 'string') ? slot.label.trim() : '';
-        if (!runtimeUiId || !label || labelByRuntimeUiId.has(runtimeUiId)) return;
-        labelByRuntimeUiId.set(runtimeUiId, label);
-      });
-      return labelByRuntimeUiId;
-    }
-
-    function runtimeMeasureDisplayLabel(entry) {
-      return entry.label || entry.key || String(entry.id);
+      return grid;
     }
 
     function runtimeMeasureResolvedLabel(entry, options) {
@@ -3715,8 +3585,8 @@
 
     function runtimeMeasureDisplayKind(entry) {
       const explicit = String(entry && entry.display ? entry.display : '').trim();
-      if (explicit === 'gauge') return 'circ-gauge';
-      if (explicit === 'circ-gauge' || explicit === 'horiz-gauge' || explicit === 'badge' || explicit === 'boolean' || explicit === 'time' || explicit === 'value' || explicit === 'flags') {
+      if (explicit === 'gauge' || explicit === 'circ-gauge') return 'threshold';
+      if (explicit === 'threshold' || explicit === 'horiz-gauge' || explicit === 'badge' || explicit === 'boolean' || explicit === 'time' || explicit === 'value' || explicit === 'flags') {
         return explicit;
       }
       return String(entry && entry.type ? entry.type : '') === 'bool' ? 'boolean' : 'value';
@@ -3728,7 +3598,7 @@
         : {};
     }
 
-    function buildRuntimeMeasureCircGaugeNode(entry, runtimeValue, options) {
+    function buildRuntimeMeasureThresholdNode(entry, runtimeValue) {
       const displayConfig = runtimeMeasureDisplayConfig(entry);
       let bands = [];
       let min = Number(displayConfig.min);
@@ -3740,7 +3610,6 @@
       } else if (Array.isArray(displayConfig.bands)) {
         bands = displayConfig.bands;
       }
-
       if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
         return null;
       }
@@ -3749,8 +3618,7 @@
         ? null
         : runtimeValue.value;
 
-      return buildFlowArcGauge({
-        label: String(runtimeMeasureResolvedLabel(entry, options) || 'Mesure'),
+      return buildFlowThresholdValueNode({
         value: value,
         min: min,
         max: max,
@@ -4035,7 +3903,7 @@
     function buildPoolMeasureCards(entries, values, options) {
       const fragment = document.createDocumentFragment();
       const opts = options && typeof options === 'object' ? options : {};
-      const dashboardLabelByRuntimeUiId = buildDashboardSlotLabelByRuntimeUiId(opts.dashboardSlots);
+      const sondeSlots = Array.isArray(opts.sondeSlots) ? opts.sondeSlots : [];
       const valueById = new Map();
       (values || []).forEach((item) => {
         const id = Number(item && item.id);
@@ -4067,18 +3935,9 @@
         const isPoolModeGroup =
           String(group.domainKey || '').trim().toLowerCase() === 'pool' &&
           String(group.groupKey || '').trim().localeCompare('Mode', 'fr', { sensitivity: 'base' }) === 0;
-        const isPoolDashboardGroup =
-          String(group.domainKey || '').trim().toLowerCase() === 'pool' &&
-          String(group.groupKey || '').trim().localeCompare('Dashboard', 'fr', { sensitivity: 'base' }) === 0;
+        const isPoolSondesGroup = isPoolSondesGroupKey(group.domainKey, group.groupKey);
         const groupDisplayOptions = {
-          displayLabelResolver: (entry) => {
-            if (isPoolDashboardGroup) {
-              const runtimeUiId = Number(entry && (entry.runtimeId ?? entry.runtime_ui_id ?? entry.id));
-              const override = dashboardLabelByRuntimeUiId.get(runtimeUiId);
-              if (override) return override;
-            }
-            return runtimeMeasureDisplayLabel(entry);
-          },
+          displayLabelResolver: (entry) => runtimeMeasureDisplayLabel(entry),
           booleanTexts: isPoolModeGroup
             ? {
               activeText: 'Marche',
@@ -4090,8 +3949,14 @@
         const heading = document.createElement('h3');
         heading.textContent = group.name;
         card.appendChild(heading);
+
+        if (isPoolSondesGroup) {
+          card.appendChild(buildPoolSondeSlotsGrid(sondeSlots));
+          fragment.appendChild(card);
+          return;
+        }
+
         const badgeNodes = [];
-        const circGaugeNodes = [];
         const horizGaugeRows = [];
         const booleanNodes = [];
         const flagEntries = [];
@@ -4104,10 +3969,13 @@
             badgeNodes.push(buildRuntimeMeasureBadgeNode(entry, runtimeValue));
             return;
           }
-          if (display === 'circ-gauge') {
-            const gaugeNode = buildRuntimeMeasureCircGaugeNode(entry, runtimeValue, groupDisplayOptions);
-            if (gaugeNode) {
-              circGaugeNodes.push(gaugeNode);
+          if (display === 'threshold') {
+            const thresholdNode = buildRuntimeMeasureThresholdNode(entry, runtimeValue);
+            if (thresholdNode) {
+              valueRows.push([
+                runtimeMeasureResolvedLabel(entry, groupDisplayOptions),
+                thresholdNode
+              ]);
               return;
             }
           }
@@ -4126,9 +3994,10 @@
             flagEntries.push(entry);
             return;
           }
+          const thresholdNode = buildRuntimeMeasureThresholdNode(entry, runtimeValue);
           valueRows.push([
             runtimeMeasureResolvedLabel(entry, groupDisplayOptions),
-            formatRuntimeMeasureValue(entry, runtimeValue)
+            thresholdNode || formatRuntimeMeasureValue(entry, runtimeValue)
           ]);
         });
 
@@ -4137,11 +4006,6 @@
           badgeRow.className = 'status-chip-row';
           badgeNodes.forEach((node) => badgeRow.appendChild(node));
           card.appendChild(badgeRow);
-        }
-
-        if (circGaugeNodes.length) {
-          const gaugeGrid = buildFlowArcGaugeGrid(circGaugeNodes);
-          if (gaugeGrid) card.appendChild(gaugeGrid);
         }
 
         if (booleanNodes.length) {
@@ -4266,8 +4130,7 @@
       const cleanDomain = normalizeRuntimeMeasureDomainKey(domainKey);
       const domainState = state && typeof state === 'object' ? state : null;
       if (!cleanDomain || !domainState) return false;
-      if (Array.isArray(domainState.entries) && domainState.entries.length > 0) return true;
-      return cleanDomain === 'pool' && Array.isArray(domainState.dashboardSlots) && domainState.dashboardSlots.length > 0;
+      return Array.isArray(domainState.entries) && domainState.entries.length > 0;
     }
 
     function renderPoolMeasuresGrid() {
@@ -4286,7 +4149,6 @@
       let renderedCardCount = 0;
       activeDomains.forEach((domainKey) => {
         const state = poolMeasureDomainState[domainKey];
-        const hasDashboardSlots = cleanDomainName => cleanDomainName === 'pool' && Array.isArray(state.dashboardSlots) && state.dashboardSlots.length > 0;
         const hasRenderableData = poolMeasureDomainHasRenderableData(domainKey, state);
         if (state.loading && !hasRenderableData) {
           const card = document.createElement('div');
@@ -4316,7 +4178,7 @@
           renderedCardCount += 1;
           return;
         }
-        if (!state.entries.length && !hasDashboardSlots(domainKey)) {
+        if (!state.entries.length) {
           const card = document.createElement('div');
           card.className = 'status-card';
           const heading = document.createElement('h3');
@@ -4330,14 +4192,7 @@
           renderedCardCount += 1;
           return;
         }
-        if (hasDashboardSlots(domainKey)) {
-          const dashboardCard = buildPoolDashboardSlotsCard(state.dashboardSlots);
-          if (dashboardCard) {
-            poolMeasuresGrid.appendChild(dashboardCard);
-            renderedCardCount += 1;
-          }
-        }
-        const cards = buildPoolMeasureCards(state.entries, state.values, { dashboardSlots: state.dashboardSlots });
+        const cards = buildPoolMeasureCards(state.entries, state.values, { sondeSlots: state.sondeSlots });
         renderedCardCount += cards.childNodes.length;
         poolMeasuresGrid.appendChild(cards);
       });
@@ -4367,8 +4222,8 @@
         if (state.loading) loadingCount += 1;
         if (state.error) errorCount += 1;
         valueCount += state.entries.length;
-        if (domainKey === 'pool' && Array.isArray(state.dashboardSlots)) {
-          valueCount += state.dashboardSlots.length;
+        if (domainKey === 'pool') {
+          valueCount += Array.isArray(state.sondeSlots) ? state.sondeSlots.length : 0;
         }
       });
 
@@ -4413,24 +4268,24 @@
       try {
         const allEntries = await runtimeMeasureEntriesForDomain(cleanDomain, !!forceRefresh);
         const entries = cleanDomain === 'pool'
-          ? allEntries.filter((entry) => !isPoolDashboardSondesEntry(entry))
+          ? allEntries.filter((entry) => !isPoolDashboardGroupEntry(entry))
           : allEntries;
         const ids = entries.map((entry) => Number(entry.id)).filter((id) => Number.isFinite(id));
         const values = ids.length ? await fetchRuntimeValues(ids) : [];
-        const dashboardSlots = cleanDomain === 'pool'
-          ? await fetchPoolDashboardSlots().catch(() => [])
+        const sondeSlots = cleanDomain === 'pool'
+          ? await fetchPoolSondeSlots().catch(() => [])
           : [];
         if (state.requestSeq !== requestSeq) return;
         state.entries = entries;
         state.values = values;
-        state.dashboardSlots = dashboardSlots;
+        state.sondeSlots = sondeSlots;
         state.error = '';
       } catch (err) {
         if (state.requestSeq !== requestSeq) return;
         if (!hadRenderableData) {
           state.entries = [];
           state.values = [];
-          state.dashboardSlots = [];
+          state.sondeSlots = [];
         }
         state.error = 'Chargement ' + formatRuntimeDomainLabel(cleanDomain) + ' echoue: ' + err;
       } finally {
@@ -4461,7 +4316,7 @@
         state.active = false;
         state.loading = false;
         state.error = '';
-        state.dashboardSlots = [];
+        state.sondeSlots = [];
         state.requestSeq += 1;
         refreshPoolMeasuresView();
         return;
@@ -4645,7 +4500,7 @@
         await chargerFlowCfgDocs();
         return;
       }
-      await chargerFlowCfgDocs();
+      await ensureCfgDocsForModule('');
     }
 
     async function calibrationFetchFlowModule(moduleName) {
@@ -5842,33 +5697,138 @@
       }, delayMs);
     }
 
+    function cfgDocKeyFromModuleName(moduleName) {
+      const clean = nettoyerNomFlowCfg(moduleName);
+      if (!clean) return '';
+      return clean.toLowerCase().replace(/[^a-z0-9/_-]+/g, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+    }
+
+    async function loadCfgDocIndex() {
+      if (flowCfgDocIndex) return flowCfgDocIndex;
+      if (flowCfgDocIndexUnavailable) throw new Error('cfgdoc_index_unavailable');
+      if (flowCfgDocIndexPromise) return flowCfgDocIndexPromise;
+
+      flowCfgDocIndexPromise = (async () => {
+        try {
+          const data = await fetchOkJson(
+            '/api/cfgdoc/index',
+            { cache: 'no-store' },
+            'index de documentation indisponible'
+          );
+          const docs = (data && data.docs && typeof data.docs === 'object') ? data.docs : {};
+          const meta = (data && data.meta && typeof data.meta === 'object')
+            ? data.meta
+            : ((data && data._meta && typeof data._meta === 'object') ? data._meta : {});
+          const modules = (data && data.modules && typeof data.modules === 'object') ? data.modules : {};
+          flowCfgDocIndex = { docs: docs, meta: meta, modules: modules };
+          flowCfgDocIndexUnavailable = false;
+          return flowCfgDocIndex;
+        } catch (err) {
+          flowCfgDocIndexUnavailable = true;
+          throw err;
+        }
+      })().finally(() => {
+        flowCfgDocIndexPromise = null;
+      });
+
+      return flowCfgDocIndexPromise;
+    }
+
+    async function loadCfgDocLegacyFallback() {
+      if (flowCfgDocsLegacyFallbackLoaded) return;
+      flowCfgDocsLegacyFallbackLoaded = true;
+
+      const sources = [];
+      const primary = await fetchJsonResponse(assetUrl('/webinterface/cfgdocs.fr.json'), { cache: 'no-store' });
+      if (!primary.res.ok || !primary.data || typeof primary.data !== 'object') {
+        throw new Error('legacy cfgdocs indisponible');
+      }
+      sources.push({
+        docs: (primary.data.docs && typeof primary.data.docs === 'object') ? primary.data.docs : {},
+        meta: (primary.data.meta && typeof primary.data.meta === 'object')
+          ? primary.data.meta
+          : ((primary.data._meta && typeof primary.data._meta === 'object') ? primary.data._meta : {})
+      });
+
+      try {
+        const mods = await fetchJsonResponse(assetUrl('/webinterface/cfgmods.fr.json'), { cache: 'no-store' });
+        if (mods.res.ok && mods.data && typeof mods.data === 'object') {
+          sources.push({
+            docs: (mods.data.docs && typeof mods.data.docs === 'object') ? mods.data.docs : {},
+            meta: (mods.data.meta && typeof mods.data.meta === 'object')
+              ? mods.data.meta
+              : ((mods.data._meta && typeof mods.data._meta === 'object') ? mods.data._meta : {})
+          });
+        }
+      } catch (err) {
+      }
+
+      cfgDocSources = sources;
+      chargerCfgTreeMetaDepuisDocs();
+    }
+
+    async function getCfgDocForModule(moduleName) {
+      const moduleKey = cfgDocKeyFromModuleName(moduleName);
+      const cacheKey = moduleKey || '__root';
+      if (flowCfgDocModuleCache.has(cacheKey)) {
+        return flowCfgDocModuleCache.get(cacheKey);
+      }
+      if (flowCfgDocModuleLoadPromises.has(cacheKey)) {
+        return flowCfgDocModuleLoadPromises.get(cacheKey);
+      }
+
+      const loadPromise = (async () => {
+        try {
+          const index = await loadCfgDocIndex();
+          const relativePath = (index && index.modules && typeof index.modules[cacheKey] === 'string')
+            ? String(index.modules[cacheKey]).trim()
+            : '';
+          if (!relativePath) return null;
+          const payload = await fetchOkJson(
+            '/api/cfgdoc/module?name=' + encodeURIComponent(cacheKey),
+            { cache: 'no-store' },
+            'documentation indisponible pour ' + cacheKey
+          );
+          const docs = (payload && payload.docs && typeof payload.docs === 'object') ? payload.docs : {};
+          const meta = (payload && payload.meta && typeof payload.meta === 'object')
+            ? payload.meta
+            : ((payload && payload._meta && typeof payload._meta === 'object') ? payload._meta : {});
+          const normalized = normalizeDocSource({ docs: docs, meta: meta });
+          flowCfgDocModuleCache.set(cacheKey, normalized);
+          return normalized;
+        } catch (err) {
+          return null;
+        }
+      })().finally(() => {
+        flowCfgDocModuleLoadPromises.delete(cacheKey);
+      });
+
+      flowCfgDocModuleLoadPromises.set(cacheKey, loadPromise);
+      return loadPromise;
+    }
+
+    async function ensureCfgDocsForModule(moduleName) {
+      const loaded = await getCfgDocForModule(moduleName);
+      if (!loaded) {
+        await loadCfgDocLegacyFallback();
+      }
+      const baseSources = [];
+      if (flowCfgDocIndex) {
+        const idxSource = normalizeDocSource({ docs: flowCfgDocIndex.docs || {}, meta: flowCfgDocIndex.meta || {} });
+        if (idxSource) baseSources.push(idxSource);
+      }
+      for (const source of flowCfgDocModuleCache.values()) {
+        const normalized = normalizeDocSource(source);
+        if (normalized) baseSources.push(normalized);
+      }
+      cfgDocSources = baseSources.length > 0 ? baseSources : cfgDocSources;
+      chargerCfgTreeMetaDepuisDocs();
+    }
+
     async function chargerFlowCfgDocs() {
       flowCfgDocsLoaded = true;
       try {
-        const res = await fetch(assetUrl('/webinterface/cfgdocs.fr.json'));
-        const data = await res.json();
-        if (!res.ok || !data || typeof data !== 'object') {
-          throw new Error('invalid docs payload');
-        }
-        const docs = (data.docs && typeof data.docs === 'object') ? data.docs : {};
-        const meta = (data.meta && typeof data.meta === 'object')
-          ? data.meta
-          : ((data._meta && typeof data._meta === 'object') ? data._meta : {});
-        cfgDocSources = [{ docs: docs, meta: meta }];
-        try {
-          const modsRes = await fetch(assetUrl('/webinterface/cfgmods.fr.json'));
-          const modsData = await modsRes.json();
-          if (modsRes.ok && modsData && typeof modsData === 'object') {
-            const modsDocs = (modsData.docs && typeof modsData.docs === 'object') ? modsData.docs : {};
-            const modsMeta = (modsData.meta && typeof modsData.meta === 'object')
-              ? modsData.meta
-              : ((modsData._meta && typeof modsData._meta === 'object') ? modsData._meta : {});
-            cfgDocSources.push({ docs: modsDocs, meta: modsMeta });
-          }
-        } catch (err) {
-          // Ignore optional manual cfgmods file failures.
-        }
-        chargerCfgTreeMetaDepuisDocs();
+        await ensureCfgDocsForModule('');
       } catch (err) {
         cfgDocSources = [];
         cfgTreeAliases = [];
@@ -6849,6 +6809,7 @@
         if (!res.ok || !data || data.ok !== true || typeof data.data !== 'object') {
           throw new Error('lecture module impossible');
         }
+        await ensureCfgDocsForModule(m);
         flowCfgCurrentModule = m;
         flowCfgCurrentData = data.data;
         renderFlowCfgFields(flowCfgCurrentData);
@@ -6883,11 +6844,12 @@
           resetPrimaryCfgEditor('Aucune branche locale sélectionnée.');
           return;
         }
-        const res = await fetch('/api/supervisorcfg/module?name=' + encodeURIComponent(m), { cache: 'no-store' });
+        const res = await fetchWithBusyRetry('/api/supervisorcfg/module?name=' + encodeURIComponent(m), { cache: 'no-store' });
         const data = await res.json();
         if (!res.ok || !data || data.ok !== true || typeof data.data !== 'object') {
           throw new Error('lecture module supervisor impossible');
         }
+        await ensureCfgDocsForModule(m);
         supCfgCurrentModule = m;
         supCfgCurrentData = data.data;
         renderPrimarySupervisorCfgFields(supCfgCurrentData);
@@ -7180,7 +7142,7 @@
           const patch = buildPrimaryCfgPatchJson();
           const body = new URLSearchParams();
           body.set('patch', patch);
-          const res = await fetch('/api/supervisorcfg/apply', {
+          const res = await fetchWithBusyRetry('/api/supervisorcfg/apply', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
             body: body.toString()
