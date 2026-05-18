@@ -89,6 +89,7 @@ private:
     const WifiService* wifiSvc = nullptr;
     const NetworkAccessService* netAccessSvc_ = nullptr;
     const WebInterfaceService* webInterfaceSvc_ = nullptr;
+    const FirmwareUpdateService* fwUpdateSvc_ = nullptr;
     const CommandService* cmdSvc_ = nullptr;
     const ConfigStoreService* cfgSvc = nullptr;
     const LogHubService* logHub = nullptr;
@@ -104,6 +105,7 @@ private:
     uint32_t heapWatchTriggerLargestFreeBlock_ = 0;
     uint32_t traceCycleStartMs_ = 0;
     uint32_t lastWebWatchdogCheckMs_ = 0;
+    uint32_t memoryPressureStateSinceMs_ = 0;
     size_t heapWatchWriteIndex_ = 0;
     size_t heapWatchCount_ = 0;
     size_t heapWatchFrozenWriteIndex_ = 0;
@@ -113,12 +115,14 @@ private:
     bool heapWatchTripActive_ = false;
     bool heapWatchDumpPending_ = false;
     bool webWatchdogRebootIssued_ = false;
+    bool memoryPressureRebootIssued_ = false;
     bool stackLoggedThisCycle_ = false;
     bool heapLoggedThisCycle_ = false;
     bool buffersLoggedThisCycle_ = false;
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
     HeapWatchSample heapWatchSamples_[kHeapWatchSampleCount]{};
     char heapWatchTriggerReason_[20] = {0};
+    uint8_t memoryPressureState_ = 0; // 0=normal,1=constrained,2=shedding,3=critical,4=panic
 #ifdef CONFIG_HEAP_TASK_TRACKING
     HeapWatchTaskTotal heapWatchTaskTotals_[kHeapWatchTaskTotalsMax]{};
     size_t heapWatchTaskTotalCount_ = 0;
@@ -134,6 +138,7 @@ private:
     void dumpHeapWatch_();
     void dumpHeapWatchWindow_() const;
     void logPendingHeapAllocFailure_();
+    void pollMemoryPressureReboot_(uint32_t now);
     void pollWebWatchdog_(uint32_t now);
 #ifdef CONFIG_HEAP_TASK_TRACKING
     void captureHeapWatchTaskTotals_();

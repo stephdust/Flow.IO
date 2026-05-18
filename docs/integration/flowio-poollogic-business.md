@@ -53,6 +53,10 @@ Affectation logique pool par défaut:
   - `i2` Niveau cuve chlore
   - `i3` Compteur eau
 
+Convention logique harmonisée pour `i0/i1/i2`:
+- `ON` (`true`) = alerte/problème (niveau bas)
+- `OFF` (`false`) = pas de problème
+
 ## 3) Rôles des 3 modules clés
 
 ## 3.1 `PoolLogicModule` (orchestrateur métier)
@@ -174,7 +178,7 @@ En auto:
 ## 5.6 Remplissage
 
 - basé sur capteur niveau bassin (`i0`)
-- si niveau bas: marche
+- si niveau bas (`i0 == true`): marche
 - quand niveau revient OK: maintien ON jusqu’à atteindre au moins `fill_min_on_s`
 
 ## 6) Sécurité / alarmes
@@ -183,6 +187,7 @@ Alarmes métier déclarées:
 
 - `PoolPsiLow` (pression basse)
 - `PoolPsiHigh` (pression haute)
+- `PoolWaterLevelLow` (niveau bassin bas)
 - `PoolPhTankLow`
 - `PoolChlorineTankLow`
 

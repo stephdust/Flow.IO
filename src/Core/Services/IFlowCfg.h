@@ -20,6 +20,7 @@ enum class FlowStatusDomain : uint8_t {
 
 struct FlowCfgRemoteService {
     bool (*isReady)(void* ctx);
+    bool (*setPaused)(void* ctx, bool paused);
     bool (*listModulesJson)(void* ctx, char* out, size_t outLen);
     bool (*listChildrenJson)(void* ctx, const char* prefix, char* out, size_t outLen);
     bool (*getModuleJson)(void* ctx, const char* module, char* out, size_t outLen, bool* truncated);

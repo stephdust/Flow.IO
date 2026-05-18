@@ -104,6 +104,7 @@ private:
     bool frameCrcEnabled_ = false;
     uint32_t activeFreqHz_ = 0;
     uint8_t seq_ = 1;
+    bool transportPaused_ = false;
     uint32_t retryAfterMs_ = 0;
     MqttConfigRouteProducer cfgMqttPub_{};
     SemaphoreHandle_t runtimeCacheMutex_ = nullptr;
@@ -122,6 +123,7 @@ private:
 
     FlowCfgRemoteService svc_{
         ServiceBinding::bind<&I2CCfgClientModule::isReadySvc_>,
+        ServiceBinding::bind<&I2CCfgClientModule::setPausedSvc_>,
         ServiceBinding::bind<&I2CCfgClientModule::listModulesJson_>,
         ServiceBinding::bind<&I2CCfgClientModule::listChildrenJson_>,
         ServiceBinding::bind<&I2CCfgClientModule::getModuleJson_>,
@@ -137,6 +139,7 @@ private:
     bool beginMasterAtFreq_(uint32_t freqHz, const char* reason);
     void applyBoardDefaults_(const BoardSpec& board);
     bool isReadySvc_();
+    bool setPausedSvc_(bool paused);
     bool ensureReady_();
     bool isReady_() const;
     bool listModulesJson_(char* out, size_t outLen);

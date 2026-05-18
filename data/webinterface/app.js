@@ -28,8 +28,11 @@
       'icon-calibration': 'science',
       'icon-terminal': 'list_alt',
       'icon-system': 'cloud_upload',
-      'icon-flowcfg': 'settings'
+      'icon-flowcfg': 'settings',
+      'icon-info': 'info'
     };
+    const infoRefreshActiveMs = 1000;
+    const infoRefreshIdleMs = 12000;
     let webAssetVersion = '';
     let loadedWebAssetVersion = '';
     let supervisorFirmwareVersion = '-';
@@ -631,6 +634,72 @@
       mobileTopbarTitle.textContent = label;
     }
 
+    function formatInfoBytes(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0) return '-';
+      if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MB';
+      if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+      return String(Math.trunc(n)) + ' B';
+    }
+
+    function formatInfoUptime(ms) {
+      const totalMs = Number(ms);
+      if (!Number.isFinite(totalMs) || totalMs < 0) return '-';
+      const totalSec = Math.floor(totalMs / 1000);
+      const d = Math.floor(totalSec / 86400);
+      const h = Math.floor((totalSec % 86400) / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      if (d > 0) return d + 'j ' + h + 'h';
+      if (h > 0) return h + 'h ' + m + 'm';
+      if (m > 0) return m + 'm ' + s + 's';
+      return s + 's';
+    }
+
+    function deriveInfoPressure(heap) {
+      const free = Number(heap && heap.free) || 0;
+      const largest = Number(heap && heap.largest) || 0;
+      const frag = Number(heap && heap.frag) || 0;
+
+      // Supervisor nominal profile (ESP32 sans PSRAM):
+      // - state is derived from current free/largest/frag only
+      // - min_free is informational and intentionally excluded from pressure state
+      // - each level requires all criteria to avoid false positives near nominal baseline
+      if (free < 20000 && largest < 8000 && frag > 45) return 'panique';
+      if (free < 24000 && largest < 12000 && frag > 35) return 'critique';
+      if (free < 28000 && largest < 16000 && frag > 28) return 'delestage';
+      if (free < 30000 && largest < 20000 && frag > 20) return 'contrainte';
+      return 'normal';
+    }
+
+    function buildInfoMetricRow(title, value) {
+      return (
+        '<div class="info-row">' +
+          '<span class="info-row-key">' + String(title || '') + '</span>' +
+          '<span class="info-row-value">' + String(value || '-') + '</span>' +
+        '</div>'
+      );
+    }
+
+    function renderInfoPanel() {
+      if (!infoGrid) return;
+      const heap = (supervisorHeap && typeof supervisorHeap === 'object') ? supervisorHeap : {};
+      const pressure = deriveInfoPressure(heap);
+      const frag = Number(heap.frag);
+      const cards = [
+        ['Pression', pressure],
+        ['Temps de fonctionnement', formatInfoUptime(supervisorUptimeMs)],
+        ['Heap libre', formatInfoBytes(heap.free)],
+        ['Heap minimum', formatInfoBytes(heap.min_free)],
+        ['Plus grand bloc', formatInfoBytes(heap.largest)],
+        ['Fragmentation', Number.isFinite(frag) ? (String(Math.trunc(frag)) + ' %') : '-']
+      ];
+      infoGrid.innerHTML = cards.map((row) => buildInfoMetricRow(row[0], row[1])).join('');
+      if (infoStatusChip) {
+        infoStatusChip.textContent = 'Mise à jour: ' + new Date().toLocaleTimeString('fr-FR');
+      }
+    }
+
     function isDrawerExpanded() {
       return isMobileLayout()
         ? drawer.classList.contains('mobile-open')
@@ -687,6 +756,25 @@
 
     function stopUpgradeStatusPolling() {
       upgradeStatusPoller.stop();
+    }
+
+    function currentInfoPollDelayMs() {
+      const active = !document.hidden && getActivePageId() === 'page-info';
+      return active ? infoRefreshActiveMs : infoRefreshIdleMs;
+    }
+
+    function scheduleNextInfoPoll(delayMs) {
+      const nextDelay = Math.max(200, Number.isFinite(delayMs) ? delayMs : currentInfoPollDelayMs());
+      infoPoller.schedule(nextDelay);
+    }
+
+    async function pollInfoTick() {
+      try {
+        await loadWebMeta({ skipDrawerRuntimeRender: true });
+      } catch (err) {
+      }
+      renderInfoPanel();
+      scheduleNextInfoPoll();
     }
 
     let flowRemoteFetchQueue = Promise.resolve();
@@ -776,9 +864,19 @@
       } else {
         stopFlowCfgRetry();
       }
+      if (pageId === 'page-info') {
+        schedulePageTask(pageId,
+                         pageToken,
+                         deferredHeavyMs > 0 ? (deferredHeavyMs + 120) : 0,
+                         async () => {
+                           await loadWebMeta({ skipDrawerRuntimeRender: true });
+                           renderInfoPanel();
+                         });
+      }
       if (pageId !== 'page-system') {
         stopUpgradeStatusPolling();
       }
+      scheduleNextInfoPoll(pageId === 'page-info' ? 0 : infoRefreshIdleMs);
       closeMobileDrawer();
     }
 
@@ -824,13 +922,9 @@
     const term = document.getElementById('term');
     const wsStatus = document.getElementById('wsStatus');
     const logSourceSelect = document.getElementById('logSourceSelect');
-    const line = document.getElementById('line');
-    const sendBtn = document.getElementById('send');
-    const clearBtn = document.getElementById('clear');
     const toggleAutoscrollInput = document.getElementById('toggleAutoscroll');
     let autoScrollEnabled = true;
     let terminalActive = false;
-    const lineDefaultPlaceholder = line ? line.placeholder : '';
 
     const updateServerPath = document.getElementById('updateServerPath');
     const applyUpdateServerPathBtn = document.getElementById('applyUpdateServerPath');
@@ -855,6 +949,8 @@
     const rebootDeviceTargetSelect = document.getElementById('rebootDeviceTarget');
     const rebootDeviceActionBtn = document.getElementById('rebootDeviceAction');
     const systemStatusText = document.getElementById('systemStatusText');
+    const infoStatusChip = document.getElementById('infoStatusChip');
+    const infoGrid = document.getElementById('infoGrid');
     const flowStatusRefreshBtn = document.getElementById('flowStatusRefresh');
     const flowStatusChip = document.getElementById('flowStatusChip');
     const flowStatusGrid = document.getElementById('flowStatusGrid');
@@ -1045,9 +1141,15 @@
     };
 
     const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
-    let logSource = 'flow';
+    const logSocketPath = '/wslog';
+    const logSourceMeta = {
+      supervisor: { cmd: 'src:supervisor', label: 'Supervisor', statusBusy: 'occupé (1 terminal max)' },
+      flowio: { cmd: 'src:flowio', label: 'Flow.io', statusBusy: 'occupé (1 terminal max)' }
+    };
+    let logSource = 'supervisor';
     let logSocket = null;
     const upgradeStatusPoller = createTimeoutRunner(() => pollUpgradeStatusTick());
+    const infoPoller = createTimeoutRunner(() => pollInfoTick());
     const upgradeReconnectStageTimer = createTimeoutRunner(() => enterUpgradeReconnectPhase());
     const upgradeReconnectCompletionTimer = createTimeoutRunner(() => markUpgradeUiCompletedAfterReconnect());
     const upgradeReconnectMonitor = createIntervalRunner(() => probeUpgradeReconnect(), 1500);
@@ -1061,9 +1163,14 @@
     }, 15000);
     const wifiScanPoller = createTimeoutRunner(() => refreshWifiScanStatus(false));
 
+    function activeLogSourceMeta() {
+      return logSourceMeta[logSource] || logSourceMeta.supervisor;
+    }
+
     function setWsStatusText(status) {
-      const sourceLabel = logSource === 'supervisor' ? 'Supervisor' : 'Flow.io';
-      wsStatus.textContent = sourceLabel + ' : ' + status;
+      if (!wsStatus) return;
+      const meta = activeLogSourceMeta();
+      wsStatus.textContent = meta.label + ' : ' + status;
     }
 
     const ansiState = { fg: null };
@@ -1103,13 +1210,6 @@
       return { text: out, color: lineColor };
     }
 
-    function updateTerminalInputState() {
-      const canSend = logSource === 'flow';
-      line.disabled = !canSend;
-      sendBtn.disabled = !canSend;
-      line.placeholder = canSend ? lineDefaultPlaceholder : 'Envoi désactivé pour les journaux Supervisor';
-    }
-
     function closeLogSocket() {
       if (!logSocket) return;
       logSocket.onopen = null;
@@ -1127,17 +1227,25 @@
     function connectLogSocket() {
       closeLogSocket();
       setWsStatusText('connexion...');
-      const path = logSource === 'supervisor' ? '/wslog' : '/wsserial';
-      const socket = new WebSocket(wsProto + '://' + location.host + path);
+      const meta = activeLogSourceMeta();
+      const socket = new WebSocket(wsProto + '://' + location.host + logSocketPath);
       logSocket = socket;
       socket.onopen = () => {
         if (socket !== logSocket) return;
         setWsStatusText('connecté');
+        try {
+          socket.send(meta.cmd);
+        } catch (err) {
+        }
       };
       socket.onclose = (ev) => {
         if (socket !== logSocket) return;
         const code = ev && Number.isFinite(ev.code) ? ev.code : 0;
-        setWsStatusText(code ? ('déconnecté (' + code + ')') : 'déconnecté');
+        if (code === 1008) {
+          setWsStatusText(meta.statusBusy);
+        } else {
+          setWsStatusText(code ? ('déconnecté (' + code + ')') : 'déconnecté');
+        }
       };
       socket.onerror = () => {
         if (socket !== logSocket) return;
@@ -1152,19 +1260,22 @@
         if (parsed.color) row.style.color = parsed.color;
         row.textContent = parsed.text;
         term.appendChild(row);
-        while (term.childNodes.length > 2000) term.removeChild(term.firstChild);
+        while (term.childNodes.length > 800) term.removeChild(term.firstChild);
         if (autoScrollEnabled) term.scrollTop = term.scrollHeight;
       };
     }
 
     function setLogSource(source) {
-      logSource = source === 'supervisor' ? 'supervisor' : 'flow';
+      const normalized = String(source || '').trim().toLowerCase();
+      logSource = Object.prototype.hasOwnProperty.call(logSourceMeta, normalized) ? normalized : 'supervisor';
       if (logSourceSelect && logSourceSelect.value !== logSource) {
         logSourceSelect.value = logSource;
       }
-      updateTerminalInputState();
       if (terminalActive) {
+        term.textContent = '';
         connectLogSocket();
+      } else {
+        setWsStatusText('inactif');
       }
     }
 
@@ -1175,17 +1286,6 @@
         'title',
         autoScrollEnabled ? 'Défilement auto activé' : 'Défilement auto désactivé'
       );
-    }
-
-    function sendLine() {
-      const txt = line.value;
-      if (!txt) return;
-      if (logSource !== 'flow') return;
-      if (logSocket && logSocket.readyState === WebSocket.OPEN) {
-        logSocket.send(txt);
-      }
-      line.value = '';
-      line.focus();
     }
 
     const iconeOeilOuvert = 'Cacher';
@@ -1206,24 +1306,19 @@
       inputEl.type = isMasked ? 'text' : 'password';
       mettreAJourEtatVisibiliteMotDePasse(inputEl, toggleBtn, labelAfficher, labelMasquer);
     }
-    sendBtn.addEventListener('click', sendLine);
-    line.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') sendLine();
-    });
-    clearBtn.addEventListener('click', () => { term.textContent = ''; });
-    toggleAutoscrollInput.addEventListener('change', () => {
+    if (toggleAutoscrollInput) toggleAutoscrollInput.addEventListener('change', () => {
       autoScrollEnabled = !!toggleAutoscrollInput.checked;
       refreshAutoscrollUi();
       if (autoScrollEnabled) term.scrollTop = term.scrollHeight;
     });
     if (logSourceSelect) {
+      logSourceSelect.value = 'supervisor';
       logSourceSelect.addEventListener('change', () => {
         setLogSource(logSourceSelect.value);
       });
     }
     refreshAutoscrollUi();
-    logSource = logSourceSelect ? logSourceSelect.value : 'flow';
-    updateTerminalInputState();
+    logSource = 'supervisor';
     setWsStatusText('inactif');
     if (flowCfgApplyBtn) flowCfgApplyBtn.disabled = true;
 
@@ -4837,7 +4932,7 @@
 
       checks.push({
         tone: 'info',
-        label: 'Info',
+        label: 'Info Web',
         text: 'Module ciblé: ' + model.moduleName
       });
       return checks;
@@ -4895,7 +4990,7 @@
 
         const pill = document.createElement('span');
         pill.className = 'calibration-check-pill';
-        pill.textContent = String(entry && entry.label ? entry.label : 'Info');
+        pill.textContent = String(entry && entry.label ? entry.label : 'Info Web');
         row.appendChild(pill);
 
         const text = document.createElement('span');
@@ -7930,6 +8025,7 @@
         } else if (terminalActive) {
           connectLogSocket();
         }
+        scheduleNextInfoPoll(document.hidden ? infoRefreshIdleMs : undefined);
       });
     }
 
@@ -7945,6 +8041,7 @@
     renderUpgradeJourney(readUpgradeUiSession() || { phase: 'idle', target: '', detail: 'Aucune opération en cours.' });
     resumeUpgradeReconnectFlow();
     startDrawerRuntimeTimer();
+    scheduleNextInfoPoll(infoRefreshIdleMs);
     const initialPageId = resolveInitialPageId();
     const startInitialUi = () => {
       showPage(initialPageId, { deferHeavyMs: 260 });

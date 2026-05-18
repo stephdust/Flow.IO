@@ -38,6 +38,7 @@ void ESP32Flasher::setUpdateProgressCallback(THandlerFunction value){
    Returns: SUCCESS or error code
 */
 int ESP32Flasher::verifyResponse(uint8_t command) {
+  lastCommandFailCode_ = RESPONSE_OK;
   uint8_t ch;
   uint8_t buff[8];  // Response buffer: direction(1) + command(1) + size(2) + value(4)
   // Searching for start delimiter
@@ -200,6 +201,7 @@ int ESP32Flasher::verifyResponse(uint8_t command) {
     if (buff[0] == READ_DIRECTION && buff[1] == command) {
       // Check status
       if (status[0]) {  // If failed flag is set
+        lastCommandFailCode_ = status[1];
         do { Serial.print("[ERROR] Command failed with status:"); Serial.print("\r\n"); } while (0);
         switch (status[1]) {  // error code
           case INVALID_CRC:
@@ -227,13 +229,41 @@ int ESP32Flasher::verifyResponse(uint8_t command) {
             Serial.printf("  UNKNOWN ERROR: Code 0x%02X\n", status[1]);
             break;
         }
-        return ERR_INVALID_RESP;
+        return ERR_CMD_STATUS;
       }
       // Command response verified successfully
       return SUCCESS;
     }
     do { Serial.print("[DEBUG] Response didn't match expected command, continuing..."); Serial.print("\r\n"); } while (0);
   } while (1);
+}
+
+void ESP32Flasher::flushUartInput_(uint32_t drainMs)
+{
+  const uint32_t start = millis();
+  while ((uint32_t)(millis() - start) < drainMs) {
+    while (Serial2.available() > 0) {
+      (void)Serial2.read();
+    }
+    delay(1);
+  }
+}
+
+int ESP32Flasher::recoverBootloaderLink_(uint32_t syncTimeoutMs)
+{
+  flushUartInput_(40U);
+  const uint32_t previousTimeout = s_time_end;
+  s_time_end = millis() + syncTimeoutMs;
+  const int syncStatus = espSyncHandle();
+  if (syncStatus != SUCCESS) {
+    s_time_end = previousTimeout;
+    return syncStatus;
+  }
+
+  s_time_end = millis() + DEFAULT_TIMEOUT;
+  const int attachStatus = spiAttachCmd(0);
+  s_time_end = previousTimeout;
+  return attachStatus;
 }
 
 /**
@@ -944,7 +974,49 @@ int ESP32Flasher::flashBinary(File& file, uint32_t size, uint32_t address) {
 
 int ESP32Flasher::epsFlashFinish(bool reboot)
 {
-  s_time_end = millis() + DEFAULT_TIMEOUT;
+  int result = ERR_FAIL;
+  const bool primaryStayInLoader = !reboot;
+  for (int attempt = 1; attempt <= FLASH_END_RETRIES; ++attempt) {
+    flushUartInput_(25U);
+    s_time_end = millis() + FLASH_END_TIMEOUT;
+    result = flashEndCmd(primaryStayInLoader);
+    if (result == SUCCESS) {
+      if (attempt > 1) {
+        Serial.printf("[INFO] FLASH_END recovered on retry %d/%d\n", attempt, FLASH_END_RETRIES);
+      }
+      return SUCCESS;
+    }
 
-  return flashEndCmd(!reboot);
+    Serial.printf("[WARN] FLASH_END failed attempt %d/%d (err=%d boot_status=0x%02X)\n",
+                  attempt,
+                  FLASH_END_RETRIES,
+                  result,
+                  (unsigned)lastCommandFailCode_);
+    if (attempt < FLASH_END_RETRIES) {
+      const int recoverStatus = recoverBootloaderLink_(2000U);
+      if (recoverStatus == SUCCESS) {
+        Serial.printf("[INFO] Bootloader link recovered before FLASH_END retry %d\n", attempt + 1);
+      } else {
+        Serial.printf("[WARN] Bootloader recover failed before retry %d (err=%d)\n", attempt + 1, recoverStatus);
+      }
+      delay(120);
+    }
+  }
+
+  if (primaryStayInLoader) {
+    Serial.print("[WARN] FLASH_END stay-in-loader variant failed, trying reboot variant\r\n");
+    (void)recoverBootloaderLink_(2500U);
+    flushUartInput_(30U);
+    s_time_end = millis() + FLASH_END_TIMEOUT;
+    result = flashEndCmd(false);
+    if (result == SUCCESS) {
+      Serial.print("[INFO] FLASH_END reboot variant succeeded\r\n");
+      return SUCCESS;
+    }
+    Serial.printf("[WARN] FLASH_END reboot variant failed (err=%d boot_status=0x%02X)\n",
+                  result,
+                  (unsigned)lastCommandFailCode_);
+  }
+
+  return result;
 }

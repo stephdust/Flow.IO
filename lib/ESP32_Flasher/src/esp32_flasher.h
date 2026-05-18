@@ -12,10 +12,12 @@ typedef std::function<void(void)> THandlerFunction;
 #define DEFAULT_TIMEOUT 1000              // Standard timeout for most operations (ms)
 #define DEFAULT_FLASH_TIMEOUT 3000        // Extended timeout for flash operations (ms)
 #define FLASH_DATA_TIMEOUT 5000           // Timeout for each FLASH_DATA response (ms)
+#define FLASH_END_TIMEOUT 10000           // Timeout for FLASH_END response (ms)
 #define STREAM_STALL_TIMEOUT 60000        // Max wait for next HTTP stream bytes (ms)
 #define ERASE_REGION_TIMEOUT_PER_MB 30000 // Timeout per MB for flash erase (ms)
 #define PADDING_PATTERN 0xFF              // Pattern used for padding incomplete blocks
 #define MAX_TRIALS 5                      // Maximum connection attempts
+#define FLASH_END_RETRIES 5               // Retry attempts for FLASH_END
 
 // SLIP protocol special characters
 #define DELIMITER 0xC0                    // Frame delimiter for SLIP protocol
@@ -53,6 +55,7 @@ static const uint8_t DB_REPLACEMENT[2] = {0xDB, 0xDD};  // Escape sequence for 0
 #define ERR_TIMEOUT       2  // Operation timed out
 #define ERR_IMG_SIZE      3  // Image too large for flash
 #define ERR_INVALID_RESP  4  // Invalid response received
+#define ERR_CMD_STATUS    5  // Bootloader command returned failed status
 
 // Command codes
 #define FLASH_BEGIN 0x02    // Start flash operation
@@ -80,6 +83,7 @@ class ESP32Flasher {
     uint32_t s_flash_write_size = 0;    // Current flash write block size
     uint32_t s_sequence_number = 0;     // Packet sequence counter
     uint32_t s_time_end = 0;           // Operation timeout timestamp
+    uint8_t lastCommandFailCode_ = RESPONSE_OK; // Last bootloader status code (if any)
     uint32_t _undownloadByte; 	    /* undownload byte of tft file */
     THandlerFunction _updateProgressCallback;
 
@@ -95,6 +99,8 @@ class ESP32Flasher {
     int espFlashStart(uint32_t flash_address, uint32_t image_size, uint32_t block_size);
     int espFlashWrite(void *payload, uint32_t size);
     int epsFlashFinish(bool reboot);
+    void flushUartInput_(uint32_t drainMs);
+    int recoverBootloaderLink_(uint32_t syncTimeoutMs);
     //int flashBinary(File& file, uint32_t size, uint32_t address);
     int flashBinaryStream(Stream &myFile, uint32_t size, uint32_t address);
 

@@ -289,6 +289,10 @@
       -webkit-mask-image: var(--menu-icon-flowcfg-url);
       mask-image: var(--menu-icon-flowcfg-url);
     }
+    .icon-info {
+      -webkit-mask-image: var(--menu-icon-system-url);
+      mask-image: var(--menu-icon-system-url);
+    }
     body.menu-icons-remote:not(.web-icons-disabled) .menu-item .ico {
       background: transparent;
       background-color: transparent;
@@ -779,6 +783,40 @@
       padding: 14px;
       background: var(--panel-card-bg);
       box-shadow: 0 10px 24px rgba(16, 43, 76, 0.06);
+    }
+    .info-card {
+      max-width: 520px;
+    }
+    .info-panel {
+      margin: 0;
+    }
+    .info-list {
+      display: grid;
+      gap: 4px;
+    }
+    .info-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(16, 43, 76, 0.08);
+      color: var(--panel-frame-text);
+      font-size: 13px;
+      line-height: 1.2;
+    }
+    .info-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .info-row-key {
+      color: #5B7287;
+      font-weight: 600;
+    }
+    .info-row-value {
+      color: var(--panel-frame-title);
+      font-weight: 700;
+      text-align: right;
     }
     .status-card-head {
       display: flex;

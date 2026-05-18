@@ -104,11 +104,12 @@ AlarmCondState PoolLogicModule::condWaterLevelLowStatic_(void* ctx, uint32_t)
     PoolLogicModule* self = static_cast<PoolLogicModule*>(ctx);
     if (!self || !self->enabled_) return AlarmCondState::False;
 
-    bool levelOk = false;
-    if (!self->loadDigitalSensor_(self->levelIoId_, levelOk)) {
+    bool low = false;
+    if (!self->loadDigitalSensor_(self->levelIoId_, low)) {
         return AlarmCondState::Unknown;
     }
-    return levelOk ? AlarmCondState::False : AlarmCondState::True;
+    // Harmonized digital level semantics: true means "problem detected".
+    return low ? AlarmCondState::True : AlarmCondState::False;
 }
 
 AlarmCondState PoolLogicModule::condPhPumpMaxUptimeStatic_(void* ctx, uint32_t)
@@ -389,7 +390,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     float waterTemp = 0.0f;
     float airTemp = 0.0f;
     float orp = 0.0f;
-    bool levelOk = true;
+    bool levelLow = false;
     bool phTankLow = false;
     bool chlorineTankLow = false;
 
@@ -398,7 +399,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     const bool haveWaterTemp = loadAnalogSensor_(waterTempIoId_, waterTemp);
     const bool haveAirTemp = loadAnalogSensor_(airTempIoId_, airTemp);
     const bool haveOrp = loadAnalogSensor_(orpIoId_, orp);
-    const bool haveLevel = loadDigitalSensor_(levelIoId_, levelOk);
+    const bool haveLevel = loadDigitalSensor_(levelIoId_, levelLow);
     const bool havePhTankLow = loadDigitalSensor_(phLevelIoId_, phTankLow);
     const bool haveChlorineTankLow = loadDigitalSensor_(chlorineLevelIoId_, chlorineTankLow);
 
@@ -621,10 +622,10 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     bool fillingDesired = false;
     if (haveLevel) {
         if (!fillingFsm_.on) {
-            fillingDesired = !levelOk;
+            fillingDesired = levelLow;
         } else {
             const bool minUpReached = stateUptimeSec_(fillingFsm_, nowMs) >= fillingMinOnSec_;
-            fillingDesired = !(levelOk && minUpReached);
+            fillingDesired = levelLow || !minUpReached;
         }
     }
 

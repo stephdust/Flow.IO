@@ -136,8 +136,15 @@ constexpr uint32_t kHttpLatencyFlowCfgWarnMs = 900U;
 constexpr uint32_t kHeapGuardAssetFreeBytesLight = 8192U;
 constexpr uint32_t kHeapGuardAssetFreeBytesMinor = 12288U;
 constexpr uint32_t kHeapGuardAssetFreeBytesMajor = 15360U;
+constexpr uint32_t kHeapGuardAssetLargestBytesLight = 4096U;
+constexpr uint32_t kHeapGuardAssetLargestBytesMinor = 6144U;
+constexpr uint32_t kHeapGuardAssetLargestBytesMajor = 8192U;
+constexpr uint8_t kAssetBuildConcurrentLimit = 2U;
 void (*gHttpActivityHook)(void*) = nullptr;
 void* gHttpActivityHookCtx = nullptr;
+portMUX_TYPE gAssetBuildMux = portMUX_INITIALIZER_UNLOCKED;
+volatile uint8_t gAssetBuildInFlight = 0U;
+volatile uint32_t gAssetBuildRejectCount = 0U;
 
 const char* httpMethodName_(uint32_t method);
 void addNoCacheHeaders_(AsyncWebServerResponse* response);
@@ -235,16 +242,64 @@ bool isLightWebAssetPath_(const char* path)
     return path && strstr(path, "/webinterface/light.") != nullptr;
 }
 
-bool shouldRejectAssetByFreeHeap_(const char* assetPath, uint32_t* freeBytesOut = nullptr)
+bool tryAcquireAssetBuildSlot_()
 {
-    const uint32_t freeBytes = (uint32_t)ESP.getFreeHeap();
+    bool acquired = false;
+    portENTER_CRITICAL(&gAssetBuildMux);
+    if (gAssetBuildInFlight < kAssetBuildConcurrentLimit) {
+        ++gAssetBuildInFlight;
+        acquired = true;
+    } else {
+        ++gAssetBuildRejectCount;
+    }
+    portEXIT_CRITICAL(&gAssetBuildMux);
+    return acquired;
+}
+
+void releaseAssetBuildSlot_()
+{
+    portENTER_CRITICAL(&gAssetBuildMux);
+    if (gAssetBuildInFlight > 0U) {
+        --gAssetBuildInFlight;
+    }
+    portEXIT_CRITICAL(&gAssetBuildMux);
+}
+
+void sendTinyBusyJson_(AsyncWebServerRequest* request, const char* reason)
+{
+    if (!request) return;
+    AsyncWebServerResponse* response =
+        request->beginResponse(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"Busy\"}}");
+    if (!response) {
+        request->send(503, "text/plain", "Busy");
+        return;
+    }
+    response->addHeader("Retry-After", "2");
+    response->addHeader("X-Flow-Busy-Reason", reason ? reason : "busy");
+    response->addHeader("Connection", "close");
+    addNoCacheHeaders_(response);
+    request->send(response);
+}
+
+bool shouldRejectAssetByFreeHeap_(const char* assetPath,
+                                  uint32_t* freeBytesOut = nullptr,
+                                  uint32_t* largestBytesOut = nullptr)
+{
+    const uint32_t freeBytes = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    const uint32_t largestBytes = (uint32_t)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
     if (freeBytesOut) *freeBytesOut = freeBytes;
+    if (largestBytesOut) *largestBytesOut = largestBytes;
     const uint32_t minFreeBytes = isLightWebAssetPath_(assetPath)
         ? kHeapGuardAssetFreeBytesLight
         : isMinorWebAssetPath_(assetPath)
         ? kHeapGuardAssetFreeBytesMinor
         : kHeapGuardAssetFreeBytesMajor;
-    return freeBytes < minFreeBytes;
+    const uint32_t minLargestBytes = isLightWebAssetPath_(assetPath)
+        ? kHeapGuardAssetLargestBytesLight
+        : isMinorWebAssetPath_(assetPath)
+        ? kHeapGuardAssetLargestBytesMinor
+        : kHeapGuardAssetLargestBytesMajor;
+    return freeBytes < minFreeBytes || largestBytes < minLargestBytes;
 }
 
 void buildProvisioningApSsid_(char* out, size_t outLen)
@@ -1540,6 +1595,12 @@ void WebInterfaceModule::startLocalRuntime_()
         return;
     }
 
+#if !FLOW_ENABLE_READONLY_SERIAL_LOG
+    bridgeUartEnabled_ = false;
+    LOGI("WebInterface serial log bridge disabled");
+    return;
+#endif
+
     if (!bridgeUartConfigured_) {
         bridgeUartEnabled_ = false;
         LOGI("WebInterface bridge UART disabled: no 'bridge' UART in BoardSpec (wslog only)");
@@ -1589,19 +1650,35 @@ void WebInterfaceModule::startServer_()
                bool cacheAware,
                const char* gzipOverridePath = nullptr,
                SpiffsAssetForensicMeta* forensicMeta = nullptr,
-               bool* heapRejected = nullptr) -> AsyncWebServerResponse* {
+               bool* heapRejected = nullptr,
+               bool* buildBusy = nullptr) -> AsyncWebServerResponse* {
         if (!request || !assetPath || !contentType || !spiffsReady_) return nullptr;
         if (heapRejected) *heapRejected = false;
+        if (buildBusy) *buildBusy = false;
 
         const size_t assetPathLen = strlen(assetPath);
         if (assetPathLen == 0U || assetPathLen >= 112U) return nullptr;
 
-        uint32_t freeBytes = 0U;
-        if (shouldRejectAssetByFreeHeap_(assetPath, &freeBytes)) {
-            if (heapRejected) *heapRejected = true;
-            LOGW("Web asset busy path=%s free=%lu",
+        if (!tryAcquireAssetBuildSlot_()) {
+            if (buildBusy) *buildBusy = true;
+            LOGW("Web asset busy path=%s reason=asset_build_busy in_flight=%u rejects=%lu",
                  assetPath,
-                 (unsigned long)freeBytes);
+                 (unsigned)gAssetBuildInFlight,
+                 (unsigned long)gAssetBuildRejectCount);
+            return nullptr;
+        }
+        struct AssetBuildSlotGuard {
+            ~AssetBuildSlotGuard() { releaseAssetBuildSlot_(); }
+        } slotGuard{};
+
+        uint32_t freeBytes = 0U;
+        uint32_t largestBytes = 0U;
+        if (shouldRejectAssetByFreeHeap_(assetPath, &freeBytes, &largestBytes)) {
+            if (heapRejected) *heapRejected = true;
+            LOGW("Web asset busy path=%s reason=low_heap free=%lu largest=%lu",
+                 assetPath,
+                 (unsigned long)freeBytes,
+                 (unsigned long)largestBytes);
             return nullptr;
         }
 
@@ -1649,6 +1726,7 @@ void WebInterfaceModule::startServer_()
             return nullptr;
         }
         response->addHeader("Vary", "Accept-Encoding");
+        response->addHeader("Connection", "close");
         if (hasGzip) {
             response->addHeader("Content-Encoding", "gzip");
         }
@@ -1691,10 +1769,15 @@ void WebInterfaceModule::startServer_()
     server_.on("/webinterface/app.css", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
+        bool buildBusy = false;
         AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/app.css", "text/css", true, nullptr, &forensicMeta, &heapRejected);
+            beginSpiffsAssetResponse(request, "/webinterface/app.css", "text/css", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
         if (!response) {
-            request->send(heapRejected ? 503 : 404, "text/plain", heapRejected ? "Busy" : "Not found");
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "text/plain", "Not found");
             return;
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
@@ -1702,10 +1785,15 @@ void WebInterfaceModule::startServer_()
     server_.on("/webinterface/sh.html", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
+        bool buildBusy = false;
         AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/sh.html", "text/html", true, nullptr, &forensicMeta, &heapRejected);
+            beginSpiffsAssetResponse(request, "/webinterface/sh.html", "text/html", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
         if (!response) {
-            request->send(heapRejected ? 503 : 404, "text/plain", heapRejected ? "Busy" : "Not found");
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "text/plain", "Not found");
             return;
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
@@ -1713,10 +1801,16 @@ void WebInterfaceModule::startServer_()
     server_.on("/webinterface/app.js", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
+        bool buildBusy = false;
         AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/app.js", "application/javascript", true, nullptr, &forensicMeta, &heapRejected);
+            beginSpiffsAssetResponse(
+                request, "/webinterface/app.js", "application/javascript", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
         if (!response) {
-            request->send(heapRejected ? 503 : 404, "text/plain", heapRejected ? "Busy" : "Not found");
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "text/plain", "Not found");
             return;
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
@@ -1724,10 +1818,15 @@ void WebInterfaceModule::startServer_()
     server_.on("/webinterface/light.css", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
+        bool buildBusy = false;
         AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/light.css", "text/css", true, nullptr, &forensicMeta, &heapRejected);
+            beginSpiffsAssetResponse(request, "/webinterface/light.css", "text/css", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
         if (!response) {
-            request->send(heapRejected ? 503 : 404, "text/plain", heapRejected ? "Busy" : "Not found");
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "text/plain", "Not found");
             return;
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
@@ -1735,10 +1834,16 @@ void WebInterfaceModule::startServer_()
     server_.on("/webinterface/light.js", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
+        bool buildBusy = false;
         AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/light.js", "application/javascript", true, nullptr, &forensicMeta, &heapRejected);
+            beginSpiffsAssetResponse(
+                request, "/webinterface/light.js", "application/javascript", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
         if (!response) {
-            request->send(heapRejected ? 503 : 404, "text/plain", heapRejected ? "Busy" : "Not found");
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "text/plain", "Not found");
             return;
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
@@ -1746,10 +1851,16 @@ void WebInterfaceModule::startServer_()
     server_.on("/webinterface/runtimeui.json", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
+        bool buildBusy = false;
         AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/runtimeui.json", "application/json", true, nullptr, &forensicMeta, &heapRejected);
+            beginSpiffsAssetResponse(
+                request, "/webinterface/runtimeui.json", "application/json", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
         if (!response) {
-            request->send(heapRejected ? 503 : 404, "text/plain", heapRejected ? "Busy" : "Not found");
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "text/plain", "Not found");
             return;
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
@@ -1757,15 +1868,16 @@ void WebInterfaceModule::startServer_()
     server_.on("/webinterface/cfgdocs.fr.json", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
+        bool buildBusy = false;
         AsyncWebServerResponse* response =
             beginSpiffsAssetResponse(
-                request, "/webinterface/cfgdocs.fr.json", "application/json", true, "/webinterface/cfgdocs.jz", &forensicMeta, &heapRejected);
+                request, "/webinterface/cfgdocs.fr.json", "application/json", true, "/webinterface/cfgdocs.jz", &forensicMeta, &heapRejected, &buildBusy);
         if (response) {
             sendPreparedAssetResponse(request, response, &forensicMeta);
             return;
         }
-        if (heapRejected) {
-            request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"Busy\",\"where\":\"cfgdocs\"}}");
+        if (heapRejected || buildBusy) {
+            sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
             return;
         }
         AsyncWebServerResponse* fallbackResponse =
@@ -1776,15 +1888,16 @@ void WebInterfaceModule::startServer_()
     server_.on("/webinterface/cfgmods.fr.json", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
+        bool buildBusy = false;
         AsyncWebServerResponse* response =
             beginSpiffsAssetResponse(
-                request, "/webinterface/cfgmods.fr.json", "application/json", true, "/webinterface/cfgmods.jz", &forensicMeta, &heapRejected);
+                request, "/webinterface/cfgmods.fr.json", "application/json", true, "/webinterface/cfgmods.jz", &forensicMeta, &heapRejected, &buildBusy);
         if (response) {
             sendPreparedAssetResponse(request, response, &forensicMeta);
             return;
         }
-        if (heapRejected) {
-            request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"Busy\",\"where\":\"cfgmods\"}}");
+        if (heapRejected || buildBusy) {
+            sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
             return;
         }
         AsyncWebServerResponse* fallbackResponse =
@@ -1869,12 +1982,16 @@ void WebInterfaceModule::startServer_()
             if (spiffsAssetExists("/webinterface/light.html")) {
                 SpiffsAssetForensicMeta forensicMeta{};
                 bool heapRejected = false;
+                bool buildBusy = false;
                 AsyncWebServerResponse* response =
-                    beginSpiffsAssetResponse(request, "/webinterface/light.html", "text/html", true, nullptr, &forensicMeta, &heapRejected);
+                    beginSpiffsAssetResponse(
+                        request, "/webinterface/light.html", "text/html", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
                 if (!response) {
-                    request->send(heapRejected ? 503 : 500,
-                                  "text/plain",
-                                  heapRejected ? "Busy" : "Failed to load light web interface");
+                    if (heapRejected || buildBusy) {
+                        sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                        return;
+                    }
+                    request->send(500, "text/plain", "Failed to load light web interface");
                     return;
                 }
                 sendPreparedAssetResponse(request, response, &forensicMeta);
@@ -1896,12 +2013,16 @@ void WebInterfaceModule::startServer_()
         if (spiffsAssetExists("/webinterface/index.html")) {
             SpiffsAssetForensicMeta forensicMeta{};
             bool heapRejected = false;
+            bool buildBusy = false;
             AsyncWebServerResponse* response =
-                beginSpiffsAssetResponse(request, "/webinterface/index.html", "text/html", false, nullptr, &forensicMeta, &heapRejected);
+                beginSpiffsAssetResponse(
+                    request, "/webinterface/index.html", "text/html", false, nullptr, &forensicMeta, &heapRejected, &buildBusy);
             if (!response) {
-                request->send(heapRejected ? 503 : 500,
-                              "text/plain",
-                              heapRejected ? "Busy" : "Failed to load web interface");
+                if (heapRejected || buildBusy) {
+                    sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                    return;
+                }
+                request->send(500, "text/plain", "Failed to load web interface");
                 return;
             }
             sendPreparedAssetResponse(request, response, &forensicMeta);
@@ -2605,14 +2726,16 @@ void WebInterfaceModule::startServer_()
 #else
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
+        bool buildBusy = false;
         AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(request, "/webinterface/runtimeui.json", "application/json", true, nullptr, &forensicMeta, &heapRejected);
+            beginSpiffsAssetResponse(
+                request, "/webinterface/runtimeui.json", "application/json", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
         if (!response) {
-            request->send(503,
-                          "application/json",
-                          heapRejected
-                              ? "{\"ok\":false,\"err\":{\"code\":\"Busy\",\"where\":\"runtime.manifest\"}}"
-                              : "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"runtime.manifest\"}}");
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+            } else {
+                request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"runtime.manifest\"}}");
+            }
             return;
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
@@ -3278,20 +3401,6 @@ void WebInterfaceModule::startServer_()
         request->redirect(webInterfaceLandingUrl());
     });
 
-    if (!provisioningOnly_ && bridgeUartEnabled_) {
-        ws_.onEvent([this](AsyncWebSocket* server,
-                           AsyncWebSocketClient* client,
-                           AwsEventType type,
-                           void* arg,
-                           uint8_t* data,
-                           size_t len) {
-            this->onWsEvent_(server, client, type, arg, data, len);
-        });
-        server_.addHandler(&ws_);
-    } else if (!provisioningOnly_) {
-        LOGI("WebInterface wsserial disabled (bridge UART unavailable)");
-    }
-
     if (!provisioningOnly_) {
         wsLog_.onEvent([this](AsyncWebSocket* server,
                               AsyncWebSocketClient* client,
@@ -3303,6 +3412,9 @@ void WebInterfaceModule::startServer_()
         });
 
         server_.addHandler(&wsLog_);
+        if (!bridgeUartEnabled_) {
+            LOGI("WebInterface flow serial stream unavailable (bridge UART unavailable)");
+        }
     } else {
         LOGI("WebInterface WS handlers disabled in provisioning-only mode");
     }

@@ -666,16 +666,16 @@ void PoolDeviceModule::logStartInterlock_(uint8_t slotIdx, uint8_t reason) const
     const PoolDeviceSlot& s = slots_[slotIdx];
     if (!s.used) return;
 
-    LOGW("Pool device start blocked slot=%u id=%s label=%s reason=%u depends=0x%02X enabled=%u actual=%u desired=%u runDayMs=%lu maxDaySec=%ld",
+    LOGW("PoolDev start blk sl=%u id=%s rsn=%u(%s) dep=0x%02X en=%u a=%u d=%u dayS=%lu maxS=%ld",
          (unsigned)slotIdx,
          s.id,
-         s.def.label,
          (unsigned)reason,
+         blockReasonStr_(reason),
          (unsigned)s.def.dependsOnMask,
          s.def.enabled ? 1U : 0U,
          s.actualOn ? 1U : 0U,
          s.desiredOn ? 1U : 0U,
-         (unsigned long)s.runningMsDay,
+         (unsigned long)toSeconds_(s.runningMsDay),
          (long)s.def.maxUptimeDaySec);
 
     if (reason != POOL_DEVICE_BLOCK_INTERLOCK) return;
@@ -684,15 +684,15 @@ void PoolDeviceModule::logStartInterlock_(uint8_t slotIdx, uint8_t reason) const
         if ((s.def.dependsOnMask & (uint8_t)(1u << i)) == 0) continue;
         if (i == slotIdx) continue;
         const PoolDeviceSlot& dep = slots_[i];
-        LOGW("Pool device dependency slot=%u used=%u id=%s label=%s enabled=%u actual=%u desired=%u block=%u",
+        LOGW("PoolDev dep sl=%u used=%u id=%s en=%u a=%u d=%u blk=%u(%s)",
              (unsigned)i,
              dep.used ? 1U : 0U,
              dep.id,
-             dep.def.label,
              dep.def.enabled ? 1U : 0U,
              dep.actualOn ? 1U : 0U,
              dep.desiredOn ? 1U : 0U,
-             (unsigned)dep.blockReason);
+             (unsigned)dep.blockReason,
+             blockReasonStr_(dep.blockReason));
     }
 }
 

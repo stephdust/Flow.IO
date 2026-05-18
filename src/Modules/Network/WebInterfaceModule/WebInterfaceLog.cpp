@@ -158,10 +158,9 @@ void WebInterfaceModule::flushLocalLogQueue_()
 {
     if (!started_ || !localLogQueue_) return;
 
-    char line[kLocalLogLineMax] = {0};
     if (wsLog_.count() == 0U) {
         uint32_t drained = 0U;
-        while (xQueueReceive(localLogQueue_, line, 0) == pdTRUE) {
+        while (xQueueReceive(localLogQueue_, lineBuf_, 0) == pdTRUE) {
             ++drained;
         }
         if (drained > 0U) {
@@ -229,12 +228,12 @@ void WebInterfaceModule::flushLocalLogQueue_()
             continue;
         }
 
-        if (xQueueReceive(localLogQueue_, line, 0) != pdTRUE) {
+        if (xQueueReceive(localLogQueue_, lineBuf_, 0) != pdTRUE) {
             break;
         }
-        if (!sendLogLine(line)) {
+        if (!sendLogLine(lineBuf_)) {
             uint32_t drained = 0U;
-            while (xQueueReceive(localLogQueue_, line, 0) == pdTRUE) {
+            while (xQueueReceive(localLogQueue_, lineBuf_, 0) == pdTRUE) {
                 ++drained;
             }
             wsLogDropCount_ += drained;

@@ -517,6 +517,7 @@ void I2CCfgClientModule::onStart(ConfigStore&, ServiceRegistry&)
 void I2CCfgClientModule::loop()
 {
     if (!cfgData_.enabled) return;
+    if (transportPaused_) return;
     if (priorityI2cWindowActive_()) return;
 
     const uint32_t now = millis();
@@ -613,6 +614,7 @@ bool I2CCfgClientModule::beginMasterAtFreq_(uint32_t freqHz, const char* reason)
 
 bool I2CCfgClientModule::ensureReady_()
 {
+    if (transportPaused_) return false;
     if (!ready_) {
         if (!cfgData_.enabled) {
             LOGW("ensureReady failed: module disabled");
@@ -641,7 +643,7 @@ bool I2CCfgClientModule::ensureReady_()
 
 bool I2CCfgClientModule::isReady_() const
 {
-    return ready_ && (reachable_ || runtimeCacheValid_);
+    return !transportPaused_ && ready_ && (reachable_ || runtimeCacheValid_);
 }
 
 void I2CCfgClientModule::recoverLinkAfterApplyFailure_(const char* step, bool transportOk, uint8_t status)
@@ -670,6 +672,7 @@ void I2CCfgClientModule::markRemoteAvailable_()
 
 bool I2CCfgClientModule::beginRequestSession_(TickType_t timeoutTicks, bool interactive)
 {
+    if (transportPaused_) return false;
     if (interactive) notePriorityI2cRequest_(kPriorityI2cHoldMs);
     if (!requestMutex_) return false;
     if (xSemaphoreTake(requestMutex_, timeoutTicks) != pdTRUE) {
@@ -1248,6 +1251,10 @@ bool I2CCfgClientModule::transactUnlocked_(uint8_t op,
 {
     statusOut = I2cCfgProtocol::StatusFailed;
     respLenOut = 0;
+    if (transportPaused_) {
+        statusOut = I2cCfgProtocol::StatusNotReady;
+        return false;
+    }
     if (!ready_) {
         LOGW("I2C transact aborted (not ready) op=%s", opName(op));
         return false;
@@ -2400,4 +2407,20 @@ bool I2CCfgClientModule::cmdFlowFactoryReset_(void* userCtx, const CommandReques
 bool I2CCfgClientModule::isReadySvc_()
 {
     return isReady_();
+}
+
+bool I2CCfgClientModule::setPausedSvc_(bool paused)
+{
+    if (transportPaused_ == paused) return true;
+    transportPaused_ = paused;
+    if (paused) {
+        notePriorityI2cRequest_(kPriorityI2cHoldMs);
+        markRemoteUnavailable_();
+        LOGW("I2C cfg client paused");
+    } else {
+        retryAfterMs_ = 0U;
+        nextRuntimeCacheRefreshAtMs_ = 0U;
+        LOGI("I2C cfg client resumed");
+    }
+    return true;
 }

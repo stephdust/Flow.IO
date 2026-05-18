@@ -168,6 +168,18 @@ static void configureDownloadHttp_(HTTPClient& http)
     http.setTimeout(Limits::FirmwareUpdate::Http::RequestTimeoutMs);
 }
 
+static const char* flasherErrorText_(int code)
+{
+    switch (code) {
+        case SUCCESS: return "success";
+        case ERR_FAIL: return "generic-failure";
+        case ERR_TIMEOUT: return "timeout";
+        case ERR_IMG_SIZE: return "image-too-large";
+        case ERR_INVALID_RESP: return "invalid-response";
+        case ERR_CMD_STATUS: return "target-command-failed";
+        default: return "unknown";
+    }
+}
 static bool appendUrlSegment_(char* out, size_t outLen, const char* segment)
 {
     if (!out || outLen == 0) return false;
@@ -244,6 +256,19 @@ void FirmwareUpdateModule::attachWebInterfaceSvcIfNeeded_()
 {
     if (webInterfaceSvc_ || !services_) return;
     webInterfaceSvc_ = services_->get<WebInterfaceService>(ServiceId::WebInterface);
+}
+
+void FirmwareUpdateModule::attachFlowCfgSvcIfNeeded_()
+{
+    if (flowCfgSvc_ || !services_) return;
+    flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
+}
+
+bool FirmwareUpdateModule::setFlowCfgPaused_(bool paused)
+{
+    attachFlowCfgSvcIfNeeded_();
+    if (!flowCfgSvc_ || !flowCfgSvc_->setPaused) return false;
+    return flowCfgSvc_->setPaused(flowCfgSvc_->ctx, paused);
 }
 
 bool FirmwareUpdateModule::resolveUrl_(FirmwareUpdateTarget target,
@@ -388,6 +413,21 @@ bool FirmwareUpdateModule::statusJson_(char* out, size_t outLen)
                            (unsigned long)snap.updatedAtMs,
                            snap.msg);
     return n > 0 && (size_t)n < outLen;
+}
+
+bool FirmwareUpdateModule::isBusy_()
+{
+    bool busy = false;
+    bool pending = false;
+    bool nextionReboot = false;
+    bool flowIoHwReboot = false;
+    portENTER_CRITICAL(&lock_);
+    busy = busy_;
+    pending = queuedJob_.pending;
+    nextionReboot = nextionRebootQueued_;
+    flowIoHwReboot = flowIoHardwareRebootQueued_;
+    portEXIT_CRITICAL(&lock_);
+    return busy || pending || nextionReboot || flowIoHwReboot;
 }
 
 bool FirmwareUpdateModule::configJson_(char* out, size_t outLen) const
@@ -668,6 +708,7 @@ bool FirmwareUpdateModule::runFlowIoUpdate_(const char* url, char* errOut, size_
     portEXIT_CRITICAL(&lock_);
 
     attachWebInterfaceSvcIfNeeded_();
+    const bool flowCfgPaused = setFlowCfgPaused_(true);
     if (webInterfaceSvc_ && webInterfaceSvc_->setPaused) {
         webInterfaceSvc_->setPaused(webInterfaceSvc_->ctx, true);
     }
@@ -682,13 +723,21 @@ bool FirmwareUpdateModule::runFlowIoUpdate_(const char* url, char* errOut, size_
     const int connectStatus = flasher.espConnect();
     if (connectStatus != SUCCESS) {
         char msg[64] = {0};
-        snprintf(msg, sizeof(msg), "target connect failed (%d)", connectStatus);
+        snprintf(msg,
+                 sizeof(msg),
+                 "target connect failed (%d:%s)",
+                 connectStatus,
+                 flasherErrorText_(connectStatus));
         writeSimpleError_(errOut, errOutLen, msg);
     } else {
         const int flashStatus = flasher.espFlashBinStream(*http.getStreamPtr(), (uint32_t)contentLength);
         if (flashStatus != SUCCESS) {
             char msg[64] = {0};
-            snprintf(msg, sizeof(msg), "stream flash failed (%d)", flashStatus);
+            snprintf(msg,
+                     sizeof(msg),
+                     "stream flash failed (%d:%s)",
+                     flashStatus,
+                     flasherErrorText_(flashStatus));
             writeSimpleError_(errOut, errOutLen, msg);
         } else {
             ok = true;
@@ -697,6 +746,9 @@ bool FirmwareUpdateModule::runFlowIoUpdate_(const char* url, char* errOut, size_
 
     if (webInterfaceSvc_ && webInterfaceSvc_->setPaused) {
         webInterfaceSvc_->setPaused(webInterfaceSvc_->ctx, false);
+    }
+    if (flowCfgPaused) {
+        (void)setFlowCfgPaused_(false);
     }
 
     http.end();
@@ -1221,6 +1273,7 @@ void FirmwareUpdateModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cmdSvc_ = services.get<CommandService>(ServiceId::Command);
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
     webInterfaceSvc_ = services.get<WebInterfaceService>(ServiceId::WebInterface);
+    flowCfgSvc_ = services.get<FlowCfgRemoteService>(ServiceId::FlowCfg);
 
     cfg.registerVar(updateHostVar_);
     cfg.registerVar(updatePathVar_);

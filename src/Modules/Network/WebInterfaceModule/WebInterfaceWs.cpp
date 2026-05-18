@@ -112,107 +112,12 @@ void logWsSendHeapForensic_(const char* channel,
 #endif
 } // namespace
 
-void WebInterfaceModule::onWsEvent_(AsyncWebSocket*,
-                                    AsyncWebSocketClient* client,
-                                    AwsEventType type,
-                                    void* arg,
-                                    uint8_t* data,
-                                    size_t len)
-{
-    if (type == WS_EVT_CONNECT ||
-        type == WS_EVT_DISCONNECT ||
-        type == WS_EVT_DATA ||
-        type == WS_EVT_PONG ||
-        type == WS_EVT_ERROR) {
-        noteWsActivity_();
-    }
-
-#if FLOW_WEB_HEAP_FORENSICS
-    const uint32_t forensicStartUs = micros();
-    const HeapForensicSnapshot forensicStartHeap = captureHeapForensicSnapshot_();
-    const auto logForensic = [&](uint32_t clients) {
-        logWsEventHeapForensic_("wsserial", type, client, len, clients, forensicStartUs, forensicStartHeap);
-    };
-#endif
-
-    if (type == WS_EVT_CONNECT) {
-        ++wsFlowConnectCount_;
-        if (client) {
-            client->setCloseClientOnQueueFull(false);
-            client->keepAlivePeriod(15);
-            client->text("[webinterface] connecté");
-            LOGI("wsserial connect id=%lu clients=%u connects=%lu",
-                 (unsigned long)client->id(),
-                 (unsigned)ws_.count(),
-                 (unsigned long)wsFlowConnectCount_);
-        }
-#if FLOW_WEB_HEAP_FORENSICS
-        logForensic((uint32_t)ws_.count());
-#endif
-        return;
-    }
-
-    if (type == WS_EVT_DISCONNECT) {
-        ++wsFlowDisconnectCount_;
-        LOGW("wsserial disconnect id=%lu clients=%u disconnects=%lu sent=%lu dropped=%lu partial=%lu discarded=%lu heap=%lu",
-             (unsigned long)(client ? client->id() : 0U),
-             (unsigned)ws_.count(),
-             (unsigned long)wsFlowDisconnectCount_,
-             (unsigned long)wsFlowSentCount_,
-             (unsigned long)wsFlowDropCount_,
-             (unsigned long)wsFlowPartialCount_,
-             (unsigned long)wsFlowDiscardCount_,
-             (unsigned long)ESP.getFreeHeap());
-#if FLOW_WEB_HEAP_FORENSICS
-        logForensic((uint32_t)ws_.count());
-#endif
-        return;
-    }
-
-    if (type != WS_EVT_DATA || !arg || !data || len == 0) {
-#if FLOW_WEB_HEAP_FORENSICS
-        if (type == WS_EVT_ERROR) {
-            logForensic((uint32_t)ws_.count());
-        }
-#endif
-        return;
-    }
-
-    AwsFrameInfo* info = reinterpret_cast<AwsFrameInfo*>(arg);
-    if (!info->final || info->index != 0 || info->len != len || info->opcode != WS_TEXT) {
-#if FLOW_WEB_HEAP_FORENSICS
-        logForensic((uint32_t)ws_.count());
-#endif
-        return;
-    }
-
-    constexpr size_t kMaxIncoming = 192;
-    char msg[kMaxIncoming] = {0};
-    size_t n = (len < (kMaxIncoming - 1)) ? len : (kMaxIncoming - 1);
-    memcpy(msg, data, n);
-    msg[n] = '\0';
-
-    if (uartPaused_) {
-        if (client) client->text("[webinterface] uart occupé (mise à jour firmware en cours)");
-#if FLOW_WEB_HEAP_FORENSICS
-        logForensic((uint32_t)ws_.count());
-#endif
-        return;
-    }
-
-    uart_.write(reinterpret_cast<const uint8_t*>(msg), n);
-    uart_.write('\n');
-#if FLOW_WEB_HEAP_FORENSICS
-    logForensic((uint32_t)ws_.count());
-#endif
-}
-
 void WebInterfaceModule::onWsLogEvent_(AsyncWebSocket*,
                                        AsyncWebSocketClient* client,
                                        AwsEventType type,
-                                       void*,
-                                       uint8_t*,
-                                       size_t)
+                                       void* arg,
+                                       uint8_t* data,
+                                       size_t len)
 {
     if (type == WS_EVT_CONNECT ||
         type == WS_EVT_DISCONNECT ||
@@ -230,9 +135,19 @@ void WebInterfaceModule::onWsLogEvent_(AsyncWebSocket*,
     if (type == WS_EVT_CONNECT) {
         ++wsLogConnectCount_;
         if (client) {
-            client->setCloseClientOnQueueFull(false);
+            if (wsLog_.count() > 1U) {
+                client->close(1008, "busy");
+                LOGW("wslog reject client id=%lu clients=%u",
+                     (unsigned long)client->id(),
+                     (unsigned)wsLog_.count());
+                return;
+            }
+            client->setCloseClientOnQueueFull(true);
             client->keepAlivePeriod(15);
-            client->text("[webinterface] logs supervisor connectes");
+            const bool flowSource = (wsActiveSource_() == 1U);
+            client->text(flowSource
+                ? "[webinterface] logs connectes source=flowio"
+                : "[webinterface] logs connectes source=supervisor");
         }
         LOGI("wslog connect id=%lu clients=%u connects=%lu",
              (unsigned long)(client ? client->id() : 0U),
@@ -240,6 +155,9 @@ void WebInterfaceModule::onWsLogEvent_(AsyncWebSocket*,
              (unsigned long)wsLogConnectCount_);
     } else if (type == WS_EVT_DISCONNECT) {
         ++wsLogDisconnectCount_;
+        if (wsLog_.count() == 0U) {
+            setWsActiveSource_(0U);
+        }
         LOGW("wslog disconnect id=%lu clients=%u disconnects=%lu sent=%lu dropped=%lu partial=%lu discarded=%lu coalesced=%lu heap=%lu",
              (unsigned long)(client ? client->id() : 0U),
              (unsigned)wsLog_.count(),
@@ -250,6 +168,28 @@ void WebInterfaceModule::onWsLogEvent_(AsyncWebSocket*,
              (unsigned long)wsLogDiscardCount_,
              (unsigned long)wsLogCoalescedCount_,
              (unsigned long)ESP.getFreeHeap());
+    } else if (type == WS_EVT_DATA && arg && data && len > 0U) {
+        AwsFrameInfo* info = reinterpret_cast<AwsFrameInfo*>(arg);
+        if (!info->final || info->index != 0 || info->len != len || info->opcode != WS_TEXT) {
+            return;
+        }
+        char cmd[40] = {0};
+        const size_t n = (len < (sizeof(cmd) - 1U)) ? len : (sizeof(cmd) - 1U);
+        memcpy(cmd, data, n);
+        cmd[n] = '\0';
+        if (strcmp(cmd, "src:flowio") == 0) {
+            if (bridgeUartEnabled_) {
+                setWsActiveSource_(1U);
+                if (client) client->text("[webinterface] source=flowio");
+            } else {
+                if (client) client->text("[webinterface] source=flowio indisponible");
+            }
+        } else if (strcmp(cmd, "src:supervisor") == 0) {
+            setWsActiveSource_(0U);
+            if (client) client->text("[webinterface] source=supervisor");
+        } else if (client) {
+            client->text("[webinterface] cmd inconnu");
+        }
     }
 
 #if FLOW_WEB_HEAP_FORENSICS
@@ -291,7 +231,7 @@ void WebInterfaceModule::flushLine_(bool force)
 
     const size_t payloadLen = lineLen_;
     lineBuf_[lineLen_] = '\0';
-    if (ws_.count() == 0) {
+    if (wsLog_.count() == 0) {
         lineLen_ = 0;
         return;
     }
@@ -309,14 +249,14 @@ void WebInterfaceModule::flushLine_(bool force)
     const HeapForensicSnapshot forensicStartHeap = captureHeapForensicSnapshot_();
 #endif
 
-    if (!ws_.availableForWriteAll()) {
+    if (!wsLog_.availableForWriteAll()) {
         ++wsFlowDropCount_;
         logWsFlowPressure_("queue_full");
 #if FLOW_WEB_HEAP_FORENSICS
-        logWsSendHeapForensic_("wsserial",
+        logWsSendHeapForensic_("wsflow",
                                "qfull",
                                payloadLen,
-                               (uint32_t)ws_.count(),
+                               (uint32_t)wsLog_.count(),
                                forensicStartUs,
                                forensicStartHeap);
 #endif
@@ -324,7 +264,7 @@ void WebInterfaceModule::flushLine_(bool force)
         return;
     }
 
-    const AsyncWebSocket::SendStatus status = ws_.textAll(lineBuf_);
+    const AsyncWebSocket::SendStatus status = wsLog_.textAll(lineBuf_);
     if (status == AsyncWebSocket::ENQUEUED) {
         ++wsFlowSentCount_;
         noteWsActivity_();
@@ -339,10 +279,10 @@ void WebInterfaceModule::flushLine_(bool force)
         }
     }
 #if FLOW_WEB_HEAP_FORENSICS
-    logWsSendHeapForensic_("wsserial",
+    logWsSendHeapForensic_("wsflow",
                            wsSendStatusName_(status),
                            payloadLen,
-                           (uint32_t)ws_.count(),
+                           (uint32_t)wsLog_.count(),
                            forensicStartUs,
                            forensicStartHeap);
 #endif
@@ -354,9 +294,9 @@ void WebInterfaceModule::logWsFlowPressure_(const char* reason)
     const uint32_t nowMs = millis();
     if ((nowMs - wsFlowLastPressureLogMs_) < 2000U) return;
     wsFlowLastPressureLogMs_ = nowMs;
-    LOGW("wsserial pressure reason=%s clients=%u sent=%lu dropped=%lu partial=%lu discarded=%lu heap=%lu",
+    LOGW("wsflow pressure reason=%s clients=%u sent=%lu dropped=%lu partial=%lu discarded=%lu heap=%lu",
          reason ? reason : "unknown",
-         (unsigned)ws_.count(),
+         (unsigned)wsLog_.count(),
          (unsigned long)wsFlowSentCount_,
          (unsigned long)wsFlowDropCount_,
          (unsigned long)wsFlowPartialCount_,

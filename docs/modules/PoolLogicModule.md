@@ -227,6 +227,11 @@ Les réponses d'erreur suivent `ErrorCode` (`MissingArgs`, `MissingValue`, `NotR
 - états actionneurs: lecture `pooldev.readActualOn(...)`
 - états alarmes PSI: via `alarmSvc->isActive(...)`
 
+Convention logique des capteurs digitaux de niveau (règle harmonisée):
+- `true` (`ON`) = problème détecté (niveau bas / défaut)
+- `false` (`OFF`) = état normal (pas de problème)
+- cette convention est appliquée à `pool_lvl_io_id`, `ph_lvl_io_id`, `chl_lvl_io_id`
+
 ### Priorité des règles (filtration)
 
 Ordre de décision appliqué à chaque cycle (`200 ms`):
@@ -253,7 +258,7 @@ Logique principale:
   - nécessite filtration active, température mini (`secure_elec_t`) et délai (`dly_electro_min`)
   - en mode `electro_run_md`, asservissement ORP avec hystérésis implicite (`<= 100%` pour maintenir, `<= 90%` pour démarrer)
 - remplissage:
-  - démarre si niveau bas
+  - démarre si niveau bas (`pool_lvl_io_id == true`)
   - respecte un minimum de marche `fill_min_on_s`
 
 ### Alarmes pression PSI
@@ -270,6 +275,10 @@ Logique principale:
 
 ### Alarmes niveau cuves dosage
 
+- `AlarmId::PoolWaterLevelLow`
+  - non-latched (auto-clear quand entrée inactive)
+  - délai ON `500 ms`, OFF `1000 ms`, répétition `60000 ms`
+  - condition: entrée digitale `pool_lvl_io_id == true`
 - `AlarmId::PoolPhTankLow`
   - non-latched (auto-clear quand entrée inactive)
   - délai ON `500 ms`, OFF `1000 ms`, répétition `60000 ms`
@@ -359,6 +368,13 @@ Il passe par `PoolDeviceService::writeDesired` sur:
 - slot ORP/chlore liquide (`POOL_IO_SLOT_CHLORINE_PUMP`)
 
 Les interlocks `PoolDeviceModule` restent appliqués.
+
+Codes de blocage renvoyés par `PoolDevice` (`blockReason`):
+- `0` = `none`
+- `1` = `disabled`
+- `2` = `interlock`
+- `3` = `io_error`
+- `4` = `max_uptime` (limite journalière `max_uptime_day_s` atteinte)
 
 ## Runtime MQTT (`rt/poollogic/*`)
 

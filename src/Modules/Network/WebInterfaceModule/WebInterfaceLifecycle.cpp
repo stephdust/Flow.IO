@@ -27,6 +27,23 @@ bool WebInterfaceModule::setPaused_(bool paused)
     return true;
 }
 
+uint8_t WebInterfaceModule::wsActiveSource_() const
+{
+    uint8_t source = 0U;
+    portENTER_CRITICAL(&wsSourceMux_);
+    source = wsSource_;
+    portEXIT_CRITICAL(&wsSourceMux_);
+    return source;
+}
+
+void WebInterfaceModule::setWsActiveSource_(uint8_t source)
+{
+    const uint8_t sanitized = (source == 1U) ? 1U : 0U;
+    portENTER_CRITICAL(&wsSourceMux_);
+    wsSource_ = sanitized;
+    portEXIT_CRITICAL(&wsSourceMux_);
+}
+
 bool WebInterfaceModule::isPaused_() const
 {
     return uartPaused_;
@@ -44,8 +61,8 @@ bool WebInterfaceModule::getHealth_(WebInterfaceHealth* out) const
 void WebInterfaceModule::noteLoopActivity_()
 {
     const uint32_t nowMs = millis();
-    const uint16_t wsSerialClients = (uint16_t)ws_.count();
     const uint16_t wsLogClients = (uint16_t)wsLog_.count();
+    const uint16_t wsSerialClients = (wsActiveSource_() == 1U) ? wsLogClients : 0U;
     portENTER_CRITICAL(&healthMux_);
     health_.snapshotMs = nowMs;
     health_.lastLoopMs = nowMs;
@@ -70,8 +87,8 @@ void WebInterfaceModule::noteHttpActivity_()
 void WebInterfaceModule::noteWsActivity_()
 {
     const uint32_t nowMs = millis();
-    const uint16_t wsSerialClients = (uint16_t)ws_.count();
     const uint16_t wsLogClients = (uint16_t)wsLog_.count();
+    const uint16_t wsSerialClients = (wsActiveSource_() == 1U) ? wsLogClients : 0U;
     portENTER_CRITICAL(&healthMux_);
     health_.snapshotMs = nowMs;
     health_.lastWsActivityMs = nowMs;
@@ -169,52 +186,46 @@ void WebInterfaceModule::loop()
 
     if (uartPaused_) {
         flushLocalLogQueue_();
-        if (started_) {
-            ws_.cleanupClients();
-            wsLog_.cleanupClients();
-        }
+        if (started_) wsLog_.cleanupClients();
         vTaskDelay(pdMS_TO_TICKS(40));
         return;
     }
 
     if (provisioningOnly_) {
-        if (started_) ws_.cleanupClients();
         if (started_) wsLog_.cleanupClients();
         vTaskDelay(pdMS_TO_TICKS(25));
         return;
     }
 
-    if (!bridgeUartEnabled_) {
+    const bool wsClientActive = started_ && (wsLog_.count() > 0U);
+    const bool flowSourceActive = wsClientActive && (wsActiveSource_() == 1U) && bridgeUartEnabled_;
+
+    if (flowSourceActive) {
+        while (uart_.available() > 0) {
+            int raw = uart_.read();
+            if (raw < 0) break;
+
+            const uint8_t c = static_cast<uint8_t>(raw);
+
+            if (c == '\r') continue;
+            if (c == '\n') {
+                flushLine_(true);
+                continue;
+            }
+
+            if (lineLen_ >= (kLineBufferSize - 1)) {
+                flushLine_(true);
+            }
+
+            if (lineLen_ < (kLineBufferSize - 1)) {
+                lineBuf_[lineLen_++] = isLogByte_(c) ? static_cast<char>(c) : '.';
+            }
+        }
+    } else {
+        lineLen_ = 0;
         flushLocalLogQueue_();
-        if (started_) wsLog_.cleanupClients();
-        vTaskDelay(pdMS_TO_TICKS(20));
-        return;
     }
 
-    while (uart_.available() > 0) {
-        int raw = uart_.read();
-        if (raw < 0) break;
-
-        const uint8_t c = static_cast<uint8_t>(raw);
-
-        if (c == '\r') continue;
-        if (c == '\n') {
-            flushLine_(true);
-            continue;
-        }
-
-        if (lineLen_ >= (kLineBufferSize - 1)) {
-            flushLine_(true);
-        }
-
-        if (lineLen_ < (kLineBufferSize - 1)) {
-            lineBuf_[lineLen_++] = isLogByte_(c) ? static_cast<char>(c) : '.';
-        }
-    }
-
-    flushLocalLogQueue_();
-
-    if (started_) ws_.cleanupClients();
     if (started_) wsLog_.cleanupClients();
 
     vTaskDelay(pdMS_TO_TICKS(10));

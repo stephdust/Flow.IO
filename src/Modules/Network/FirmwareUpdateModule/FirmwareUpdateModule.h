@@ -109,6 +109,7 @@ private:
     const CommandService* cmdSvc_ = nullptr;
     const WifiService* wifiSvc_ = nullptr;
     const WebInterfaceService* webInterfaceSvc_ = nullptr;
+    const FlowCfgRemoteService* flowCfgSvc_ = nullptr;
 
     int8_t flowIoEnablePin_ = -1;
     int8_t flowIoBootPin_ = -1;
@@ -138,6 +139,7 @@ private:
     bool queueNextionReboot_(char* errOut, size_t errOutLen);
     bool queueFlowIoHardwareReboot_(char* errOut, size_t errOutLen);
     bool statusJson_(char* out, size_t outLen);
+    bool isBusy_();
     bool configJson_(char* out, size_t outLen) const;
     bool checkManifestJson_(char* out, size_t outLen, char* errOut, size_t errOutLen);
     bool setConfig_(const char* updateHost,
@@ -171,12 +173,15 @@ private:
     void setError_(FirmwareUpdateTarget target, const char* msg);
     void onProgressChunk_(uint32_t chunkBytes);
     void attachWebInterfaceSvcIfNeeded_();
+    void attachFlowCfgSvcIfNeeded_();
+    bool setFlowCfgPaused_(bool paused);
     static const char* stateStr_(UpdateState s);
     static const char* targetStr_(FirmwareUpdateTarget t);
 
     FirmwareUpdateService firmwareUpdateSvc_{
         ServiceBinding::bind<&FirmwareUpdateModule::startUpdate_>,
         ServiceBinding::bind<&FirmwareUpdateModule::statusJson_>,
+        ServiceBinding::bind<&FirmwareUpdateModule::isBusy_>,
         ServiceBinding::bind<&FirmwareUpdateModule::configJson_>,
         ServiceBinding::bind<&FirmwareUpdateModule::checkManifestJson_>,
         ServiceBinding::bind<&FirmwareUpdateModule::setConfig_>,

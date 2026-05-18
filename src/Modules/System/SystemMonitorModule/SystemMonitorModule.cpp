@@ -29,6 +29,8 @@ static constexpr uint32_t kWebWatchdogMinStaleMs = 1000U;
 static constexpr uint32_t kWebWatchdogMinBootGraceMs = 5000U;
 static constexpr uint32_t kWebWatchdogClientIdleFactor = 2U;
 static constexpr uint8_t kWebWatchdogMaxFailuresCap = 20U;
+static constexpr uint32_t kPressurePanicRebootDelayMs = 5000U;
+static constexpr uint32_t kPressureCriticalRebootDelayMs = 15000U;
 static constexpr MqttConfigRouteProducer::Route kSysMonCfgRoutes[] = {
     {1, {(uint8_t)ConfigModuleId::SystemMonitor, kSysMonCfgBranch}, "sysmon", "sysmon", (uint8_t)MqttPublishPriority::Normal, nullptr},
 };
@@ -37,6 +39,40 @@ volatile bool gHeapAllocFailedPending = false;
 volatile size_t gHeapAllocFailedSize = 0;
 volatile uint32_t gHeapAllocFailedCaps = 0;
 const char* volatile gHeapAllocFailedFunction = nullptr;
+
+enum class MemoryPressureState : uint8_t {
+    Normal = 0,
+    Constrained = 1,
+    Shedding = 2,
+    Critical = 3,
+    Panic = 4,
+};
+
+MemoryPressureState deriveMemoryPressureState_(const SystemStatsSnapshot& snap)
+{
+    const uint32_t freeBytes = snap.heap.freeBytes;
+    const uint32_t largestBytes = snap.heap.largestFreeBlock;
+    const uint8_t frag = snap.heap.fragPercent;
+
+    // Supervisor profile: classify pressure from current live heap conditions only.
+    if (freeBytes < 20000U && largestBytes < 8000U && frag > 45U) return MemoryPressureState::Panic;
+    if (freeBytes < 24000U && largestBytes < 12000U && frag > 35U) return MemoryPressureState::Critical;
+    if (freeBytes < 28000U && largestBytes < 16000U && frag > 28U) return MemoryPressureState::Shedding;
+    if (freeBytes < 30000U && largestBytes < 20000U && frag > 20U) return MemoryPressureState::Constrained;
+    return MemoryPressureState::Normal;
+}
+
+const char* memoryPressureStateStr_(MemoryPressureState st)
+{
+    switch (st) {
+    case MemoryPressureState::Normal: return "normal";
+    case MemoryPressureState::Constrained: return "constrained";
+    case MemoryPressureState::Shedding: return "shedding";
+    case MemoryPressureState::Critical: return "critical";
+    case MemoryPressureState::Panic: return "panic";
+    default: return "normal";
+    }
+}
 
 void onHeapAllocFailed_(size_t size, uint32_t caps, const char* functionName)
 {
@@ -101,6 +137,7 @@ void SystemMonitorModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     wifiSvc = services.get<WifiService>(ServiceId::Wifi);
     netAccessSvc_ = services.get<NetworkAccessService>(ServiceId::NetworkAccess);
     webInterfaceSvc_ = services.get<WebInterfaceService>(ServiceId::WebInterface);
+    fwUpdateSvc_ = services.get<FirmwareUpdateService>(ServiceId::FirmwareUpdate);
     cmdSvc_ = services.get<CommandService>(ServiceId::Command);
     cfgSvc  = services.get<ConfigStoreService>(ServiceId::ConfigStore);
     logHub  = services.get<LogHubService>(ServiceId::LogHub);
@@ -610,6 +647,84 @@ void SystemMonitorModule::logPendingHeapAllocFailure_()
          (unsigned long)snap.heap.largestFreeBlock);
 }
 
+void SystemMonitorModule::pollMemoryPressureReboot_(uint32_t now)
+{
+    const uint32_t bootGraceMs =
+        (cfgData_.webWatchdogBootGraceMs > (int32_t)kWebWatchdogMinBootGraceMs)
+            ? (uint32_t)cfgData_.webWatchdogBootGraceMs
+            : kWebWatchdogMinBootGraceMs;
+    if (now < bootGraceMs) {
+        memoryPressureState_ = (uint8_t)MemoryPressureState::Normal;
+        memoryPressureStateSinceMs_ = now;
+        memoryPressureRebootIssued_ = false;
+        return;
+    }
+
+    if (!fwUpdateSvc_ && services_) {
+        fwUpdateSvc_ = services_->get<FirmwareUpdateService>(ServiceId::FirmwareUpdate);
+    }
+    const bool firmwareUpdateBusy =
+        fwUpdateSvc_ && fwUpdateSvc_->isBusy && fwUpdateSvc_->isBusy(fwUpdateSvc_->ctx);
+
+    SystemStatsSnapshot snap{};
+    SystemStats::collect(snap);
+    const MemoryPressureState state = deriveMemoryPressureState_(snap);
+    const uint8_t stateRaw = (uint8_t)state;
+
+    if (stateRaw != memoryPressureState_) {
+        const MemoryPressureState prevState = (MemoryPressureState)memoryPressureState_;
+        const bool prevCriticalOrWorse =
+            (prevState == MemoryPressureState::Critical) || (prevState == MemoryPressureState::Panic);
+        const bool nowCriticalOrWorse =
+            (state == MemoryPressureState::Critical) || (state == MemoryPressureState::Panic);
+        const bool suppressTransitionLog = firmwareUpdateBusy && !prevCriticalOrWorse && !nowCriticalOrWorse;
+
+        memoryPressureState_ = stateRaw;
+        memoryPressureStateSinceMs_ = now;
+        memoryPressureRebootIssued_ = false;
+        if (!suppressTransitionLog) {
+            LOGW("Memory pressure -> %s free=%lu largest=%lu frag=%u%%%s",
+                 memoryPressureStateStr_(state),
+                 (unsigned long)snap.heap.freeBytes,
+                 (unsigned long)snap.heap.largestFreeBlock,
+                 (unsigned int)snap.heap.fragPercent,
+                 firmwareUpdateBusy ? " fwupdate=busy" : "");
+        }
+        return;
+    }
+
+    if (memoryPressureRebootIssued_) return;
+    if (!cfgData_.webWatchdogAutoReboot) return;
+
+    const uint32_t sinceMs = memoryPressureStateSinceMs_;
+    const uint32_t heldMs = (sinceMs > 0U) ? (uint32_t)(now - sinceMs) : 0U;
+
+    bool shouldReboot = false;
+    if (state == MemoryPressureState::Panic && heldMs >= kPressurePanicRebootDelayMs) {
+        shouldReboot = true;
+    } else if (state == MemoryPressureState::Critical && heldMs >= kPressureCriticalRebootDelayMs) {
+        shouldReboot = true;
+    }
+    if (!shouldReboot) return;
+
+    memoryPressureRebootIssued_ = true;
+    LOGE("Memory pressure persisted (%s %lums), reboot requested free=%lu largest=%lu frag=%u%%",
+         memoryPressureStateStr_(state),
+         (unsigned long)heldMs,
+         (unsigned long)snap.heap.freeBytes,
+         (unsigned long)snap.heap.largestFreeBlock,
+         (unsigned int)snap.heap.fragPercent);
+    if (!cmdSvc_ && services_) {
+        cmdSvc_ = services_->get<CommandService>(ServiceId::Command);
+    }
+    if (cmdSvc_ && cmdSvc_->execute) {
+        char reply[160] = {0};
+        (void)cmdSvc_->execute(cmdSvc_->ctx, "system.reboot", "{}", nullptr, reply, sizeof(reply));
+    }
+    vTaskDelay(pdMS_TO_TICKS(150));
+    esp_restart();
+}
+
 void SystemMonitorModule::pollWebWatchdog_(uint32_t now)
 {
     if (!cfgData_.webWatchdogEnabled) {
@@ -788,6 +903,7 @@ void SystemMonitorModule::loop() {
     pollHeapWatch_(now);
     logPendingHeapAllocFailure_();
 #endif
+    pollMemoryPressureReboot_(now);
     if (cfgStore_) {
         cfgStore_->logNvsWriteSummaryIfDue(now, 60000U);
     }

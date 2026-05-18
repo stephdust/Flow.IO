@@ -16,6 +16,14 @@
 #include <freertos/queue.h>
 #include "Core/EventBus/EventBus.h"
 
+#ifndef FLOW_ENABLE_WEB_SERIAL_TERMINAL
+#define FLOW_ENABLE_WEB_SERIAL_TERMINAL 0
+#endif
+
+#ifndef FLOW_ENABLE_READONLY_SERIAL_LOG
+#define FLOW_ENABLE_READONLY_SERIAL_LOG 1
+#endif
+
 struct BoardSpec;
 
 class WebInterfaceModule : public Module {
@@ -59,12 +67,19 @@ public:
 
 private:
     static constexpr int kServerPort = 80;
+    static constexpr size_t kLocalLogLineMax = 192;
 
     // Keep UART framing aligned with core log entry limits.
     static constexpr size_t kSerialLogLineChars =
         (size_t)LOG_MSG_MAX + (size_t)LOG_MODULE_NAME_MAX + 64U;
-    static constexpr size_t kLineBufferSize = kSerialLogLineChars * 3U;
-    static constexpr size_t kUartRxBufferSize = kLineBufferSize + kSerialLogLineChars;
+#if FLOW_ENABLE_READONLY_SERIAL_LOG
+    // Shared line buffer is reused by wslog dequeue path in read-only mode.
+    static constexpr size_t kLineBufferSize = kLocalLogLineMax;
+    static constexpr size_t kUartRxBufferSize = kLineBufferSize + 64U;
+#else
+    static constexpr size_t kLineBufferSize = kLocalLogLineMax;
+    static constexpr size_t kUartRxBufferSize = 64U;
+#endif
 
     // Server and network integration
     void startServer_();
@@ -74,12 +89,6 @@ private:
     bool getNetworkIp_(char* out, size_t len, NetworkAccessMode* modeOut) const;
 
     // WebSocket transport
-    void onWsEvent_(AsyncWebSocket* server,
-                    AsyncWebSocketClient* client,
-                    AwsEventType type,
-                    void* arg,
-                    uint8_t* data,
-                    size_t len);
     void onWsLogEvent_(AsyncWebSocket* server,
                        AsyncWebSocketClient* client,
                        AwsEventType type,
@@ -115,6 +124,8 @@ private:
     void noteServerStarted_();
     static void onHttpActivityHook_(void* ctx);
     void scheduleReboot_(uint32_t delayMs, const char* reason);
+    uint8_t wsActiveSource_() const;
+    void setWsActiveSource_(uint8_t source);
 
     HardwareSerial& uart_ = Serial2;
     uint32_t uartBaud_ = 115200U;
@@ -123,7 +134,6 @@ private:
     bool bridgeUartConfigured_ = false;
     bool bridgeUartEnabled_ = false;
     AsyncWebServer server_{kServerPort};
-    AsyncWebSocket ws_{"/wsserial"};
     AsyncWebSocket wsLog_{"/wslog"};
 
     const LogHubService* logHub_ = nullptr;
@@ -150,12 +160,11 @@ private:
     uint32_t rebootAtMs_ = 0;
     char rebootReason_[24] = {0};
 
-    static constexpr size_t kLocalLogLineMax = 192;
 #if defined(FLOW_PROFILE_MICRONOVA)
     static constexpr UBaseType_t kLocalLogQueueLen = 6;
     static constexpr size_t kRuntimeValuesBodyMax = 512U;
 #else
-    static constexpr UBaseType_t kLocalLogQueueLen = 24;
+    static constexpr UBaseType_t kLocalLogQueueLen = 12;
     static constexpr size_t kRuntimeValuesBodyMax = 2048U;
 #endif
     QueueHandle_t localLogQueue_ = nullptr;
@@ -182,6 +191,8 @@ private:
     uint32_t wsLogCoalescedCount_ = 0;
     uint32_t wsLogLastPressureLogMs_ = 0;
     uint32_t wsLogPendingSummaryDrops_ = 0;
+    mutable portMUX_TYPE wsSourceMux_ = portMUX_INITIALIZER_UNLOCKED;
+    uint8_t wsSource_ = 0; // 0=supervisor local logs, 1=flow serial logs
     mutable portMUX_TYPE healthMux_ = portMUX_INITIALIZER_UNLOCKED;
     WebInterfaceHealth health_{};
 

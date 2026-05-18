@@ -148,12 +148,15 @@ Chaque slot peut dépendre d'autres slots (`dependsOnMask`):
 - au démarrage d'un slot, tous les slots dépendance doivent être `actualOn`
 - si dépendance tombe, arrêt forcé + `blockReason=interlock`
 
-Blocages possibles:
-- `none`
-- `disabled`
-- `interlock`
-- `io_error`
-- `max_uptime`
+Codes `blockReason` (`PoolDeviceRuntimeBlockReason`):
+- `0` = `none`
+- `1` = `disabled`
+- `2` = `interlock`
+- `3` = `io_error`
+- `4` = `max_uptime`
+
+Note diagnostic:
+- dans les logs "start blocked", `reason=4` signifie que la limite `max_uptime_day_s` du slot est atteinte.
 
 ### Limite de runtime journalier (`max_uptime_day_s`)
 

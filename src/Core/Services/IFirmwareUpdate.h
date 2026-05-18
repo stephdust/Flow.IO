@@ -17,6 +17,7 @@ enum class FirmwareUpdateTarget : uint8_t {
 struct FirmwareUpdateService {
     bool (*start)(void* ctx, FirmwareUpdateTarget target, const char* url, char* errOut, size_t errOutLen);
     bool (*statusJson)(void* ctx, char* out, size_t outLen);
+    bool (*isBusy)(void* ctx);
     bool (*configJson)(void* ctx, char* out, size_t outLen);
     bool (*checkManifestJson)(void* ctx, char* out, size_t outLen, char* errOut, size_t errOutLen);
     bool (*setConfig)(void* ctx,
