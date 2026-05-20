@@ -51,6 +51,7 @@
     let unifyStatusCardIcons = false;
     let flowStatusLiveTimer = null;
     let pageLoadToken = 0;
+    let currentPageId = '';
     let deferredVisualAssetsScheduled = false;
     let menuAssetsActivated = false;
     let deferredMenuAssetsArmed = false;
@@ -798,6 +799,7 @@
     }
 
     function getActivePageId() {
+      if (currentPageId) return currentPageId;
       const active = document.querySelector('.page.active');
       return active ? active.id : '';
     }
@@ -1113,6 +1115,7 @@
     }
 
     async function refreshInfoFlowDomain(domainKey, forceRefresh) {
+      if (!isInfoPageVisible()) return null;
       const cleanDomain = String(domainKey || '').trim().toLowerCase();
       if (!infoFlowDomainKeys.includes(cleanDomain)) return null;
       const cacheEntry = flowStatusDomainCache[cleanDomain];
@@ -1146,6 +1149,7 @@
     }
 
     async function refreshInfoFlowDomains(forceRefresh) {
+      if (!isInfoPageVisible()) return null;
       const refreshWindowMs = (
         !document.hidden && getActivePageId() === 'page-info'
       ) ? infoFlowRefreshActiveMs : infoFlowRefreshIdleMs;
@@ -1316,7 +1320,10 @@
     }
 
     async function pollInfoRuntimeTick() {
-      if (!isInfoPageVisible()) return;
+      if (!isInfoPageVisible()) {
+        stopInfoPolling();
+        return;
+      }
       try {
         await refreshInfoFlowDomains(true);
       } catch (err) {
@@ -1325,7 +1332,10 @@
     }
 
     async function pollInfoSupervisorTick() {
-      if (!isInfoPageVisible()) return;
+      if (!isInfoPageVisible()) {
+        stopInfoPolling();
+        return;
+      }
       try {
         await loadWebMeta({ skipDrawerRuntimeRender: true });
       } catch (err) {
@@ -1385,6 +1395,10 @@
       const opts = options || {};
       const deferredHeavyMs = Math.max(0, Number(opts.deferHeavyMs) || 0);
       const pageToken = ++pageLoadToken;
+      currentPageId = pageId;
+      if (pageId !== 'page-info') {
+        stopInfoPolling();
+      }
       pages.forEach((el) => el.classList.toggle('active', el.id === pageId));
       menuItems.forEach((el) => el.classList.toggle('active', el.dataset.page === pageId));
       syncMobileTopbarTitle(pageId);
@@ -1440,10 +1454,9 @@
                            ensureRemoteMenuIconFontLoaded().catch(() => false);
                            await refreshInfoFlowDomains(true);
                            renderInfoPanel();
+                           if (pageToken !== pageLoadToken || !isPageActive('page-info') || !isInfoPageVisible()) return;
                            startInfoPolling();
                          });
-      } else {
-        stopInfoPolling();
       }
       if (pageId !== 'page-system') {
         stopUpgradeStatusPolling();
