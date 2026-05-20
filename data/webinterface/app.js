@@ -32,7 +32,7 @@
       'icon-info': 'info'
     };
     const infoRefreshActiveMs = 10000;
-    const infoRefreshIdleMs = 10000;
+    const infoSupervisorRefreshMs = 1000;
     const infoFlowRefreshActiveMs = 10000;
     const infoFlowRefreshIdleMs = 10000;
     const cfgI18nDebugEnabled = false;
@@ -1311,27 +1311,37 @@
       upgradeStatusPoller.stop();
     }
 
-    function currentInfoPollDelayMs() {
-      const active = !document.hidden && getActivePageId() === 'page-info';
-      return active ? infoRefreshActiveMs : infoRefreshIdleMs;
+    function isInfoPageVisible() {
+      return !document.hidden && getActivePageId() === 'page-info';
     }
 
-    function scheduleNextInfoPoll(delayMs) {
-      const nextDelay = Math.max(200, Number.isFinite(delayMs) ? delayMs : currentInfoPollDelayMs());
-      infoPoller.schedule(nextDelay);
-    }
-
-    async function pollInfoTick() {
-      try {
-        await loadWebMeta({ skipDrawerRuntimeRender: true });
-      } catch (err) {
-      }
+    async function pollInfoRuntimeTick() {
+      if (!isInfoPageVisible()) return;
       try {
         await refreshInfoFlowDomains(true);
       } catch (err) {
       }
       renderInfoPanel();
-      scheduleNextInfoPoll();
+    }
+
+    async function pollInfoSupervisorTick() {
+      if (!isInfoPageVisible()) return;
+      try {
+        await loadWebMeta({ skipDrawerRuntimeRender: true });
+      } catch (err) {
+      }
+      renderInfoPanel();
+    }
+
+    function startInfoPolling() {
+      if (!isInfoPageVisible()) return;
+      infoRuntimePoller.start();
+      infoSupervisorPoller.start();
+    }
+
+    function stopInfoPolling() {
+      infoRuntimePoller.stop();
+      infoSupervisorPoller.stop();
     }
 
     let flowRemoteFetchQueue = Promise.resolve();
@@ -1430,12 +1440,14 @@
                            ensureRemoteMenuIconFontLoaded().catch(() => false);
                            await refreshInfoFlowDomains(true);
                            renderInfoPanel();
+                           startInfoPolling();
                          });
+      } else {
+        stopInfoPolling();
       }
       if (pageId !== 'page-system') {
         stopUpgradeStatusPolling();
       }
-      scheduleNextInfoPoll(pageId === 'page-info' ? 0 : infoRefreshIdleMs);
       closeMobileDrawer();
     }
 
@@ -1748,7 +1760,8 @@
     let logSource = 'supervisor';
     let logSocket = null;
     const upgradeStatusPoller = createTimeoutRunner(() => pollUpgradeStatusTick());
-    const infoPoller = createTimeoutRunner(() => pollInfoTick());
+    const infoRuntimePoller = createIntervalRunner(() => pollInfoRuntimeTick(), infoRefreshActiveMs);
+    const infoSupervisorPoller = createIntervalRunner(() => pollInfoSupervisorTick(), infoSupervisorRefreshMs);
     const upgradeReconnectStageTimer = createTimeoutRunner(() => enterUpgradeReconnectPhase());
     const upgradeReconnectCompletionTimer = createTimeoutRunner(() => markUpgradeUiCompletedAfterReconnect());
     const upgradeReconnectMonitor = createIntervalRunner(() => probeUpgradeReconnect(), 1500);
@@ -8701,7 +8714,11 @@
         } else if (terminalActive) {
           connectLogSocket();
         }
-        scheduleNextInfoPoll(document.hidden ? infoRefreshIdleMs : undefined);
+        if (document.hidden || activePageId !== 'page-info') {
+          stopInfoPolling();
+        } else {
+          startInfoPolling();
+        }
         if (!document.hidden) {
           refreshWebUiLocale(true).catch(() => {});
         }
@@ -8723,7 +8740,6 @@
     refreshWebUiLocale(true).catch(() => {});
     resumeUpgradeReconnectFlow();
     startDrawerRuntimeTimer();
-    scheduleNextInfoPoll(infoRefreshIdleMs);
     const initialPageId = resolveInitialPageId();
     const startInitialUi = async () => {
       await loadWebMeta().catch(() => {});
