@@ -1414,12 +1414,288 @@ const UartSpec* webBridgeUartSpec_(const BoardSpec& board)
 static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Superviseur Flow.io</title></head>
-<body style="font-family:Arial,sans-serif;background:#0B1F3A;color:#FFFFFF;padding:16px;">
-<h1>Superviseur Flow.io</h1>
-<p>Interface web indisponible (fichiers SPIFFS manquants).</p>
-<p>Veuillez charger SPIFFS puis recharger cette page.</p>
-</body></html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flow.io Rescue</title>
+<style>
+  :root { color-scheme: dark; --bg:#07111f; --panel:#101c2f; --panel2:#13243b; --line:#29415f; --text:#edf4ff; --muted:#a9bad2; --accent:#41c7b7; --warn:#ffd166; --bad:#ff7b8a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: Arial, Helvetica, sans-serif; }
+  header { padding: 18px 16px 14px; border-bottom: 1px solid var(--line); background: #0a1728; }
+  main { width: min(980px, 100%); margin: 0 auto; padding: 14px; }
+  h1 { margin: 0; font-size: 24px; letter-spacing: 0; }
+  h2 { margin: 0 0 12px; font-size: 17px; }
+  p { margin: 8px 0 0; color: var(--muted); line-height: 1.45; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; }
+  label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 13px; }
+  input, select { width: 100%; min-height: 38px; border: 1px solid var(--line); border-radius: 5px; background: #071422; color: var(--text); padding: 8px 10px; font-size: 15px; }
+  input[type="checkbox"] { width: auto; min-height: 0; margin-right: 8px; }
+  button { min-height: 38px; border: 1px solid #55d5c8; border-radius: 5px; background: #0c5e58; color: white; padding: 8px 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  button.secondary { border-color: var(--line); background: var(--panel2); color: var(--text); }
+  button.warn { border-color: #d5a530; background: #705316; }
+  button:disabled { opacity: .55; cursor: wait; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .row > * { flex: 1 1 150px; }
+  .status { white-space: pre-wrap; word-break: break-word; min-height: 42px; margin-top: 10px; padding: 10px; border-radius: 5px; background: #071422; border: 1px solid #1d314a; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.4; }
+  .ok { color: var(--accent); }
+  .bad { color: var(--bad); }
+  .note { color: var(--warn); }
+  .wide { grid-column: 1 / -1; }
+  a { color: #8bdff4; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Flow.io Rescue</h1>
+  <p>Console minimale embarquee dans le firmware Supervisor. Elle reste disponible meme si la partition SPIFFS ne contient plus l'interface web.</p>
+</header>
+<main>
+  <section class="wide">
+    <h2>Etat</h2>
+    <div class="row">
+      <button class="secondary" id="refresh" type="button">Rafraichir</button>
+      <button class="secondary" id="scan" type="button">Scanner Wi-Fi</button>
+      <a href="/webinterface?full=1" style="align-self:center">Essayer l'interface complete</a>
+    </div>
+    <div class="status" id="status">Chargement...</div>
+  </section>
+
+  <div class="grid">
+    <section>
+      <h2>Wi-Fi Supervisor</h2>
+      <label><input id="wifiEnabled" type="checkbox" checked />Activer le Wi-Fi station</label>
+      <label for="wifiList">Reseaux detectes</label>
+      <select id="wifiList"><option value="">Saisie manuelle</option></select>
+      <label for="ssid">SSID</label>
+      <input id="ssid" autocomplete="off" />
+      <label for="pass">Mot de passe</label>
+      <input id="pass" type="password" autocomplete="off" />
+      <div class="row">
+        <button id="saveWifi" type="button">Enregistrer Wi-Fi</button>
+      </div>
+      <div class="status" id="wifiMsg">-</div>
+    </section>
+
+    <section>
+      <h2>Serveur d'upgrade</h2>
+      <label for="host">Hote HTTP</label>
+      <input id="host" placeholder="192.168.1.10:8000" autocomplete="off" />
+      <label for="basePath">Chemin de base</label>
+      <input id="basePath" placeholder="/binary" autocomplete="off" />
+      <label for="supPath">Firmware Supervisor</label>
+      <input id="supPath" placeholder="/firmware-supervisor.bin" autocomplete="off" />
+      <label for="spiffsPath">Image SPIFFS Supervisor</label>
+      <input id="spiffsPath" placeholder="/spiffs-supervisor.bin" autocomplete="off" />
+      <div class="row">
+        <button id="saveFwCfg" type="button">Enregistrer</button>
+        <button class="secondary" id="checkManifest" type="button">Manifest</button>
+      </div>
+      <div class="status" id="fwCfgMsg">-</div>
+    </section>
+
+    <section class="wide">
+      <h2>Upgrade de secours</h2>
+      <p>Si une URL explicite est vide, l'updater utilise le serveur et les chemins configures ci-dessus.</p>
+      <label for="supUrl">URL explicite firmware Supervisor</label>
+      <input id="supUrl" placeholder="http://serveur/binary/firmware-supervisor.bin" autocomplete="off" />
+      <label for="spiffsUrl">URL explicite image SPIFFS Supervisor</label>
+      <input id="spiffsUrl" placeholder="http://serveur/binary/spiffs-supervisor.bin" autocomplete="off" />
+      <div class="row">
+        <button class="warn" id="updateSpiffs" type="button">Upgrade SPIFFS Supervisor</button>
+        <button class="warn" id="updateSupervisor" type="button">Upgrade Supervisor</button>
+      </div>
+      <div class="status" id="updateMsg">-</div>
+    </section>
+  </div>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const status = $("status");
+  const wifiMsg = $("wifiMsg");
+  const fwCfgMsg = $("fwCfgMsg");
+  const updateMsg = $("updateMsg");
+  const buttons = Array.from(document.querySelectorAll("button"));
+
+  const setBusy = (busy) => buttons.forEach((b) => { b.disabled = busy; });
+  const formBody = (data) => {
+    const body = new URLSearchParams();
+    Object.keys(data).forEach((k) => {
+      if (data[k] !== undefined && data[k] !== null) body.set(k, data[k]);
+    });
+    return body;
+  };
+  const api = async (url, options = {}) => {
+    const res = await fetch(url, Object.assign({ cache: "no-store" }, options));
+    const text = await res.text();
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch (_) {}
+    if (!res.ok || (json && json.ok === false)) {
+      const msg = json && json.err ? (json.err.msg || json.err.code || "failed") : (text || res.statusText);
+      throw new Error(msg);
+    }
+    return json || { ok: true, text };
+  };
+  const put = (node, obj, cls) => {
+    node.className = "status" + (cls ? " " + cls : "");
+    node.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+  };
+
+  async function refreshAll() {
+    setBusy(true);
+    try {
+      const [meta, net, wifi, fw, fwst] = await Promise.all([
+        api("/api/web/meta").catch((e) => ({ ok:false, err:e.message })),
+        api("/api/network/mode").catch((e) => ({ ok:false, err:e.message })),
+        api("/api/wifi/config").catch((e) => ({ ok:false, err:e.message })),
+        api("/api/fwupdate/config").catch((e) => ({ ok:false, err:e.message })),
+        api("/api/fwupdate/status").catch((e) => ({ ok:false, err:e.message }))
+      ]);
+      if (wifi.ok !== false) {
+        $("wifiEnabled").checked = wifi.enabled !== false;
+        $("ssid").value = wifi.ssid || "";
+        $("pass").value = wifi.pass || "";
+      }
+      if (fw.ok !== false) {
+        $("host").value = fw.update_host || "";
+        $("basePath").value = fw.update_path || "";
+        $("supPath").value = fw.supervisor_path || "";
+        $("spiffsPath").value = fw.spiffs_path || fw.cfgdocs_path || "";
+      }
+      put(status, { web: meta, network: net, updater: fwst }, "ok");
+    } catch (e) {
+      put(status, e.message, "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function scanWifi() {
+    setBusy(true);
+    try {
+      await api("/api/wifi/scan", { method: "POST", body: formBody({ force: "1" }) });
+      put(wifiMsg, "Scan lance, attente des resultats...", "note");
+      await new Promise((resolve) => setTimeout(resolve, 2200));
+      const scan = await api("/api/wifi/scan");
+      const list = $("wifiList");
+      list.innerHTML = '<option value="">Saisie manuelle</option>';
+      (scan.networks || []).forEach((net) => {
+        const opt = document.createElement("option");
+        opt.value = net.ssid || "";
+        opt.textContent = `${net.ssid || "<hidden>"} (${net.rssi} dBm)`;
+        list.appendChild(opt);
+      });
+      put(wifiMsg, scan, "ok");
+    } catch (e) {
+      put(wifiMsg, e.message, "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveWifi() {
+    setBusy(true);
+    try {
+      const out = await api("/api/wifi/config", {
+        method: "POST",
+        body: formBody({
+          enabled: $("wifiEnabled").checked ? "1" : "0",
+          ssid: $("ssid").value.trim(),
+          pass: $("pass").value
+        })
+      });
+      put(wifiMsg, out.reboot_scheduled ? "Wi-Fi enregistre. Redemarrage planifie." : "Wi-Fi enregistre.", "ok");
+      await refreshAll();
+    } catch (e) {
+      put(wifiMsg, e.message, "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveFwConfig() {
+    setBusy(true);
+    try {
+      const out = await api("/api/fwupdate/config", {
+        method: "POST",
+        body: formBody({
+          update_host: $("host").value.trim(),
+          update_path: $("basePath").value.trim(),
+          supervisor_path: $("supPath").value.trim(),
+          spiffs_path: $("spiffsPath").value.trim()
+        })
+      });
+      put(fwCfgMsg, out, "ok");
+      await refreshAll();
+    } catch (e) {
+      put(fwCfgMsg, e.message, "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function checkManifest() {
+    setBusy(true);
+    try {
+      const out = await api("/api/fwupdate/check");
+      put(fwCfgMsg, out, "ok");
+    } catch (e) {
+      put(fwCfgMsg, e.message, "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startUpdate(target) {
+    const isSpiffs = target === "spiffs";
+    const url = (isSpiffs ? $("spiffsUrl").value : $("supUrl").value).trim();
+    const label = isSpiffs ? "SPIFFS Supervisor" : "Supervisor";
+    if (!confirm("Lancer l'upgrade " + label + " ?")) return;
+    setBusy(true);
+    try {
+      const out = await api("/fwupdate/" + target, {
+        method: "POST",
+        body: formBody(url ? { url } : {})
+      });
+      put(updateMsg, out, "ok");
+      pollStatus();
+    } catch (e) {
+      put(updateMsg, e.message, "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pollStatus() {
+    try {
+      const out = await api("/api/fwupdate/status");
+      put(updateMsg, out, out.state === "error" ? "bad" : "ok");
+      if (out.busy || out.pending || ["queued","downloading","flashing","rebooting"].includes(out.state)) {
+        setTimeout(pollStatus, 1500);
+      }
+    } catch (e) {
+      put(updateMsg, e.message, "bad");
+    }
+  }
+
+  $("wifiList").addEventListener("change", () => {
+    if ($("wifiList").value) $("ssid").value = $("wifiList").value;
+  });
+  $("refresh").addEventListener("click", refreshAll);
+  $("scan").addEventListener("click", scanWifi);
+  $("saveWifi").addEventListener("click", saveWifi);
+  $("saveFwCfg").addEventListener("click", saveFwConfig);
+  $("checkManifest").addEventListener("click", checkManifest);
+  $("updateSpiffs").addEventListener("click", () => startUpdate("spiffs"));
+  $("updateSupervisor").addEventListener("click", () => startUpdate("supervisor"));
+  refreshAll();
+  pollStatus();
+})();
+</script>
+</body>
+</html>
 )HTML";
 
 static const char kWebSerialLogPage[] PROGMEM = R"HTML(
@@ -1833,8 +2109,40 @@ void WebInterfaceModule::startServer_()
         return "/webinterface";
     };
 
+    auto sendRescuePage = [](AsyncWebServerRequest* request) {
+        if (!request) return;
+        AsyncWebServerResponse* response =
+            request->beginResponse(200,
+                                   "text/html",
+                                   reinterpret_cast<const uint8_t*>(kWebInterfaceFallbackPage),
+                                   sizeof(kWebInterfaceFallbackPage) - 1U);
+        addNoCacheHeaders_(response);
+        request->send(response);
+    };
+
+    auto lightUiAssetsAvailable = [spiffsAssetExists]() -> bool {
+        return spiffsAssetExists("/webinterface/light.html") &&
+               spiffsAssetExists("/webinterface/light.css") &&
+               spiffsAssetExists("/webinterface/light.js");
+    };
+
+    auto fullUiAssetsAvailable = [spiffsAssetExists]() -> bool {
+        return spiffsAssetExists("/webinterface/index.html") &&
+               spiffsAssetExists("/webinterface/app-core.js") &&
+               spiffsAssetExists("/webinterface/app.js") &&
+               spiffsAssetExists("/webinterface/app-core.css");
+    };
+
     server_.on("/", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
         request->redirect(webInterfaceLandingUrl());
+    });
+
+    server_.on("/rescue", HTTP_GET, [sendRescuePage](AsyncWebServerRequest* request) {
+        sendRescuePage(request);
+    });
+
+    server_.on("/webinterface/rescue", HTTP_GET, [sendRescuePage](AsyncWebServerRequest* request) {
+        sendRescuePage(request);
     });
 
     server_.on("/webinterface/app.css", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
@@ -2177,7 +2485,13 @@ void WebInterfaceModule::startServer_()
         addNoCacheHeaders_(response);
         request->send(response);
     });
-    server_.on("/webinterface", HTTP_GET, [this, spiffsAssetExists, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
+    server_.on("/webinterface", HTTP_GET, [this,
+                                           spiffsAssetExists,
+                                           beginSpiffsAssetResponse,
+                                           sendPreparedAssetResponse,
+                                           sendRescuePage,
+                                           lightUiAssetsAvailable,
+                                           fullUiAssetsAvailable](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/webinterface");
         NetworkAccessMode mode = NetworkAccessMode::None;
         if (!netAccessSvc_ && services_) {
@@ -2196,7 +2510,7 @@ void WebInterfaceModule::startServer_()
 #endif
             );
         if (useLightUi) {
-            if (spiffsAssetExists("/webinterface/light.html")) {
+            if (lightUiAssetsAvailable()) {
                 SpiffsAssetForensicMeta forensicMeta{};
                 bool heapRejected = false;
                 bool buildBusy = false;
@@ -2214,7 +2528,8 @@ void WebInterfaceModule::startServer_()
                 sendPreparedAssetResponse(request, response, &forensicMeta);
                 return;
             }
-            request->send(503, "text/plain", "Light web interface missing");
+            LOGW("Light web assets missing; serving PROGMEM rescue UI");
+            sendRescuePage(request);
             return;
         }
         if (!request->hasParam("page")) {
@@ -2227,7 +2542,7 @@ void WebInterfaceModule::startServer_()
                 return;
             }
         }
-        if (spiffsAssetExists("/webinterface/index.html")) {
+        if (fullUiAssetsAvailable()) {
             SpiffsAssetForensicMeta forensicMeta{};
             bool heapRejected = false;
             bool buildBusy = false;
@@ -2245,9 +2560,8 @@ void WebInterfaceModule::startServer_()
             sendPreparedAssetResponse(request, response, &forensicMeta);
             return;
         }
-        AsyncWebServerResponse* response = request->beginResponse(200, "text/html", kWebInterfaceFallbackPage);
-        addNoCacheHeaders_(response);
-        request->send(response);
+        LOGW("Full web assets missing; serving PROGMEM rescue UI");
+        sendRescuePage(request);
     });
     server_.on("/webinterface/", HTTP_GET, [webInterfaceLandingUrl](AsyncWebServerRequest* request) {
         request->redirect(webInterfaceLandingUrl());
