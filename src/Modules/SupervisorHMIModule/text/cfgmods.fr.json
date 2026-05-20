@@ -1,0 +1,177 @@
+{
+  "_meta": {
+    "generated": true,
+    "locale": "fr",
+    "version": 1
+  },
+  "docs": {},
+  "meta": {
+    "enum_sets": {
+      "elink_dashboard_color": [
+        {
+          "value": 0,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.0.label",
+          "color": "#4A90E2"
+        },
+        {
+          "value": 1,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.1.label",
+          "color": "#20C5D8"
+        },
+        {
+          "value": 2,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.2.label",
+          "color": "#54C27A"
+        },
+        {
+          "value": 3,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.3.label",
+          "color": "#A97CF4"
+        },
+        {
+          "value": 4,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.4.label",
+          "color": "#27B7C8"
+        },
+        {
+          "value": 5,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.5.label",
+          "color": "#39B8F2"
+        },
+        {
+          "value": 6,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.6.label",
+          "color": "#79C7F2"
+        },
+        {
+          "value": 7,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.7.label",
+          "color": "#F29B6B"
+        },
+        {
+          "value": 8,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.8.label",
+          "color": "#E96AAE"
+        },
+        {
+          "value": 9,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.9.label",
+          "color": "#F3A65A"
+        },
+        {
+          "value": 10,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.10.label",
+          "color": "#E9CF54"
+        },
+        {
+          "value": 11,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.11.label",
+          "color": "#7BC47F"
+        },
+        {
+          "value": 12,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.12.label",
+          "color": "#9CCC4A"
+        },
+        {
+          "value": 13,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.13.label",
+          "color": "#B388FF"
+        },
+        {
+          "value": 14,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.14.label",
+          "color": "#8C9EFF"
+        },
+        {
+          "value": 15,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.15.label",
+          "color": "#6EC6FF"
+        },
+        {
+          "value": 16,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.16.label",
+          "color": "#B7D64A"
+        },
+        {
+          "value": 17,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.17.label",
+          "color": "#F28B82"
+        },
+        {
+          "value": 18,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.18.label",
+          "color": "#D7A184"
+        },
+        {
+          "value": 19,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.19.label",
+          "color": "#A8B2BF"
+        },
+        {
+          "value": 20,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_color.20.label",
+          "color": "#FFFFFF"
+        }
+      ],
+      "elink_dashboard_runtime_ui": [
+        {
+          "value": 2101,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.0.label"
+        },
+        {
+          "value": 2102,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.1.label"
+        },
+        {
+          "value": 2103,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.2.label"
+        },
+        {
+          "value": 2104,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.3.label"
+        },
+        {
+          "value": 2105,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.4.label"
+        },
+        {
+          "value": 2106,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.5.label"
+        },
+        {
+          "value": 2107,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.6.label"
+        },
+        {
+          "value": 2108,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.7.label"
+        },
+        {
+          "value": 2109,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.8.label"
+        },
+        {
+          "value": 2110,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.9.label"
+        },
+        {
+          "value": 2111,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.10.label"
+        },
+        {
+          "value": 2112,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.11.label"
+        },
+        {
+          "value": 2113,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.12.label"
+        },
+        {
+          "value": 2114,
+          "label_t": "cfgmods_meta.supervisorhmimodule.enum_sets.elink_dashboard_runtime_ui.13.label"
+        }
+      ]
+    }
+  }
+}

@@ -744,9 +744,9 @@ bool HMIModule::isWaterLevelLow_() const
     if (!ioSvc_ || !ioSvc_->readDigital) return false;
     if (poolLevelIoId_ == IO_ID_INVALID) return false;
 
-    uint8_t levelOk = 0U;
-    if (ioSvc_->readDigital(ioSvc_->ctx, poolLevelIoId_, &levelOk, nullptr, nullptr) != IO_OK) return false;
-    return levelOk == 0U;
+    uint8_t levelLow = 0U;
+    if (ioSvc_->readDigital(ioSvc_->ctx, poolLevelIoId_, &levelLow, nullptr, nullptr) != IO_OK) return false;
+    return levelLow != 0U;
 }
 
 uint32_t HMIModule::buildHomeStateBits_() const

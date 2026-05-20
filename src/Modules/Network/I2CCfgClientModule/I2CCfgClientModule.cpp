@@ -2110,10 +2110,31 @@ bool I2CCfgClientModule::runtimeStatusDomainJson_(FlowStatusDomain domain, char*
         snprintf(out, outLen, "%s", runtimeStatusDomainCache_[idx]);
     }
     xSemaphoreGive(runtimeCacheMutex_);
-    if (!ok) {
-        (void)writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.runtime_status.cache");
+    if (ok) return true;
+
+    // Cache miss: fetch the requested domain on demand so Info page manual
+    // refresh works even when the periodic background refresh is paused.
+    char fetched[kRuntimeStatusDomainBufSize] = {0};
+    if (!fetchRuntimeStatusDomainUncached_(domain, fetched, sizeof(fetched))) {
+        if (fetched[0] != '\0') {
+            snprintf(out, outLen, "%s", fetched);
+        } else {
+            (void)writeErrorJson(out, outLen, ErrorCode::Failed, "flowcfg.runtime_status.cache");
+        }
+        return false;
     }
-    return ok;
+
+    snprintf(out, outLen, "%s", fetched);
+    if (xSemaphoreTake(runtimeCacheMutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (idx < (sizeof(runtimeStatusDomainCacheValid_) / sizeof(runtimeStatusDomainCacheValid_[0]))) {
+            snprintf(runtimeStatusDomainCache_[idx], sizeof(runtimeStatusDomainCache_[idx]), "%s", fetched);
+            runtimeStatusDomainCacheValid_[idx] = true;
+            runtimeCacheValid_ = true;
+            runtimeCacheFetchedAtMs_ = millis();
+        }
+        xSemaphoreGive(runtimeCacheMutex_);
+    }
+    return true;
 }
 
 bool I2CCfgClientModule::fetchRuntimeStatusDomainUncached_(FlowStatusDomain domain, char* out, size_t outLen)

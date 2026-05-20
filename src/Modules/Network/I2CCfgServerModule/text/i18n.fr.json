@@ -1,0 +1,8 @@
+{
+  "translations": {
+    "cfgdocs.elink.server.address.help": "Adresse I2C locale du serveur de configuration Flow.io (mode esclave).",
+    "cfgdocs.elink.server.address.label": "Adresse locale Flow.io",
+    "cfgdocs.elink.server.enabled.help": "Active le serveur eLink cote Flow.io pour repondre au Supervisor.",
+    "cfgdocs.elink.server.enabled.label": "Serveur eLink actif"
+  }
+}

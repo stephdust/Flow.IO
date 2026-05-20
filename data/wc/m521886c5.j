@@ -1,1 +1,1 @@
-{"ok":true,"module":"network","docs":{"network/wifi":{"label":"wifi"},"network/time":{"label":"time"},"network/mqtt":{"label":"mqtt"}},"meta":{}}
+{"ok":true,"module":"network","docs":{"network/mqtt":{"label_t":"cfgmods.network.mqtt.label","label":"mqtt","label_i18n":"cfgmods.network.mqtt.label"},"network/time":{"label_t":"cfgmods.network.time.label","label":"time","label_i18n":"cfgmods.network.time.label"},"network/wifi":{"label_t":"cfgmods.network.wifi.label","label":"wifi","label_i18n":"cfgmods.network.wifi.label"}},"meta":{}}

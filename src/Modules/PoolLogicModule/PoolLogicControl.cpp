@@ -390,7 +390,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     float waterTemp = 0.0f;
     float airTemp = 0.0f;
     float orp = 0.0f;
-    bool levelLow = false;
+    bool poolLevelOn = false;
     bool phTankLow = false;
     bool chlorineTankLow = false;
 
@@ -399,7 +399,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     const bool haveWaterTemp = loadAnalogSensor_(waterTempIoId_, waterTemp);
     const bool haveAirTemp = loadAnalogSensor_(airTempIoId_, airTemp);
     const bool haveOrp = loadAnalogSensor_(orpIoId_, orp);
-    const bool haveLevel = loadDigitalSensor_(levelIoId_, levelLow);
+    const bool haveLevel = loadDigitalSensor_(levelIoId_, poolLevelOn);
     const bool havePhTankLow = loadDigitalSensor_(phLevelIoId_, phTankLow);
     const bool haveChlorineTankLow = loadDigitalSensor_(chlorineLevelIoId_, chlorineTankLow);
 
@@ -622,10 +622,10 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     bool fillingDesired = false;
     if (haveLevel) {
         if (!fillingFsm_.on) {
-            fillingDesired = levelLow;
+            fillingDesired = poolLevelOn;
         } else {
             const bool minUpReached = stateUptimeSec_(fillingFsm_, nowMs) >= fillingMinOnSec_;
-            fillingDesired = levelLow || !minUpReached;
+            fillingDesired = poolLevelOn || !minUpReached;
         }
     }
 

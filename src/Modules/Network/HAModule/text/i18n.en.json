@@ -1,0 +1,15 @@
+{
+  "locale": "en",
+  "translations": {
+    "cfgdocs.ha.device_id.help": "Identifiant exposé a Home Assistant for cet appareil.",
+    "cfgdocs.ha.device_id.label": "Identifiant appareil HA",
+    "cfgdocs.ha.disc_prefix.help": "Préfixe MQTT utilisé fors topics Home Assistant Discovery.",
+    "cfgdocs.ha.disc_prefix.label": "Préfixe Discovery",
+    "cfgdocs.ha.enabled.help": "Enable or disable auto-decouverte Home Assistant.",
+    "cfgdocs.ha.enabled.label": "Home Assistant enabled",
+    "cfgdocs.ha.model.help": "Nom of modèle exposé dans Home Assistant.",
+    "cfgdocs.ha.model.label": "Modèle",
+    "cfgdocs.ha.vendor.help": "Nom of constructeur exposé dans Home Assistant.",
+    "cfgdocs.ha.vendor.label": "Manufacturer"
+  }
+}

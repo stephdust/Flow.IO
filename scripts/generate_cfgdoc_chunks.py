@@ -15,6 +15,7 @@ from typing import Dict, Iterable, List, Tuple
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = PROJECT_ROOT / "data" / "webinterface"
 CFGDOC_DIR = PROJECT_ROOT / "data" / "wc"
+SRC_MODULES_DIR = PROJECT_ROOT / "src" / "Modules"
 
 
 def _load_json(path: Path) -> dict:
@@ -95,9 +96,71 @@ def _safe_module_file_name(module_key: str) -> str:
     return f"m{digest:08x}.j"
 
 
+def _merge_translations(base: Dict[str, str], overlay: Dict[str, str]) -> Dict[str, str]:
+    out = dict(base or {})
+    for key, value in (overlay or {}).items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        clean_key = key.strip()
+        if not clean_key:
+            continue
+        out[clean_key] = value
+    return out
+
+
+def _load_text_i18n_payload(path: Path) -> Dict[str, str]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    translations = payload.get("translations")
+    source = translations if isinstance(translations, dict) else payload
+    out: Dict[str, str] = {}
+    for raw_key, raw_value in source.items():
+        if isinstance(raw_key, str) and isinstance(raw_value, str):
+            clean_key = raw_key.strip()
+            if clean_key:
+                out[clean_key] = raw_value
+    return out
+
+
+def _collect_consolidated_i18n() -> Dict[str, Dict[str, str]]:
+    if not SRC_MODULES_DIR.exists():
+        return {}
+    per_locale: Dict[str, Dict[str, str]] = {}
+
+    # `text/i18n.<locale>.json`
+    for path in sorted(SRC_MODULES_DIR.rglob("text/i18n.*.json")):
+        suffix = path.name[len("i18n.") : -len(".json")].strip().lower()
+        if not suffix:
+            continue
+        per_locale[suffix] = _merge_translations(per_locale.get(suffix, {}), _load_text_i18n_payload(path))
+
+    # Optional locale-agnostic fallback: `text/i18n.json` (applied to all locales).
+    generic_files = sorted(SRC_MODULES_DIR.rglob("text/i18n.json"))
+    generic: Dict[str, str] = {}
+    for path in generic_files:
+        generic = _merge_translations(generic, _load_text_i18n_payload(path))
+
+    if generic:
+        if not per_locale:
+            per_locale["fr"] = dict(generic)
+        else:
+            for locale in list(per_locale.keys()):
+                merged = dict(generic)
+                merged.update(per_locale.get(locale, {}))
+                per_locale[locale] = merged
+
+    if "fr" not in per_locale:
+        per_locale["fr"] = {}
+    return per_locale
+
+
 def main() -> int:
-    cfgdocs = _load_json(WEB_DIR / "cfgdocs.fr.json")
-    cfgmods = _load_json(WEB_DIR / "cfgmods.fr.json")
+    cfgdocs = _load_json(WEB_DIR / "cfgdocs.json")
+    cfgmods = _load_json(WEB_DIR / "cfgmods.json")
 
     docs_map: Dict[str, dict] = {}
     for source in (cfgdocs, cfgmods):
@@ -133,12 +196,27 @@ def main() -> int:
         out_file.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         modules_index[module_key] = file_name
 
+    i18n_by_locale = _collect_consolidated_i18n()
+    locales = sorted(i18n_by_locale.keys())
+    for locale, translations in i18n_by_locale.items():
+        i18n_payload = {
+            "ok": True,
+            "locale": locale,
+            "generated": True,
+            "translations": translations,
+        }
+        (CFGDOC_DIR / f"i18n.{locale}.j").write_text(
+            json.dumps(i18n_payload, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+
     index_payload = {
         "ok": True,
         "version": "cfgdoc-chunks-v1",
         "meta": combined_meta,
         "docs": {},
         "modules": modules_index,
+        "locales": locales,
     }
     (CFGDOC_DIR / "i.j").write_text(
         json.dumps(index_payload, ensure_ascii=False, separators=(",", ":")),

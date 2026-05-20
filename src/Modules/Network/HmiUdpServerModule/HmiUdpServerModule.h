@@ -72,7 +72,6 @@ private:
         char token[33]{};
     } cfgData_{};
 
-    // CFGDOC: {"label":"Token Flow Connect Display", "help":"Token partage optionnel. Si renseigne, le Flow Connect Display doit envoyer le meme token sous forme CRC."}
     ConfigVariable<char,0> tokenVar_{
         NVS_KEY(NvsKeys::Hmi::FlowConnectUdpToken), "token", "hmi/fcd_udp",
         ConfigType::CharArray, cfgData_.token, ConfigPersistence::Persistent, sizeof(cfgData_.token)

@@ -48,6 +48,10 @@ constexpr char WeekStartMonday[] = "tm_wkmon"; // Time module persisted key for 
 constexpr char ScheduleBlob[] = "tm_sched"; // Time module persisted key for field `tm_sched`.
 }  // namespace Time
 
+namespace System {
+constexpr char Language[] = "sys_lang"; // System module persisted key for field `sys_lang`.
+}  // namespace System
+
 namespace SystemMonitor {
 constexpr char TraceEnabled[] = "sm_tren"; // System monitor module persisted key for field `sm_tren`.
 constexpr char TracePeriodMs[] = "sm_trms"; // System monitor module persisted key for field `sm_trms`.

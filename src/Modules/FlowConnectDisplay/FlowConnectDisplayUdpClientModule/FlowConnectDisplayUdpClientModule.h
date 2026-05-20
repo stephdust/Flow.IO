@@ -60,7 +60,6 @@ private:
         char token[33]{};
     } cfgData_{};
 
-    // CFGDOC: {"label":"Token Flow Connect Display", "help":"Token partage optionnel envoye en CRC dans Hello pour l'appairage FlowIO."}
     ConfigVariable<char,0> tokenVar_{
         NVS_KEY(NvsKeys::FlowConnectDisplay::UdpToken), "token", "fcd/udp",
         ConfigType::CharArray, cfgData_.token, ConfigPersistence::Persistent, sizeof(cfgData_.token)

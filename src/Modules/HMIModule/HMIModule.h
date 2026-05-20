@@ -61,27 +61,22 @@ private:
         int32_t veniceTxGpio = 14;
     } cfgData_{};
 
-    // CFGDOC: {"label":"Pilotage LEDs facade", "help":"Autorise le HMIModule a ecrire le masque logique des LEDs via StatusLedsService."}
     ConfigVariable<bool,0> ledsEnabledVar_{
         NVS_KEY(NvsKeys::Hmi::LedsEnabled), "enabled", "hmi/leds",
         ConfigType::Bool, &cfgData_.ledsEnabled, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"Nextion actif", "help":"Autorise le HMIModule a envoyer le rendu et les commandes vers l'ecran Nextion local."}
     ConfigVariable<bool,0> nextionEnabledVar_{
         NVS_KEY(NvsKeys::Hmi::NextionEnabled), "enabled", "hmi/nextion",
         ConfigType::Bool, &cfgData_.nextionEnabled, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"Flow Connect Display UDP actif", "help":"Utilise un Flow Connect Display distant via UDP a la place du Nextion local."}
     ConfigVariable<bool,0> remoteUdpEnabledVar_{
         NVS_KEY(NvsKeys::Hmi::FlowConnectUdpEnabled), "enabled", "hmi/fcd_udp",
         ConfigType::Bool, &cfgData_.remoteUdpEnabled, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"Venice RF433 actif", "help":"Active l'emission periodique de la temperature d'eau vers un afficheur TFA Venice compatible."}
     ConfigVariable<bool,0> veniceEnabledVar_{
         NVS_KEY(NvsKeys::Hmi::VeniceEnabled), "enabled", "hmi/venice",
         ConfigType::Bool, &cfgData_.veniceEnabled, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"GPIO emission Venice", "help":"GPIO utilise pour l'emetteur RF433 du driver Venice."}
     ConfigVariable<int32_t,0> veniceTxGpioVar_{
         NVS_KEY(NvsKeys::Hmi::VeniceTxGpio), "tx_gpio", "hmi/venice",
         ConfigType::Int32, &cfgData_.veniceTxGpio, ConfigPersistence::Persistent, 0

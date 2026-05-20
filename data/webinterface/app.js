@@ -31,8 +31,12 @@
       'icon-flowcfg': 'settings',
       'icon-info': 'info'
     };
-    const infoRefreshActiveMs = 1000;
-    const infoRefreshIdleMs = 12000;
+    const infoRefreshActiveMs = 10000;
+    const infoRefreshIdleMs = 10000;
+    const infoFlowRefreshActiveMs = 10000;
+    const infoFlowRefreshIdleMs = 10000;
+    const cfgI18nDebugEnabled = false;
+    const flowStatusDebugEnabled = true;
     let webAssetVersion = '';
     let loadedWebAssetVersion = '';
     let supervisorFirmwareVersion = '-';
@@ -57,6 +61,271 @@
     let remoteMenuIconFontPromise = null;
     const pendingSystemActionCountdowns = new Map();
     let activeColorPickerPopover = null;
+    let webUiLocale = 'fr';
+    let webUiLocaleProbeInFlight = false;
+    let webUiLocaleProbePromise = null;
+    let webUiLocaleNextProbeAt = 0;
+    const webUiLocaleProbeActiveMs = 5000;
+    const webUiLocaleProbeIdleMs = 15000;
+    let webUiI18n = { fr: {}, en: {} };
+    const webUiLocaleBundleState = {
+      loaded: {},
+      loading: {}
+    };
+
+    function normalizeWebUiLocale(raw) {
+      const value = String(raw || '').trim().toLowerCase().replace('_', '-');
+      if (!value) return 'fr';
+      if (value.startsWith('en')) return 'en';
+      return 'fr';
+    }
+
+    function currentWebLocaleTag() {
+      return webUiLocale === 'en' ? 'en-US' : 'fr-FR';
+    }
+
+    function tr(key, fallback) {
+      const localized = webUiI18n[webUiLocale] && webUiI18n[webUiLocale][key];
+      if (typeof localized === 'string' && localized.length > 0) return localized;
+      const fr = webUiI18n.fr && webUiI18n.fr[key];
+      if (typeof fr === 'string' && fr.length > 0) return fr;
+      if (typeof fallback === 'string' && fallback.length > 0) return fallback;
+      return key;
+    }
+
+    function cfgI18nDebugLog(message, details) {
+      if (!cfgI18nDebugEnabled) return;
+      if (!window || !window.console || typeof window.console.info !== 'function') return;
+      if (typeof details === 'undefined') {
+        window.console.info('[cfg-i18n] ' + String(message || ''));
+        return;
+      }
+      window.console.info('[cfg-i18n] ' + String(message || ''), details);
+    }
+
+    function flowStatusDebugLog(message, details) {
+      if (!flowStatusDebugEnabled) return;
+      if (!window || !window.console || typeof window.console.warn !== 'function') return;
+      if (typeof details === 'undefined') {
+        window.console.warn('[flow-status] ' + String(message || ''));
+        return;
+      }
+      window.console.warn('[flow-status] ' + String(message || ''), details);
+    }
+
+    function cfgDocTr(token, fallback) {
+      const key = String(token || '').trim();
+      if (!key) return String(fallback || '');
+      const localized = flowCfgDocI18nMap && flowCfgDocI18nMap[key];
+      if (typeof localized === 'string' && localized.length > 0) return localized;
+      if (typeof fallback === 'string' && fallback.length > 0) return fallback;
+      return key;
+    }
+
+    function webI18nAssetUrlForLocale(locale) {
+      const base = assetUrl('/webinterface/i18n/' + locale + '.json');
+      const sep = base.indexOf('?') >= 0 ? '&' : '?';
+      return base + sep + 'l=' + encodeURIComponent(locale);
+    }
+
+    async function ensureWebUiLocaleBundle(locale, forceReload) {
+      const normalized = normalizeWebUiLocale(locale);
+      if (!forceReload && webUiLocaleBundleState.loaded[normalized]) return true;
+      if (webUiLocaleBundleState.loading[normalized]) {
+        return webUiLocaleBundleState.loading[normalized];
+      }
+
+      const promise = (async () => {
+        try {
+          const response = await fetchWithBusyRetry(
+            webI18nAssetUrlForLocale(normalized),
+            { cache: 'no-store' }
+          );
+          const payload = await response.json().catch(() => null);
+          const source = payload && typeof payload === 'object' && payload.translations && typeof payload.translations === 'object'
+            ? payload.translations
+            : payload;
+          if (!response.ok || !source || typeof source !== 'object') return false;
+
+          const mapped = {};
+          Object.keys(source).forEach((rawKey) => {
+            if (typeof source[rawKey] !== 'string') return;
+            const key = String(rawKey || '').trim();
+            if (!key) return;
+            mapped[key] = source[rawKey];
+          });
+          webUiI18n[normalized] = mapped;
+          webUiLocaleBundleState.loaded[normalized] = true;
+          return true;
+        } catch (err) {
+          return false;
+        } finally {
+          delete webUiLocaleBundleState.loading[normalized];
+        }
+      })();
+
+      webUiLocaleBundleState.loading[normalized] = promise;
+      return promise;
+    }
+
+    function applyStaticTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach((node) => {
+        const key = String(node.getAttribute('data-i18n') || '').trim();
+        if (!key) return;
+        const fallback = String(node.textContent || '').trim();
+        node.textContent = tr(key, fallback);
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach((node) => {
+        const key = String(node.getAttribute('data-i18n-placeholder') || '').trim();
+        if (!key) return;
+        const fallback = String(node.getAttribute('placeholder') || '').trim();
+        node.setAttribute('placeholder', tr(key, fallback));
+      });
+      document.querySelectorAll('[data-i18n-title]').forEach((node) => {
+        const key = String(node.getAttribute('data-i18n-title') || '').trim();
+        if (!key) return;
+        const fallback = String(node.getAttribute('title') || '').trim();
+        node.setAttribute('title', tr(key, fallback));
+      });
+      document.querySelectorAll('[data-i18n-aria-label]').forEach((node) => {
+        const key = String(node.getAttribute('data-i18n-aria-label') || '').trim();
+        if (!key) return;
+        const fallback = String(node.getAttribute('aria-label') || '').trim();
+        node.setAttribute('aria-label', tr(key, fallback));
+      });
+    }
+
+    function applyWebUiLocale(locale) {
+      const normalized = normalizeWebUiLocale(locale);
+      if (webUiLocale === normalized) {
+        applyStaticTranslations();
+        syncMobileTopbarTitle(getActivePageId());
+        updateInfoLoadButtonsText();
+        refreshCfgDocLocaleRuntime(false).catch(() => {});
+        ensureWebUiLocaleBundle(normalized, false).then((loaded) => {
+          if (!loaded || webUiLocale !== normalized) return;
+          applyStaticTranslations();
+          syncMobileTopbarTitle(getActivePageId());
+          updateInfoLoadButtonsText();
+          applyProfileUiText();
+          syncMenuIconFallbacks();
+          renderInfoPanel();
+          refreshPoolMeasuresView();
+          refreshCfgDocLocaleRuntime(false).catch(() => {});
+        }).catch(() => {});
+        return;
+      }
+      webUiLocale = normalized;
+      document.documentElement.lang = webUiLocale;
+      document.body.setAttribute('data-ui-locale', webUiLocale);
+      const knownLocalLabels = new Set([
+        'Config Store Supervisor',
+        'Config Store Micronova',
+        'Supervisor Config Store',
+        'Micronova Config Store'
+      ]);
+      if (knownLocalLabels.has(String(webLocalConfigLabel || '').trim())) {
+        webLocalConfigLabel = isMicronovaProfile()
+          ? tr('cfg.local.micronova', 'Config Store Micronova')
+          : tr('cfg.local.supervisor', 'Config Store Supervisor');
+      }
+      applyStaticTranslations();
+      syncMobileTopbarTitle(getActivePageId());
+      updateInfoLoadButtonsText();
+      applyProfileUiText();
+      syncMenuIconFallbacks();
+      renderInfoPanel();
+      refreshPoolMeasuresView();
+      refreshCfgDocLocaleRuntime(true).catch(() => {});
+
+      ensureWebUiLocaleBundle(normalized, false).then((loaded) => {
+        if (!loaded || webUiLocale !== normalized) return;
+        applyStaticTranslations();
+        syncMobileTopbarTitle(getActivePageId());
+        updateInfoLoadButtonsText();
+        applyProfileUiText();
+        syncMenuIconFallbacks();
+        renderInfoPanel();
+        refreshPoolMeasuresView();
+        refreshCfgDocLocaleRuntime(true).catch(() => {});
+      }).catch(() => {});
+    }
+
+    async function fetchConfiguredWebUiLocale() {
+      const res = await fetchWithBusyRetry('/api/supervisorcfg/module?name=system', { cache: 'no-store' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || data.ok !== true || !data.data || typeof data.data !== 'object') {
+        cfgI18nDebugLog('supervisorcfg/system unavailable for locale probe', {
+          ok: !!(data && data.ok),
+          status: res ? res.status : 0
+        });
+        return null;
+      }
+      const payload = data.data;
+      cfgI18nDebugLog('supervisorcfg/system locale payload', payload);
+      const tryLocale = (value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        return normalizeWebUiLocale(raw);
+      };
+
+      const direct = tryLocale(payload.lang);
+      if (direct) {
+        cfgI18nDebugLog('locale resolved from key `lang`', { locale: direct });
+        return direct;
+      }
+
+      const keyedCandidates = ['system/lang', 'system.lang', 'web/lang', 'web.lang'];
+      for (const key of keyedCandidates) {
+        if (!Object.prototype.hasOwnProperty.call(payload, key)) continue;
+        const candidate = tryLocale(payload[key]);
+        if (candidate) {
+          cfgI18nDebugLog('locale resolved from key `' + key + '`', { locale: candidate });
+          return candidate;
+        }
+      }
+
+      const nestedCandidates = ['system', 'web'];
+      for (const groupKey of nestedCandidates) {
+        const group = payload[groupKey];
+        if (!group || typeof group !== 'object') continue;
+        const candidate = tryLocale(group.lang);
+        if (candidate) {
+          cfgI18nDebugLog('locale resolved from nested `' + groupKey + '.lang`', { locale: candidate });
+          return candidate;
+        }
+      }
+
+      cfgI18nDebugLog('locale probe failed: no matching key found', Object.keys(payload));
+      return null;
+    }
+
+    async function refreshWebUiLocale(forceRefresh) {
+      const now = Date.now();
+      const probeWindow = (!document.hidden && getActivePageId() === 'page-info')
+        ? webUiLocaleProbeActiveMs
+        : webUiLocaleProbeIdleMs;
+      if (!forceRefresh && now < webUiLocaleNextProbeAt) return;
+      if (webUiLocaleProbeInFlight) {
+        if (webUiLocaleProbePromise) {
+          await webUiLocaleProbePromise.catch(() => {});
+        }
+        return;
+      }
+      webUiLocaleProbeInFlight = true;
+      webUiLocaleProbePromise = (async () => {
+        try {
+          const next = await fetchConfiguredWebUiLocale();
+          if (next) applyWebUiLocale(next);
+        } catch (err) {
+        } finally {
+          webUiLocaleProbeInFlight = false;
+          webUiLocaleNextProbeAt = Date.now() + probeWindow;
+          webUiLocaleProbePromise = null;
+        }
+      })();
+      await webUiLocaleProbePromise;
+    }
 
     function normalizeNetworkMode(value) {
       const raw = String(value || '').trim().toLowerCase();
@@ -131,7 +400,7 @@
     function menuFallbackLetter(label) {
       const text = String(label || '').trim();
       if (!text) return '?';
-      return Array.from(text)[0].toLocaleUpperCase('fr-FR');
+      return Array.from(text)[0].toLocaleUpperCase(currentWebLocaleTag());
     }
 
     function iconCheckText() {
@@ -225,7 +494,9 @@
         webProfileKey = rawProfile.toLowerCase();
       }
       const label = String(data.local_config_label || '').trim();
-      webLocalConfigLabel = label || ('Config Store ' + webProfileName);
+      webLocalConfigLabel = label || (isMicronovaProfile()
+        ? tr('cfg.local.micronova', 'Config Store Micronova')
+        : tr('cfg.local.supervisor', 'Config Store Supervisor'));
       webRemoteConfigEnabled = data.remote_config_enabled !== false;
       runtimeMeasureDomainKeys = runtimeDomainsForProfile();
       ensureRuntimeDomainState();
@@ -233,7 +504,6 @@
       runtimeManifestDomainLoadPromise = null;
       if (isMicronovaProfile()) {
         poolMeasureDomainState.micronova.active = true;
-        poolMeasureDomainState.mqtt.active = true;
       }
       document.body.classList.toggle('profile-micronova', isMicronovaProfile());
       applyProfileUiText();
@@ -253,8 +523,8 @@
 
     function runtimeDomainsForProfile() {
       return isMicronovaProfile()
-        ? ['micronova', 'mqtt', 'system', 'wifi']
-        : ['pool', 'mqtt', 'system', 'wifi', 'alarm'];
+        ? ['micronova', 'alarm']
+        : ['mode', 'sondes', 'alarm'];
     }
 
     function createRuntimeDomainState() {
@@ -311,20 +581,33 @@
         setPageMenuVisible('page-calibration', false);
       }
       if (rebootDeviceTargetSelect) {
+        const labelsByTarget = {
+          supervisor: isMicronovaProfile() ? 'Micronova' : 'Supervisor',
+          flow_soft: 'Flow.io soft',
+          flow_hard: 'Flow.io hard',
+          nextion: 'Nextion',
+          factory_reset: 'Init Usine'
+        };
         const blockValues = isMicronovaProfile()
           ? new Set(['flow_soft', 'flow_hard', 'nextion', 'factory_reset'])
           : new Set();
         Array.from(rebootDeviceTargetSelect.options || []).forEach((option) => {
           if (!option) return;
+          if (Object.prototype.hasOwnProperty.call(labelsByTarget, option.value)) {
+            option.text = labelsByTarget[option.value];
+          }
           option.disabled = blockValues.has(option.value);
         });
-        if (rebootDeviceTargetSelect.options[0]) {
-          rebootDeviceTargetSelect.options[0].text = isMicronovaProfile() ? 'Micronova' : 'Supervisor';
-        }
         if (blockValues.has(rebootDeviceTargetSelect.value)) {
           rebootDeviceTargetSelect.value = 'supervisor';
         }
       }
+    }
+
+    try {
+      const browserLocale = (navigator && navigator.language) ? String(navigator.language) : '';
+      webUiLocale = normalizeWebUiLocale(browserLocale);
+    } catch (err) {
     }
 
     try {
@@ -347,7 +630,9 @@
           webProfileKey = rawProfile.toLowerCase();
         }
         const label = String(initialMeta.local_config_label || '').trim();
-        if (label) webLocalConfigLabel = label;
+        webLocalConfigLabel = label || (isMicronovaProfile()
+          ? tr('cfg.local.micronova', 'Config Store Micronova')
+          : tr('cfg.local.supervisor', 'Config Store Supervisor'));
         webRemoteConfigEnabled = initialMeta.remote_config_enabled !== false;
         networkMode = normalizeNetworkMode(initialMeta.network_mode);
       }
@@ -356,7 +641,8 @@
 
     function assetUrl(path) {
       if (!webAssetVersion) return path;
-      return path + '?v=' + encodeURIComponent(webAssetVersion);
+      const sep = path.indexOf('?') >= 0 ? '&' : '?';
+      return path + sep + 'v=' + encodeURIComponent(webAssetVersion);
     }
 
     async function fetchWithBusyRetry(url, options, fetchImpl) {
@@ -398,9 +684,11 @@
       const msg = typeof err.msg === 'string' ? err.msg.trim() : '';
       const code = typeof err.code === 'string' ? err.code.trim() : '';
       const where = typeof err.where === 'string' ? err.where.trim() : '';
+      const debugDetail = typeof err.detail === 'string' ? err.detail.trim() : '';
       const detail = msg || [code, where].filter(Boolean).join(' @ ');
-      if (!detail) return fallback;
-      return fallback ? (fallback + ' : ' + detail) : detail;
+      const composed = [detail, debugDetail].filter(Boolean).join(' | ');
+      if (!composed) return fallback;
+      return fallback ? (fallback + ' : ' + composed) : composed;
     }
 
     function normalizeUpgradeHttpErrorMessage(rawMessage, fallback) {
@@ -624,6 +912,7 @@
         applyMenuIconPreference(false);
         applyStatusIconPreference(!!data.unify_status_card_icons);
         await applyMenuIconModeFromMeta(data);
+        await refreshWebUiLocale(false);
         if (!disableWebIcons && hasWarmDeferredVisualAssets()) {
           activateMenuAssets(false);
         }
@@ -632,9 +921,6 @@
           const trimmed = data.firmware_version.trim();
           if (trimmed) {
             supervisorFirmwareVersion = trimmed;
-            if (appMeta) {
-              appMeta.textContent = trimmed;
-            }
           }
         }
         supervisorUptimeMs = Number(data.upms) || 0;
@@ -671,7 +957,7 @@
       const n = Number(value);
       if (!Number.isFinite(n) || n < 0) return '-';
       if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MB';
-      if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+      if (n >= 1024) return (n / 1024).toFixed(1) + ' kB';
       return String(Math.trunc(n)) + ' B';
     }
 
@@ -698,10 +984,10 @@
       // - state is derived from current free/largest/frag only
       // - min_free is informational and intentionally excluded from pressure state
       // - each level requires all criteria to avoid false positives near nominal baseline
-      if (free < 20000 && largest < 8000 && frag > 45) return 'panique';
-      if (free < 24000 && largest < 12000 && frag > 35) return 'critique';
-      if (free < 28000 && largest < 16000 && frag > 28) return 'delestage';
-      if (free < 30000 && largest < 20000 && frag > 20) return 'contrainte';
+      if (free < 20000 && largest < 8000 && frag > 45) return 'panic';
+      if (free < 24000 && largest < 12000 && frag > 35) return 'critical';
+      if (free < 28000 && largest < 16000 && frag > 28) return 'shedding';
+      if (free < 30000 && largest < 20000 && frag > 20) return 'constrained';
       return 'normal';
     }
 
@@ -714,22 +1000,256 @@
       );
     }
 
+    function setInfoFlowDomainLoading(domainKey, loading) {
+      if (!Object.prototype.hasOwnProperty.call(infoFlowDomainLoading, domainKey)) return;
+      const isLoading = !!loading;
+      infoFlowDomainLoading[domainKey] = isLoading;
+      const node = infoFlowLoaderNodes[domainKey];
+      if (!node) return;
+      node.classList.toggle('is-loading', isLoading);
+      node.disabled = isLoading;
+      node.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+    }
+
+    function infoFlowDomainLabel(domainKey) {
+      if (domainKey === 'system') return tr('info.flowSystem', 'Système Flow.io');
+      if (domainKey === 'wifi') return tr('info.flowWifi', 'WiFi Flow.io');
+      if (domainKey === 'mqtt') return tr('info.flowMqtt', 'MQTT Flow.io');
+      return formatRuntimeDomainLabel(domainKey);
+    }
+
+    function updateInfoLoadButtonsText() {
+      const keys = Object.keys(infoFlowLoaderNodes);
+      keys.forEach((domainKey) => {
+        const node = infoFlowLoaderNodes[domainKey];
+        if (!node) return;
+        const label = tr('info.loadDomain', 'Charger');
+        const domain = infoFlowDomainLabel(domainKey);
+        const text = label + ' ' + domain;
+        node.setAttribute('title', text);
+        node.setAttribute('aria-label', text);
+      });
+    }
+
+    function infoRuntimeValueMap(values) {
+      const map = new Map();
+      (Array.isArray(values) ? values : []).forEach((item) => {
+        if (!item || typeof item !== 'object') return;
+        const id = Number(item.id);
+        if (!Number.isFinite(id) || id <= 0) return;
+        map.set(id, item);
+      });
+      return map;
+    }
+
+    function infoRuntimeValueAvailable(item) {
+      if (!item || typeof item !== 'object') return false;
+      if (item.status === 'unavailable' || item.status === 'not_found') return false;
+      return Object.prototype.hasOwnProperty.call(item, 'value');
+    }
+
+    function infoRuntimeValue(valueById, runtimeId, fallback) {
+      const item = valueById.get(Number(runtimeId));
+      return infoRuntimeValueAvailable(item) ? item.value : fallback;
+    }
+
+    function cacheInfoRuntimeDomain(domainKey, entries, values) {
+      const cacheEntry = flowStatusDomainCache[domainKey];
+      if (!cacheEntry) return null;
+
+      const domainEntries = Array.isArray(entries) ? entries : [];
+      const valueById = infoRuntimeValueMap(values);
+      const hasAnyValue = domainEntries.some((entry) => {
+        const id = Number(entry && entry.id);
+        if (!Number.isFinite(id) || id <= 0) return false;
+        return infoRuntimeValueAvailable(valueById.get(id));
+      });
+      let data = {
+        ok: false,
+        err: {
+          code: domainEntries.length ? 'RuntimeUnavailable' : 'RuntimeIdsMissing',
+          where: 'info.runtime.' + domainKey
+        }
+      };
+
+      if (hasAnyValue && domainKey === 'system') {
+        data = {
+          ok: true,
+          fw: infoRuntimeValue(valueById, 1701, ''),
+          upms: infoRuntimeValue(valueById, 1702, 0),
+          heap: {
+            free: infoRuntimeValue(valueById, 1703, 0),
+            min_free: infoRuntimeValue(valueById, 1704, 0)
+          }
+        };
+      } else if (hasAnyValue && domainKey === 'wifi') {
+        const rssiItem = valueById.get(1003);
+        data = {
+          ok: true,
+          wifi: {
+            rdy: !!infoRuntimeValue(valueById, 1001, false),
+            ip: normalizeIpValue(infoRuntimeValue(valueById, 1002, '')),
+            rssi: infoRuntimeValue(valueById, 1003, null),
+            hrss: infoRuntimeValueAvailable(rssiItem)
+          }
+        };
+      } else if (hasAnyValue && domainKey === 'mqtt') {
+        data = {
+          ok: true,
+          mqtt: {
+            rdy: !!infoRuntimeValue(valueById, 2001, false),
+            srv: infoRuntimeValue(valueById, 2002, ''),
+            rxdrp: infoRuntimeValue(valueById, 2003, 0),
+            prsf: infoRuntimeValue(valueById, 2004, 0),
+            hndf: infoRuntimeValue(valueById, 2005, 0),
+            ovr: infoRuntimeValue(valueById, 2006, 0)
+          }
+        };
+      }
+
+      cacheEntry.data = data;
+      cacheEntry.fetchedAt = Date.now();
+      return data;
+    }
+
+    async function refreshInfoFlowDomain(domainKey, forceRefresh) {
+      const cleanDomain = String(domainKey || '').trim().toLowerCase();
+      if (!infoFlowDomainKeys.includes(cleanDomain)) return null;
+      const cacheEntry = flowStatusDomainCache[cleanDomain];
+      const cacheValid = isFlowStatusDomainCacheValid(cleanDomain);
+      const shouldFetch = !!forceRefresh || !cacheValid || !(cacheEntry && cacheEntry.data);
+      if (!shouldFetch) {
+        renderInfoPanel();
+        return cacheEntry ? cacheEntry.data : null;
+      }
+
+      setInfoFlowDomainLoading(cleanDomain, true);
+      try {
+        flowStatusDebugLog('info domain fetch start', {
+          domain: cleanDomain,
+          endpoint: '/api/runtime/values',
+          force: !!forceRefresh
+        });
+        const entries = Array.isArray(infoRuntimeDomainEntries[cleanDomain])
+          ? infoRuntimeDomainEntries[cleanDomain]
+          : [];
+        const ids = entries.map((entry) => Number(entry && entry.id)).filter((id) => Number.isFinite(id) && id > 0);
+        const values = ids.length ? await fetchRuntimeValues(ids) : [];
+        cacheInfoRuntimeDomain(cleanDomain, entries, values);
+        infoFlowLastSuccessAt = Date.now();
+        renderInfoPanel();
+        const nextEntry = flowStatusDomainCache[cleanDomain];
+        return nextEntry ? nextEntry.data : null;
+      } finally {
+        setInfoFlowDomainLoading(cleanDomain, false);
+      }
+    }
+
+    async function refreshInfoFlowDomains(forceRefresh) {
+      const refreshWindowMs = (
+        !document.hidden && getActivePageId() === 'page-info'
+      ) ? infoFlowRefreshActiveMs : infoFlowRefreshIdleMs;
+      const now = Date.now();
+      if (infoFlowRefreshPromise) {
+        return infoFlowRefreshPromise;
+      }
+      if (!forceRefresh && (now - infoFlowLastAttemptAt) < refreshWindowMs) {
+        return null;
+      }
+      infoFlowLastAttemptAt = now;
+
+      const promise = (async () => {
+        for (const domainKey of infoFlowDomainKeys) {
+          try {
+            await refreshInfoFlowDomain(domainKey, !!forceRefresh);
+          } catch (err) {
+          }
+        }
+      })();
+
+      infoFlowRefreshPromise = promise.finally(() => {
+        infoFlowRefreshPromise = null;
+        renderInfoPanel();
+      });
+      return infoFlowRefreshPromise;
+    }
+
+    function renderInfoMetricRows(node, rows) {
+      if (!node) return;
+      const safeRows = Array.isArray(rows) ? rows : [];
+      node.innerHTML = safeRows.map((row) => buildInfoMetricRow(row[0], row[1])).join('');
+    }
+
+    function formatInfoBoolean(value, trueText, falseText) {
+      if (typeof value !== 'boolean') return '-';
+      return value ? (trueText || tr('info.state.connected', 'Connecté')) : (falseText || tr('info.state.disconnected', 'Déconnecté'));
+    }
+
+    function formatInfoDbm(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? (String(Math.trunc(n)) + ' dBm') : '-';
+    }
+
+    function formatInfoCount(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? String(Math.trunc(n)) : '-';
+    }
+
     function renderInfoPanel() {
-      if (!infoGrid) return;
       const heap = (supervisorHeap && typeof supervisorHeap === 'object') ? supervisorHeap : {};
       const pressure = deriveInfoPressure(heap);
       const frag = Number(heap.frag);
-      const cards = [
-        ['Pression', pressure],
-        ['Temps de fonctionnement', formatInfoUptime(supervisorUptimeMs)],
-        ['Heap libre', formatInfoBytes(heap.free)],
-        ['Heap minimum', formatInfoBytes(heap.min_free)],
-        ['Plus grand bloc', formatInfoBytes(heap.largest)],
-        ['Fragmentation', Number.isFinite(frag) ? (String(Math.trunc(frag)) + ' %') : '-']
+      const supervisorRows = [
+        [tr('info.row.firmware', 'Firmware'), supervisorFirmwareVersion || '-'],
+        [tr('info.row.pressure', 'Pression'), tr('info.pressure.' + pressure, pressure)],
+        [tr('info.row.uptime', 'Temps de fonctionnement'), formatInfoUptime(supervisorUptimeMs)],
+        [tr('info.row.heapFree', 'Heap libre'), formatInfoBytes(heap.free)],
+        [tr('info.row.heapMin', 'Heap minimum'), formatInfoBytes(heap.min_free)],
+        [tr('info.row.heapLargest', 'Plus grand bloc'), formatInfoBytes(heap.largest)],
+        [tr('info.row.fragmentation', 'Fragmentation'), Number.isFinite(frag) ? (String(Math.trunc(frag)) + ' %') : '-']
       ];
-      infoGrid.innerHTML = cards.map((row) => buildInfoMetricRow(row[0], row[1])).join('');
+      renderInfoMetricRows(infoGrid, supervisorRows);
+
+      const systemDomain = (flowStatusDomainCache.system && flowStatusDomainCache.system.data && flowStatusDomainCache.system.data.ok === true)
+        ? flowStatusDomainCache.system.data
+        : null;
+      const flowHeap = (systemDomain && systemDomain.heap && typeof systemDomain.heap === 'object') ? systemDomain.heap : {};
+      const systemRows = [
+        [tr('info.row.state', 'Etat'), systemDomain ? tr('info.state.available', 'Disponible') : tr('info.state.unavailable', 'Indisponible')],
+        [tr('info.row.firmware', 'Firmware'), systemDomain ? fmtFlowStatusVal(systemDomain.fw) : '-'],
+        [tr('info.row.uptime', 'Uptime'), systemDomain ? formatInfoUptime(systemDomain.upms) : '-'],
+        [tr('info.row.heapFree', 'Heap libre'), systemDomain ? formatInfoBytes(flowHeap.free) : '-'],
+        [tr('info.row.heapMin', 'Heap minimum'), systemDomain ? formatInfoBytes(flowHeap.min_free) : '-']
+      ];
+      renderInfoMetricRows(infoSystemGrid, systemRows);
+
+      const wifiDomain = (flowStatusDomainCache.wifi && flowStatusDomainCache.wifi.data && flowStatusDomainCache.wifi.data.ok === true)
+        ? flowStatusDomainCache.wifi.data
+        : null;
+      const wifi = (wifiDomain && wifiDomain.wifi && typeof wifiDomain.wifi === 'object') ? wifiDomain.wifi : {};
+      const wifiRows = [
+        [tr('info.row.state', 'Etat'), wifiDomain ? formatInfoBoolean(!!wifi.rdy, tr('info.state.connected', 'Connecté'), tr('info.state.disconnected', 'Déconnecté')) : '-'],
+        [tr('info.row.ip', 'Adresse IP'), wifiDomain ? normalizeIpValue(wifi.ip) : '-'],
+        [tr('info.row.signal', 'Signal'), (wifiDomain && wifi.hrss) ? formatInfoDbm(wifi.rssi) : '-']
+      ];
+      renderInfoMetricRows(infoWifiGrid, wifiRows);
+
+      const mqttDomain = (flowStatusDomainCache.mqtt && flowStatusDomainCache.mqtt.data && flowStatusDomainCache.mqtt.data.ok === true)
+        ? flowStatusDomainCache.mqtt.data
+        : null;
+      const mqtt = (mqttDomain && mqttDomain.mqtt && typeof mqttDomain.mqtt === 'object') ? mqttDomain.mqtt : {};
+      const mqttRows = [
+        [tr('info.row.state', 'Etat'), mqttDomain ? formatInfoBoolean(!!mqtt.rdy, tr('info.state.connected', 'Connecté'), tr('info.state.disconnected', 'Déconnecté')) : '-'],
+        [tr('info.row.server', 'Serveur'), mqttDomain ? fmtFlowStatusVal(mqtt.srv) : '-'],
+        [tr('info.row.rxDrop', 'Messages ignorés'), mqttDomain ? formatInfoCount(mqtt.rxdrp) : '-'],
+        [tr('info.row.parseErrors', 'Erreurs parse'), mqttDomain ? formatInfoCount(mqtt.prsf) : '-'],
+        [tr('info.row.handlerErrors', 'Erreurs traitement'), mqttDomain ? formatInfoCount(mqtt.hndf) : '-'],
+        [tr('info.row.oversize', 'Messages trop grands'), mqttDomain ? formatInfoCount(mqtt.ovr) : '-']
+      ];
+      renderInfoMetricRows(infoMqttGrid, mqttRows);
+
       if (infoStatusChip) {
-        infoStatusChip.textContent = 'Mise à jour: ' + new Date().toLocaleTimeString('fr-FR');
+        infoStatusChip.textContent = tr('info.updatedAt', 'Mise à jour') + ': ' + new Date().toLocaleTimeString(currentWebLocaleTag());
       }
     }
 
@@ -806,6 +1326,10 @@
         await loadWebMeta({ skipDrawerRuntimeRender: true });
       } catch (err) {
       }
+      try {
+        await refreshInfoFlowDomains(true);
+      } catch (err) {
+      }
       renderInfoPanel();
       scheduleNextInfoPoll();
     }
@@ -859,7 +1383,7 @@
         connectLogSocket();
       } else {
         closeLogSocket();
-        setWsStatusText('inactif');
+        setWsStatusText(tr('terminal.inactive', 'inactif'));
       }
       if (pageId === 'page-pool-measures') {
         schedulePageTask(pageId, pageToken, deferredHeavyMs, () => onPoolMeasuresPageShown());
@@ -903,6 +1427,8 @@
                          deferredHeavyMs > 0 ? (deferredHeavyMs + 120) : 0,
                          async () => {
                            await loadWebMeta({ skipDrawerRuntimeRender: true });
+                           ensureRemoteMenuIconFontLoaded().catch(() => false);
+                           await refreshInfoFlowDomains(true);
                            renderInfoPanel();
                          });
       }
@@ -984,6 +1510,12 @@
     const systemStatusText = document.getElementById('systemStatusText');
     const infoStatusChip = document.getElementById('infoStatusChip');
     const infoGrid = document.getElementById('infoGrid');
+    const infoSystemGrid = document.getElementById('infoSystemGrid');
+    const infoWifiGrid = document.getElementById('infoWifiGrid');
+    const infoMqttGrid = document.getElementById('infoMqttGrid');
+    const infoSystemLoader = document.getElementById('infoSystemLoader');
+    const infoWifiLoader = document.getElementById('infoWifiLoader');
+    const infoMqttLoader = document.getElementById('infoMqttLoader');
     const flowStatusRefreshBtn = document.getElementById('flowStatusRefresh');
     const flowStatusChip = document.getElementById('flowStatusChip');
     const flowStatusGrid = document.getElementById('flowStatusGrid');
@@ -1041,12 +1573,14 @@
     let cfgTreeSelectedSource = 'flow';
     let cfgDocSources = [];
     let flowCfgDocsLoaded = false;
-    let flowCfgDocsLegacyFallbackLoaded = false;
     let flowCfgDocIndex = null;
     let flowCfgDocIndexUnavailable = false;
     const flowCfgDocModuleCache = new Map();
     const flowCfgDocModuleLoadPromises = new Map();
     let flowCfgDocIndexPromise = null;
+    let flowCfgDocI18nLocale = '';
+    let flowCfgDocI18nMap = {};
+    let flowCfgDocI18nPromise = null;
     let flowCfgTreeLoadingDepth = 0;
     let flowCfgDetailLoadingDepth = 0;
     let flowCfgLoadPromise = null;
@@ -1143,15 +1677,48 @@
       pool: { data: null, fetchedAt: 0 },
       i2c: { data: null, fetchedAt: 0 }
     };
+    const infoFlowDomainKeys = ['system', 'wifi', 'mqtt'];
+    const infoRuntimeDomainEntries = Object.freeze({
+      system: Object.freeze([
+        Object.freeze({ id: 1701 }),
+        Object.freeze({ id: 1702 }),
+        Object.freeze({ id: 1703 }),
+        Object.freeze({ id: 1704 })
+      ]),
+      wifi: Object.freeze([
+        Object.freeze({ id: 1001 }),
+        Object.freeze({ id: 1002 }),
+        Object.freeze({ id: 1003 })
+      ]),
+      mqtt: Object.freeze([
+        Object.freeze({ id: 2001 }),
+        Object.freeze({ id: 2002 }),
+        Object.freeze({ id: 2003 }),
+        Object.freeze({ id: 2004 }),
+        Object.freeze({ id: 2005 }),
+        Object.freeze({ id: 2006 })
+      ])
+    });
+    const infoFlowLoaderNodes = {
+      system: infoSystemLoader,
+      wifi: infoWifiLoader,
+      mqtt: infoMqttLoader
+    };
+    const infoFlowDomainLoading = {
+      system: false,
+      wifi: false,
+      mqtt: false
+    };
+    let infoFlowLastAttemptAt = 0;
+    let infoFlowLastSuccessAt = 0;
+    let infoFlowRefreshPromise = null;
     let runtimeMeasureDomainKeys = runtimeDomainsForProfile();
     let runtimeManifestDomainCache = null;
     let runtimeManifestDomainLoadPromise = null;
     const poolMeasureDomainState = {
-      pool: createRuntimeDomainState(),
+      mode: createRuntimeDomainState(),
+      sondes: createRuntimeDomainState(),
       micronova: createRuntimeDomainState(),
-      mqtt: createRuntimeDomainState(),
-      system: createRuntimeDomainState(),
-      wifi: createRuntimeDomainState(),
       alarm: createRuntimeDomainState()
     };
     const poolMeasureDomainAnimations = {};
@@ -1258,13 +1825,13 @@
 
     function connectLogSocket() {
       closeLogSocket();
-      setWsStatusText('connexion...');
+      setWsStatusText(tr('terminal.connecting', 'connexion...'));
       const meta = activeLogSourceMeta();
       const socket = new WebSocket(wsProto + '://' + location.host + logSocketPath);
       logSocket = socket;
       socket.onopen = () => {
         if (socket !== logSocket) return;
-        setWsStatusText('connecté');
+        setWsStatusText(tr('terminal.connected', 'connecté'));
         try {
           socket.send(meta.cmd);
         } catch (err) {
@@ -1276,12 +1843,13 @@
         if (code === 1008) {
           setWsStatusText(meta.statusBusy);
         } else {
-          setWsStatusText(code ? ('déconnecté (' + code + ')') : 'déconnecté');
+          const disconnected = tr('terminal.disconnected', 'déconnecté');
+          setWsStatusText(code ? (disconnected + ' (' + code + ')') : disconnected);
         }
       };
       socket.onerror = () => {
         if (socket !== logSocket) return;
-        setWsStatusText('erreur');
+        setWsStatusText(tr('terminal.error', 'erreur'));
       };
       socket.onmessage = (ev) => {
         if (socket !== logSocket) return;
@@ -1307,7 +1875,7 @@
         term.textContent = '';
         connectLogSocket();
       } else {
-        setWsStatusText('inactif');
+        setWsStatusText(tr('terminal.inactive', 'inactif'));
       }
     }
 
@@ -1351,7 +1919,7 @@
     }
     refreshAutoscrollUi();
     logSource = 'supervisor';
-    setWsStatusText('inactif');
+    setWsStatusText(tr('terminal.inactive', 'inactif'));
     if (flowCfgApplyBtn) flowCfgApplyBtn.disabled = true;
 
     function setUpgradeProgress(value) {
@@ -1366,7 +1934,7 @@
     }
 
     function setUpgradeMessage(text) {
-      const message = String(text || '').trim() || 'Aucune opération en cours.';
+      const message = String(text || '').trim() || tr('updates.none', 'Aucune opération en cours.');
       if (upgradeFooterStatus) {
         upgradeFooterStatus.innerHTML = '<span class="sdot"></span>' + message;
       }
@@ -1412,11 +1980,11 @@
 
     function upgradeStepDefinitions(target) {
       return [
-        { id: 'target', label: 'Initialisation' },
-        { id: 'download', label: 'Connexion' },
-        { id: 'flash', label: 'Mise à jour' },
-        { id: 'reboot', label: 'Redémarrage' },
-        { id: 'reconnect', label: 'Reconnexion' }
+        { id: 'target', label: tr('updates.step.target', 'Initialisation') },
+        { id: 'download', label: tr('updates.step.download', 'Connexion') },
+        { id: 'flash', label: tr('updates.step.flash', 'Mise à jour') },
+        { id: 'reboot', label: tr('updates.step.reboot', 'Redémarrage') },
+        { id: 'reconnect', label: tr('updates.step.reconnect', 'Reconnexion') }
       ];
     }
 
@@ -1462,14 +2030,16 @@
     }
 
     function upgradeStepStatusLabel(stepId, state, session) {
-      if (state === 'done') return 'Terminé';
+      if (state === 'done') return tr('updates.step.status.done', 'Terminé');
       const progress = upgradeStepProgress(stepId, state, session);
       if (state === 'active') {
-        return progress !== null ? ('En cours (' + progress + '%)') : 'En cours';
+        return progress !== null
+          ? tr('updates.step.status.inProgressPct', 'En cours ({pct}%)').replace('{pct}', String(progress))
+          : tr('updates.step.status.inProgress', 'En cours');
       }
-      if (state === 'pending') return 'En attente';
-      if (state === 'error') return 'Erreur';
-      return 'En attente';
+      if (state === 'pending') return tr('updates.step.status.pending', 'En attente');
+      if (state === 'error') return tr('updates.step.status.error', 'Erreur');
+      return tr('updates.step.status.pending', 'En attente');
     }
 
     function upgradeStepState(stepId, session) {
@@ -1552,28 +2122,28 @@
       const detail = String(safeSession.detail || '');
       const targetLabel = upgradeTargetLabel(safeSession.target);
       const stateLabel = phase === 'idle'
-        ? 'Prêt'
+        ? tr('updates.phase.idle', 'Prêt')
         : phase === 'target'
-          ? 'Cible sélectionnée'
+          ? tr('updates.phase.target', 'Cible sélectionnée')
           : phase === 'download'
-            ? 'Téléchargement'
+            ? tr('updates.phase.download', 'Téléchargement')
             : phase === 'flash'
-              ? 'Mise à jour'
+              ? tr('updates.phase.flash', 'Mise à jour')
               : phase === 'reboot'
-                ? 'Redémarrage'
+                ? tr('updates.phase.reboot', 'Redémarrage')
                 : phase === 'reconnect'
-                  ? 'Attente de Reconnection'
+                  ? tr('updates.phase.reconnect', 'Attente de Reconnection')
                   : phase === 'done'
-                    ? 'Mise à jour terminée'
-                    : 'Erreur';
+                    ? tr('updates.phase.done', 'Mise à jour terminée')
+                    : tr('updates.phase.error', 'Erreur');
 
       if (upgradeJourneyLabel) {
         upgradeJourneyLabel.textContent = safeSession.target
-          ? ('Statut de l’upgrade · ' + targetLabel)
-          : 'Statut de l’upgrade';
+          ? (tr('updates.progress', 'Statut de l’upgrade') + ' · ' + targetLabel)
+          : tr('updates.progress', 'Statut de l’upgrade');
       }
       setUpgradeProgress(upgradePhasePercent(safeSession));
-      setUpgradeMessage(detail || (phase === 'idle' ? 'Aucune opération en cours.' : stateLabel));
+      setUpgradeMessage(detail || (phase === 'idle' ? tr('updates.none', 'Aucune opération en cours.') : stateLabel));
       renderUpgradeSteps(safeSession);
       if (upStatusChip) {
         upStatusChip.textContent = stateLabel;
@@ -1584,7 +2154,7 @@
       const current = readUpgradeUiSession() || {
         phase: 'idle',
         target: '',
-        detail: 'Aucune opération en cours.',
+        detail: tr('updates.none', 'Aucune opération en cours.'),
         backendProgress: 0,
         lastPercent: 0,
         awaitingReconnect: false,
@@ -1603,7 +2173,8 @@
       return updateUpgradeUiSession({
         phase: 'target',
         target: target,
-        detail: 'Sélection de la cible ' + upgradeTargetLabel(target) + '.',
+        detail: tr('updates.detail.targetSelected', 'Sélection de la cible {target}.')
+          .replace('{target}', upgradeTargetLabel(target)),
         backendProgress: 0,
         awaitingReconnect: false,
         reconnectShown: false,
@@ -1635,7 +2206,7 @@
       if (!current || !current.awaitingReconnect) return null;
       return updateUpgradeUiSession({
         phase: 'reconnect',
-        detail: 'Attente de Reconnection.',
+        detail: tr('updates.detail.awaitReconnect', 'Attente de Reconnection.'),
         reconnectShown: true,
         reconnectProgress: Math.max(5, Math.min(95, Number(current.reconnectProgress) || 0))
       });
@@ -1647,7 +2218,7 @@
       stopUpgradeReconnectFlow();
       return updateUpgradeUiSession({
         phase: 'done',
-        detail: 'Mise à jour terminée.',
+        detail: tr('updates.detail.done', 'Mise à jour terminée.'),
         backendProgress: 100,
         awaitingReconnect: false,
         reconnectShown: true,
@@ -1675,7 +2246,7 @@
       const nextProgress = Math.max(5, Math.min(95, (Number(current.reconnectProgress) || 0) + 12));
       return updateUpgradeUiSession({
         phase: 'reconnect',
-        detail: 'Attente de Reconnection.',
+        detail: tr('updates.detail.awaitReconnect', 'Attente de Reconnection.'),
         reconnectShown: true,
         reconnectProgress: nextProgress
       });
@@ -1747,7 +2318,7 @@
           handleUpgradeReconnectSuccess();
         } else if (!current || current.phase === 'idle') {
           clearUpgradeUiSession();
-          renderUpgradeJourney({ phase: 'idle', target: '', detail: 'Aucune opération en cours.' });
+          renderUpgradeJourney({ phase: 'idle', target: '', detail: tr('updates.none', 'Aucune opération en cours.') });
         }
         return;
       }
@@ -1757,7 +2328,8 @@
         updateUpgradeUiSession({
           phase: 'target',
           target: target,
-          detail: 'Sélection de la cible ' + upgradeTargetLabel(target) + '.',
+          detail: tr('updates.detail.targetSelected', 'Sélection de la cible {target}.')
+            .replace('{target}', upgradeTargetLabel(target)),
           backendProgress: progress,
           awaitingReconnect: false,
           reconnectShown: false,
@@ -1819,7 +2391,7 @@
           updateUpgradeUiSession({
             phase: 'reboot',
             target: target,
-            detail: 'Redémarrage.',
+            detail: tr('updates.phase.reboot', 'Redémarrage') + '.',
             backendProgress: 100,
             awaitingReconnect: true,
             reconnectShown: false,
@@ -1832,7 +2404,7 @@
           updateUpgradeUiSession({
             phase: 'done',
             target: target,
-            detail: 'Mise à jour terminée.',
+            detail: tr('updates.detail.done', 'Mise à jour terminée.'),
             backendProgress: 100,
             awaitingReconnect: false,
             reconnectShown: true,
@@ -1864,7 +2436,7 @@
         if (updateServerPath) {
           updateServerPath.value = composeUpgradeServerPath(data.update_host || '', data.update_path || '');
         }
-        resetUpgradeManifestSelections('Cliquez sur « Rechercher les mises à jour ».');
+        resetUpgradeManifestSelections(tr('updates.empty', 'Cliquez sur « Rechercher les mises à jour ».'));
         syncUpgradeConfigFieldInitialValues();
       } catch (err) {
         setUpgradeMessage('Échec du chargement de la configuration : ' + err);
@@ -2041,7 +2613,7 @@
       upgradeCards.innerHTML = '';
       const empty = document.createElement('div');
       empty.className = 'upgrade-empty';
-      empty.textContent = text || 'Cliquez sur « Rechercher les mises à jour ».';
+      empty.textContent = text || tr('updates.empty', 'Cliquez sur « Rechercher les mises à jour ».');
       upgradeCards.appendChild(empty);
     }
 
@@ -2065,7 +2637,7 @@
       if (!upgradeCards) return;
       upgradeCards.innerHTML = '';
       if (!Array.isArray(entries) || entries.length === 0) {
-        setUpgradeCardsEmpty('Aucune mise à jour disponible dans le manifest.');
+        setUpgradeCardsEmpty(tr('updates.noneInManifest', 'Aucune mise à jour disponible dans le manifest.'));
         return;
       }
       entries.forEach((entry) => {
@@ -2111,16 +2683,16 @@
 
     function resetUpgradeManifestSelections(text) {
       upgradeManifestState = { manifest: null, manifestUrl: '', baseUrl: '' };
-      setUpgradeCardsEmpty(text || 'Cliquez sur « Rechercher les mises à jour ».');
+      setUpgradeCardsEmpty(text || tr('updates.empty', 'Cliquez sur « Rechercher les mises à jour ».'));
     }
 
     function confirmUpgradeLaunch(entry) {
-      const title = String(entry && entry.title ? entry.title : 'firmware').trim();
-      const version = String(entry && entry.version ? entry.version : '').trim();
+      const version = String(entry && entry.version ? entry.version : 'x.x.x').trim() || 'x.x.x';
       const target = upgradeTargetLabel(entry && entry.target ? entry.target : '');
-      const suffix = version ? (' ' + version) : '';
       return confirm(
-        'Confirmer le lancement de la mise à jour ' + title + suffix + ' vers ' + target + ' ?'
+        tr('updates.confirmLaunch', 'Confirmer la mise à jour de {target} vers la version {version} ?')
+          .replace('{target}', target)
+          .replace('{version}', version)
       );
     }
 
@@ -2128,12 +2700,12 @@
       const action = String(selectedAction || 'supervisor');
       const messages = {
         supervisor: isMicronovaProfile()
-          ? 'Confirmer le redémarrage de Micronova ?'
-          : 'Confirmer le redémarrage du Supervisor ?',
-        flow_soft: 'Confirmer le redémarrage logiciel de Flow.io ?',
-        flow_hard: 'Confirmer le redémarrage matériel de Flow.io ?',
-        nextion: 'Confirmer le redémarrage de Nextion ?',
-        factory_reset: 'Confirmer l\'initialisation usine de Flow.io ? Cette action efface la configuration distante.'
+          ? tr('updates.confirmRebootMicronova', 'Confirmer le redémarrage de Micronova ?')
+          : tr('updates.confirmRebootSupervisor', 'Confirmer le redémarrage du Supervisor ?'),
+        flow_soft: tr('updates.confirmRebootFlowSoft', 'Confirmer le redémarrage logiciel de Flow.io ?'),
+        flow_hard: tr('updates.confirmRebootFlowHard', 'Confirmer le redémarrage matériel de Flow.io ?'),
+        nextion: tr('updates.confirmRebootNextion', 'Confirmer le redémarrage de Nextion ?'),
+        factory_reset: tr('updates.confirmFactoryReset', 'Confirmer l\'initialisation usine de Flow.io ? Cette action efface la configuration distante.')
       };
       return confirm(messages[action] || messages.supervisor);
     }
@@ -2317,6 +2889,7 @@
       }
       try {
         await ensureFlowCfgLoaded(false);
+        await refreshCfgDocLocaleRuntime(true);
       } finally {
         if (shouldShowInitialTreeSkeleton) {
           endFlowCfgLoading({ tree: true, detail: false });
@@ -2465,7 +3038,7 @@
       const n = Number(bytes);
       if (!Number.isFinite(n) || n < 0) return '-';
       if (n < 1024) return Math.round(n) + ' B';
-      if (n < (1024 * 1024)) return Math.round(n / 1024) + ' KB';
+      if (n < (1024 * 1024)) return Math.round(n / 1024) + ' kB';
       return (n / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
@@ -2812,21 +3385,100 @@
       return buildFlowStatusFromDomains(domainData);
     }
 
-    async function fetchFlowStatusDomain(domainKey, forceRefresh) {
+    function isFlowStatusDomainCacheValid(domainKey, nowMs) {
+      const cacheEntry = flowStatusDomainCache[domainKey];
+      if (!cacheEntry || !cacheEntry.data) return false;
+      const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+      return (now - cacheEntry.fetchedAt) < flowStatusDomainTtlMs;
+    }
+
+    function cacheFlowStatusFromAggregate(data, fetchedAtMs) {
+      if (!data || typeof data !== 'object') return;
+      const stamp = Number.isFinite(fetchedAtMs) ? fetchedAtMs : Date.now();
+
+      if (
+        (typeof data.fw === 'string' && data.fw.length > 0) ||
+        typeof data.upms !== 'undefined' ||
+        (data.heap && typeof data.heap === 'object')
+      ) {
+        flowStatusDomainCache.system.data = {
+          ok: true,
+          fw: data.fw || '',
+          upms: data.upms ?? 0,
+          heap: (data.heap && typeof data.heap === 'object') ? data.heap : {}
+        };
+        flowStatusDomainCache.system.fetchedAt = stamp;
+      }
+
+      if (data.wifi && typeof data.wifi === 'object') {
+        const wifiData = Object.assign({}, data.wifi, { ip: normalizeIpValue(data.wifi.ip) });
+        flowStatusDomainCache.wifi.data = { ok: true, wifi: wifiData };
+        flowStatusDomainCache.wifi.fetchedAt = stamp;
+      }
+
+      if (data.mqtt && typeof data.mqtt === 'object') {
+        flowStatusDomainCache.mqtt.data = { ok: true, mqtt: data.mqtt };
+        flowStatusDomainCache.mqtt.fetchedAt = stamp;
+      }
+
+      if (data.pool && typeof data.pool === 'object') {
+        flowStatusDomainCache.pool.data = { ok: true, pool: data.pool };
+        flowStatusDomainCache.pool.fetchedAt = stamp;
+      }
+
+      if (data.i2c && typeof data.i2c === 'object') {
+        flowStatusDomainCache.i2c.data = { ok: true, i2c: data.i2c };
+        flowStatusDomainCache.i2c.fetchedAt = stamp;
+      }
+    }
+
+    async function fetchFlowStatusAggregate(forceRefresh, sourceTag) {
+      // Legacy path kept for compatibility. Info page no longer uses aggregate.
+      // Dashboard status is built from per-domain calls.
+      flowStatusDebugLog('aggregate fetch path disabled', {
+        force: !!forceRefresh,
+        src: String(sourceTag || '').trim() || 'unknown'
+      });
+      throw new Error('aggregate flow status disabled');
+    }
+
+    async function fetchFlowStatusDomain(domainKey, forceRefresh, sourceTag) {
       const cacheEntry = flowStatusDomainCache[domainKey];
       const now = Date.now();
-      const cacheValid = !!cacheEntry.data && ((now - cacheEntry.fetchedAt) < flowStatusDomainTtlMs);
+      const cacheValid = isFlowStatusDomainCacheValid(domainKey, now);
       if (!forceRefresh && cacheValid) {
         return cacheEntry.data;
       }
 
       try {
-        const data = await fetchOkJson(
-          '/api/flow/status/domain?d=' + encodeURIComponent(domainKey),
+        const src = String(sourceTag || '').trim().toLowerCase();
+        let endpoint = '/api/flow/status/domain?d=' + encodeURIComponent(domainKey);
+        if (src) {
+          endpoint += '&src=' + encodeURIComponent(src);
+        }
+        const { res, data } = await fetchJsonResponse(
+          endpoint,
           { cache: 'no-store' },
-          'statut ' + domainKey + ' indisponible',
           fetchFlowRemoteQueued
         );
+        if (!data || typeof data !== 'object') {
+          throw new Error('statut ' + domainKey + ' invalide');
+        }
+        // For per-domain runtime fetches, keep structured `ok:false` payloads
+        // as valid responses so Info cards can show unavailable state cleanly.
+        if (!res.ok) {
+          const fallback = extractApiErrorMessage(data, 'statut ' + domainKey + ' indisponible');
+          throw new Error(fallback);
+        }
+        if (data.ok !== true) {
+          flowStatusDebugLog('domain fetch returned ok=false', {
+            domain: domainKey,
+            src: src || 'unknown',
+            status: res.status,
+            err: data && data.err ? data.err : null,
+            body: data || null
+          });
+        }
         cacheEntry.data = data;
         cacheEntry.fetchedAt = Date.now();
         return data;
@@ -3172,7 +3824,7 @@
       try {
         const domainData = {};
         for (const domainKey of flowStatusDomainKeys) {
-          domainData[domainKey] = await fetchFlowStatusDomain(domainKey, !!forceRefresh);
+          domainData[domainKey] = await fetchFlowStatusDomain(domainKey, !!forceRefresh, 'status');
           if (reqSeq !== flowStatusReqSeq) return;
         }
         const data = buildFlowStatusFromDomains(domainData);
@@ -3211,9 +3863,22 @@
       return runtimeMeasureDomainKeys.includes(key) ? key : '';
     }
 
+    function runtimeManifestDomainKeys() {
+      const keys = runtimeMeasureDomainKeys.slice();
+      infoFlowDomainKeys.forEach((domainKey) => {
+        if (!keys.includes(domainKey)) keys.push(domainKey);
+      });
+      return keys;
+    }
+
+    function normalizeRuntimeManifestDomainKey(domain) {
+      const key = String(domain || '').trim().toLowerCase();
+      return runtimeManifestDomainKeys().includes(key) ? key : '';
+    }
+
     function createEmptyRuntimeManifestDomainCache() {
       const cache = {};
-      runtimeMeasureDomainKeys.forEach((domainKey) => {
+      runtimeManifestDomainKeys().forEach((domainKey) => {
         cache[domainKey] = [];
       });
       return cache;
@@ -3223,91 +3888,20 @@
       return runtimeMeasureDomainKeys.filter((domainKey) => poolMeasureDomainState[domainKey].active);
     }
 
-    function countJsonBraces(line) {
-      let depth = 0;
-      for (let i = 0; i < line.length; ++i) {
-        const ch = line.charAt(i);
-        if (ch === '{') depth += 1;
-        if (ch === '}') depth -= 1;
-      }
-      return depth;
-    }
-
     function registerRuntimeManifestEntry(cache, entry) {
       if (!entry || !Number.isFinite(Number(entry.id))) return;
-      const domainKey = normalizeRuntimeMeasureDomainKey(entry.domain);
+      const domainKey = normalizeRuntimeManifestDomainKey(entry.domain);
       if (!domainKey || !Array.isArray(cache[domainKey])) return;
       cache[domainKey].push(entry);
     }
 
     async function parseRuntimeManifestStreamIntoCache(response, cache) {
-      if (!response.body || typeof response.body.getReader !== 'function' || typeof TextDecoder !== 'function') {
-        const data = await response.json().catch(() => null);
-        const values = Array.isArray(data && data.values) ? data.values : [];
-        values.forEach((entry) => registerRuntimeManifestEntry(cache, entry));
-        return;
+      const data = await response.json().catch(() => null);
+      if (!data || typeof data !== 'object') {
+        throw new Error('manifeste runtime invalide');
       }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let insideValues = false;
-      let insideEntry = false;
-      let braceDepth = 0;
-      let entryLines = [];
-
-      const processLine = (rawLine) => {
-        const line = String(rawLine || '').trim();
-        if (!line) return;
-        if (!insideValues) {
-          if (line.indexOf('"values"') !== -1 && line.indexOf('[') !== -1) {
-            insideValues = true;
-          }
-          return;
-        }
-        if (!insideEntry) {
-          if (line.charAt(0) === '{') {
-            insideEntry = true;
-            braceDepth = countJsonBraces(line);
-            entryLines = [line];
-            if (braceDepth <= 0) {
-              const objectText = entryLines.join('\n').replace(/,$/, '');
-              entryLines = [];
-              insideEntry = false;
-              try {
-                registerRuntimeManifestEntry(cache, JSON.parse(objectText));
-              } catch (err) {
-                throw new Error('manifeste runtime invalide');
-              }
-            }
-          }
-          return;
-        }
-
-        entryLines.push(line);
-        braceDepth += countJsonBraces(line);
-        if (braceDepth > 0) return;
-
-        const objectText = entryLines.join('\n').replace(/,$/, '');
-        entryLines = [];
-        insideEntry = false;
-        try {
-          registerRuntimeManifestEntry(cache, JSON.parse(objectText));
-        } catch (err) {
-          throw new Error('manifeste runtime invalide');
-        }
-      };
-
-      while (true) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        buffer += decoder.decode(chunk.value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        lines.forEach(processLine);
-      }
-      buffer += decoder.decode();
-      if (buffer) processLine(buffer);
+      const values = Array.isArray(data.values) ? data.values : [];
+      values.forEach((entry) => registerRuntimeManifestEntry(cache, entry));
     }
 
     async function loadRuntimeManifestDomains(forceRefresh) {
@@ -3337,7 +3931,7 @@
     }
 
     async function runtimeMeasureEntriesForDomain(domainKey, forceRefresh) {
-      const cleanDomain = normalizeRuntimeMeasureDomainKey(domainKey);
+      const cleanDomain = normalizeRuntimeManifestDomainKey(domainKey);
       if (!cleanDomain) return [];
       const cache = await loadRuntimeManifestDomains(!!forceRefresh);
       return Array.isArray(cache[cleanDomain]) ? cache[cleanDomain] : [];
@@ -3356,7 +3950,8 @@
 
     function formatRuntimeDomainLabel(domain) {
       const key = String(domain || '').trim().toLowerCase();
-      if (key === 'pool') return 'Piscine';
+      if (key === 'mode') return 'Mode';
+      if (key === 'sondes') return 'Sondes';
       if (key === 'micronova') return 'Micronova';
       if (key === 'mqtt') return 'MQTT';
       if (key === 'wifi') return 'WiFi';
@@ -3449,12 +4044,12 @@
     }
 
     function isPoolDashboardGroupEntry(entry) {
-      if (!entry || String(entry.domain || '').trim().toLowerCase() !== 'pool') return false;
+      if (!entry || String(entry.domain || '').trim().toLowerCase() !== 'sondes') return false;
       return String(entry.group || '').trim().localeCompare('Dashboard', 'fr', { sensitivity: 'base' }) === 0;
     }
 
     function isPoolSondesGroupKey(domainKey, groupKey) {
-      return String(domainKey || '').trim().toLowerCase() === 'pool'
+      return String(domainKey || '').trim().toLowerCase() === 'sondes'
         && String(groupKey || '').trim().localeCompare('Sondes', 'fr', { sensitivity: 'base' }) === 0;
     }
 
@@ -3933,7 +4528,7 @@
           + ' status-card-runtime-domain-' + runtimeMeasureCssSlug(group.domainKey)
           + ' status-card-runtime-group-' + runtimeMeasureCssSlug(group.groupKey);
         const isPoolModeGroup =
-          String(group.domainKey || '').trim().toLowerCase() === 'pool' &&
+          String(group.domainKey || '').trim().toLowerCase() === 'mode' &&
           String(group.groupKey || '').trim().localeCompare('Mode', 'fr', { sensitivity: 'base' }) === 0;
         const isPoolSondesGroup = isPoolSondesGroupKey(group.domainKey, group.groupKey);
         const groupDisplayOptions = {
@@ -4141,7 +4736,7 @@
       if (!activeDomains.length) {
         const empty = document.createElement('div');
         empty.className = 'measure-domain-empty';
-        empty.textContent = 'Activez un badge pour charger un domaine.';
+        empty.textContent = tr('dashboard.empty.activateBadge', 'Activez un badge pour charger un domaine.');
         poolMeasuresGrid.appendChild(empty);
         return;
       }
@@ -4157,7 +4752,7 @@
           heading.textContent = formatRuntimeDomainLabel(domainKey);
           const summary = document.createElement('p');
           summary.className = 'status-card-summary';
-          summary.textContent = 'Chargement en cours...';
+          summary.textContent = tr('dashboard.loading', 'Chargement en cours...');
           card.appendChild(heading);
           card.appendChild(summary);
           poolMeasuresGrid.appendChild(card);
@@ -4185,7 +4780,7 @@
           heading.textContent = formatRuntimeDomainLabel(domainKey);
           const summary = document.createElement('p');
           summary.className = 'status-card-summary';
-          summary.textContent = 'Aucune valeur runtime exposee pour ce domaine.';
+          summary.textContent = tr('dashboard.empty.domainNoRuntime', 'Aucune valeur runtime exposee pour ce domaine.');
           card.appendChild(heading);
           card.appendChild(summary);
           poolMeasuresGrid.appendChild(card);
@@ -4200,17 +4795,23 @@
       if (renderedCardCount === 0) {
         const empty = document.createElement('div');
         empty.className = 'measure-domain-empty';
-        empty.textContent = 'Aucune valeur runtime disponible pour les domaines actifs.';
+        empty.textContent = tr('dashboard.empty.activeDomainsNoRuntime', 'Aucune valeur runtime disponible pour les domaines actifs.');
         poolMeasuresGrid.appendChild(empty);
       }
     }
 
     function refreshPoolMeasuresStatus() {
       const activeDomains = activePoolMeasureDomainKeys();
-      const domainLabel = (count) => count > 1 ? 'Domaines' : 'Domaine';
-      const valueLabel = (count) => count > 1 ? 'Valeurs' : 'Valeur';
+      const domainLabel = (count) => count > 1
+        ? tr('dashboard.status.domains.plural', 'Domaines')
+        : tr('dashboard.status.domains.singular', 'Domaine');
+      const valueLabel = (count) => count > 1
+        ? tr('dashboard.status.values.plural', 'Valeurs')
+        : tr('dashboard.status.values.singular', 'Valeur');
       if (!activeDomains.length) {
-        poolMeasuresStatus.textContent = 'Domaine: 0 | Valeur: 0';
+        poolMeasuresStatus.textContent =
+          tr('dashboard.status.domains.singular', 'Domaine') + ': 0 | ' +
+          tr('dashboard.status.values.singular', 'Valeur') + ': 0';
         return;
       }
 
@@ -4222,19 +4823,23 @@
         if (state.loading) loadingCount += 1;
         if (state.error) errorCount += 1;
         valueCount += state.entries.length;
-        if (domainKey === 'pool') {
+        if (domainKey === 'sondes') {
           valueCount += Array.isArray(state.sondeSlots) ? state.sondeSlots.length : 0;
         }
       });
 
       if (loadingCount > 0) {
         poolMeasuresStatus.textContent =
-          'Chargement: ' + loadingCount + ' domaine' + (loadingCount > 1 ? 's' : '');
+          tr('dashboard.status.loading', 'Chargement') + ': ' +
+          loadingCount + ' ' +
+          tr(loadingCount > 1 ? 'dashboard.status.domainWord.plural' : 'dashboard.status.domainWord.singular', loadingCount > 1 ? 'domaines' : 'domaine');
         return;
       }
       if (errorCount > 0) {
         poolMeasuresStatus.textContent =
-          'Erreur(s): ' + errorCount + ' domaine' + (errorCount > 1 ? 's' : '');
+          tr('dashboard.status.errors', 'Erreur(s)') + ': ' +
+          errorCount + ' ' +
+          tr(errorCount > 1 ? 'dashboard.status.domainWord.plural' : 'dashboard.status.domainWord.singular', errorCount > 1 ? 'domaines' : 'domaine');
         return;
       }
       poolMeasuresStatus.textContent =
@@ -4267,12 +4872,12 @@
 
       try {
         const allEntries = await runtimeMeasureEntriesForDomain(cleanDomain, !!forceRefresh);
-        const entries = cleanDomain === 'pool'
+        const entries = cleanDomain === 'sondes'
           ? allEntries.filter((entry) => !isPoolDashboardGroupEntry(entry))
           : allEntries;
         const ids = entries.map((entry) => Number(entry.id)).filter((id) => Number.isFinite(id));
         const values = ids.length ? await fetchRuntimeValues(ids) : [];
-        const sondeSlots = cleanDomain === 'pool'
+        const sondeSlots = cleanDomain === 'sondes'
           ? await fetchPoolSondeSlots().catch(() => [])
           : [];
         if (state.requestSeq !== requestSeq) return;
@@ -4342,7 +4947,7 @@
     }
 
     async function onUpgradePageShown() {
-      renderUpgradeJourney(readUpgradeUiSession() || { phase: 'idle', target: '', detail: 'Aucune opération en cours.' });
+      renderUpgradeJourney(readUpgradeUiSession() || { phase: 'idle', target: '', detail: tr('updates.none', 'Aucune opération en cours.') });
       resumeUpgradeReconnectFlow();
       if (!upgradeCfgLoadedOnce) {
         upgradeCfgLoadedOnce = true;
@@ -4394,12 +4999,12 @@
 
     function calibrationPatchNumber(value) {
       const n = Number(value);
-      if (!Number.isFinite(n)) throw new Error('coefficient invalide');
+      if (!Number.isFinite(n)) throw new Error(tr('calibration.err.invalidCoefficient', 'coefficient invalide'));
       return Number(n.toFixed(9));
     }
 
     function calibrationSetStatus(message, tone) {
-      const text = String(message || '').trim() || 'Étalonnage prêt.';
+      const text = String(message || '').trim() || tr('calibration.ready', 'Étalonnage prêt.');
       if (calibrationStatus) {
         calibrationStatus.textContent = text;
         calibrationStatus.classList.remove('is-ok', 'is-error', 'is-busy');
@@ -4409,13 +5014,13 @@
       }
       if (calibrationStatusChip) {
         if (tone === 'busy') {
-          calibrationStatusChip.textContent = 'Chargement';
+          calibrationStatusChip.textContent = tr('calibration.chip.loading', 'Chargement');
         } else if (tone === 'error') {
-          calibrationStatusChip.textContent = 'Erreur';
+          calibrationStatusChip.textContent = tr('calibration.chip.error', 'Erreur');
         } else if (tone === 'ok') {
-          calibrationStatusChip.textContent = 'OK';
+          calibrationStatusChip.textContent = tr('calibration.chip.ok', 'OK');
         } else {
-          calibrationStatusChip.textContent = 'Prêt';
+          calibrationStatusChip.textContent = tr('calibration.chip.ready', 'Prêt');
         }
       }
     }
@@ -4438,8 +5043,8 @@
       if (calibrationOnePointFields) calibrationOnePointFields.hidden = twoPoint;
       if (calibrationModeHint) {
         calibrationModeHint.textContent = twoPoint
-          ? 'Mode 2 points actif: recalcul de C0 et C1.'
-          : 'Mode 1 point actif: C0 conservé, ajustement de C1 (offset).';
+          ? tr('calibration.mode.two.hint', 'Mode 2 points actif: recalcul de C0 et C1.')
+          : tr('calibration.mode.one.hint', 'Mode 1 point actif: C0 conservé, ajustement de C1 (offset).');
       }
     }
 
@@ -4505,7 +5110,7 @@
 
     async function calibrationFetchFlowModule(moduleName) {
       const cleanModule = nettoyerNomFlowCfg(moduleName);
-      if (!cleanModule) throw new Error('module invalide');
+      if (!cleanModule) throw new Error(tr('calibration.err.invalidModule', 'module invalide'));
       const data = await fetchOkJson(
         '/api/flowcfg/module?name=' + encodeURIComponent(cleanModule),
         { cache: 'no-store' },
@@ -4513,7 +5118,7 @@
         fetchFlowRemoteQueued
       );
       if (!data || typeof data.data !== 'object' || Array.isArray(data.data)) {
-        throw new Error('module ' + cleanModule + ' invalide');
+        throw new Error(tr('calibration.err.invalidModuleNamed', 'module {module} invalide').replace('{module}', cleanModule));
       }
       return data.data;
     }
@@ -4524,7 +5129,7 @@
       const c0Key = keys.find((key) => /_c0$/i.test(String(key || ''))) || '';
       const c1Key = keys.find((key) => /_c1$/i.test(String(key || ''))) || '';
       if (!c0Key || !c1Key) {
-        throw new Error('coefficients C0/C1 introuvables dans ' + moduleName);
+        throw new Error(tr('calibration.err.coeffNotFound', 'coefficients C0/C1 introuvables dans {module}').replace('{module}', moduleName));
       }
       return { c0Key, c1Key };
     }
@@ -4553,7 +5158,7 @@
       }
       calibrationSetModeUi(def.mode);
       calibrationResetComputedUi();
-      calibrationSetStatus('Chargement de la configuration sonde...', 'busy');
+      calibrationSetStatus(tr('calibration.loadingSensorCfg', 'Chargement de la configuration sonde...'), 'busy');
       if (calibrationLoadBtn) calibrationLoadBtn.disabled = true;
       calibrationSetLiveFillButtonsDisabled(true);
 
@@ -4562,18 +5167,18 @@
         const poolSensorCfg = await calibrationFetchFlowModule('poollogic/sensors');
         const ioId = Number(poolSensorCfg[def.poollogicKey]);
         if (!Number.isFinite(ioId) || ioId <= 0) {
-          throw new Error('IO non configurée pour ' + def.label);
+          throw new Error(tr('calibration.err.ioNotConfigured', 'IO non configurée pour {sensor}').replace('{sensor}', def.label));
         }
         const ioModule = calibrationIoModuleFromId(ioId);
         if (!ioModule) {
-          throw new Error('IO analogique inconnue (id=' + ioId + ')');
+          throw new Error(tr('calibration.err.unknownAnalogIo', 'IO analogique inconnue (id={id})').replace('{id}', String(ioId)));
         }
         const ioCfg = await calibrationFetchFlowModule(ioModule);
         const coeffKeys = calibrationExtractCoeffKeys(ioCfg, ioModule);
         const c0 = calibrationParseNumberLoose(ioCfg[coeffKeys.c0Key]);
         const c1 = calibrationParseNumberLoose(ioCfg[coeffKeys.c1Key]);
         if (!Number.isFinite(c0) || !Number.isFinite(c1)) {
-          throw new Error('C0/C1 invalides pour ' + ioModule);
+          throw new Error(tr('calibration.err.invalidCoeffForModule', 'C0/C1 invalides pour {module}').replace('{module}', ioModule));
         }
 
         calibrationContext = {
@@ -4592,7 +5197,7 @@
         };
 
         calibrationSetSummary(ioModule, c0, c1);
-        calibrationSetStatus('Sonde ' + def.label + ' chargée.', 'ok');
+        calibrationSetStatus(tr('calibration.sensorLoaded', 'Sonde {sensor} chargée.').replace('{sensor}', def.label), 'ok');
         calibrationSetLiveFillButtonsDisabled(false);
 
         if (prefillLive) {
@@ -4601,7 +5206,7 @@
       } catch (err) {
         calibrationContext = null;
         calibrationSetSummary('-', NaN, NaN);
-        calibrationSetStatus('Chargement étalonnage échoué: ' + err, 'error');
+        calibrationSetStatus(tr('calibration.loadFailed', 'Chargement étalonnage échoué: {err}').replace('{err}', String(err)), 'error');
       } finally {
         if (calibrationLoadBtn) calibrationLoadBtn.disabled = false;
       }
@@ -4610,20 +5215,20 @@
     async function calibrationPrefillLiveValue(options) {
       const opts = options || {};
       if (!calibrationContext || !Number.isFinite(calibrationContext.runtimeUiId)) {
-        throw new Error('chargez d\'abord une sonde');
+        throw new Error(tr('calibration.err.loadSensorFirst', 'chargez d\'abord une sonde'));
       }
       if (!opts.silent) {
-        calibrationSetStatus('Lecture de la mesure live...', 'busy');
+        calibrationSetStatus(tr('calibration.readingLive', 'Lecture de la mesure live...'), 'busy');
       }
 
       const values = await fetchRuntimeValues([calibrationContext.runtimeUiId]);
       const runtimeValue = values.find((item) => Number(item && (item.id ?? item.runtimeId)) === calibrationContext.runtimeUiId);
       if (!runtimeValue || runtimeValue.status === 'not_found' || runtimeValue.status === 'unavailable') {
-        throw new Error('mesure live indisponible');
+        throw new Error(tr('calibration.err.liveUnavailable', 'mesure live indisponible'));
       }
       const measured = calibrationParseNumberLoose(runtimeValue.value);
       if (!Number.isFinite(measured)) {
-        throw new Error('mesure live invalide');
+        throw new Error(tr('calibration.err.liveInvalid', 'mesure live invalide'));
       }
 
       if (opts.targetInput && typeof opts.targetInput.value === 'string') {
@@ -4642,22 +5247,25 @@
       }
 
       if (!opts.silent) {
-        calibrationSetStatus('Mesure live récupérée: ' + calibrationFormatNumber(measured, 4), 'ok');
+        calibrationSetStatus(
+          tr('calibration.liveValueFetched', 'Mesure live récupérée: {value}').replace('{value}', calibrationFormatNumber(measured, 4)),
+          'ok'
+        );
       }
     }
 
     function calibrationComputeModel() {
       if (!calibrationContext || !calibrationContext.ioModule) {
-        throw new Error('chargez d\'abord une sonde');
+        throw new Error(tr('calibration.err.loadSensorFirst', 'chargez d\'abord une sonde'));
       }
 
       const oldC0 = Number(calibrationContext.c0);
       const oldC1 = Number(calibrationContext.c1);
       if (!Number.isFinite(oldC0) || !Number.isFinite(oldC1)) {
-        throw new Error('coefficients actuels invalides');
+        throw new Error(tr('calibration.err.currentCoeffInvalid', 'coefficients actuels invalides'));
       }
       if (Math.abs(oldC0) < 1e-12) {
-        throw new Error('C0 actuel trop proche de 0');
+        throw new Error(tr('calibration.err.c0TooCloseZero', 'C0 actuel trop proche de 0'));
       }
 
       if (calibrationContext.mode === 'two') {
@@ -4666,22 +5274,22 @@
         const measured2 = calibrationReadInputNumber(calibrationPoint2Measured, 'Point 2 mesure affichée');
         const reference2 = calibrationReadInputNumber(calibrationPoint2Reference, 'Point 2 référence');
         if (Math.abs(measured2 - measured1) < 1e-9) {
-          throw new Error('les deux mesures affichées doivent être différentes');
+          throw new Error(tr('calibration.err.twoMeasuredSame', 'les deux mesures affichées doivent être différentes'));
         }
 
         const raw1 = (measured1 - oldC1) / oldC0;
         const raw2 = (measured2 - oldC1) / oldC0;
         if (!Number.isFinite(raw1) || !Number.isFinite(raw2)) {
-          throw new Error('conversion brute impossible');
+          throw new Error(tr('calibration.err.rawConversionImpossible', 'conversion brute impossible'));
         }
         if (Math.abs(raw2 - raw1) < 1e-12) {
-          throw new Error('les points bruts sont trop proches');
+          throw new Error(tr('calibration.err.rawPointsTooClose', 'les points bruts sont trop proches'));
         }
 
         const newC0 = (reference2 - reference1) / (raw2 - raw1);
         const newC1 = reference1 - (newC0 * raw1);
         if (!Number.isFinite(newC0) || !Number.isFinite(newC1)) {
-          throw new Error('calcul des coefficients impossible');
+          throw new Error(tr('calibration.err.coeffCalcImpossible', 'calcul des coefficients impossible'));
         }
 
         return {
@@ -4709,12 +5317,12 @@
       const reference = calibrationReadInputNumber(calibrationSingleReference, 'Référence');
       const raw = (measured - oldC1) / oldC0;
       if (!Number.isFinite(raw)) {
-        throw new Error('conversion brute impossible');
+        throw new Error(tr('calibration.err.rawConversionImpossible', 'conversion brute impossible'));
       }
       const newC0 = oldC0;
       const newC1 = reference - (newC0 * raw);
       if (!Number.isFinite(newC1)) {
-        throw new Error('calcul C1 impossible');
+        throw new Error(tr('calibration.err.c1CalcImpossible', 'calcul C1 impossible'));
       }
 
       return {
@@ -4742,30 +5350,30 @@
           if (model.spanReference < model.recommendedSpan) {
             checks.push({
               tone: 'warn',
-              label: 'Alerte',
-              text: 'L\'écart entre références est faible (' +
-                calibrationFormatNumber(model.spanReference, 3) +
-                '). Élargissez les points pour une meilleure précision.'
+              label: tr('calibration.check.warn', 'Alerte'),
+              text: tr('calibration.check.spanWeak', 'L\'écart entre références est faible ({value}). Élargissez les points pour une meilleure précision.')
+                .replace('{value}', calibrationFormatNumber(model.spanReference, 3))
             });
           } else {
             checks.push({
               tone: 'ok',
-              label: 'OK',
-              text: 'Écart entre références correct (' + calibrationFormatNumber(model.spanReference, 3) + ').'
+              label: tr('calibration.check.ok', 'OK'),
+              text: tr('calibration.check.spanOk', 'Écart entre références correct ({value}).')
+                .replace('{value}', calibrationFormatNumber(model.spanReference, 3))
             });
           }
         }
         if (model.newC0 <= 0) {
           checks.push({
             tone: 'warn',
-            label: 'Alerte',
-            text: 'La pente C0 calculée est négative ou nulle. Vérifiez l\'ordre des points et les valeurs saisies.'
+            label: tr('calibration.check.warn', 'Alerte'),
+            text: tr('calibration.check.c0Invalid', 'La pente C0 calculée est négative ou nulle. Vérifiez l\'ordre des points et les valeurs saisies.')
           });
         } else {
           checks.push({
             tone: 'ok',
-            label: 'OK',
-            text: 'La pente C0 calculée est cohérente.'
+            label: tr('calibration.check.ok', 'OK'),
+            text: tr('calibration.check.c0Ok', 'La pente C0 calculée est cohérente.')
           });
         }
       } else {
@@ -4773,22 +5381,23 @@
         if (offsetDelta > model.warningOffset && model.warningOffset > 0) {
           checks.push({
             tone: 'warn',
-            label: 'Alerte',
-            text: 'Décalage important (' + calibrationFormatNumber(offsetDelta, 3) + '). Vérifiez la référence.'
+            label: tr('calibration.check.warn', 'Alerte'),
+            text: tr('calibration.check.offsetHigh', 'Décalage important ({value}). Vérifiez la référence.')
+              .replace('{value}', calibrationFormatNumber(offsetDelta, 3))
           });
         } else {
           checks.push({
             tone: 'ok',
-            label: 'OK',
-            text: 'Décalage mesuré compatible avec un étalonnage 1 point.'
+            label: tr('calibration.check.ok', 'OK'),
+            text: tr('calibration.check.offsetOk', 'Décalage mesuré compatible avec un étalonnage 1 point.')
           });
         }
       }
 
       checks.push({
         tone: 'info',
-        label: 'Info Web',
-        text: 'Module ciblé: ' + model.moduleName
+        label: tr('menu.info', 'infos/about'),
+        text: tr('calibration.check.moduleTargeted', 'Module ciblé: {module}').replace('{module}', model.moduleName)
       });
       return checks;
     }
@@ -4796,7 +5405,9 @@
     function calibrationRenderPreview(model) {
       if (!calibrationPreview) return;
       calibrationPreview.hidden = false;
-      const modeLabel = model.mode === 'two' ? 'Étalonnage 2 points' : 'Étalonnage 1 point';
+      const modeLabel = model.mode === 'two'
+        ? tr('calibration.mode.two.title', 'Étalonnage 2 points')
+        : tr('calibration.mode.one.title', 'Étalonnage 1 point');
       const rows = [];
       if (model.mode === 'two') {
         rows.push({
@@ -4817,13 +5428,17 @@
       ).join('');
       const noteHtml = model.mode === 'two'
         ? ''
-        : '<div class="calibration-preview-note">C0 conservé en mode 1 point (offset).</div>';
+        : '<div class="calibration-preview-note">' + tr('calibration.preview.onePointNote', 'C0 conservé en mode 1 point (offset).') + '</div>';
       calibrationPreview.innerHTML =
-        '<div class="calibration-preview-head">' + modeLabel + ' prête pour ' + model.sensorLabel + '</div>' +
+        '<div class="calibration-preview-head">'
+          + tr('calibration.preview.head', '{mode} prête pour {sensor}')
+            .replace('{mode}', modeLabel)
+            .replace('{sensor}', model.sensorLabel)
+          + '</div>' +
         '<div class="calibration-preview-grid">' +
-          '<span class="calibration-preview-col-head">Coefficient</span>' +
-          '<span class="calibration-preview-col-head">Actuel</span>' +
-          '<span class="calibration-preview-col-head">Nouveau</span>' +
+          '<span class="calibration-preview-col-head">' + tr('calibration.preview.coefficient', 'Coefficient') + '</span>' +
+          '<span class="calibration-preview-col-head">' + tr('calibration.preview.current', 'Actuel') + '</span>' +
+          '<span class="calibration-preview-col-head">' + tr('calibration.preview.new', 'Nouveau') + '</span>' +
           rowsHtml +
         '</div>' +
         noteHtml;
@@ -4845,7 +5460,7 @@
 
         const pill = document.createElement('span');
         pill.className = 'calibration-check-pill';
-        pill.textContent = String(entry && entry.label ? entry.label : 'Info Web');
+        pill.textContent = String(entry && entry.label ? entry.label : tr('menu.info', 'infos/about'));
         row.appendChild(pill);
 
         const text = document.createElement('span');
@@ -4864,17 +5479,17 @@
         calibrationRenderPreview(model);
         calibrationRenderChecks(calibrationBuildChecks(model));
         if (calibrationApplyBtn) calibrationApplyBtn.disabled = false;
-        calibrationSetStatus('Nouveaux coefficients calculés. Vous pouvez appliquer.', 'ok');
+        calibrationSetStatus(tr('calibration.computeDone', 'Nouveaux coefficients calculés. Vous pouvez appliquer.'), 'ok');
       } catch (err) {
         calibrationResetComputedUi();
-        calibrationSetStatus('Calcul étalonnage échoué: ' + err, 'error');
+        calibrationSetStatus(tr('calibration.computeFailed', 'Calcul étalonnage échoué: {err}').replace('{err}', String(err)), 'error');
       }
     }
 
     async function applyCalibrationResult() {
       if (!calibrationContext || !calibrationComputed) return;
       if (calibrationApplyBtn) calibrationApplyBtn.disabled = true;
-      calibrationSetStatus('Application des coefficients sur Flow.io...', 'busy');
+      calibrationSetStatus(tr('calibration.applyInProgress', 'Application des coefficients sur Flow.io...'), 'busy');
 
       try {
         const patch = {};
@@ -4893,9 +5508,9 @@
         }
 
         await loadCalibrationSensorConfig(false);
-        calibrationSetStatus('Étalonnage appliqué avec succès.', 'ok');
+        calibrationSetStatus(tr('calibration.applySuccess', 'Étalonnage appliqué avec succès.'), 'ok');
       } catch (err) {
-        calibrationSetStatus('Application étalonnage échouée: ' + err, 'error');
+        calibrationSetStatus(tr('calibration.applyFailed', 'Application étalonnage échouée: {err}').replace('{err}', String(err)), 'error');
         if (calibrationApplyBtn) calibrationApplyBtn.disabled = !calibrationComputed;
       }
     }
@@ -5326,7 +5941,12 @@
     }
 
     function cfgSourceLabel(source) {
-      return source === 'supervisor' ? webLocalConfigLabel : 'Config Store Flow.io';
+      if (source !== 'supervisor') {
+        return tr('cfg.remote.flow', 'Config Store Flow.io');
+      }
+      return isMicronovaProfile()
+        ? tr('cfg.local.micronova', 'Config Store Micronova')
+        : tr('cfg.local.supervisor', 'Config Store Supervisor');
     }
 
     function renderFlowCfgCurrentPath(source, pathValue, node) {
@@ -5337,8 +5957,8 @@
       const sourceLabel = cfgSourceLabel(source);
 
       flowCfgPathLabel.textContent = cleanPath ? (sourceLabel + ' / ' + flowCfgTitreDepuisChemin(cleanPath)) : sourceLabel;
-      flowCfgPathLabel.setAttribute('aria-label', cleanPath ? ('Branche ' + cleanPath) : sourceLabel);
-      flowCfgApplyBtn.textContent = source === 'supervisor' ? 'Appliquer localement' : 'Appliquer';
+      flowCfgPathLabel.setAttribute('aria-label', cleanPath ? (tr('config.branch', 'Branche') + ' ' + cleanPath) : sourceLabel);
+      flowCfgApplyBtn.textContent = source === 'supervisor' ? tr('cfg.apply.local', 'Appliquer localement') : tr('config.apply', 'Appliquer');
 
       if (!cleanPath) {
         flowCfgPathMeta.textContent = childCount > 0
@@ -5348,15 +5968,15 @@
       }
 
       const details = [];
-      details.push('Niveau ' + level);
+      details.push(tr('config.level', 'Niveau') + ' ' + level);
       if (hasExact) {
-        details.push('variables configurables');
+        details.push(tr('config.variablesConfigurable', 'variables configurables'));
       }
       if (childCount > 0) {
-        details.push(childCount + ' sous-branche(s)');
+        details.push(childCount + ' ' + tr('config.subBranches', 'sous-branche(s)'));
       }
       if (details.length === 0) {
-        details.push('branche vide');
+        details.push(tr('config.branchEmpty', 'branche vide'));
       }
       flowCfgPathMeta.textContent = details.join(' | ');
     }
@@ -5494,7 +6114,7 @@
       roots.className = 'cfg-tree-group';
       roots.setAttribute('role', 'tree');
       if (webRemoteConfigEnabled && flowChildren.length > 0) {
-        roots.appendChild(buildCfgTreeRootItem('flow', 'Config Store Flow.io', flowCfgRootExpanded, flowChildren));
+        roots.appendChild(buildCfgTreeRootItem('flow', tr('cfg.remote.flow', 'Config Store Flow.io'), flowCfgRootExpanded, flowChildren));
       }
       roots.appendChild(buildCfgTreeRootItem('supervisor', cfgSourceLabel('supervisor'), supCfgRootExpanded, supervisorChildren));
       flowCfgTree.appendChild(roots);
@@ -5703,6 +6323,120 @@
       return clean.toLowerCase().replace(/[^a-z0-9/_-]+/g, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
     }
 
+    function cfgDocLocaleAssetUrl(locale) {
+      const cleanLocale = normalizeWebUiLocale(locale);
+      const base = '/api/cfgdoc/i18n?locale=' + encodeURIComponent(cleanLocale);
+      return assetUrl(base);
+    }
+
+    async function loadCfgDocI18nBundle(locale, forceReload) {
+      const cleanLocale = normalizeWebUiLocale(locale);
+      if (!forceReload && flowCfgDocI18nLocale === cleanLocale && flowCfgDocI18nMap && Object.keys(flowCfgDocI18nMap).length > 0) {
+        cfgI18nDebugLog('cfgdoc i18n cache hit', { locale: cleanLocale, entries: Object.keys(flowCfgDocI18nMap).length });
+        return true;
+      }
+      if (!forceReload && flowCfgDocI18nPromise) {
+        return flowCfgDocI18nPromise;
+      }
+
+      flowCfgDocI18nPromise = (async () => {
+        try {
+          const payload = await fetchOkJson(
+            cfgDocLocaleAssetUrl(cleanLocale),
+            { cache: 'no-store' },
+            'traductions cfgdoc indisponibles'
+          );
+          const source = payload && payload.translations && typeof payload.translations === 'object'
+            ? payload.translations
+            : payload;
+          if (!source || typeof source !== 'object') return false;
+          const mapped = {};
+          Object.keys(source).forEach((rawKey) => {
+            if (typeof source[rawKey] !== 'string') return;
+            const key = String(rawKey || '').trim();
+            if (!key) return;
+            mapped[key] = source[rawKey];
+          });
+          flowCfgDocI18nLocale = cleanLocale;
+          flowCfgDocI18nMap = mapped;
+          cfgI18nDebugLog('cfgdoc i18n loaded', {
+            locale: cleanLocale,
+            entries: Object.keys(mapped).length,
+            sampleWifiLabel: mapped['cfgdocs.wifi.enabled.label'] || null,
+            sampleCfgmodLabel: mapped['cfgmods.network.wifi.label'] || null
+          });
+          return true;
+        } catch (err) {
+          cfgI18nDebugLog('cfgdoc i18n load failed', { locale: cleanLocale, error: String(err) });
+          return false;
+        } finally {
+          flowCfgDocI18nPromise = null;
+        }
+      })();
+
+      return flowCfgDocI18nPromise;
+    }
+
+    function cfgDocResolveLocalizedText(docLike, field) {
+      if (!docLike || typeof docLike !== 'object') return '';
+      const tokenField = field === 'label' ? 'label_i18n' : 'help_i18n';
+      const legacyTokenField = field === 'label' ? 'label_t' : 'help_t';
+      const fallback = typeof docLike[field] === 'string' ? docLike[field] : '';
+      const token = typeof docLike[tokenField] === 'string' && docLike[tokenField].trim()
+        ? docLike[tokenField]
+        : (typeof docLike[legacyTokenField] === 'string' && docLike[legacyTokenField].trim()
+          ? docLike[legacyTokenField]
+          : '');
+      if (!token) return fallback;
+      return cfgDocTr(token, fallback);
+    }
+
+    function cfgDocApplyLocalizedText(docLike) {
+      if (!docLike || typeof docLike !== 'object') return docLike;
+      const out = Object.assign({}, docLike);
+      const nextLabel = cfgDocResolveLocalizedText(out, 'label');
+      const nextHelp = cfgDocResolveLocalizedText(out, 'help');
+      if (nextLabel) out.label = nextLabel;
+      if (nextHelp) out.help = nextHelp;
+      return out;
+    }
+
+    function cfgDocApplyLocalizedEnumOptions(options) {
+      if (!Array.isArray(options)) return options;
+      return options.map((entry) => cfgDocApplyLocalizedText(entry));
+    }
+
+    async function refreshCfgDocLocaleRuntime(forceReload) {
+      if (!flowCfgDocsLoaded) return;
+      cfgI18nDebugLog('refreshCfgDocLocaleRuntime start', {
+        locale: webUiLocale,
+        forceReload: !!forceReload,
+        activePage: getActivePageId()
+      });
+      const loaded = await loadCfgDocI18nBundle(webUiLocale, !!forceReload);
+      if (!loaded) return;
+      if (!isPageActive('page-control')) return;
+      try {
+        await ensureCfgDocsForModule(cfgTreeSelectedSource === 'supervisor' ? supCfgCurrentModule : flowCfgCurrentModule);
+      } catch (err) {
+      }
+      renderFlowCfgTree();
+      renderFlowCfgCurrentPath(cfgTreeSelectedSource, currentCfgTreePath(cfgTreeSelectedSource), cfgNodeForPath(cfgTreeSelectedSource, currentCfgTreePath(cfgTreeSelectedSource)));
+      if (cfgTreeSelectedSource === 'supervisor') {
+        if (supCfgCurrentModule && supCfgCurrentData && typeof supCfgCurrentData === 'object') {
+          renderPrimarySupervisorCfgFields(supCfgCurrentData);
+        }
+      } else if (flowCfgCurrentModule && flowCfgCurrentData && typeof flowCfgCurrentData === 'object') {
+        renderFlowCfgFields(flowCfgCurrentData);
+      }
+      cfgI18nDebugLog('refreshCfgDocLocaleRuntime done', {
+        locale: webUiLocale,
+        source: cfgTreeSelectedSource,
+        supervisorModule: supCfgCurrentModule,
+        flowModule: flowCfgCurrentModule
+      });
+    }
+
     async function loadCfgDocIndex() {
       if (flowCfgDocIndex) return flowCfgDocIndex;
       if (flowCfgDocIndexUnavailable) throw new Error('cfgdoc_index_unavailable');
@@ -5732,39 +6466,6 @@
       });
 
       return flowCfgDocIndexPromise;
-    }
-
-    async function loadCfgDocLegacyFallback() {
-      if (flowCfgDocsLegacyFallbackLoaded) return;
-      flowCfgDocsLegacyFallbackLoaded = true;
-
-      const sources = [];
-      const primary = await fetchJsonResponse(assetUrl('/webinterface/cfgdocs.fr.json'), { cache: 'no-store' });
-      if (!primary.res.ok || !primary.data || typeof primary.data !== 'object') {
-        throw new Error('legacy cfgdocs indisponible');
-      }
-      sources.push({
-        docs: (primary.data.docs && typeof primary.data.docs === 'object') ? primary.data.docs : {},
-        meta: (primary.data.meta && typeof primary.data.meta === 'object')
-          ? primary.data.meta
-          : ((primary.data._meta && typeof primary.data._meta === 'object') ? primary.data._meta : {})
-      });
-
-      try {
-        const mods = await fetchJsonResponse(assetUrl('/webinterface/cfgmods.fr.json'), { cache: 'no-store' });
-        if (mods.res.ok && mods.data && typeof mods.data === 'object') {
-          sources.push({
-            docs: (mods.data.docs && typeof mods.data.docs === 'object') ? mods.data.docs : {},
-            meta: (mods.data.meta && typeof mods.data.meta === 'object')
-              ? mods.data.meta
-              : ((mods.data._meta && typeof mods.data._meta === 'object') ? mods.data._meta : {})
-          });
-        }
-      } catch (err) {
-      }
-
-      cfgDocSources = sources;
-      chargerCfgTreeMetaDepuisDocs();
     }
 
     async function getCfgDocForModule(moduleName) {
@@ -5808,10 +6509,8 @@
     }
 
     async function ensureCfgDocsForModule(moduleName) {
-      const loaded = await getCfgDocForModule(moduleName);
-      if (!loaded) {
-        await loadCfgDocLegacyFallback();
-      }
+      await loadCfgDocI18nBundle(webUiLocale, false);
+      await getCfgDocForModule(moduleName);
       const baseSources = [];
       if (flowCfgDocIndex) {
         const idxSource = normalizeDocSource({ docs: flowCfgDocIndex.docs || {}, meta: flowCfgDocIndex.meta || {} });
@@ -5821,7 +6520,7 @@
         const normalized = normalizeDocSource(source);
         if (normalized) baseSources.push(normalized);
       }
-      cfgDocSources = baseSources.length > 0 ? baseSources : cfgDocSources;
+      cfgDocSources = baseSources;
       chargerCfgTreeMetaDepuisDocs();
     }
 
@@ -5905,11 +6604,11 @@
 
     function enrichResolvedDoc(doc, sources) {
       if (!doc || typeof doc !== 'object') return null;
-      const resolved = Object.assign({}, doc);
+      const resolved = cfgDocApplyLocalizedText(doc);
       const enumSetName = (typeof resolved.enum_set === 'string') ? resolved.enum_set.trim() : '';
       const enumOptions = resolveEnumOptions(enumSetName, sources);
       if (enumSetName && Array.isArray(enumOptions)) {
-        resolved._enumOptions = enumOptions;
+        resolved._enumOptions = cfgDocApplyLocalizedEnumOptions(enumOptions);
       }
       return resolved;
     }
@@ -6825,8 +7524,8 @@
         }
         updatePrimaryCfgApplyState();
         flowCfgStatus.textContent = data.truncated
-          ? 'Branche chargée (tronquée, buffer distant atteint).'
-          : 'Branche chargée.';
+          ? tr('config.branchLoadedTruncated', 'Branche chargée (tronquée, buffer distant atteint).')
+          : tr('config.branchLoaded', 'Branche chargée.');
       } catch (err) {
         resetFlowCfgEditor('Chargement branche échoué: ' + err);
       } finally {
@@ -7108,6 +7807,7 @@
         }
 
         await chargerFlowCfgModule(flowCfgCurrentModule);
+        await refreshWebUiLocale(true);
         flowCfgStatus.textContent = 'Champ "' + key + '" applique.';
       } catch (err) {
         flowCfgStatus.textContent = 'Application du champ echouee: ' + err;
@@ -7131,6 +7831,7 @@
         }
         flowCfgStatus.textContent = 'Configuration appliquée sur Flow.io.';
         await chargerFlowCfgModule(flowCfgCurrentModule);
+        await refreshWebUiLocale(true);
       } catch (err) {
         flowCfgStatus.textContent = 'Application cfg échouée: ' + err;
       }
@@ -7155,6 +7856,7 @@
           clearCfgTreeNodeTextNameCache('supervisor');
           await chargerPrimarySupervisorCfgModule(supCfgCurrentModule);
           renderFlowCfgTree();
+          await refreshWebUiLocale(true);
         } catch (err) {
           flowCfgStatus.textContent = 'Application cfg locale échouée: ' + err;
         }
@@ -7841,12 +8543,19 @@
       });
     }
 
+    function initInfoBindings() {
+      bindClickAction(infoSystemLoader, () => refreshInfoFlowDomain('system', true));
+      bindClickAction(infoWifiLoader, () => refreshInfoFlowDomain('wifi', true));
+      bindClickAction(infoMqttLoader, () => refreshInfoFlowDomain('mqtt', true));
+      updateInfoLoadButtonsText();
+    }
+
     function initCalibrationBindings() {
       if (!calibrationSensorSelect) return;
 
       calibrationSensorSelect.addEventListener('change', () => {
         calibrationSyncSelectionUi();
-        calibrationSetStatus('Sonde sélectionnée. Chargez la configuration pour continuer.');
+        calibrationSetStatus(tr('calibration.sensorSelected', 'Sonde sélectionnée. Chargez la configuration pour continuer.'));
       });
 
       bindClickAction(calibrationLoadBtn, () => loadCalibrationSensorConfig(true));
@@ -7858,7 +8567,12 @@
             targetInput: targetInput
           });
         } catch (err) {
-          calibrationSetStatus('Mesure live échouée (' + label + '): ' + err, 'error');
+          calibrationSetStatus(
+            tr('calibration.liveFailedFor', 'Mesure live échouée ({label}): {err}')
+              .replace('{label}', label)
+              .replace('{err}', String(err)),
+            'error'
+          );
         }
       });
       bindLiveFill(calibrationPoint1LiveBtn, calibrationPoint1Measured, 'Point 1');
@@ -7868,7 +8582,7 @@
       bindClickAction(calibrationApplyBtn, () => applyCalibrationResult());
 
       calibrationSyncSelectionUi();
-      calibrationSetStatus('Étalonnage prêt.');
+      calibrationSetStatus(tr('calibration.ready', 'Étalonnage prêt.'));
     }
 
     function initWifiBindings() {
@@ -7876,15 +8590,15 @@
         mettreAJourEtatVisibiliteMotDePasse(
           wifiPass,
           toggleWifiPassBtn,
-          'Afficher le mot de passe WiFi',
-          'Masquer le mot de passe WiFi'
+          tr('wifi.password.show', 'Afficher le mot de passe WiFi'),
+          tr('wifi.password.hide', 'Masquer le mot de passe WiFi')
         );
         toggleWifiPassBtn.addEventListener('click', () => {
           basculerVisibiliteMotDePasse(
             wifiPass,
             toggleWifiPassBtn,
-            'Afficher le mot de passe WiFi',
-            'Masquer le mot de passe WiFi'
+            tr('wifi.password.show', 'Afficher le mot de passe WiFi'),
+            tr('wifi.password.hide', 'Masquer le mot de passe WiFi')
           );
         });
       }
@@ -7899,7 +8613,7 @@
         try {
           await saveWifiConfig();
         } catch (err) {
-          wifiConfigStatus.textContent = 'Application WiFi échouée: ' + err;
+          wifiConfigStatus.textContent = tr('system.action.wifiApplyFailed', 'Application WiFi échouée') + ': ' + err;
         }
       });
     }
@@ -7983,36 +8697,44 @@
         }
         if (document.hidden || !onTerminalPage) {
           closeLogSocket();
-          setWsStatusText('inactif');
+          setWsStatusText(tr('terminal.inactive', 'inactif'));
         } else if (terminalActive) {
           connectLogSocket();
         }
         scheduleNextInfoPoll(document.hidden ? infoRefreshIdleMs : undefined);
+        if (!document.hidden) {
+          refreshWebUiLocale(true).catch(() => {});
+        }
       });
     }
 
     initUpgradeBindings();
     initStatusBindings();
+    initInfoBindings();
     initCalibrationBindings();
     initWifiBindings();
     initSystemBindings();
     initConfigBindings();
     initGlobalUiBindings();
 
+    applyWebUiLocale(webUiLocale);
     syncMenuIconFallbacks();
-    renderUpgradeJourney(readUpgradeUiSession() || { phase: 'idle', target: '', detail: 'Aucune opération en cours.' });
+    renderUpgradeJourney(readUpgradeUiSession() || { phase: 'idle', target: '', detail: tr('updates.none', 'Aucune opération en cours.') });
+    refreshWebUiLocale(true).catch(() => {});
     resumeUpgradeReconnectFlow();
     startDrawerRuntimeTimer();
     scheduleNextInfoPoll(infoRefreshIdleMs);
     const initialPageId = resolveInitialPageId();
-    const startInitialUi = () => {
+    const startInitialUi = async () => {
+      await loadWebMeta().catch(() => {});
       showPage(initialPageId, { deferHeavyMs: 260 });
-      setTimeout(() => {
-        loadWebMeta().catch(() => {});
-      }, 60);
     };
     if (typeof window.requestAnimationFrame === 'function') {
-      window.requestAnimationFrame(startInitialUi);
+      window.requestAnimationFrame(() => {
+        startInitialUi().catch(() => {});
+      });
     } else {
-      setTimeout(startInitialUi, 16);
+      setTimeout(() => {
+        startInitialUi().catch(() => {});
+      }, 16);
     }

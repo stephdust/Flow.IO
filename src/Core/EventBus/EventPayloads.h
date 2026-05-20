@@ -24,7 +24,8 @@ enum class ConfigModuleId : uint8_t {
     PoolDevice,
     Alarms,
     Log,
-    Micronova
+    Micronova,
+    System
 };
 
 /** @brief Payload for ConfigChanged events. */

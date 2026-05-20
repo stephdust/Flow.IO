@@ -1,0 +1,8 @@
+{
+  "translations": {
+    "cfgdocs.elink.client.enabled.help": "Active le client eLink cote Supervisor pour dialoguer avec Flow.io.",
+    "cfgdocs.elink.client.enabled.label": "Client eLink actif",
+    "cfgdocs.elink.client.target_addr.help": "Adresse I2C du serveur de configuration sur Flow.io (mode esclave).",
+    "cfgdocs.elink.client.target_addr.label": "Adresse cible Flow.io"
+  }
+}

@@ -1,1 +1,1 @@
-{"ok":true,"module":"io","docs":{"io/enabled":{"module":"io","name":"enabled","type":"Bool","label":"Module IO actif","help":"Active ou désactive la couche IO (entrées/sorties).","var":"enabledVar_","source":"auto-hint"}},"meta":{}}
+{"ok":true,"module":"io","docs":{"io/enabled":{"type":"Bool","label_t":"cfgdocs.io.enabled.label","help_t":"cfgdocs.io.enabled.help","label":"Module IO actif","label_i18n":"cfgdocs.io.enabled.label","help":"Active ou désactive la couche IO (entrées/sorties).","help_i18n":"cfgdocs.io.enabled.help"}},"meta":{}}

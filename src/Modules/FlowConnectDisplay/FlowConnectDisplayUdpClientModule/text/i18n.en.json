@@ -1,0 +1,7 @@
+{
+  "locale": "en",
+  "translations": {
+    "cfgdocs.fcd.udp.token.help": "Optional Token for FlowIO pairing.",
+    "cfgdocs.fcd.udp.token.label": "Flow Connect Display Token"
+  }
+}

@@ -1,0 +1,360 @@
+{
+  "_meta": {
+    "generated": true,
+    "locale": "fr",
+    "version": 1
+  },
+  "docs": {
+    "*/depends_on_mask": {
+      "type": "uint8_t",
+      "label_t": "cfgdocs.wildcard.depends_on_mask.label",
+      "help_t": "cfgdocs.wildcard.depends_on_mask.help"
+    },
+    "*/enabled": {
+      "type": "bool",
+      "label_t": "cfgdocs.wildcard.enabled.label",
+      "help_t": "cfgdocs.wildcard.enabled.help"
+    },
+    "*/flow_l_h": {
+      "type": "float",
+      "label_t": "cfgdocs.wildcard.flow_l_h.label",
+      "help_t": "cfgdocs.wildcard.flow_l_h.help",
+      "unit": "L/h"
+    },
+    "*/max_uptime_day_s": {
+      "type": "int32_t",
+      "label_t": "cfgdocs.wildcard.max_uptime_day_s.label",
+      "help_t": "cfgdocs.wildcard.max_uptime_day_s.help",
+      "unit": "s"
+    },
+    "*/metrics_blob": {
+      "type": "char",
+      "label_t": "cfgdocs.wildcard.metrics_blob.label",
+      "help_t": "cfgdocs.wildcard.metrics_blob.help"
+    },
+    "*/tank_cap_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.wildcard.tank_cap_ml.label",
+      "help_t": "cfgdocs.wildcard.tank_cap_ml.help",
+      "unit": "mL"
+    },
+    "*/tank_init_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.wildcard.tank_init_ml.label",
+      "help_t": "cfgdocs.wildcard.tank_init_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd0/depends_on_mask": {
+      "type": "uint8_t",
+      "label_t": "cfgdocs.pdm.pd0.depends_on_mask.label",
+      "help_t": "cfgdocs.pdm.pd0.depends_on_mask.help"
+    },
+    "pdm/pd0/enabled": {
+      "type": "bool",
+      "label_t": "cfgdocs.pdm.pd0.enabled.label",
+      "help_t": "cfgdocs.pdm.pd0.enabled.help"
+    },
+    "pdm/pd0/flow_l_h": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd0.flow_l_h.label",
+      "help_t": "cfgdocs.pdm.pd0.flow_l_h.help",
+      "unit": "L/h"
+    },
+    "pdm/pd0/max_uptime_day_s": {
+      "type": "int32_t",
+      "label_t": "cfgdocs.pdm.pd0.max_uptime_day_s.label",
+      "help_t": "cfgdocs.pdm.pd0.max_uptime_day_s.help",
+      "unit": "s"
+    },
+    "pdm/pd0/tank_cap_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd0.tank_cap_ml.label",
+      "help_t": "cfgdocs.pdm.pd0.tank_cap_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd0/tank_init_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd0.tank_init_ml.label",
+      "help_t": "cfgdocs.pdm.pd0.tank_init_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd1/depends_on_mask": {
+      "type": "uint8_t",
+      "label_t": "cfgdocs.pdm.pd1.depends_on_mask.label",
+      "help_t": "cfgdocs.pdm.pd1.depends_on_mask.help"
+    },
+    "pdm/pd1/enabled": {
+      "type": "bool",
+      "label_t": "cfgdocs.pdm.pd1.enabled.label",
+      "help_t": "cfgdocs.pdm.pd1.enabled.help"
+    },
+    "pdm/pd1/flow_l_h": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd1.flow_l_h.label",
+      "help_t": "cfgdocs.pdm.pd1.flow_l_h.help",
+      "unit": "L/h"
+    },
+    "pdm/pd1/max_uptime_day_s": {
+      "type": "int32_t",
+      "label_t": "cfgdocs.pdm.pd1.max_uptime_day_s.label",
+      "help_t": "cfgdocs.pdm.pd1.max_uptime_day_s.help",
+      "unit": "s"
+    },
+    "pdm/pd1/tank_cap_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd1.tank_cap_ml.label",
+      "help_t": "cfgdocs.pdm.pd1.tank_cap_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd1/tank_init_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd1.tank_init_ml.label",
+      "help_t": "cfgdocs.pdm.pd1.tank_init_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd2/depends_on_mask": {
+      "type": "uint8_t",
+      "label_t": "cfgdocs.pdm.pd2.depends_on_mask.label",
+      "help_t": "cfgdocs.pdm.pd2.depends_on_mask.help"
+    },
+    "pdm/pd2/enabled": {
+      "type": "bool",
+      "label_t": "cfgdocs.pdm.pd2.enabled.label",
+      "help_t": "cfgdocs.pdm.pd2.enabled.help"
+    },
+    "pdm/pd2/flow_l_h": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd2.flow_l_h.label",
+      "help_t": "cfgdocs.pdm.pd2.flow_l_h.help",
+      "unit": "L/h"
+    },
+    "pdm/pd2/max_uptime_day_s": {
+      "type": "int32_t",
+      "label_t": "cfgdocs.pdm.pd2.max_uptime_day_s.label",
+      "help_t": "cfgdocs.pdm.pd2.max_uptime_day_s.help",
+      "unit": "s"
+    },
+    "pdm/pd2/tank_cap_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd2.tank_cap_ml.label",
+      "help_t": "cfgdocs.pdm.pd2.tank_cap_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd2/tank_init_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd2.tank_init_ml.label",
+      "help_t": "cfgdocs.pdm.pd2.tank_init_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd3/depends_on_mask": {
+      "type": "uint8_t",
+      "label_t": "cfgdocs.pdm.pd3.depends_on_mask.label",
+      "help_t": "cfgdocs.pdm.pd3.depends_on_mask.help"
+    },
+    "pdm/pd3/enabled": {
+      "type": "bool",
+      "label_t": "cfgdocs.pdm.pd3.enabled.label",
+      "help_t": "cfgdocs.pdm.pd3.enabled.help"
+    },
+    "pdm/pd3/flow_l_h": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd3.flow_l_h.label",
+      "help_t": "cfgdocs.pdm.pd3.flow_l_h.help",
+      "unit": "L/h"
+    },
+    "pdm/pd3/max_uptime_day_s": {
+      "type": "int32_t",
+      "label_t": "cfgdocs.pdm.pd3.max_uptime_day_s.label",
+      "help_t": "cfgdocs.pdm.pd3.max_uptime_day_s.help",
+      "unit": "s"
+    },
+    "pdm/pd3/tank_cap_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd3.tank_cap_ml.label",
+      "help_t": "cfgdocs.pdm.pd3.tank_cap_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd3/tank_init_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd3.tank_init_ml.label",
+      "help_t": "cfgdocs.pdm.pd3.tank_init_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd4/depends_on_mask": {
+      "type": "uint8_t",
+      "label_t": "cfgdocs.pdm.pd4.depends_on_mask.label",
+      "help_t": "cfgdocs.pdm.pd4.depends_on_mask.help"
+    },
+    "pdm/pd4/enabled": {
+      "type": "bool",
+      "label_t": "cfgdocs.pdm.pd4.enabled.label",
+      "help_t": "cfgdocs.pdm.pd4.enabled.help"
+    },
+    "pdm/pd4/flow_l_h": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd4.flow_l_h.label",
+      "help_t": "cfgdocs.pdm.pd4.flow_l_h.help",
+      "unit": "L/h"
+    },
+    "pdm/pd4/max_uptime_day_s": {
+      "type": "int32_t",
+      "label_t": "cfgdocs.pdm.pd4.max_uptime_day_s.label",
+      "help_t": "cfgdocs.pdm.pd4.max_uptime_day_s.help",
+      "unit": "s"
+    },
+    "pdm/pd4/tank_cap_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd4.tank_cap_ml.label",
+      "help_t": "cfgdocs.pdm.pd4.tank_cap_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd4/tank_init_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd4.tank_init_ml.label",
+      "help_t": "cfgdocs.pdm.pd4.tank_init_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd5/depends_on_mask": {
+      "type": "uint8_t",
+      "label_t": "cfgdocs.pdm.pd5.depends_on_mask.label",
+      "help_t": "cfgdocs.pdm.pd5.depends_on_mask.help"
+    },
+    "pdm/pd5/enabled": {
+      "type": "bool",
+      "label_t": "cfgdocs.pdm.pd5.enabled.label",
+      "help_t": "cfgdocs.pdm.pd5.enabled.help"
+    },
+    "pdm/pd5/flow_l_h": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd5.flow_l_h.label",
+      "help_t": "cfgdocs.pdm.pd5.flow_l_h.help",
+      "unit": "L/h"
+    },
+    "pdm/pd5/max_uptime_day_s": {
+      "type": "int32_t",
+      "label_t": "cfgdocs.pdm.pd5.max_uptime_day_s.label",
+      "help_t": "cfgdocs.pdm.pd5.max_uptime_day_s.help",
+      "unit": "s"
+    },
+    "pdm/pd5/tank_cap_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd5.tank_cap_ml.label",
+      "help_t": "cfgdocs.pdm.pd5.tank_cap_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd5/tank_init_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd5.tank_init_ml.label",
+      "help_t": "cfgdocs.pdm.pd5.tank_init_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd6/depends_on_mask": {
+      "type": "uint8_t",
+      "label_t": "cfgdocs.pdm.pd6.depends_on_mask.label",
+      "help_t": "cfgdocs.pdm.pd6.depends_on_mask.help"
+    },
+    "pdm/pd6/enabled": {
+      "type": "bool",
+      "label_t": "cfgdocs.pdm.pd6.enabled.label",
+      "help_t": "cfgdocs.pdm.pd6.enabled.help"
+    },
+    "pdm/pd6/flow_l_h": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd6.flow_l_h.label",
+      "help_t": "cfgdocs.pdm.pd6.flow_l_h.help",
+      "unit": "L/h"
+    },
+    "pdm/pd6/max_uptime_day_s": {
+      "type": "int32_t",
+      "label_t": "cfgdocs.pdm.pd6.max_uptime_day_s.label",
+      "help_t": "cfgdocs.pdm.pd6.max_uptime_day_s.help",
+      "unit": "s"
+    },
+    "pdm/pd6/tank_cap_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd6.tank_cap_ml.label",
+      "help_t": "cfgdocs.pdm.pd6.tank_cap_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd6/tank_init_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd6.tank_init_ml.label",
+      "help_t": "cfgdocs.pdm.pd6.tank_init_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd7/depends_on_mask": {
+      "type": "uint8_t",
+      "label_t": "cfgdocs.pdm.pd7.depends_on_mask.label",
+      "help_t": "cfgdocs.pdm.pd7.depends_on_mask.help"
+    },
+    "pdm/pd7/enabled": {
+      "type": "bool",
+      "label_t": "cfgdocs.pdm.pd7.enabled.label",
+      "help_t": "cfgdocs.pdm.pd7.enabled.help"
+    },
+    "pdm/pd7/flow_l_h": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd7.flow_l_h.label",
+      "help_t": "cfgdocs.pdm.pd7.flow_l_h.help",
+      "unit": "L/h"
+    },
+    "pdm/pd7/max_uptime_day_s": {
+      "type": "int32_t",
+      "label_t": "cfgdocs.pdm.pd7.max_uptime_day_s.label",
+      "help_t": "cfgdocs.pdm.pd7.max_uptime_day_s.help",
+      "unit": "s"
+    },
+    "pdm/pd7/tank_cap_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd7.tank_cap_ml.label",
+      "help_t": "cfgdocs.pdm.pd7.tank_cap_ml.help",
+      "unit": "mL"
+    },
+    "pdm/pd7/tank_init_ml": {
+      "type": "float",
+      "label_t": "cfgdocs.pdm.pd7.tank_init_ml.label",
+      "help_t": "cfgdocs.pdm.pd7.tank_init_ml.help",
+      "unit": "mL"
+    },
+    "pdmrt/pd0/metrics_blob": {
+      "type": "char",
+      "label_t": "cfgdocs.pdmrt.pd0.metrics_blob.label",
+      "help_t": "cfgdocs.pdmrt.pd0.metrics_blob.help"
+    },
+    "pdmrt/pd1/metrics_blob": {
+      "type": "char",
+      "label_t": "cfgdocs.pdmrt.pd1.metrics_blob.label",
+      "help_t": "cfgdocs.pdmrt.pd1.metrics_blob.help"
+    },
+    "pdmrt/pd2/metrics_blob": {
+      "type": "char",
+      "label_t": "cfgdocs.pdmrt.pd2.metrics_blob.label",
+      "help_t": "cfgdocs.pdmrt.pd2.metrics_blob.help"
+    },
+    "pdmrt/pd3/metrics_blob": {
+      "type": "char",
+      "label_t": "cfgdocs.pdmrt.pd3.metrics_blob.label",
+      "help_t": "cfgdocs.pdmrt.pd3.metrics_blob.help"
+    },
+    "pdmrt/pd4/metrics_blob": {
+      "type": "char",
+      "label_t": "cfgdocs.pdmrt.pd4.metrics_blob.label",
+      "help_t": "cfgdocs.pdmrt.pd4.metrics_blob.help"
+    },
+    "pdmrt/pd5/metrics_blob": {
+      "type": "char",
+      "label_t": "cfgdocs.pdmrt.pd5.metrics_blob.label",
+      "help_t": "cfgdocs.pdmrt.pd5.metrics_blob.help"
+    },
+    "pdmrt/pd6/metrics_blob": {
+      "type": "char",
+      "label_t": "cfgdocs.pdmrt.pd6.metrics_blob.label",
+      "help_t": "cfgdocs.pdmrt.pd6.metrics_blob.help"
+    },
+    "pdmrt/pd7/metrics_blob": {
+      "type": "char",
+      "label_t": "cfgdocs.pdmrt.pd7.metrics_blob.label",
+      "help_t": "cfgdocs.pdmrt.pd7.metrics_blob.help"
+    }
+  }
+}

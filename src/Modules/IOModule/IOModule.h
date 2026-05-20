@@ -385,15 +385,10 @@ private:
     };
 
     struct ExtraDigitalCounterConfigVars {
-        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
         ConfigVariable<float,0> i0TotalVar_;
-        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
         ConfigVariable<float,0> i1TotalVar_;
-        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
         ConfigVariable<float,0> i2TotalVar_;
-        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
         ConfigVariable<float,0> i3TotalVar_;
-        // CFGDOC: {"label":"Cumul compteur","help":"Valeur cumulee editable de cette entree en mode compteur. Cette correction ecrase immediatement le total actuel du compteur, devient la nouvelle statistique long terme et est ecrite immediatement en NVS."}
         ConfigVariable<float,0> i4TotalVar_;
 
         explicit ExtraDigitalCounterConfigVars(IODigitalInputSlotConfig* digitalCfg)
@@ -407,15 +402,10 @@ private:
     };
 
     struct ExtraDigitalInputModeConfigVars {
-        // CFGDOC: {"label":"Mode entrée I00","help":"Choisit le type de fonctionnement de I00 (Etat ou Compteur d'Impulsion). Changement pris en compte au redemarrage."}
         ConfigVariable<uint8_t,0> i0ModeVar_;
-        // CFGDOC: {"label":"Mode entrée I01","help":"Choisit le type de fonctionnement de I01 (Etat ou Compteur d'Impulsion). Changement pris en compte au redemarrage."}
         ConfigVariable<uint8_t,0> i1ModeVar_;
-        // CFGDOC: {"label":"Mode entrée I02","help":"Choisit le type de fonctionnement de I02 (Etat ou Compteur d'Impulsion). Changement pris en compte au redemarrage."}
         ConfigVariable<uint8_t,0> i2ModeVar_;
-        // CFGDOC: {"label":"Mode entrée I03","help":"Choisit le type de fonctionnement de I03 (Etat ou Compteur d'Impulsion). Changement pris en compte au redemarrage."}
         ConfigVariable<uint8_t,0> i3ModeVar_;
-        // CFGDOC: {"label":"Mode entrée I04","help":"Choisit le type de fonctionnement de I04 (Etat ou Compteur d'Impulsion). Changement pris en compte au redemarrage."}
         ConfigVariable<uint8_t,0> i4ModeVar_;
 
         explicit ExtraDigitalInputModeConfigVars(IODigitalInputSlotConfig* digitalCfg)
@@ -566,57 +556,46 @@ private:
 #undef FLOW_IO_ANALOG_CFG_DECL
 
     ConfigVariable<char,0> i0NameVar_{NVS_KEY(NvsKeys::Io::IO_I0NM),"i00_name","io/input/i00",ConfigType::CharArray,(char*)digitalInCfg_[0].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[0].name)};
-    // CFGDOC: {"label":"Port physique I00","help":"Identifiant du port physique utilise par l'entree digitale I00. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> i0BindingVar_{NVS_KEY(NvsKeys::Io::IO_I0BP),"binding_port","io/input/i00",ConfigType::UInt16,&digitalInCfg_[0].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> i0ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I0AH),"i00_active_high","io/input/i00",ConfigType::Bool,&digitalInCfg_[0].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<uint8_t,0> i0PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I0PU),"i00_pull_mode","io/input/i00",ConfigType::UInt8,&digitalInCfg_[0].pullMode,ConfigPersistence::Persistent,0};
-    // CFGDOC: {"label":"Mode de front I00","help":"Front a compter pour I00 en mode compteur (0=descendant, 1=montant, 2=les deux)."}
     ConfigVariable<uint8_t,0> i0EdgeModeVar_{NVS_KEY(NvsKeys::Io::IO_I0ED),"edge_mode","io/input/i00",ConfigType::UInt8,&digitalInCfg_[0].edgeMode,ConfigPersistence::Persistent,0};
     ConfigVariable<float,0> i0C0Var_{NVS_KEY(NvsKeys::Io::IO_I0C0),"i00_c0","io/input/i00",ConfigType::Float,&digitalInCfg_[0].c0,ConfigPersistence::Persistent,0};
     ConfigVariable<int32_t,0> i0PrecVar_{NVS_KEY(NvsKeys::Io::IO_I0P),"i00_prec","io/input/i00",ConfigType::Int32,&digitalInCfg_[0].precision,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> i1NameVar_{NVS_KEY(NvsKeys::Io::IO_I1NM),"i01_name","io/input/i01",ConfigType::CharArray,(char*)digitalInCfg_[1].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[1].name)};
-    // CFGDOC: {"label":"Port physique I01","help":"Identifiant du port physique utilise par l'entree digitale I01. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> i1BindingVar_{NVS_KEY(NvsKeys::Io::IO_I1BP),"binding_port","io/input/i01",ConfigType::UInt16,&digitalInCfg_[1].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> i1ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I1AH),"i01_active_high","io/input/i01",ConfigType::Bool,&digitalInCfg_[1].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<uint8_t,0> i1PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I1PU),"i01_pull_mode","io/input/i01",ConfigType::UInt8,&digitalInCfg_[1].pullMode,ConfigPersistence::Persistent,0};
-    // CFGDOC: {"label":"Mode de front I01","help":"Front a compter pour I01 en mode compteur (0=descendant, 1=montant, 2=les deux)."}
     ConfigVariable<uint8_t,0> i1EdgeModeVar_{NVS_KEY(NvsKeys::Io::IO_I1ED),"edge_mode","io/input/i01",ConfigType::UInt8,&digitalInCfg_[1].edgeMode,ConfigPersistence::Persistent,0};
     ConfigVariable<float,0> i1C0Var_{NVS_KEY(NvsKeys::Io::IO_I1C0),"i01_c0","io/input/i01",ConfigType::Float,&digitalInCfg_[1].c0,ConfigPersistence::Persistent,0};
     ConfigVariable<int32_t,0> i1PrecVar_{NVS_KEY(NvsKeys::Io::IO_I1P),"i01_prec","io/input/i01",ConfigType::Int32,&digitalInCfg_[1].precision,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> i2NameVar_{NVS_KEY(NvsKeys::Io::IO_I2NM),"i02_name","io/input/i02",ConfigType::CharArray,(char*)digitalInCfg_[2].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[2].name)};
-    // CFGDOC: {"label":"Port physique I02","help":"Identifiant du port physique utilise par l'entree digitale I02. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> i2BindingVar_{NVS_KEY(NvsKeys::Io::IO_I2BP),"binding_port","io/input/i02",ConfigType::UInt16,&digitalInCfg_[2].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> i2ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I2AH),"i02_active_high","io/input/i02",ConfigType::Bool,&digitalInCfg_[2].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<uint8_t,0> i2PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I2PU),"i02_pull_mode","io/input/i02",ConfigType::UInt8,&digitalInCfg_[2].pullMode,ConfigPersistence::Persistent,0};
-    // CFGDOC: {"label":"Mode de front I02","help":"Front a compter pour I02 en mode compteur (0=descendant, 1=montant, 2=les deux)."}
     ConfigVariable<uint8_t,0> i2EdgeModeVar_{NVS_KEY(NvsKeys::Io::IO_I2ED),"edge_mode","io/input/i02",ConfigType::UInt8,&digitalInCfg_[2].edgeMode,ConfigPersistence::Persistent,0};
     ConfigVariable<float,0> i2C0Var_{NVS_KEY(NvsKeys::Io::IO_I2C0),"i02_c0","io/input/i02",ConfigType::Float,&digitalInCfg_[2].c0,ConfigPersistence::Persistent,0};
     ConfigVariable<int32_t,0> i2PrecVar_{NVS_KEY(NvsKeys::Io::IO_I2P),"i02_prec","io/input/i02",ConfigType::Int32,&digitalInCfg_[2].precision,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> i3NameVar_{NVS_KEY(NvsKeys::Io::IO_I3NM),"i03_name","io/input/i03",ConfigType::CharArray,(char*)digitalInCfg_[3].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[3].name)};
-    // CFGDOC: {"label":"Port physique I03","help":"Identifiant du port physique utilise par l'entree digitale I03. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> i3BindingVar_{NVS_KEY(NvsKeys::Io::IO_I3BP),"binding_port","io/input/i03",ConfigType::UInt16,&digitalInCfg_[3].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> i3ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I3AH),"i03_active_high","io/input/i03",ConfigType::Bool,&digitalInCfg_[3].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<uint8_t,0> i3PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I3PU),"i03_pull_mode","io/input/i03",ConfigType::UInt8,&digitalInCfg_[3].pullMode,ConfigPersistence::Persistent,0};
-    // CFGDOC: {"label":"Mode de front I03","help":"Front a compter pour I03 en mode compteur (0=descendant, 1=montant, 2=les deux)."}
     ConfigVariable<uint8_t,0> i3EdgeModeVar_{NVS_KEY(NvsKeys::Io::IO_I3ED),"edge_mode","io/input/i03",ConfigType::UInt8,&digitalInCfg_[3].edgeMode,ConfigPersistence::Persistent,0};
     ConfigVariable<float,0> i3C0Var_{NVS_KEY(NvsKeys::Io::IO_I3C0),"i03_c0","io/input/i03",ConfigType::Float,&digitalInCfg_[3].c0,ConfigPersistence::Persistent,0};
     ConfigVariable<int32_t,0> i3PrecVar_{NVS_KEY(NvsKeys::Io::IO_I3P),"i03_prec","io/input/i03",ConfigType::Int32,&digitalInCfg_[3].precision,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> i4NameVar_{NVS_KEY(NvsKeys::Io::IO_I4NM),"i04_name","io/input/i04",ConfigType::CharArray,(char*)digitalInCfg_[4].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[4].name)};
-    // CFGDOC: {"label":"Port physique I04","help":"Identifiant du port physique utilise par l'entree digitale I04. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> i4BindingVar_{NVS_KEY(NvsKeys::Io::IO_I4BP),"binding_port","io/input/i04",ConfigType::UInt16,&digitalInCfg_[4].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> i4ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I4AH),"i04_active_high","io/input/i04",ConfigType::Bool,&digitalInCfg_[4].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<uint8_t,0> i4PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I4PU),"i04_pull_mode","io/input/i04",ConfigType::UInt8,&digitalInCfg_[4].pullMode,ConfigPersistence::Persistent,0};
-    // CFGDOC: {"label":"Mode de front I04","help":"Front a compter pour I04 en mode compteur (0=descendant, 1=montant, 2=les deux)."}
     ConfigVariable<uint8_t,0> i4EdgeModeVar_{NVS_KEY(NvsKeys::Io::IO_I4ED),"edge_mode","io/input/i04",ConfigType::UInt8,&digitalInCfg_[4].edgeMode,ConfigPersistence::Persistent,0};
     ConfigVariable<float,0> i4C0Var_{NVS_KEY(NvsKeys::Io::IO_I4C0),"i04_c0","io/input/i04",ConfigType::Float,&digitalInCfg_[4].c0,ConfigPersistence::Persistent,0};
     ConfigVariable<int32_t,0> i4PrecVar_{NVS_KEY(NvsKeys::Io::IO_I4P),"i04_prec","io/input/i04",ConfigType::Int32,&digitalInCfg_[4].precision,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d0NameVar_{NVS_KEY(NvsKeys::Io::IO_D0NM),"d00_name","io/output/d00",ConfigType::CharArray,(char*)digitalCfg_[0].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[0].name)};
-    // CFGDOC: {"label":"Port physique D00","help":"Identifiant du port physique pilote par la sortie D00. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> d0BindingVar_{NVS_KEY(NvsKeys::Io::IO_D0BP),"binding_port","io/output/d00",ConfigType::UInt16,&digitalCfg_[0].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d0ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_D0AH),"d00_active_high","io/output/d00",ConfigType::Bool,&digitalCfg_[0].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d0InitialOnVar_{NVS_KEY(NvsKeys::Io::IO_D0IN),"d00_initial_on","io/output/d00",ConfigType::Bool,&digitalCfg_[0].initialOn,ConfigPersistence::Persistent,0};
@@ -624,7 +603,6 @@ private:
     ConfigVariable<int32_t,0> d0PulseVar_{NVS_KEY(NvsKeys::Io::IO_D0PM),"d00_pulse_ms","io/output/d00",ConfigType::Int32,&digitalCfg_[0].pulseMs,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d1NameVar_{NVS_KEY(NvsKeys::Io::IO_D1NM),"d01_name","io/output/d01",ConfigType::CharArray,(char*)digitalCfg_[1].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[1].name)};
-    // CFGDOC: {"label":"Port physique D01","help":"Identifiant du port physique pilote par la sortie D01. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> d1BindingVar_{NVS_KEY(NvsKeys::Io::IO_D1BP),"binding_port","io/output/d01",ConfigType::UInt16,&digitalCfg_[1].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d1ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_D1AH),"d01_active_high","io/output/d01",ConfigType::Bool,&digitalCfg_[1].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d1InitialOnVar_{NVS_KEY(NvsKeys::Io::IO_D1IN),"d01_initial_on","io/output/d01",ConfigType::Bool,&digitalCfg_[1].initialOn,ConfigPersistence::Persistent,0};
@@ -632,7 +610,6 @@ private:
     ConfigVariable<int32_t,0> d1PulseVar_{NVS_KEY(NvsKeys::Io::IO_D1PM),"d01_pulse_ms","io/output/d01",ConfigType::Int32,&digitalCfg_[1].pulseMs,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d2NameVar_{NVS_KEY(NvsKeys::Io::IO_D2NM),"d02_name","io/output/d02",ConfigType::CharArray,(char*)digitalCfg_[2].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[2].name)};
-    // CFGDOC: {"label":"Port physique D02","help":"Identifiant du port physique pilote par la sortie D02. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> d2BindingVar_{NVS_KEY(NvsKeys::Io::IO_D2BP),"binding_port","io/output/d02",ConfigType::UInt16,&digitalCfg_[2].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d2ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_D2AH),"d02_active_high","io/output/d02",ConfigType::Bool,&digitalCfg_[2].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d2InitialOnVar_{NVS_KEY(NvsKeys::Io::IO_D2IN),"d02_initial_on","io/output/d02",ConfigType::Bool,&digitalCfg_[2].initialOn,ConfigPersistence::Persistent,0};
@@ -640,7 +617,6 @@ private:
     ConfigVariable<int32_t,0> d2PulseVar_{NVS_KEY(NvsKeys::Io::IO_D2PM),"d02_pulse_ms","io/output/d02",ConfigType::Int32,&digitalCfg_[2].pulseMs,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d3NameVar_{NVS_KEY(NvsKeys::Io::IO_D3NM),"d03_name","io/output/d03",ConfigType::CharArray,(char*)digitalCfg_[3].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[3].name)};
-    // CFGDOC: {"label":"Port physique D03","help":"Identifiant du port physique pilote par la sortie D03. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> d3BindingVar_{NVS_KEY(NvsKeys::Io::IO_D3BP),"binding_port","io/output/d03",ConfigType::UInt16,&digitalCfg_[3].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d3ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_D3AH),"d03_active_high","io/output/d03",ConfigType::Bool,&digitalCfg_[3].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d3InitialOnVar_{NVS_KEY(NvsKeys::Io::IO_D3IN),"d03_initial_on","io/output/d03",ConfigType::Bool,&digitalCfg_[3].initialOn,ConfigPersistence::Persistent,0};
@@ -648,7 +624,6 @@ private:
     ConfigVariable<int32_t,0> d3PulseVar_{NVS_KEY(NvsKeys::Io::IO_D3PM),"d03_pulse_ms","io/output/d03",ConfigType::Int32,&digitalCfg_[3].pulseMs,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d4NameVar_{NVS_KEY(NvsKeys::Io::IO_D4NM),"d04_name","io/output/d04",ConfigType::CharArray,(char*)digitalCfg_[4].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[4].name)};
-    // CFGDOC: {"label":"Port physique D04","help":"Identifiant du port physique pilote par la sortie D04. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> d4BindingVar_{NVS_KEY(NvsKeys::Io::IO_D4BP),"binding_port","io/output/d04",ConfigType::UInt16,&digitalCfg_[4].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d4ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_D4AH),"d04_active_high","io/output/d04",ConfigType::Bool,&digitalCfg_[4].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d4InitialOnVar_{NVS_KEY(NvsKeys::Io::IO_D4IN),"d04_initial_on","io/output/d04",ConfigType::Bool,&digitalCfg_[4].initialOn,ConfigPersistence::Persistent,0};
@@ -656,7 +631,6 @@ private:
     ConfigVariable<int32_t,0> d4PulseVar_{NVS_KEY(NvsKeys::Io::IO_D4PM),"d04_pulse_ms","io/output/d04",ConfigType::Int32,&digitalCfg_[4].pulseMs,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d5NameVar_{NVS_KEY(NvsKeys::Io::IO_D5NM),"d05_name","io/output/d05",ConfigType::CharArray,(char*)digitalCfg_[5].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[5].name)};
-    // CFGDOC: {"label":"Port physique D05","help":"Identifiant du port physique pilote par la sortie D05. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> d5BindingVar_{NVS_KEY(NvsKeys::Io::IO_D5BP),"binding_port","io/output/d05",ConfigType::UInt16,&digitalCfg_[5].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d5ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_D5AH),"d05_active_high","io/output/d05",ConfigType::Bool,&digitalCfg_[5].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d5InitialOnVar_{NVS_KEY(NvsKeys::Io::IO_D5IN),"d05_initial_on","io/output/d05",ConfigType::Bool,&digitalCfg_[5].initialOn,ConfigPersistence::Persistent,0};
@@ -664,7 +638,6 @@ private:
     ConfigVariable<int32_t,0> d5PulseVar_{NVS_KEY(NvsKeys::Io::IO_D5PM),"d05_pulse_ms","io/output/d05",ConfigType::Int32,&digitalCfg_[5].pulseMs,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d6NameVar_{NVS_KEY(NvsKeys::Io::IO_D6NM),"d06_name","io/output/d06",ConfigType::CharArray,(char*)digitalCfg_[6].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[6].name)};
-    // CFGDOC: {"label":"Port physique D06","help":"Identifiant du port physique pilote par la sortie D06. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> d6BindingVar_{NVS_KEY(NvsKeys::Io::IO_D6BP),"binding_port","io/output/d06",ConfigType::UInt16,&digitalCfg_[6].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d6ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_D6AH),"d06_active_high","io/output/d06",ConfigType::Bool,&digitalCfg_[6].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d6InitialOnVar_{NVS_KEY(NvsKeys::Io::IO_D6IN),"d06_initial_on","io/output/d06",ConfigType::Bool,&digitalCfg_[6].initialOn,ConfigPersistence::Persistent,0};
@@ -672,7 +645,6 @@ private:
     ConfigVariable<int32_t,0> d6PulseVar_{NVS_KEY(NvsKeys::Io::IO_D6PM),"d06_pulse_ms","io/output/d06",ConfigType::Int32,&digitalCfg_[6].pulseMs,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d7NameVar_{NVS_KEY(NvsKeys::Io::IO_D7NM),"d07_name","io/output/d07",ConfigType::CharArray,(char*)digitalCfg_[7].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[7].name)};
-    // CFGDOC: {"label":"Port physique D07","help":"Identifiant du port physique pilote par la sortie D07. La valeur reference un binding compile-time autorise, pas un numero de GPIO brut."}
     ConfigVariable<PhysicalPortId,0> d7BindingVar_{NVS_KEY(NvsKeys::Io::IO_D7BP),"binding_port","io/output/d07",ConfigType::UInt16,&digitalCfg_[7].bindingPort,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d7ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_D7AH),"d07_active_high","io/output/d07",ConfigType::Bool,&digitalCfg_[7].activeHigh,ConfigPersistence::Persistent,0};
     ConfigVariable<bool,0> d7InitialOnVar_{NVS_KEY(NvsKeys::Io::IO_D7IN),"d07_initial_on","io/output/d07",ConfigType::Bool,&digitalCfg_[7].initialOn,ConfigPersistence::Persistent,0};

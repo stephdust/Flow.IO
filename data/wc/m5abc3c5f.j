@@ -1,1 +1,1 @@
-{"ok":true,"module":"__root","docs":{"network":{"label":"network"},"hmi":{"label":"affichage"},"pdm":{"hidden":true},"pdmrt":{"hidden":true}},"meta":{}}
+{"ok":true,"module":"__root","docs":{"hmi":{"label_t":"cfgmods.hmi.label","label":"Affichage","label_i18n":"cfgmods.hmi.label"},"network":{"label_t":"cfgmods.network.label","label":"network","label_i18n":"cfgmods.network.label"},"pdm":{"hidden":true},"pdmrt":{"hidden":true},"system":{"label_t":"cfgmods.system.label","label":"system","label_i18n":"cfgmods.system.label"}},"meta":{}}

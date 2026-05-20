@@ -1,0 +1,16 @@
+{
+  "translations": {
+    "cfgdocs.fwupdate.cfgdocs_path.help": "Chemin du fichier spiffs.bin sur le serveur MAJ.",
+    "cfgdocs.fwupdate.cfgdocs_path.label": "Chemin image SPIFFS",
+    "cfgdocs.fwupdate.flowio_path.help": "Chemin du binaire firmware Flow.io sur le serveur MAJ.",
+    "cfgdocs.fwupdate.flowio_path.label": "Chemin firmware Flow.io",
+    "cfgdocs.fwupdate.nextion_path.help": "Chemin du fichier TFT Nextion sur le serveur MAJ.",
+    "cfgdocs.fwupdate.nextion_path.label": "Chemin firmware Nextion",
+    "cfgdocs.fwupdate.supervisor_path.help": "Chemin du binaire firmware Supervisor sur le serveur MAJ.",
+    "cfgdocs.fwupdate.supervisor_path.label": "Chemin firmware Supervisor",
+    "cfgdocs.fwupdate.update_host.help": "Adresse du serveur HTTP hébergeant les firmwares.",
+    "cfgdocs.fwupdate.update_host.label": "Hôte serveur MAJ",
+    "cfgdocs.fwupdate.update_path.help": "Chemin de base des mises à jour sur le serveur HTTP, concaténé avec les chemins des images.",
+    "cfgdocs.fwupdate.update_path.label": "Répertoire MAJ"
+  }
+}

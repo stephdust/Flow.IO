@@ -141,7 +141,6 @@ private:
     bool haEntitiesRegistered_ = false;
     
     // Config variables
-    // CFGDOC: {"label":"WiFi active","help":"Active ou désactive la connexion WiFi en mode station."}
     ConfigVariable<bool,0> enabledVar {
         NVS_KEY(NvsKeys::Wifi::Enabled),"enabled","wifi",
         ConfigType::Bool,
@@ -150,7 +149,6 @@ private:
         0
     };
 
-    // CFGDOC: {"label":"SSID","help":"Nom du réseau WiFi cible."}
     ConfigVariable<char,0> ssidVar {
         NVS_KEY(NvsKeys::Wifi::Ssid),"ssid","wifi",
         ConfigType::CharArray,
@@ -159,7 +157,6 @@ private:
         sizeof(cfgData.ssid)
     };
 
-    // CFGDOC: {"label":"Mot de passe WiFi","help":"Mot de passe WPA/WPA2 du réseau WiFi."}
     ConfigVariable<char,0> passVar {
         NVS_KEY(NvsKeys::Wifi::Pass),"pass","wifi",
         ConfigType::CharArray,
@@ -168,7 +165,6 @@ private:
         sizeof(cfgData.pass)
     };
 
-    // CFGDOC: {"label":"Nom mDNS","help":"Nom d'hôte mDNS diffusé sur le réseau local."}
     ConfigVariable<char,0> mdnsVar {
         NVS_KEY(NvsKeys::Wifi::Mdns),"mdns","wifi",
         ConfigType::CharArray,

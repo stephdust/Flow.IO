@@ -204,18 +204,11 @@ private:
     ConfigStore* cfgStore_ = nullptr;
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
 
-    // CFGDOC: {"label":"Activation appareil","help":"Active ou désactive l'appareil du pool concerne."}
     ConfigVariable<bool,0> cfgEnabledVar_[POOL_DEVICE_MAX]{};
-    // CFGDOC: {"label":"Masque dépendances","help":"Masque de dépendances inter-appareils."}
     ConfigVariable<uint8_t,0> cfgDependsVar_[POOL_DEVICE_MAX]{};
-    // CFGDOC: {"label":"Débit (L/h)","help":"Débit nominal en litres par heure pour le calcul d'injection.","unit":"L/h"}
     ConfigVariable<float,0> cfgFlowVar_[POOL_DEVICE_MAX]{};
-    // CFGDOC: {"label":"Capacité cuve (mL)","help":"Capacité maximale de la cuve associée à l'appareil.","unit":"mL"}
     ConfigVariable<float,0> cfgTankCapVar_[POOL_DEVICE_MAX]{};
-    // CFGDOC: {"label":"Niveau initial cuve (mL)","help":"Volume initial de cuve après configuration/reset.","unit":"mL"}
     ConfigVariable<float,0> cfgTankInitVar_[POOL_DEVICE_MAX]{};
-    // CFGDOC: {"label":"Uptime max journalier (s)","help":"Temps maximal autorisé par jour pour l'appareil.","unit":"s"}
     ConfigVariable<int32_t,0> cfgMaxUptimeVar_[POOL_DEVICE_MAX]{};
-    // CFGDOC: {"label":"Blob métriques","help":"État/métriques persistees de l'appareil pour reprise."}
     ConfigVariable<char,0> cfgRuntimeVar_[POOL_DEVICE_MAX]{};
 };

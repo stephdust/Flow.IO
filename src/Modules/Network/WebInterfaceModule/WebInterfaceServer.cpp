@@ -9,6 +9,7 @@
 #include "App/BuildFlags.h"
 #include "Core/FirmwareVersion.h"
 #include "Core/Generated/RuntimeUiManifest_Generated.h"
+#include "Core/Generated/RuntimeUiManifestJson_Generated.h"
 #include "Core/I2cCfgProtocol.h"
 #include "Core/SystemLimits.h"
 #include "Core/SystemStats.h"
@@ -376,23 +377,73 @@ bool sendFlowStatusCompactResponse_(AsyncWebServerRequest* request, const FlowCf
     char domainBuf[640] = {0};
     StaticJsonDocument<768> domainDoc;
     bool anyDomainOk = false;
+    char debugSummary[512] = {0};
+    size_t debugPos = 0;
+
+    auto domainName = [](FlowStatusDomain domain) -> const char* {
+        switch (domain) {
+        case FlowStatusDomain::System: return "system";
+        case FlowStatusDomain::Wifi: return "wifi";
+        case FlowStatusDomain::Mqtt: return "mqtt";
+        case FlowStatusDomain::I2c: return "i2c";
+        case FlowStatusDomain::Pool: return "pool";
+        case FlowStatusDomain::Alarm: return "alarm";
+        default: return "unknown";
+        }
+    };
+
+    auto appendDebug = [&](const char* domain, const char* step, const char* detail) {
+        if (!domain || !step || debugPos >= (sizeof(debugSummary) - 1U)) return;
+        const char* safeDetail = (detail && detail[0] != '\0') ? detail : "";
+        const bool hasDetail = safeDetail[0] != '\0';
+        const int wrote = snprintf(debugSummary + debugPos,
+                                   sizeof(debugSummary) - debugPos,
+                                   "%s%s:%s%s%s",
+                                   debugPos > 0U ? ";" : "",
+                                   domain,
+                                   step,
+                                   hasDetail ? "=" : "",
+                                   hasDetail ? safeDetail : "");
+        if (wrote <= 0) return;
+        const size_t delta = (size_t)wrote;
+        if (delta >= (sizeof(debugSummary) - debugPos)) {
+            debugPos = sizeof(debugSummary) - 1U;
+        } else {
+            debugPos += delta;
+        }
+    };
 
     auto loadDomain = [&](FlowStatusDomain domain) -> JsonObjectConst {
+        const char* dname = domainName(domain);
         memset(domainBuf, 0, sizeof(domainBuf));
         domainDoc.clear();
         if (!flowCfgSvc->runtimeStatusDomainJson(flowCfgSvc->ctx, domain, domainBuf, sizeof(domainBuf))) {
+            appendDebug(dname, "call_fail", domainBuf[0] ? "payload" : "");
+            LOGW("flow.status domain=%s step=call_fail payload=%s",
+                 dname,
+                 domainBuf[0] ? domainBuf : "<empty>");
             return JsonObjectConst();
         }
         const DeserializationError err = deserializeJson(domainDoc, domainBuf);
         if (err || !domainDoc.is<JsonObjectConst>()) {
+            appendDebug(dname, "json_fail", err ? err.c_str() : "not_object");
+            LOGW("flow.status domain=%s step=json_fail err=%s payload=%s",
+                 dname,
+                 err ? err.c_str() : "not_object",
+                 domainBuf[0] ? domainBuf : "<empty>");
             domainDoc.clear();
             return JsonObjectConst();
         }
         JsonObjectConst root = domainDoc.as<JsonObjectConst>();
         if (!(root["ok"] | false)) {
+            appendDebug(dname, "ok_false", "payload");
+            LOGW("flow.status domain=%s step=ok_false payload=%s",
+                 dname,
+                 domainBuf[0] ? domainBuf : "<empty>");
             domainDoc.clear();
             return JsonObjectConst();
         }
+        appendDebug(dname, "ok", "");
         anyDomainOk = true;
         return root;
     };
@@ -482,12 +533,21 @@ bool sendFlowStatusCompactResponse_(AsyncWebServerRequest* request, const FlowCf
 
     if (!anyDomainOk) {
         delete response;
-        request->send(500, "application/json",
-                      "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status\"}}");
+        char errJson[768] = {0};
+        snprintf(errJson,
+                 sizeof(errJson),
+                 "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status\",\"detail\":\"%s\"}}",
+                 debugSummary[0] ? debugSummary : "no_domain_ok");
+        LOGW("flow.status aggregate failed detail=%s", debugSummary[0] ? debugSummary : "no_domain_ok");
+        // Keep HTTP 200 with structured payload so UI can degrade gracefully
+        // without browser-level network error noise.
+        request->send(200, "application/json", errJson);
         return false;
     }
 
     response->print('}');
+    LOGI("flow.status aggregate ok detail=%s",
+         debugSummary[0] ? debugSummary : "ok");
     request->send(response);
     return true;
 }
@@ -1859,6 +1919,40 @@ void WebInterfaceModule::startServer_()
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
     });
+    server_.on("/webinterface/i18n/fr.json", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
+        SpiffsAssetForensicMeta forensicMeta{};
+        bool heapRejected = false;
+        bool buildBusy = false;
+        AsyncWebServerResponse* response =
+            beginSpiffsAssetResponse(
+                request, "/webinterface/i18n/fr.json", "application/json", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+        if (!response) {
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotFound\",\"where\":\"web.i18n.fr\"}}");
+            return;
+        }
+        sendPreparedAssetResponse(request, response, &forensicMeta);
+    });
+    server_.on("/webinterface/i18n/en.json", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
+        SpiffsAssetForensicMeta forensicMeta{};
+        bool heapRejected = false;
+        bool buildBusy = false;
+        AsyncWebServerResponse* response =
+            beginSpiffsAssetResponse(
+                request, "/webinterface/i18n/en.json", "application/json", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+        if (!response) {
+            if (heapRejected || buildBusy) {
+                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+                return;
+            }
+            request->send(404, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotFound\",\"where\":\"web.i18n.en\"}}");
+            return;
+        }
+        sendPreparedAssetResponse(request, response, &forensicMeta);
+    });
     server_.on("/webinterface/light.css", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         SpiffsAssetForensicMeta forensicMeta{};
         bool heapRejected = false;
@@ -1909,46 +2003,6 @@ void WebInterfaceModule::startServer_()
         }
         sendPreparedAssetResponse(request, response, &forensicMeta);
     });
-    server_.on("/webinterface/cfgdocs.fr.json", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
-        SpiffsAssetForensicMeta forensicMeta{};
-        bool heapRejected = false;
-        bool buildBusy = false;
-        AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(
-                request, "/webinterface/cfgdocs.fr.json", "application/json", true, "/webinterface/cfgdocs.jz", &forensicMeta, &heapRejected, &buildBusy);
-        if (response) {
-            sendPreparedAssetResponse(request, response, &forensicMeta);
-            return;
-        }
-        if (heapRejected || buildBusy) {
-            sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
-            return;
-        }
-        AsyncWebServerResponse* fallbackResponse =
-            request->beginResponse(200, "application/json", "{\"_meta\":{\"generated\":false},\"docs\":{}}");
-        addNoCacheHeaders_(fallbackResponse);
-        request->send(fallbackResponse);
-    });
-    server_.on("/webinterface/cfgmods.fr.json", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
-        SpiffsAssetForensicMeta forensicMeta{};
-        bool heapRejected = false;
-        bool buildBusy = false;
-        AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(
-                request, "/webinterface/cfgmods.fr.json", "application/json", true, "/webinterface/cfgmods.jz", &forensicMeta, &heapRejected, &buildBusy);
-        if (response) {
-            sendPreparedAssetResponse(request, response, &forensicMeta);
-            return;
-        }
-        if (heapRejected || buildBusy) {
-            sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
-            return;
-        }
-        AsyncWebServerResponse* fallbackResponse =
-            request->beginResponse(200, "application/json", "{\"_meta\":{\"generated\":false},\"docs\":{}}");
-        addNoCacheHeaders_(fallbackResponse);
-        request->send(fallbackResponse);
-    });
     server_.on("/api/cfgdoc/index", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/cfgdoc/index");
         SpiffsAssetForensicMeta forensicMeta{};
@@ -1965,18 +2019,56 @@ void WebInterfaceModule::startServer_()
             sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
             return;
         }
-        // Legacy fallback when segmented cfgdoc assets are not available yet.
-        AsyncWebServerResponse* legacy =
-            beginSpiffsAssetResponse(
-                request, "/webinterface/cfgdocs.fr.json", "application/json", true, "/webinterface/cfgdocs.jz", &forensicMeta, &heapRejected, &buildBusy);
-        if (legacy) {
-            sendPreparedAssetResponse(request, legacy, &forensicMeta);
-            return;
-        }
         AsyncWebServerResponse* fallbackResponse =
             request->beginResponse(200, "application/json", "{\"ok\":true,\"modules\":{},\"docs\":{},\"meta\":{}}");
         addNoCacheHeaders_(fallbackResponse);
         request->send(fallbackResponse);
+    });
+    server_.on("/api/cfgdoc/i18n", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
+        HttpLatencyScope latency(request, "/api/cfgdoc/i18n");
+        char localeRaw[24] = {0};
+        copyRequestParamValue_(request, "locale", false, localeRaw, sizeof(localeRaw), "fr");
+
+        char locale[24] = {0};
+        size_t wi = 0U;
+        for (size_t i = 0; localeRaw[i] != '\0' && wi + 1U < sizeof(locale); ++i) {
+            char c = localeRaw[i];
+            if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+            const bool allowed = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-';
+            if (!allowed) continue;
+            locale[wi++] = c;
+        }
+        locale[wi] = '\0';
+        if (locale[0] == '\0') {
+            strncpy(locale, "fr", sizeof(locale) - 1);
+            locale[sizeof(locale) - 1] = '\0';
+        }
+
+        char assetPath[64] = {0};
+        int n = snprintf(assetPath, sizeof(assetPath), "/wc/i18n.%s.j", locale);
+        if (n <= 0 || (size_t)n >= sizeof(assetPath)) {
+            request->send(400, "application/json", "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"cfgdoc.i18n\"}}");
+            return;
+        }
+
+        SpiffsAssetForensicMeta forensicMeta{};
+        bool heapRejected = false;
+        bool buildBusy = false;
+        AsyncWebServerResponse* response =
+            beginSpiffsAssetResponse(request, assetPath, "application/json", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+        if (!response && strncmp(locale, "fr", sizeof(locale)) != 0) {
+            response = beginSpiffsAssetResponse(
+                request, "/wc/i18n.fr.j", "application/json", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
+        }
+        if (response) {
+            sendPreparedAssetResponse(request, response, &forensicMeta);
+            return;
+        }
+        if (heapRejected || buildBusy) {
+            sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
+            return;
+        }
+        request->send(404, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotFound\",\"where\":\"cfgdoc.i18n\"}}");
     });
     server_.on("/api/cfgdoc/module", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/cfgdoc/module");
@@ -2774,6 +2866,9 @@ void WebInterfaceModule::startServer_()
                                  "/api/flow/status",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
+        char srcStr[24] = {0};
+        copyRequestParamValue_(request, "src", false, srcStr, sizeof(srcStr), "");
+        LOGI("runtime.call route=/api/flow/status src=%s", srcStr[0] ? srcStr : "-");
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
@@ -2796,6 +2891,9 @@ void WebInterfaceModule::startServer_()
                                  "/api/flow/status/domain",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
+        char srcStr[24] = {0};
+        copyRequestParamValue_(request, "src", false, srcStr, sizeof(srcStr), "");
+        LOGI("runtime.call route=/api/flow/status/domain src=%s", srcStr[0] ? srcStr : "-");
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
@@ -2818,6 +2916,9 @@ void WebInterfaceModule::startServer_()
         FlowStatusDomain domain = FlowStatusDomain::System;
         char domainStr[16] = {0};
         copyRequestParamValue_(request, "d", false, domainStr, sizeof(domainStr), "");
+        LOGI("runtime.call route=/api/flow/status/domain src=%s domain=%s",
+             srcStr[0] ? srcStr : "-",
+             domainStr);
         if (!parseFlowStatusDomainParam_(domainStr, domain)) {
             request->send(400, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"BadDomain\",\"where\":\"flow.status.domain\"}}");
@@ -2826,20 +2927,30 @@ void WebInterfaceModule::startServer_()
 
         char domainBuf[640] = {0};
         if (!flowCfgSvc_->runtimeStatusDomainJson(flowCfgSvc_->ctx, domain, domainBuf, sizeof(domainBuf))) {
+            LOGI("runtime.call route=/api/flow/status/domain src=%s domain=%s result=call_fail",
+                 srcStr[0] ? srcStr : "-",
+                 domainStr);
             if (domainBuf[0] != '\0') {
-                request->send(500, "application/json", domainBuf);
+                // Domain can be temporarily unavailable (or unsupported remotely).
+                // Return structured JSON without HTTP error to avoid noisy client console
+                // and let the UI render the domain as unavailable.
+                request->send(200, "application/json", domainBuf);
             } else {
-                request->send(500, "application/json",
+                request->send(200, "application/json",
                               "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status.domain.fetch\"}}");
             }
             return;
         }
 
+        LOGI("runtime.call route=/api/flow/status/domain src=%s domain=%s result=ok",
+             srcStr[0] ? srcStr : "-",
+             domainStr);
         request->send(200, "application/json", domainBuf);
     });
 
     server_.on("/api/runtime/manifest", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/runtime/manifest");
+        LOGI("runtime.call route=/api/runtime/manifest");
 #if defined(FLOW_PROFILE_MICRONOVA)
         AsyncWebServerResponse* response =
             request->beginResponse(200,
@@ -2849,21 +2960,13 @@ void WebInterfaceModule::startServer_()
         addNoCacheHeaders_(response);
         request->send(response);
 #else
-        SpiffsAssetForensicMeta forensicMeta{};
-        bool heapRejected = false;
-        bool buildBusy = false;
         AsyncWebServerResponse* response =
-            beginSpiffsAssetResponse(
-                request, "/webinterface/runtimeui.json", "application/json", true, nullptr, &forensicMeta, &heapRejected, &buildBusy);
-        if (!response) {
-            if (heapRejected || buildBusy) {
-                sendTinyBusyJson_(request, heapRejected ? "low_memory" : "asset_build_busy");
-            } else {
-                request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"runtime.manifest\"}}");
-            }
-            return;
-        }
-        sendPreparedAssetResponse(request, response, &forensicMeta);
+            request->beginResponse(200,
+                                   "application/json",
+                                   reinterpret_cast<const uint8_t*>(kRuntimeUiManifestJson),
+                                   sizeof(kRuntimeUiManifestJson) - 1U);
+        addNoCacheHeaders_(response);
+        request->send(response);
 #endif
     });
 
@@ -2872,12 +2975,14 @@ void WebInterfaceModule::startServer_()
                                  "/api/runtime/alarms",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
+        LOGI("runtime.call route=/api/runtime/alarms");
         request->send(503, "application/json",
                       "{\"ok\":false,\"err\":{\"code\":\"Disabled\",\"where\":\"runtime.alarms.disabled\"}}");
     });
 
     server_.on("/api/runtime/dashboard_slots", HTTP_GET, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/runtime/dashboard_slots");
+        LOGI("runtime.call route=/api/runtime/dashboard_slots");
         AsyncResponseStream* response = request->beginResponseStream("application/json");
         addNoCacheHeaders_(response);
         response->print("{\"ok\":true,\"slots\":[");
@@ -2930,6 +3035,7 @@ void WebInterfaceModule::startServer_()
                                  "/api/runtime/values",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
+        LOGI("runtime.call route=/api/runtime/values method=GET");
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
@@ -2948,6 +3054,7 @@ void WebInterfaceModule::startServer_()
                           "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"runtime.values.ids\"}}");
             return;
         }
+        LOGI("runtime.call route=/api/runtime/values method=GET ids=%u", (unsigned)idCount);
 
 #if defined(FLOW_PROFILE_MICRONOVA)
         sendMicronovaLocalRuntimeValuesResponse_(request, dataStore_, ids, idCount);
@@ -2964,6 +3071,7 @@ void WebInterfaceModule::startServer_()
                                      "/api/runtime/values",
                                      kHttpLatencyFlowCfgInfoMs,
                                      kHttpLatencyFlowCfgWarnMs);
+            LOGI("runtime.call route=/api/runtime/values method=POST");
             if (request->_tempObject == reinterpret_cast<void*>(1)) {
                 request->_tempObject = nullptr;
                 return;
@@ -3010,6 +3118,7 @@ void WebInterfaceModule::startServer_()
                               "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"runtime.values.ids\"}}");
                 return;
             }
+            LOGI("runtime.call route=/api/runtime/values method=POST ids=%u", (unsigned)idCount);
 
 #if defined(FLOW_PROFILE_MICRONOVA)
             sendMicronovaLocalRuntimeValuesResponse_(request, dataStore_, ids, idCount);

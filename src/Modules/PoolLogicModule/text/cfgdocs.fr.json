@@ -1,0 +1,311 @@
+{
+  "_meta": {
+    "generated": true,
+    "locale": "fr",
+    "version": 1
+  },
+  "docs": {
+    "poollogic/delay/dly_electro_min": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.delay.dly_electro_min.label",
+      "help_t": "cfgdocs.poollogic.delay.dly_electro_min.help",
+      "unit": "min"
+    },
+    "poollogic/delay/dly_pid_min": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.delay.dly_pid_min.label",
+      "help_t": "cfgdocs.poollogic.delay.dly_pid_min.help",
+      "unit": "min"
+    },
+    "poollogic/delay/fill_min_on_s": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.delay.fill_min_on_s.label",
+      "help_t": "cfgdocs.poollogic.delay.fill_min_on_s.help",
+      "unit": "s"
+    },
+    "poollogic/delay/psi_start_dly_s": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.delay.psi_start_dly_s.label",
+      "help_t": "cfgdocs.poollogic.delay.psi_start_dly_s.help",
+      "unit": "s"
+    },
+    "poollogic/delay/robot_delay_min": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.delay.robot_delay_min.label",
+      "help_t": "cfgdocs.poollogic.delay.robot_delay_min.help",
+      "unit": "min"
+    },
+    "poollogic/delay/robot_dur_min": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.delay.robot_dur_min.label",
+      "help_t": "cfgdocs.poollogic.delay.robot_dur_min.help",
+      "unit": "min"
+    },
+    "poollogic/device/fill_slot": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.device.fill_slot.label",
+      "help_t": "cfgdocs.poollogic.device.fill_slot.help",
+      "enum_set": "poollogic_device_slot"
+    },
+    "poollogic/device/filtr_slot": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.device.filtr_slot.label",
+      "help_t": "cfgdocs.poollogic.device.filtr_slot.help",
+      "enum_set": "poollogic_device_slot"
+    },
+    "poollogic/device/heater_slot": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.device.heater_slot.label",
+      "help_t": "cfgdocs.poollogic.device.heater_slot.help"
+    },
+    "poollogic/device/orp_pump_slot": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.device.orp_pump_slot.label",
+      "help_t": "cfgdocs.poollogic.device.orp_pump_slot.help",
+      "enum_set": "poollogic_device_slot"
+    },
+    "poollogic/device/ph_pump_slot": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.device.ph_pump_slot.label",
+      "help_t": "cfgdocs.poollogic.device.ph_pump_slot.help",
+      "enum_set": "poollogic_device_slot"
+    },
+    "poollogic/device/robot_slot": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.device.robot_slot.label",
+      "help_t": "cfgdocs.poollogic.device.robot_slot.help",
+      "enum_set": "poollogic_device_slot"
+    },
+    "poollogic/device/swg_slot": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.device.swg_slot.label",
+      "help_t": "cfgdocs.poollogic.device.swg_slot.help",
+      "enum_set": "poollogic_device_slot"
+    },
+    "poollogic/filtration/filtr_start_clc": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.filtration.filtr_start_clc.label",
+      "help_t": "cfgdocs.poollogic.filtration.filtr_start_clc.help"
+    },
+    "poollogic/filtration/filtr_start_min": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.filtration.filtr_start_min.label",
+      "help_t": "cfgdocs.poollogic.filtration.filtr_start_min.help"
+    },
+    "poollogic/filtration/filtr_stop_clc": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.filtration.filtr_stop_clc.label",
+      "help_t": "cfgdocs.poollogic.filtration.filtr_stop_clc.help"
+    },
+    "poollogic/filtration/filtr_stop_max": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.poollogic.filtration.filtr_stop_max.label",
+      "help_t": "cfgdocs.poollogic.filtration.filtr_stop_max.help"
+    },
+    "poollogic/filtration/wat_temp_lo_th": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.filtration.wat_temp_lo_th.label",
+      "help_t": "cfgdocs.poollogic.filtration.wat_temp_lo_th.help",
+      "unit": "C"
+    },
+    "poollogic/filtration/wat_temp_setpt": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.filtration.wat_temp_setpt.label",
+      "help_t": "cfgdocs.poollogic.filtration.wat_temp_setpt.help",
+      "unit": "C"
+    },
+    "poollogic/mode/auto_mode": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.mode.auto_mode.label",
+      "help_t": "cfgdocs.poollogic.mode.auto_mode.help"
+    },
+    "poollogic/mode/elec_mode": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.mode.elec_mode.label",
+      "help_t": "cfgdocs.poollogic.mode.elec_mode.help"
+    },
+    "poollogic/mode/elec_run": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.mode.elec_run.label",
+      "help_t": "cfgdocs.poollogic.mode.elec_run.help"
+    },
+    "poollogic/mode/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.mode.enabled.label",
+      "help_t": "cfgdocs.poollogic.mode.enabled.help"
+    },
+    "poollogic/mode/heater_auto_mode": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.mode.heater_auto_mode.label",
+      "help_t": "cfgdocs.poollogic.mode.heater_auto_mode.help"
+    },
+    "poollogic/mode/orp_auto_mode": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.mode.orp_auto_mode.label",
+      "help_t": "cfgdocs.poollogic.mode.orp_auto_mode.help"
+    },
+    "poollogic/mode/ph_auto_mode": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.mode.ph_auto_mode.label",
+      "help_t": "cfgdocs.poollogic.mode.ph_auto_mode.help"
+    },
+    "poollogic/mode/ph_dose_plus": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.mode.ph_dose_plus.label",
+      "help_t": "cfgdocs.poollogic.mode.ph_dose_plus.help"
+    },
+    "poollogic/mode/winter_mode": {
+      "type": "Bool",
+      "label_t": "cfgdocs.poollogic.mode.winter_mode.label",
+      "help_t": "cfgdocs.poollogic.mode.winter_mode.help"
+    },
+    "poollogic/pid/freeze_hold_t": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.freeze_hold_t.label",
+      "help_t": "cfgdocs.poollogic.pid.freeze_hold_t.help",
+      "unit": "C"
+    },
+    "poollogic/pid/heater_setpoint": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.heater_setpoint.label",
+      "help_t": "cfgdocs.poollogic.pid.heater_setpoint.help",
+      "unit": "C"
+    },
+    "poollogic/pid/orp_kd": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.orp_kd.label",
+      "help_t": "cfgdocs.poollogic.pid.orp_kd.help"
+    },
+    "poollogic/pid/orp_ki": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.orp_ki.label",
+      "help_t": "cfgdocs.poollogic.pid.orp_ki.help"
+    },
+    "poollogic/pid/orp_kp": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.orp_kp.label",
+      "help_t": "cfgdocs.poollogic.pid.orp_kp.help"
+    },
+    "poollogic/pid/orp_setpoint": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.orp_setpoint.label",
+      "help_t": "cfgdocs.poollogic.pid.orp_setpoint.help"
+    },
+    "poollogic/pid/orp_window_ms": {
+      "type": "Int32",
+      "label_t": "cfgdocs.poollogic.pid.orp_window_ms.label",
+      "help_t": "cfgdocs.poollogic.pid.orp_window_ms.help",
+      "unit": "ms"
+    },
+    "poollogic/pid/ph_kd": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.ph_kd.label",
+      "help_t": "cfgdocs.poollogic.pid.ph_kd.help"
+    },
+    "poollogic/pid/ph_ki": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.ph_ki.label",
+      "help_t": "cfgdocs.poollogic.pid.ph_ki.help"
+    },
+    "poollogic/pid/ph_kp": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.ph_kp.label",
+      "help_t": "cfgdocs.poollogic.pid.ph_kp.help"
+    },
+    "poollogic/pid/ph_setpoint": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.ph_setpoint.label",
+      "help_t": "cfgdocs.poollogic.pid.ph_setpoint.help"
+    },
+    "poollogic/pid/ph_window_ms": {
+      "type": "Int32",
+      "label_t": "cfgdocs.poollogic.pid.ph_window_ms.label",
+      "help_t": "cfgdocs.poollogic.pid.ph_window_ms.help",
+      "unit": "ms"
+    },
+    "poollogic/pid/pid_min_on_ms": {
+      "type": "Int32",
+      "label_t": "cfgdocs.poollogic.pid.pid_min_on_ms.label",
+      "help_t": "cfgdocs.poollogic.pid.pid_min_on_ms.help",
+      "unit": "ms"
+    },
+    "poollogic/pid/pid_sample_ms": {
+      "type": "Int32",
+      "label_t": "cfgdocs.poollogic.pid.pid_sample_ms.label",
+      "help_t": "cfgdocs.poollogic.pid.pid_sample_ms.help",
+      "unit": "ms"
+    },
+    "poollogic/pid/psi_high_th": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.psi_high_th.label",
+      "help_t": "cfgdocs.poollogic.pid.psi_high_th.help",
+      "unit": "bar"
+    },
+    "poollogic/pid/psi_low_th": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.psi_low_th.label",
+      "help_t": "cfgdocs.poollogic.pid.psi_low_th.help",
+      "unit": "bar"
+    },
+    "poollogic/pid/secure_elec_t": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.secure_elec_t.label",
+      "help_t": "cfgdocs.poollogic.pid.secure_elec_t.help",
+      "unit": "C"
+    },
+    "poollogic/pid/winter_start_t": {
+      "type": "Float",
+      "label_t": "cfgdocs.poollogic.pid.winter_start_t.label",
+      "help_t": "cfgdocs.poollogic.pid.winter_start_t.help",
+      "unit": "C"
+    },
+    "poollogic/sensors/air_temp_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.air_temp_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.air_temp_io_id.help",
+      "enum_set": "flowio_logical_input_analog"
+    },
+    "poollogic/sensors/chl_lvl_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.chl_lvl_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.chl_lvl_io_id.help",
+      "enum_set": "flowio_logical_input_digital"
+    },
+    "poollogic/sensors/orp_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.orp_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.orp_io_id.help",
+      "enum_set": "flowio_logical_input_analog"
+    },
+    "poollogic/sensors/ph_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.ph_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.ph_io_id.help",
+      "enum_set": "flowio_logical_input_analog"
+    },
+    "poollogic/sensors/ph_lvl_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.ph_lvl_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.ph_lvl_io_id.help",
+      "enum_set": "flowio_logical_input_digital"
+    },
+    "poollogic/sensors/pool_lvl_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.pool_lvl_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.pool_lvl_io_id.help",
+      "enum_set": "flowio_logical_input_digital"
+    },
+    "poollogic/sensors/psi_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.psi_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.psi_io_id.help",
+      "enum_set": "flowio_logical_input_analog"
+    },
+    "poollogic/sensors/wat_temp_io_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.poollogic.sensors.wat_temp_io_id.label",
+      "help_t": "cfgdocs.poollogic.sensors.wat_temp_io_id.help",
+      "enum_set": "flowio_logical_input_analog"
+    }
+  }
+}

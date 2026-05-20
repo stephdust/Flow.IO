@@ -1,0 +1,17 @@
+{
+  "locale": "en",
+  "translations": {
+    "cfgdocs.fwupdate.cfgdocs_path.help": "Path to the spiffs.bin file on the update server.",
+    "cfgdocs.fwupdate.cfgdocs_path.label": "Chemin image SPIFFS",
+    "cfgdocs.fwupdate.flowio_path.help": "Path to the Flow.io firmware binary on the update server.",
+    "cfgdocs.fwupdate.flowio_path.label": "Chemin firmware Flow.io",
+    "cfgdocs.fwupdate.nextion_path.help": "Path to the Nextion TFT file on the update server.",
+    "cfgdocs.fwupdate.nextion_path.label": "Chemin firmware Nextion",
+    "cfgdocs.fwupdate.supervisor_path.help": "Path to the Supervisor firmware binary on the update server.",
+    "cfgdocs.fwupdate.supervisor_path.label": "Chemin firmware Supervisor",
+    "cfgdocs.fwupdate.update_host.help": "Address of the HTTP server hosting firmware files.",
+    "cfgdocs.fwupdate.update_host.label": "Hôte server MAJ",
+    "cfgdocs.fwupdate.update_path.help": "Base path for updates on the HTTP server, concatenated with image paths.",
+    "cfgdocs.fwupdate.update_path.label": "Répertoire MAJ"
+  }
+}

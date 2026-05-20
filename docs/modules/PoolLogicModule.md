@@ -258,7 +258,7 @@ Logique principale:
   - nécessite filtration active, température mini (`secure_elec_t`) et délai (`dly_electro_min`)
   - en mode `electro_run_md`, asservissement ORP avec hystérésis implicite (`<= 100%` pour maintenir, `<= 90%` pour démarrer)
 - remplissage:
-  - démarre si niveau bas (`pool_lvl_io_id == true`)
+  - démarre si `Pool Level` est actif (`pool_lvl_io_id == true`)
   - respecte un minimum de marche `fill_min_on_s`
 
 ### Alarmes pression PSI

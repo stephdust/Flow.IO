@@ -65,12 +65,10 @@ private:
         bool autoOff60s = true;
         int32_t motionGpio = -1;
     } lcdCfg_{};
-    // CFGDOC: {"label":"Extinction auto ecran (60s)", "help":"Si actif, le backlight s'eteint apres 60 secondes sans mouvement; sinon l'ecran reste allume."}
     ConfigVariable<bool, 0> lcdAutoOffVar_{
         NVS_KEY(NvsKeys::I2cCfg::LcdAutoOffEnabled), "auto_off_60s", "elink/lcd",
         ConfigType::Bool, &lcdCfg_.autoOff60s, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"GPIO detecteur de mouvement", "help":"GPIO du capteur de mouvement utilise pour rallumer l'ecran quand l'extinction auto est active."}
     ConfigVariable<int32_t, 0> lcdMotionGpioVar_{
         NVS_KEY(NvsKeys::I2cCfg::LcdMotionGpio), "motion_gpio", "elink/lcd",
         ConfigType::Int32, &lcdCfg_.motionGpio, ConfigPersistence::Persistent, 0

@@ -174,37 +174,30 @@ private:
     static constexpr uint16_t LowQueueCap = Limits::Mqtt::Capacity::LowQueueCap;
 
     MQTTConfig cfgData_{};
-    // CFGDOC: {"label":"Hôte MQTT","help":"Adresse du broker MQTT (DNS ou IP)."}
     ConfigVariable<char,0> hostVar_{
         NVS_KEY(NvsKeys::Mqtt::Host), "host", "mqtt", ConfigType::CharArray,
         (char*)cfgData_.host, ConfigPersistence::Persistent, sizeof(cfgData_.host)
     };
-    // CFGDOC: {"label":"Port MQTT","help":"Port TCP utilisé pour la connexion au broker."}
     ConfigVariable<int32_t,0> portVar_{
         NVS_KEY(NvsKeys::Mqtt::Port), "port", "mqtt", ConfigType::Int32,
         &cfgData_.port, ConfigPersistence::Persistent, 0
     };
-    // CFGDOC: {"label":"Utilisateur MQTT","help":"Nom d'utilisateur pour l'authentification MQTT."}
     ConfigVariable<char,0> userVar_{
         NVS_KEY(NvsKeys::Mqtt::User), "user", "mqtt", ConfigType::CharArray,
         (char*)cfgData_.user, ConfigPersistence::Persistent, sizeof(cfgData_.user)
     };
-    // CFGDOC: {"label":"Mot de passe MQTT","help":"Mot de passe pour l'authentification MQTT."}
     ConfigVariable<char,0> passVar_{
         NVS_KEY(NvsKeys::Mqtt::Pass), "pass", "mqtt", ConfigType::CharArray,
         (char*)cfgData_.pass, ConfigPersistence::Persistent, sizeof(cfgData_.pass)
     };
-    // CFGDOC: {"label":"Topic de base","help":"Préfixe MQTT pour les topics de télémétrie/commande."}
     ConfigVariable<char,0> baseTopicVar_{
         NVS_KEY(NvsKeys::Mqtt::BaseTopic), "baseTopic", "mqtt", ConfigType::CharArray,
         (char*)cfgData_.baseTopic, ConfigPersistence::Persistent, sizeof(cfgData_.baseTopic)
     };
-    // CFGDOC: {"label":"ID device MQTT topic","help":"Segment <deviceId> des topics MQTT. Vide = auto (MAC)."}
     ConfigVariable<char,0> topicDeviceIdVar_{
         NVS_KEY(NvsKeys::Mqtt::TopicDeviceId), "topicDeviceId", "mqtt", ConfigType::CharArray,
         (char*)cfgData_.topicDeviceId, ConfigPersistence::Persistent, sizeof(cfgData_.topicDeviceId)
     };
-    // CFGDOC: {"label":"MQTT actif","help":"Active ou désactive le client MQTT."}
     ConfigVariable<bool,0> enabledVar_{
         NVS_KEY(NvsKeys::Mqtt::Enabled), "enabled", "mqtt", ConfigType::Bool,
         &cfgData_.enabled, ConfigPersistence::Persistent, 0

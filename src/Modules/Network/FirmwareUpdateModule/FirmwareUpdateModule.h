@@ -72,32 +72,26 @@ private:
         char spiffsPath[64] = "/spiffs-supervisor.bin";
     } cfgData_{};
 
-    // CFGDOC: {"label":"Hôte serveur MAJ","help":"Adresse du serveur HTTP hébergeant les firmwares."}
     ConfigVariable<char, 2> updateHostVar_{
         NVS_KEY("up_host"), "update_host", "fwupdate",
         ConfigType::CharArray, cfgData_.updateHost, ConfigPersistence::Persistent, sizeof(cfgData_.updateHost)
     };
-    // CFGDOC: {"label":"Répertoire MAJ","help":"Chemin de base des mises à jour sur le serveur HTTP, concaténé avec les chemins des images."}
     ConfigVariable<char, 2> updatePathVar_{
         NVS_KEY("up_base_path"), "update_path", "fwupdate",
         ConfigType::CharArray, cfgData_.updatePath, ConfigPersistence::Persistent, sizeof(cfgData_.updatePath)
     };
-    // CFGDOC: {"label":"Chemin firmware Flow.io","help":"Chemin du binaire firmware Flow.io sur le serveur MAJ."}
     ConfigVariable<char, 2> flowioPathVar_{
         NVS_KEY("up_flow_path"), "flowio_path", "fwupdate",
         ConfigType::CharArray, cfgData_.flowioPath, ConfigPersistence::Persistent, sizeof(cfgData_.flowioPath)
     };
-    // CFGDOC: {"label":"Chemin firmware Supervisor","help":"Chemin du binaire firmware Supervisor sur le serveur MAJ."}
     ConfigVariable<char, 2> supervisorPathVar_{
         NVS_KEY("up_sup_path"), "supervisor_path", "fwupdate",
         ConfigType::CharArray, cfgData_.supervisorPath, ConfigPersistence::Persistent, sizeof(cfgData_.supervisorPath)
     };
-    // CFGDOC: {"label":"Chemin firmware Nextion","help":"Chemin du fichier TFT Nextion sur le serveur MAJ."}
     ConfigVariable<char, 2> nextionPathVar_{
         NVS_KEY("up_nx_path"), "nextion_path", "fwupdate",
         ConfigType::CharArray, cfgData_.nextionPath, ConfigPersistence::Persistent, sizeof(cfgData_.nextionPath)
     };
-    // CFGDOC: {"label":"Chemin image SPIFFS","help":"Chemin du fichier spiffs.bin sur le serveur MAJ."}
     ConfigVariable<char, 2> spiffsPathVar_{
         NVS_KEY("up_cfgdocs_path"), "cfgdocs_path", "fwupdate",
         ConfigType::CharArray, cfgData_.spiffsPath, ConfigPersistence::Persistent, sizeof(cfgData_.spiffsPath)

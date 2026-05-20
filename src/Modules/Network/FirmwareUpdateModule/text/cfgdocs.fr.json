@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "generated": true,
+    "locale": "fr",
+    "version": 1
+  },
+  "docs": {
+    "fwupdate/cfgdocs_path": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.fwupdate.cfgdocs_path.label",
+      "help_t": "cfgdocs.fwupdate.cfgdocs_path.help"
+    },
+    "fwupdate/flowio_path": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.fwupdate.flowio_path.label",
+      "help_t": "cfgdocs.fwupdate.flowio_path.help"
+    },
+    "fwupdate/nextion_path": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.fwupdate.nextion_path.label",
+      "help_t": "cfgdocs.fwupdate.nextion_path.help"
+    },
+    "fwupdate/supervisor_path": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.fwupdate.supervisor_path.label",
+      "help_t": "cfgdocs.fwupdate.supervisor_path.help"
+    },
+    "fwupdate/update_host": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.fwupdate.update_host.label",
+      "help_t": "cfgdocs.fwupdate.update_host.help"
+    },
+    "fwupdate/update_path": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.fwupdate.update_path.label",
+      "help_t": "cfgdocs.fwupdate.update_path.help"
+    }
+  }
+}

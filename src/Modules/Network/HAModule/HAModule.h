@@ -116,27 +116,22 @@ private:
     MqttPublishProducer producer_{};
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
 
-    // CFGDOC: {"label":"Auto-découverte HA active","help":"Active ou désactive la publication Home Assistant Discovery."}
     ConfigVariable<bool,0> enabledVar {
         NVS_KEY(NvsKeys::Ha::Enabled),"enabled","ha",ConfigType::Bool,
         &cfgData_.enabled,ConfigPersistence::Persistent,0
     };
-    // CFGDOC: {"label":"Constructeur","help":"Nom du constructeur exposé dans Home Assistant."}
     ConfigVariable<char,0> vendorVar {
         NVS_KEY(NvsKeys::Ha::Vendor),"vendor","ha",ConfigType::CharArray,
         (char*)cfgData_.vendor,ConfigPersistence::Persistent,sizeof(cfgData_.vendor)
     };
-    // CFGDOC: {"label":"Identifiant appareil","help":"Identifiant unique de l'appareil dans Home Assistant."}
     ConfigVariable<char,0> deviceIdVar {
         NVS_KEY(NvsKeys::Ha::DeviceId),"device_id","ha",ConfigType::CharArray,
         (char*)cfgData_.deviceId,ConfigPersistence::Persistent,sizeof(cfgData_.deviceId)
     };
-    // CFGDOC: {"label":"Préfixe Discovery","help":"Préfixe MQTT utilisé pour les topics Home Assistant Discovery."}
     ConfigVariable<char,0> prefixVar {
         NVS_KEY(NvsKeys::Ha::DiscoveryPrefix),"disc_prefix","ha",ConfigType::CharArray,
         (char*)cfgData_.discoveryPrefix,ConfigPersistence::Persistent,sizeof(cfgData_.discoveryPrefix)
     };
-    // CFGDOC: {"label":"Modèle","help":"Nom du modèle exposé dans Home Assistant."}
     ConfigVariable<char,0> modelVar {
         NVS_KEY(NvsKeys::Ha::Model),"model","ha",ConfigType::CharArray,
         (char*)cfgData_.model,ConfigPersistence::Persistent,sizeof(cfgData_.model)

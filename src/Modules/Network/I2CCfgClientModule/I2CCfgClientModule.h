@@ -72,13 +72,11 @@ private:
         uint8_t colorId = 0U;
     };
 
-    // CFGDOC: {"label":"Client eLink actif", "help":"Active le client eLink cote Supervisor pour dialoguer avec Flow.io."}
     ConfigVariable<bool, 0> enabledVar_{
         NVS_KEY(NvsKeys::I2cCfg::ClientEnabled), "enabled", "elink/client",
         ConfigType::Bool, &cfgData_.enabled, ConfigPersistence::Persistent, 0
     };
     // Interlink wiring comes strictly from BoardSpec ("interlink" bus).
-    // CFGDOC: {"label":"Adresse cible Flow.io", "help":"Adresse I2C du serveur de configuration sur Flow.io (mode esclave)."}
     ConfigVariable<uint8_t, 0> addrVar_{
         NVS_KEY(NvsKeys::I2cCfg::ClientAddr), "target_addr", "elink/client",
         ConfigType::UInt8, &cfgData_.targetAddr, ConfigPersistence::Persistent, 0

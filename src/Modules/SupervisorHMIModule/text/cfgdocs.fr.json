@@ -1,0 +1,195 @@
+{
+  "_meta": {
+    "generated": true,
+    "locale": "fr",
+    "version": 1
+  },
+  "docs": {
+    "elink/lcd/auto_off_60s": {
+      "type": "Bool",
+      "label_t": "cfgdocs.elink.lcd.auto_off_60s.label",
+      "help_t": "cfgdocs.elink.lcd.auto_off_60s.help"
+    },
+    "elink/lcd/motion_gpio": {
+      "type": "Int32",
+      "label_t": "cfgdocs.elink.lcd.motion_gpio.label",
+      "help_t": "cfgdocs.elink.lcd.motion_gpio.help"
+    },
+    "elink/lcd/sondes/slot00/color_id": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot00.color_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot00.color_id.help",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot00/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot00.enabled.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot00.enabled.help"
+    },
+    "elink/lcd/sondes/slot00/label": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot00.label.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot00.label.help"
+    },
+    "elink/lcd/sondes/slot00/runtime_ui_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot00.runtime_ui_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot00.runtime_ui_id.help",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot01/color_id": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot01.color_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot01.color_id.help",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot01/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot01.enabled.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot01.enabled.help"
+    },
+    "elink/lcd/sondes/slot01/label": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot01.label.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot01.label.help"
+    },
+    "elink/lcd/sondes/slot01/runtime_ui_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot01.runtime_ui_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot01.runtime_ui_id.help",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot02/color_id": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot02.color_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot02.color_id.help",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot02/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot02.enabled.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot02.enabled.help"
+    },
+    "elink/lcd/sondes/slot02/label": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot02.label.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot02.label.help"
+    },
+    "elink/lcd/sondes/slot02/runtime_ui_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot02.runtime_ui_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot02.runtime_ui_id.help",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot03/color_id": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot03.color_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot03.color_id.help",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot03/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot03.enabled.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot03.enabled.help"
+    },
+    "elink/lcd/sondes/slot03/label": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot03.label.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot03.label.help"
+    },
+    "elink/lcd/sondes/slot03/runtime_ui_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot03.runtime_ui_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot03.runtime_ui_id.help",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot04/color_id": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot04.color_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot04.color_id.help",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot04/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot04.enabled.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot04.enabled.help"
+    },
+    "elink/lcd/sondes/slot04/label": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot04.label.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot04.label.help"
+    },
+    "elink/lcd/sondes/slot04/runtime_ui_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot04.runtime_ui_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot04.runtime_ui_id.help",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot05/color_id": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot05.color_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot05.color_id.help",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot05/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot05.enabled.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot05.enabled.help"
+    },
+    "elink/lcd/sondes/slot05/label": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot05.label.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot05.label.help"
+    },
+    "elink/lcd/sondes/slot05/runtime_ui_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot05.runtime_ui_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot05.runtime_ui_id.help",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot06/color_id": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot06.color_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot06.color_id.help",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot06/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot06.enabled.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot06.enabled.help"
+    },
+    "elink/lcd/sondes/slot06/label": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot06.label.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot06.label.help"
+    },
+    "elink/lcd/sondes/slot06/runtime_ui_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot06.runtime_ui_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot06.runtime_ui_id.help",
+      "enum_set": "elink_dashboard_runtime_ui"
+    },
+    "elink/lcd/sondes/slot07/color_id": {
+      "type": "UInt8",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot07.color_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot07.color_id.help",
+      "enum_set": "elink_dashboard_color"
+    },
+    "elink/lcd/sondes/slot07/enabled": {
+      "type": "Bool",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot07.enabled.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot07.enabled.help"
+    },
+    "elink/lcd/sondes/slot07/label": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot07.label.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot07.label.help"
+    },
+    "elink/lcd/sondes/slot07/runtime_ui_id": {
+      "type": "UInt16",
+      "label_t": "cfgdocs.elink.lcd.sondes.slot07.runtime_ui_id.label",
+      "help_t": "cfgdocs.elink.lcd.sondes.slot07.runtime_ui_id.help",
+      "enum_set": "elink_dashboard_runtime_ui"
+    }
+  }
+}

@@ -4,6 +4,7 @@
  */
 #include "SystemModule.h"
 #include "Core/ErrorCodes.h"
+#include "Core/EventBus/EventPayloads.h"
 #include "Core/FirmwareVersion.h"
 #include "Core/SystemStats.h"
 #include <WiFi.h>
@@ -122,7 +123,10 @@ bool SystemModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer
 }
 
 void SystemModule::init(ConfigStore& cfg, ServiceRegistry& services) {
-    (void)cfg;
+    constexpr uint8_t kCfgModuleId = (uint8_t)ConfigModuleId::System;
+    constexpr uint8_t kCfgBranchId = 1;
+
+    cfg.registerVar(languageVar_, kCfgModuleId, kCfgBranchId);
 
     logHub = services.get<LogHubService>(ServiceId::LogHub);
     cmdSvc = services.get<CommandService>(ServiceId::Command);

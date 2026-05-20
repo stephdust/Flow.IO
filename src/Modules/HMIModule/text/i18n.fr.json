@@ -1,0 +1,16 @@
+{
+  "translations": {
+    "cfgdocs.hmi.leds.enabled.help": "Active le bandeau de LEDs en façade certaines cartes Flow.io/Poolmaster.",
+    "cfgdocs.hmi.leds.enabled.label": "Activation LEDs facade",
+    "cfgdocs.hmi.nextion.enabled.help": "Active la mise à jour de l'écran Nextion connecté au port série.",
+    "cfgdocs.hmi.nextion.enabled.label": "Nextion actif",
+    "cfgdocs.hmi.venice.enabled.help": "Active la mise à jour de la température d'eau vers afficheur TFT Venice.",
+    "cfgdocs.hmi.venice.enabled.label": "Venice RF433 actif",
+    "cfgdocs.hmi.venice.tx_gpio.help": "GPIO utilisé pour l'émetteur RF433 du driver Venice.",
+    "cfgdocs.hmi.venice.tx_gpio.label": "GPIO émission Venice",
+    "cfgmods.hmi.label": "Affichage",
+    "cfgmods.hmi.leds.label": "LEDs façade",
+    "cfgmods.hmi.nextion.label": "Nextion",
+    "cfgmods.hmi.venice.label": "Venice RF433"
+  }
+}

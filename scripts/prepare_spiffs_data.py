@@ -16,14 +16,33 @@ project_dir = Path(env.subst("$PROJECT_DIR"))
 build_dir = Path(env.subst("$BUILD_DIR"))
 src_dir = project_dir / "data"
 staging_dir = build_dir / "spiffs_data"
+pio_env = str(env.subst("$PIOENV") or "").strip()
+
+
+def _run_step(cmd):
+    print(f"[prepare_spiffs_data] run: {' '.join(cmd)}")
+    subprocess.run(cmd, cwd=str(project_dir), check=True)
 
 if src_dir.exists():
-    cfgdoc_generator = project_dir / "scripts" / "generate_cfgdoc_chunks.py"
-    if cfgdoc_generator.exists():
-        try:
-            subprocess.run([str(cfgdoc_generator)], cwd=str(project_dir), check=True)
-        except Exception as exc:
-            print(f"[prepare_spiffs_data] warning: cfgdoc chunk generation failed: {exc}")
+    is_supervisor_env = pio_env.startswith("Supervisor")
+    if is_supervisor_env:
+        transients = (
+            project_dir / "data" / "webinterface" / "cfgdocs.json",
+            project_dir / "data" / "webinterface" / "cfgmods.json",
+            project_dir / "data" / "webinterface" / "cfgdocs.jz",
+            project_dir / "data" / "webinterface" / "cfgmods.jz",
+        )
+        # Ensure a clean state before regeneration.
+        for transient in transients:
+            if transient.exists():
+                transient.unlink()
+        _run_step(["python3", "scripts/generate_config_docs.py"])
+        _run_step(["python3", "scripts/generate_cfgdoc_chunks.py"])
+        # Keep only segmented cfgdoc assets in source data.
+        for transient in transients:
+            if transient.exists():
+                transient.unlink()
+                print(f"[prepare_spiffs_data] removed transient {transient}")
 
     if staging_dir.exists():
         shutil.rmtree(staging_dir)
@@ -33,14 +52,14 @@ if src_dir.exists():
         Path("webinterface/index.html"): Path("webinterface/index.html.gz"),
         Path("webinterface/sh.html"): Path("webinterface/sh.html.gz"),
         Path("webinterface/app.js"): Path("webinterface/app.js.gz"),
+        Path("webinterface/i18n/fr.json"): Path("webinterface/i18n/fr.json.gz"),
+        Path("webinterface/i18n/en.json"): Path("webinterface/i18n/en.json.gz"),
         Path("webinterface/app-core.css"): Path("webinterface/app-core.css.gz"),
         Path("webinterface/app-core.js"): Path("webinterface/app-core.js.gz"),
         Path("webinterface/light.html"): Path("webinterface/light.html.gz"),
         Path("webinterface/light.css"): Path("webinterface/light.css.gz"),
         Path("webinterface/light.js"): Path("webinterface/light.js.gz"),
         Path("webinterface/runtimeui.json"): Path("webinterface/runtimeui.json.gz"),
-        Path("webinterface/cfgdocs.fr.json"): Path("webinterface/cfgdocs.jz"),
-        Path("webinterface/cfgmods.fr.json"): Path("webinterface/cfgmods.jz"),
     }
     cfgdoc_dir = src_dir / "wc"
     if cfgdoc_dir.exists():

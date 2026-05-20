@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "generated": true,
+    "locale": "fr",
+    "version": 1
+  },
+  "docs": {
+    "system/lang": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.system.lang.label",
+      "help_t": "cfgdocs.system.lang.help"
+    }
+  }
+}
