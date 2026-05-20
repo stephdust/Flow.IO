@@ -7,7 +7,7 @@
             {
                 "title": "Supervisor",
                 "label": "Supervisor ESP32",
-                "version": "1.0.1",
+                "version": "1.0.2",
                 "build_date": "2026-05-13T00:32:32+02:00",
                 "target": "supervisor",
                 "path": "firmware-supervisor.bin",
@@ -20,7 +20,7 @@
             {
                 "title": "Flow.io",
                 "label": "Flow.io ESP32",
-                "version": "1.0.1",
+                "version": "1.0.2",
                 "build_date": "2026-05-13",
                 "target": "flowio",
                 "path": "firmware-flowio.bin",
@@ -59,7 +59,7 @@
             {
                 "title": "Assets Supervisor",
                 "label": "Assets web Supervisor",
-                "version": "1.0.1",
+                "version": "1.0.2",
                 "build_date": "2026-05-13T00:47:40+02:00",
                 "target": "spiffs",
                 "path": "spiffs-supervisor.bin",
