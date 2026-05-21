@@ -155,6 +155,13 @@
     "runtimeui.poollogic.v04.display.activeText": "Actif",
     "runtimeui.poollogic.v04.display.inactiveText": "Arret",
     "runtimeui.poollogic.v04.group": "Mode",
-    "runtimeui.poollogic.v04.label": "ORP Auto"
+    "runtimeui.poollogic.v04.label": "ORP Auto",
+    "runtimeui.poollogic.alarms.flag00.label": "Pression Filtration Basse",
+    "runtimeui.poollogic.alarms.flag01.label": "Pression Filtration Haute",
+    "runtimeui.poollogic.alarms.flag02.label": "Bidon pH bas",
+    "runtimeui.poollogic.alarms.flag03.label": "Bidon chlore bas",
+    "runtimeui.poollogic.alarms.flag04.label": "Pompe pH durée max atteinte",
+    "runtimeui.poollogic.alarms.flag05.label": "Pompe Orp durée max atteinte",
+    "runtimeui.poollogic.alarms.flag06.label": "Niveau d'eau bas dans le bassin"
   }
 }

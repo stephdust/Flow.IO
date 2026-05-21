@@ -28,6 +28,7 @@ enum class ServiceId : uint8_t {
     FirmwareUpdate,
     NetworkAccess,
     FlowCfg,
+    Locale,
     Count
 };
 
@@ -66,6 +67,7 @@ constexpr const char* toString(ServiceId id)
         case ServiceId::FirmwareUpdate: return "fwupdate";
         case ServiceId::NetworkAccess: return "network_access";
         case ServiceId::FlowCfg: return "flowcfg";
+        case ServiceId::Locale: return "locale";
         case ServiceId::Count: return "count";
     }
     return "unknown";

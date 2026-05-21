@@ -137,7 +137,12 @@ bool NextionDriver::isHomePage() const
 
 bool NextionDriver::isConfigPage() const
 {
-    return currentPageKnown_ && isConfigPageId_(currentPage_);
+    return currentPageKnown_ && isMenuPageId_(currentPage_);
+}
+
+bool NextionDriver::isAlarmPage() const
+{
+    return currentPageKnown_ && isAlarmPageId_(currentPage_);
 }
 
 bool NextionDriver::setTouchEnabled(bool enabled)
@@ -782,7 +787,7 @@ bool NextionDriver::handlePageId_(uint8_t pageId, bool emitEvents, HmiEvent& out
 
     currentPageKnown_ = true;
     currentPage_ = pageId;
-    pageReady_ = isConfigPageId_(pageId);
+    pageReady_ = isMenuPageId_(pageId);
 
     if (!emitEvents) return false;
     const bool pageChanged = (!wasKnown || prevPage != pageId);
@@ -817,6 +822,16 @@ bool NextionDriver::isHomePageId_(uint8_t pageId) const
 bool NextionDriver::isConfigPageId_(uint8_t pageId) const
 {
     return pageId == cfg_.configPageId || pageId == cfg_.configPageAliasId;
+}
+
+bool NextionDriver::isAlarmPageId_(uint8_t pageId) const
+{
+    return pageId == cfg_.alarmPageId || pageId == cfg_.alarmPageAliasId;
+}
+
+bool NextionDriver::isMenuPageId_(uint8_t pageId) const
+{
+    return isConfigPageId_(pageId) || isAlarmPageId_(pageId);
 }
 
 void NextionDriver::emitDebug_(const char* kind, const uint8_t* data, uint8_t len) const

@@ -89,6 +89,7 @@ private:
     const CommandService* cmdSvc_ = nullptr;
     const TimeService* timeSvc_ = nullptr;
     const WifiService* wifiSvc_ = nullptr;
+    const LocaleService* localeSvc_ = nullptr;
     const StatusLedsService* statusLedsSvc_ = nullptr;
     EventBus* eventBus_ = nullptr;
 
@@ -104,6 +105,7 @@ private:
     bool homePageVisible_ = false;
     bool menuSessionActive_ = false;
     bool menuPageVisible_ = false;
+    bool alarmPageActive_ = false;
     bool viewDirty_ = true;
     bool configMenuReady_ = false;
     bool configMenuActive_ = false;
@@ -152,6 +154,13 @@ private:
     char homeErrorMessage_[96]{};
     uint32_t activeConfigContextToken_ = 0U;
     uint32_t nextConfigContextToken_ = 1U;
+    uint8_t alarmPageIndex_ = 0U;
+    uint8_t alarmPageCount_ = 1U;
+    uint8_t alarmRowCount_ = 0U;
+    AlarmId alarmRowIds_[ConfigMenuModel::RowsPerPage]{};
+    bool alarmRowResettable_[ConfigMenuModel::RowsPerPage]{};
+    char localeLang_[8] = "fr";
+    uint32_t localeGenerationSeen_ = 0U;
 
     static void onEventStatic_(const Event& e, void* user);
     void onEvent_(const Event& e);
@@ -163,7 +172,9 @@ private:
     uint8_t getLedPage_() const;
     bool refreshCurrentModule_();
     bool render_();
+    bool renderAlarmPage_();
     bool refreshConfigMenuValues_();
+    bool refreshAlarmPageValues_();
     bool buildMenuJson_(char* out, size_t outLen);
     bool ensureConfigMenuReady_();
     uint32_t cacheCurrentConfigContext_();
@@ -195,6 +206,18 @@ private:
     bool executePoolLogicModePatch_(const char* key, bool value);
     void setHomeErrorMessage_(const char* message, bool forceStateRefresh);
     void reportCommandError_(const char* operation, const char* reply);
+    void refreshLocale_();
+    void markAlarmViewDirty_();
+    uint8_t collectAlarmIds_(AlarmId* out, uint8_t max) const;
+    bool readAlarmState_(AlarmId id, bool& active, bool& resettable, AlarmCondState& condition) const;
+    const char* alarmLabelForId_(AlarmId id) const;
+    const char* alarmLabelShortForId_(AlarmId id) const;
+    bool buildAlarmPageView_(ConfigMenuView& out, bool valueOnly);
+    bool resetAlarmRow_(uint8_t rowIndex);
+    bool nextAlarmPage_();
+    bool prevAlarmPage_();
+    bool isAlarmPageId_(uint8_t pageId) const;
+    bool isDisplaySleeping_() const;
     void applyOutputConfig_();
     void applyLedMask_(bool force = false);
 

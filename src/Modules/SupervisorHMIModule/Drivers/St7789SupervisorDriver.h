@@ -12,6 +12,7 @@
 #include "Core/Services/INetworkAccess.h"
 #include "Core/Services/IWifi.h"
 #include "Modules/Network/I2CCfgClientModule/I2CCfgClientModuleDataModel.h"
+#include "Modules/SupervisorHMIModule/SupervisorHmiTextSet.h"
 
 constexpr uint8_t kSupervisorAlarmSlotCount = 8;
 constexpr uint8_t kSupervisorDashboardSlotCount = kFlowRemoteDashboardSlotCount;
@@ -43,6 +44,10 @@ enum class SupervisorAlarmState : uint8_t {
 };
 
 struct SupervisorHmiViewModel {
+    char language[3]{"fr"};
+    uint32_t localeGeneration = 0U;
+    const SupervisorHmiTextSet* text = nullptr;
+
     bool wifiConnected = false;
     WifiState wifiState = WifiState::Idle;
     NetworkAccessMode accessMode = NetworkAccessMode::None;

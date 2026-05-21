@@ -8493,13 +8493,24 @@
       }
       pendingSystemActionCountdowns.delete(button);
       button.disabled = false;
-      button.textContent = button.dataset.defaultLabel || 'Redémarrer';
+      if (button.dataset.defaultHtml) {
+        button.innerHTML = button.dataset.defaultHtml;
+      } else {
+        button.textContent = button.dataset.defaultLabel || 'Redémarrer';
+      }
     }
 
     function startDelayedSystemAction(button, countdownLabel, actionRunner, failurePrefix) {
       if (!button || typeof actionRunner !== 'function') return;
+      if (!button.dataset.defaultHtml) {
+        button.dataset.defaultHtml = button.innerHTML || '';
+      }
       if (!button.dataset.defaultLabel) {
-        button.dataset.defaultLabel = button.textContent || 'Redémarrer';
+        const labelNode = button.querySelector('[data-i18n]');
+        const label = labelNode && labelNode.textContent
+          ? String(labelNode.textContent).trim()
+          : String(button.textContent || '').trim();
+        button.dataset.defaultLabel = label || 'Redémarrer';
       }
       clearPendingSystemAction(button);
 
@@ -8521,8 +8532,7 @@
               systemStatusText.textContent = failurePrefix;
               return;
             }
-            button.textContent = button.dataset.defaultLabel || 'Redémarrer';
-            button.disabled = false;
+            clearPendingSystemAction(button);
           });
           return;
         }
