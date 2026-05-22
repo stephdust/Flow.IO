@@ -828,36 +828,44 @@ int ESP32Flasher::flashBinaryStream(Stream &myFile, uint32_t size, uint32_t addr
     uint32_t toRead = chunkCap;
     if (toRead > remaining) toRead = remaining;
 
-    // Read directly from stream; do not gate on available() to avoid false stalls.
-    int c = myFile.readBytes(payload, toRead);
-    if (c <= 0) {
-      const uint32_t nowMs = millis();
-      const uint32_t idleMs = (uint32_t)(nowMs - streamIdleSince);
-      const int availNow = myFile.available();
-      const uint32_t written = total_size - remaining;
-      if ((uint32_t)(nowMs - lastWaitLogMs) >= 5000U) {
-        Serial.printf("[DEBUG] Waiting stream data... written=%lu remaining=%lu idle=%lu ms avail=%d\n",
-                      (unsigned long)written,
-                      (unsigned long)remaining,
-                      (unsigned long)idleMs,
-                      availNow);
-        lastWaitLogMs = nowMs;
+    uint32_t chunkRead = 0U;
+    while (chunkRead < toRead) {
+      // Read directly from stream; do not gate on available() to avoid false stalls.
+      const int c = myFile.readBytes((char*)(payload + chunkRead), toRead - chunkRead);
+      if (c <= 0) {
+        const uint32_t nowMs = millis();
+        const uint32_t idleMs = (uint32_t)(nowMs - streamIdleSince);
+        const int availNow = myFile.available();
+        const uint32_t written = total_size - remaining;
+        if ((uint32_t)(nowMs - lastWaitLogMs) >= 5000U) {
+          Serial.printf("[DEBUG] Waiting stream data... written=%lu remaining=%lu chunk=%lu/%lu idle=%lu ms avail=%d\n",
+                        (unsigned long)written,
+                        (unsigned long)remaining,
+                        (unsigned long)chunkRead,
+                        (unsigned long)toRead,
+                        (unsigned long)idleMs,
+                        availNow);
+          lastWaitLogMs = nowMs;
+        }
+        if (idleMs > STREAM_STALL_TIMEOUT) {
+          const uint32_t elapsedMs = (uint32_t)(nowMs - lastProgressLogMs);
+          Serial.printf("[ERROR] Stream read timeout at offset=%lu (remaining=%lu chunk=%lu/%lu idle=%lu elapsed=%lu avail=%d)\n",
+                        (unsigned long)written,
+                        (unsigned long)remaining,
+                        (unsigned long)chunkRead,
+                        (unsigned long)toRead,
+                        (unsigned long)idleMs,
+                        (unsigned long)elapsedMs,
+                        availNow);
+          return ERR_TIMEOUT;
+        }
+        delay(2);
+        continue;
       }
-      if (idleMs > STREAM_STALL_TIMEOUT) {
-        const uint32_t elapsedMs = (uint32_t)(nowMs - lastProgressLogMs);
-        Serial.printf("[ERROR] Stream read timeout at offset=%lu (remaining=%lu idle=%lu elapsed=%lu avail=%d)\n",
-                      (unsigned long)written,
-                      (unsigned long)remaining,
-                      (unsigned long)idleMs,
-                      (unsigned long)elapsedMs,
-                      availNow);
-        return ERR_TIMEOUT;
-      }
-      delay(2);
-      continue;
+      chunkRead += (uint32_t)c;
+      streamIdleSince = millis();
+      lastWaitLogMs = streamIdleSince;
     }
-    streamIdleSince = millis();
-    lastWaitLogMs = streamIdleSince;
 
 
     // Calculate chunk size
@@ -867,12 +875,12 @@ int ESP32Flasher::flashBinaryStream(Stream &myFile, uint32_t size, uint32_t addr
     //   myFile.readBytes(payload, to_read);
 
     // Write chunk to flash
-    flash_start_status = espFlashWrite(payload, c);
+    flash_start_status = espFlashWrite(payload, toRead);
     if (flash_start_status != SUCCESS) {
       const uint32_t written = total_size - remaining;
         Serial.printf("[ERROR] Flash write failed at offset=%lu chunk=%d err=%d\n",
                       (unsigned long)written,
-                      c,
+                      (int)toRead,
                       flash_start_status);
         return flash_start_status;
     }
@@ -887,7 +895,7 @@ int ESP32Flasher::flashBinaryStream(Stream &myFile, uint32_t size, uint32_t addr
        //Serial.printf("[INFO] Programming progress: %d%% (%d/%d)\n", progress,written,binary_size);  
       //Callback function called at every new percent done
     if (_updateProgressCallback) _updateProgressCallback();
-    remaining -= (uint32_t)c;
+    remaining -= toRead;
     const uint32_t written = total_size - remaining;
     const uint32_t nowMs = millis();
     if ((written - lastProgressLoggedBytes) >= (32U * 1024U) || remaining == 0 ||

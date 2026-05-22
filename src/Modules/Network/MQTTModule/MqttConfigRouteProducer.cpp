@@ -259,6 +259,9 @@ bool MqttConfigRouteProducer::enqueueByRoute_(uint8_t idx, MqttPublishPriority p
 {
     if (!mqttSvc_ || !mqttSvc_->enqueue) return false;
     if (idx >= routeCount_) return false;
+    if (idx < 32U && (buildingMask_ & (1UL << idx)) != 0UL) {
+        republishAfterPublishMask_ |= (1UL << idx);
+    }
     setPending_(idx, true);
     setNeedsEnqueue_(idx, true);
     constexpr uint8_t kFlags = (uint8_t)MqttEnqueueFlags::SilentRejectLog;
@@ -361,6 +364,9 @@ MqttBuildResult MqttConfigRouteProducer::buildMessage_(uint16_t messageId, MqttB
     const uint8_t idx = (uint8_t)routeIdx;
     if (!isPending_(idx)) return MqttBuildResult::NoLongerNeeded;
     const Route& route = routes_[idx];
+    if (idx < 32U) {
+        buildingMask_ |= (1UL << idx);
+    }
 
     if (route.customBuild) {
         return route.customBuild(owner_, messageId, ctx);
@@ -416,6 +422,17 @@ void MqttConfigRouteProducer::onMessagePublished_(uint16_t messageId)
     const int8_t routeIdx = findRouteByMessage_(messageId);
     if (routeIdx < 0) return;
     const uint8_t idx = (uint8_t)routeIdx;
+    const uint32_t bit = (idx < 32U) ? (1UL << idx) : 0UL;
+    if (bit != 0UL) {
+        buildingMask_ &= ~bit;
+    }
+
+    if (bit != 0UL && (republishAfterPublishMask_ & bit) != 0UL) {
+        republishAfterPublishMask_ &= ~bit;
+        (void)enqueueByRoute_(idx, routePriority_(routes_[idx]));
+        return;
+    }
+
     setPending_(idx, false);
     setNeedsEnqueue_(idx, false);
     retryFirstRefusedMs_[idx] = 0U;
@@ -429,9 +446,14 @@ void MqttConfigRouteProducer::onMessageDropped_(uint16_t messageId)
     const int8_t routeIdx = findRouteByMessage_(messageId);
     if (routeIdx < 0) return;
     const uint8_t idx = (uint8_t)routeIdx;
+    const uint32_t bit = (idx < 32U) ? (1UL << idx) : 0UL;
     setPending_(idx, false);
     setNeedsEnqueue_(idx, false);
     retryFirstRefusedMs_[idx] = 0U;
+    if (bit != 0UL) {
+        buildingMask_ &= ~bit;
+        republishAfterPublishMask_ &= ~bit;
+    }
     if (!hasNeedsEnqueue_()) {
         resetRetry_();
     }

@@ -140,7 +140,8 @@ private:
     uint32_t lastLedPageToggleMs_ = 0;
     uint32_t lastWifiBlinkToggleMs_ = 0;
     uint32_t lastClockCheckMs_ = 0;
-    uint32_t lastLegacyV2FullRefreshMs_ = 0;
+    uint32_t lastHomePeriodicRefreshMs_ = 0;
+    uint32_t lastNextionPageProbeMs_ = 0;
     uint32_t lastDisplayVersionProbeMs_ = 0;
     uint32_t lastClockMinuteStamp_ = 0xFFFFFFFFUL;
     uint32_t lastClockDayStamp_ = 0xFFFFFFFFUL;

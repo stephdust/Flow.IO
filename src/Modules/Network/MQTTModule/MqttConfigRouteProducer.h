@@ -87,6 +87,8 @@ private:
     uint32_t metricsRetryTryTotal_ = 0;
     uint32_t metricsRetryOkTotal_ = 0;
     uint32_t metricsTimeoutTotal_ = 0;
+    uint32_t buildingMask_ = 0U;
+    uint32_t republishAfterPublishMask_ = 0U;
 
     MqttPublishProducer producer_{};
 

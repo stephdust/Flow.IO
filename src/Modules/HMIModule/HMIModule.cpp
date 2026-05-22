@@ -76,7 +76,10 @@ static constexpr uint32_t kHomePublishAll = kHomePublishWaterTemp |
                                             kHomePublishErrorMessage |
                                             kHomePublishPsi;
 static constexpr uint32_t kClockPublishCheckMs = 1000U;
-static constexpr uint32_t kLegacyV2FullRefreshPeriodMs = 10000U;
+static constexpr uint32_t kHomePeriodicRefreshPeriodMs = 10000U;
+static constexpr uint32_t kNextionPageProbeInitialPeriodMs = 1000U;
+static constexpr uint8_t kNextionPageProbeInitialAttempts = 10U;
+static constexpr uint32_t kNextionPageProbeSteadyPeriodMs = 30000U;
 static constexpr uint32_t kDisplayVersionProbePeriodMs = 60000U;
 static constexpr uint32_t kInvalidClockStamp = 0xFFFFFFFFUL;
 static constexpr uint32_t kRtcFallbackDelayMs = 30000U;
@@ -86,6 +89,8 @@ static constexpr uint16_t kLocalNextionRtcReadTimeoutMs = 180U;
 static constexpr uint16_t kRemoteNextionRtcReadTimeoutMs = 2000U;
 static constexpr uint32_t kNextionDisplayVersionV1 = 1U;
 static constexpr uint32_t kNextionDisplayVersionLegacyV2 = 2U;
+static constexpr uint8_t kNextionHomePagePrimary = 0U;
+static constexpr uint8_t kNextionHomePageAlias = 1U;
 static constexpr uint8_t kNextionConfigPagePrimary = 10U;
 static constexpr uint8_t kNextionConfigPageAlias = 2U;
 static constexpr uint8_t kNextionAlarmPagePrimary = 11U;
@@ -151,6 +156,31 @@ static inline uint8_t normalizeLedPage_(uint8_t page)
 static bool isHomePageCode_(uint8_t pageId)
 {
     return pageId == 0U || pageId == 1U;
+}
+
+static const char* hmiEventTypeName_(HmiEventType type)
+{
+    switch (type) {
+        case HmiEventType::None: return "None";
+        case HmiEventType::Home: return "Home";
+        case HmiEventType::Back: return "Back";
+        case HmiEventType::Validate: return "Validate";
+        case HmiEventType::NextPage: return "NextPage";
+        case HmiEventType::PrevPage: return "PrevPage";
+        case HmiEventType::RowActivate: return "RowActivate";
+        case HmiEventType::RowToggle: return "RowToggle";
+        case HmiEventType::RowCycle: return "RowCycle";
+        case HmiEventType::RowSetText: return "RowSetText";
+        case HmiEventType::RowSetSlider: return "RowSetSlider";
+        case HmiEventType::RowEdit: return "RowEdit";
+        case HmiEventType::Command: return "Command";
+        case HmiEventType::Page: return "Page";
+        case HmiEventType::ConfigEnter: return "ConfigEnter";
+        case HmiEventType::ConfigExit: return "ConfigExit";
+        case HmiEventType::DisplaySleep: return "DisplaySleep";
+        case HmiEventType::DisplayWake: return "DisplayWake";
+        default: return "Unknown";
+    }
 }
 
 static bool isAlarmPageCode_(uint8_t pageId)
@@ -479,6 +509,8 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     dcfg.rxPin = Board::SerialMap::hmiRxPin();
     dcfg.txPin = Board::SerialMap::hmiTxPin();
     dcfg.baud = Board::SerialMap::HmiBaud;
+    dcfg.homePageId = kNextionHomePagePrimary;
+    dcfg.homePageAliasId = kNextionHomePageAlias;
     dcfg.configPageId = kNextionConfigPagePrimary;
     dcfg.configPageAliasId = kNextionConfigPageAlias;
     dcfg.alarmPageId = kNextionAlarmPagePrimary;
@@ -501,7 +533,7 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     lastLedPageToggleMs_ = millis();
     lastWifiBlinkToggleMs_ = millis();
     lastClockCheckMs_ = 0;
-    lastLegacyV2FullRefreshMs_ = 0;
+    lastHomePeriodicRefreshMs_ = 0;
     lastDisplayVersionProbeMs_ = 0;
     lastClockMinuteStamp_ = kInvalidClockStamp;
     lastClockDayStamp_ = kInvalidClockStamp;
@@ -1154,9 +1186,20 @@ void HMIModule::serviceRtcBridge_(uint32_t nowMs)
 void HMIModule::queueHomePublish_(uint32_t mask)
 {
     if (mask == 0U) return;
+    uint32_t before = 0U;
+    uint32_t after = 0U;
     portENTER_CRITICAL(&homePublishMux_);
+    before = homePublishMask_;
     homePublishMask_ |= mask;
+    after = homePublishMask_;
     portEXIT_CRITICAL(&homePublishMux_);
+    LOGD("HMI Home queue add=0x%03lx pending:0x%03lx->0x%03lx home=%d cfg=%d alarm=%d",
+         (unsigned long)mask,
+         (unsigned long)before,
+         (unsigned long)after,
+         homePageVisible_ ? 1 : 0,
+         configMenuActive_ ? 1 : 0,
+         alarmPageActive_ ? 1 : 0);
 }
 
 void HMIModule::queueClockPublishIfDue_(uint32_t nowMs)
@@ -1254,11 +1297,23 @@ void HMIModule::flushHomePublish_()
         sent |= kHomePublishPsi;
     }
 
-    if (sent == 0U) return;
+    if (sent == 0U) {
+        LOGD("HMI Home flush no-progress pending=0x%03lx sleep=%d home=%d driver=%s",
+             (unsigned long)pending,
+             isDisplaySleeping_() ? 1 : 0,
+             homePageVisible_ ? 1 : 0,
+             driver_ ? driver_->driverId() : "none");
+        return;
+    }
 
     portENTER_CRITICAL(&homePublishMux_);
     homePublishMask_ &= ~sent;
+    const uint32_t remaining = homePublishMask_;
     portEXIT_CRITICAL(&homePublishMux_);
+    LOGD("HMI Home flush sent=0x%03lx pending=0x%03lx remain=0x%03lx",
+         (unsigned long)sent,
+         (unsigned long)pending,
+         (unsigned long)remaining);
 }
 
 void HMIModule::applyLedMask_(bool force)
@@ -1458,6 +1513,24 @@ void HMIModule::onEvent_(const Event& e)
 
 void HMIModule::handleDriverEvent_(const HmiEvent& e)
 {
+    if (e.type == HmiEventType::DisplaySleep ||
+        e.type == HmiEventType::DisplayWake ||
+        e.type == HmiEventType::Home ||
+        e.type == HmiEventType::Page ||
+        e.type == HmiEventType::ConfigEnter ||
+        e.type == HmiEventType::ConfigExit ||
+        e.type == HmiEventType::Command) {
+        LOGD("HMI event type=%s page=%u row=%u val=%u ctx=%lu home=%d cfg=%d alarm=%d",
+             hmiEventTypeName_(e.type),
+             (unsigned)e.pageId,
+             (unsigned)e.row,
+             (unsigned)e.value,
+             (unsigned long)e.contextRef,
+             homePageVisible_ ? 1 : 0,
+             configMenuActive_ ? 1 : 0,
+             alarmPageActive_ ? 1 : 0);
+    }
+
     const bool configInputEvent = e.type == HmiEventType::Back ||
                                   e.type == HmiEventType::Validate ||
                                   e.type == HmiEventType::NextPage ||
@@ -1480,9 +1553,11 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
     }
 
     if (e.type == HmiEventType::DisplaySleep) {
+        LOGI("HMI display reported sleep");
         return;
     }
     if (e.type == HmiEventType::DisplayWake) {
+        LOGI("HMI display reported wake");
         if (alarmPageActive_ || configMenuActive_) {
             viewDirty_ = true;
         } else if (homePageVisible_) {
@@ -1501,8 +1576,13 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
         viewDirty_ = false;
         resetClockPublishStamps_();
         queueHomePublish_(kHomePublishAll);
+        LOGI("HMI home page active (event Home)");
     } else if (e.type == HmiEventType::Page) {
         homePageVisible_ = false;
+        LOGI("HMI page changed page=%u alarm=%d config=%d",
+             (unsigned)e.pageId,
+             isAlarmPageId_(e.pageId) ? 1 : 0,
+             isConfigPageCode_(e.pageId) ? 1 : 0);
         if (isAlarmPageId_(e.pageId)) {
             alarmPageActive_ = true;
             menuPageVisible_ = false;
@@ -1519,6 +1599,7 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
     }
 
     if (e.type == HmiEventType::ConfigEnter) {
+        LOGI("HMI config enter page=%u ctx=%lu", (unsigned)e.pageId, (unsigned long)e.contextRef);
         if (isAlarmPageId_(e.pageId)) {
             menuSessionActive_ = false;
             menuPageVisible_ = false;
@@ -1542,6 +1623,7 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
     }
 
     if (e.type == HmiEventType::ConfigExit) {
+        LOGI("HMI config exit page=%u", (unsigned)e.pageId);
         if (alarmPageActive_) {
             alarmPageActive_ = false;
             viewDirty_ = false;
@@ -2132,19 +2214,18 @@ bool HMIModule::buildAlarmPageView_(ConfigMenuView& out, bool)
             label = fallback;
         }
 
-        const char* prefix = "[ ]";
-        if (active && resettable) {
-            prefix = "[L]";
-        } else if (active && condition == AlarmCondState::True) {
-            prefix = "[!]";
-        } else if (active && condition == AlarmCondState::False) {
-            prefix = "[A]";
-        } else if (active) {
-            prefix = "[?]";
+        const bool critical = active && condition == AlarmCondState::True;
+        const bool latchOk = active && !critical && resettable;
+        const bool showStateValue = critical || latchOk;
+        const char* stateValue = "";
+        if (critical) {
+            stateValue = "f";
+        } else if (latchOk) {
+            stateValue = "o";
         }
 
         viewRow.visible = true;
-        viewRow.valueVisible = false;
+        viewRow.valueVisible = showStateValue;
         viewRow.editable = false;
         viewRow.dirty = false;
         viewRow.canEnter = resettable;
@@ -2152,8 +2233,8 @@ bool HMIModule::buildAlarmPageView_(ConfigMenuView& out, bool)
         viewRow.widget = ConfigMenuWidget::Text;
         viewRow.editType = 0U;
         snprintf(viewRow.key, sizeof(viewRow.key), "alarm_%u", (unsigned)row);
-        snprintf(viewRow.label, sizeof(viewRow.label), "%s %s", prefix, label);
-        viewRow.value[0] = '\0';
+        snprintf(viewRow.label, sizeof(viewRow.label), "%s", label);
+        snprintf(viewRow.value, sizeof(viewRow.value), "%s", stateValue);
 
         alarmRowIds_[row] = id;
         alarmRowResettable_[row] = resettable;
@@ -2372,7 +2453,13 @@ void HMIModule::loop()
             resetClockPublishStamps_();
             viewDirty_ = true;
             queueHomePublish_(kHomePublishAll);
-            lastLegacyV2FullRefreshMs_ = millis();
+            lastHomePeriodicRefreshMs_ = millis();
+            lastNextionPageProbeMs_ = 0U;
+            if (driver_ == static_cast<IHmiDriver*>(&nextion_)) {
+                const bool woke = nextion_.wakeFromSleep();
+                LOGI("HMI boot wakeFromSleep sent=%d", woke ? 1 : 0);
+            }
+            LOGI("HMI driver ready id=%s", driver_ ? driver_->driverId() : "none");
             rtcPushPending_ = true;
             lastRtcPushAttemptMs_ = 0;
         }
@@ -2386,7 +2473,7 @@ void HMIModule::loop()
             remoteUdpServer_ && remoteUdpServer_->consumeFullRefreshRequested()) {
             resetClockPublishStamps_();
             queueHomePublish_(kHomePublishAll);
-            lastLegacyV2FullRefreshMs_ = millis();
+            lastHomePeriodicRefreshMs_ = millis();
             rtcPushPending_ = true;
             lastRtcPushAttemptMs_ = 0;
             viewDirty_ = true;
@@ -2402,6 +2489,38 @@ void HMIModule::loop()
 
     const uint32_t now = millis();
     const bool displaySleeping = isDisplaySleeping_();
+    if (driverReady_ &&
+        driver_ == static_cast<IHmiDriver*>(&nextion_) &&
+        !displaySleeping) {
+        uint8_t nextionPage = 0xFFU;
+        if (nextion_.currentPage(nextionPage)) {
+            lastNextionPageProbeMs_ = 0U;
+        } else {
+            const uint32_t probeFastWindowMs =
+                (uint32_t)kNextionPageProbeInitialAttempts * kNextionPageProbeInitialPeriodMs;
+            const uint32_t probePeriodMs =
+                ((uint32_t)(now - lastHomePeriodicRefreshMs_) < probeFastWindowMs)
+                    ? kNextionPageProbeInitialPeriodMs
+                    : kNextionPageProbeSteadyPeriodMs;
+            if (lastNextionPageProbeMs_ == 0U ||
+                (uint32_t)(now - lastNextionPageProbeMs_) >= probePeriodMs) {
+                uint32_t pending = 0U;
+                portENTER_CRITICAL(&homePublishMux_);
+                pending = homePublishMask_;
+                portEXIT_CRITICAL(&homePublishMux_);
+                lastNextionPageProbeMs_ = now;
+                const bool sent = nextion_.requestPageReport();
+                LOGD("HMI Nextion page probe sent=%d period_ms=%lu since_boot_ms=%lu home=%d cfg=%d alarm=%d pending=0x%03lx",
+                     sent ? 1 : 0,
+                     (unsigned long)probePeriodMs,
+                     (unsigned long)(now - lastHomePeriodicRefreshMs_),
+                     homePageVisible_ ? 1 : 0,
+                     configMenuActive_ ? 1 : 0,
+                     alarmPageActive_ ? 1 : 0,
+                     (unsigned long)pending);
+            }
+        }
+    }
     if (driverReady_ &&
         driver_ == static_cast<IHmiDriver*>(&nextion_) &&
         !displaySleeping &&
@@ -2456,13 +2575,14 @@ void HMIModule::loop()
     refreshLocale_();
     if (driverReady_ &&
         driver_ &&
-        driver_->isLegacyV2() &&
+        homePageVisible_ &&
+        !displaySleeping &&
         !configMenuActive_ &&
         !alarmPageActive_ &&
-        (uint32_t)(now - lastLegacyV2FullRefreshMs_) >= kLegacyV2FullRefreshPeriodMs) {
-        lastLegacyV2FullRefreshMs_ = now;
+        (uint32_t)(now - lastHomePeriodicRefreshMs_) >= kHomePeriodicRefreshPeriodMs) {
+        lastHomePeriodicRefreshMs_ = now;
         queueHomePublish_(kHomePublishAll);
-        LOGD("HMI Legacy V2 periodic Home full refresh queued");
+        LOGD("HMI periodic Home refresh queued");
     }
     if (alarmPageActive_ && driver_ && !displaySleeping && viewDirty_) {
         if (renderAlarmPage_()) {

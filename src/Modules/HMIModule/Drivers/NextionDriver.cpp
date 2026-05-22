@@ -69,6 +69,17 @@ static constexpr const char* AlarmBits = "globals.vaAlarms";
 static constexpr const char* DisplayVersionExpr = "globals.vaVersion.val";
 } // namespace NextionObject
 
+static bool isAlarmRowKey_(const char* key)
+{
+    return key &&
+           key[0] == 'a' &&
+           key[1] == 'l' &&
+           key[2] == 'a' &&
+           key[3] == 'r' &&
+           key[4] == 'm' &&
+           key[5] == '_';
+}
+
 } // namespace
 
 bool NextionDriver::begin()
@@ -529,14 +540,23 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
         snprintf(editTypeObj, sizeof(editTypeObj), "vaEditType%u", (unsigned)i);
 
         const ConfigMenuRowView& row = view.rows[i];
-        const bool showSwitch = row.visible &&
+        const bool alarmRow = isAlarmRowKey_(row.key);
+        const bool alarmCritical = alarmRow && row.visible && strcmp(row.value, "f") == 0;
+        const bool alarmLatchOk = alarmRow && row.visible && strcmp(row.value, "o") == 0;
+        const bool showSwitch = !alarmRow &&
+                                row.visible &&
                                 row.valueVisible &&
                                 row.widget == ConfigMenuWidget::Switch;
-        const bool showValue = row.visible && row.valueVisible;
-        const bool showRowButton = row.visible &&
-                                   view.mode == ConfigMenuMode::Browse &&
-                                   (row.canEdit || row.canEnter);
-        const bool leftTouchable = row.visible && view.mode == ConfigMenuMode::Browse;
+        bool showValue = row.visible && row.valueVisible;
+        bool showRowButton = row.visible &&
+                             view.mode == ConfigMenuMode::Browse &&
+                             (row.canEdit || row.canEnter);
+        bool leftTouchable = row.visible && view.mode == ConfigMenuMode::Browse;
+        if (alarmRow) {
+            showValue = alarmCritical || alarmLatchOk;
+            showRowButton = alarmLatchOk;
+            leftTouchable = showRowButton;
+        }
         uint8_t editType = row.editType;
         if (editType > 3U) editType = 0U;
         if (!row.visible || !row.valueVisible || !row.editable) editType = 0U;
@@ -546,6 +566,16 @@ bool NextionDriver::renderConfigMenu(const ConfigMenuView& view)
         (void)sendCmdFmt_("vis %s,%u", rightObj, showValue ? 1U : 0U);
         (void)sendCmdFmt_("vis %s,%u", rowButtonObj, showRowButton ? 1U : 0U);
         (void)sendCmdFmt_("tsw %s,%u", rowButtonObj, showRowButton ? 1U : 0U);
+        if (alarmRow) {
+            const uint32_t leftBco = alarmCritical ? 53925U : (alarmLatchOk ? 64520U : 12710U);
+            (void)sendCmdFmt_("%s.bco=%lu", leftObj, (unsigned long)leftBco);
+            if (showValue) {
+                (void)sendCmdFmt_("%s.bco=%lu", rightObj, (unsigned long)(alarmCritical ? 53925U : 64520U));
+            }
+            if (alarmLatchOk) {
+                (void)sendCmdFmt_("%s.bco=%u", rowButtonObj, 64520U);
+            }
+        }
         (void)sendCmdFmt_("%s.val=%u", editTypeObj, (unsigned)editType);
         if (!showValue) {
             (void)sendCmdFmt_("tsw %s,0", rightObj);
@@ -587,16 +617,53 @@ bool NextionDriver::refreshConfigMenuValues(const ConfigMenuView& view)
 
     for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
         const ConfigMenuRowView& row = view.rows[i];
+        const bool alarmRow = isAlarmRowKey_(row.key);
+        const bool alarmCritical = alarmRow && row.visible && strcmp(row.value, "f") == 0;
+        const bool alarmLatchOk = alarmRow && row.visible && strcmp(row.value, "o") == 0;
+        bool showValue = row.visible && row.valueVisible;
+        bool showRowButton = row.visible &&
+                             view.mode == ConfigMenuMode::Browse &&
+                             (row.canEdit || row.canEnter);
+        if (alarmRow) {
+            showValue = alarmCritical || alarmLatchOk;
+            showRowButton = alarmLatchOk;
+        }
+
+        char leftObj[8]{};
+        char rowButtonObj[8]{};
+        snprintf(leftObj, sizeof(leftObj), "tL%u", (unsigned)i);
+        snprintf(rowButtonObj, sizeof(rowButtonObj), "bR%u", (unsigned)i);
+
+        if (alarmRow) {
+            const uint32_t leftBco = alarmCritical ? 53925U : (alarmLatchOk ? 64520U : 12710U);
+            (void)sendCmdFmt_("%s.bco=%lu", leftObj, (unsigned long)leftBco);
+            (void)sendCmdFmt_("vis %s,%u", rowButtonObj, showRowButton ? 1U : 0U);
+            (void)sendCmdFmt_("tsw %s,%u", rowButtonObj, showRowButton ? 1U : 0U);
+            if (alarmLatchOk) {
+                (void)sendCmdFmt_("%s.bco=%u", rowButtonObj, 64520U);
+            }
+        }
+
         char editTypeObj[16]{};
         snprintf(editTypeObj, sizeof(editTypeObj), "vaEditType%u", (unsigned)i);
         uint8_t editType = row.editType;
         if (editType > 3U) editType = 0U;
         if (!row.visible || !row.valueVisible || !row.editable) editType = 0U;
         (void)sendCmdFmt_("%s.val=%u", editTypeObj, (unsigned)editType);
-        if (!row.visible || !row.valueVisible) continue;
+        if (!row.visible || !showValue) {
+            char rightObjHidden[8]{};
+            snprintf(rightObjHidden, sizeof(rightObjHidden), "tV%u", (unsigned)i);
+            (void)sendCmdFmt_("vis %s,0", rightObjHidden);
+            (void)sendCmdFmt_("tsw %s,0", rightObjHidden);
+            continue;
+        }
 
         char rightObj[8]{};
         snprintf(rightObj, sizeof(rightObj), "tV%u", (unsigned)i);
+        (void)sendCmdFmt_("vis %s,1", rightObj);
+        if (alarmRow && showValue) {
+            (void)sendCmdFmt_("%s.bco=%lu", rightObj, (unsigned long)(alarmCritical ? 53925U : 64520U));
+        }
 
         if (row.widget == ConfigMenuWidget::Switch) {
             const bool on = (strcmp(row.value, "ON") == 0);

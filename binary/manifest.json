@@ -1,71 +1,66 @@
 {
   "schema": "flowio.firmware-manifest.v1",
-    "generated_at": "2026-05-13T00:47:40+02:00",
-  "release": "2026.05.13",
+  "generated_at": "2026-05-22T16:24:11+02:00",
+  "release": "2026.05.22",
   "artifacts": {
-    "supervisor": [
-            {
-                "title": "Supervisor",
-                "label": "Supervisor ESP32",
-                "version": "1.0.2",
-                "build_date": "2026-05-13T00:32:32+02:00",
-                "target": "supervisor",
-                "path": "firmware-supervisor.bin",
-                "kind": "esp32-firmware",
-        "size": 1399904,
-        "notes": "Firmware principal Supervisor."
+    "Flowio_Enhanced_480x320": [
+      {
+        "title": "Flowio_Enhanced_480x320",
+        "label": "Flowio_Enhanced_480x320",
+        "version": "6.0.0",
+        "build_date": "2026-05-22T15:49:49+02:00",
+        "target": "Flowio_Enhanced_480x320",
+        "path": "Flowio_Enhanced_480x320-6.0.0.tft",
+        "kind": "nextion-tft",
+        "size": 1854452
+      }
+    ],
+    "Flowio_Intelligent_800x480": [
+      {
+        "title": "Flowio_Intelligent_800x480",
+        "label": "Flowio_Intelligent_800x480",
+        "version": "6.0.0",
+        "build_date": "2026-05-22T15:49:49+02:00",
+        "target": "Flowio_Intelligent_800x480",
+        "path": "Flowio_Intelligent_800x480-6.0.0.tft",
+        "kind": "nextion-tft",
+        "size": 1103112
       }
     ],
     "flowio": [
-            {
-                "title": "Flow.io",
-                "label": "Flow.io ESP32",
-                "version": "1.0.2",
-                "build_date": "2026-05-13",
-                "target": "flowio",
-                "path": "firmware-flowio.bin",
-                "kind": "esp32-firmware",
-        "size": 1287872,
-        "notes": "Firmware de la carte Flow.io distante."
+      {
+        "title": "flowio",
+        "label": "flowio",
+        "version": "1.0.2",
+        "build_date": "2026-05-22T16:24:11+02:00",
+        "target": "flowio",
+        "path": "flowio-1.0.2.bin",
+        "kind": "esp32-firmware",
+        "size": 1302368
       }
     ],
-    "flow_connect_display": [
-            {
-                "title": "Flow Connect Display",
-                "label": "Flow Connect Display",
-                "version": "0.7.1",
-                "build_date": "2026-05-13",
-                "target": "flowio",
-                "path": "firmware-flow-connect-display.bin",
-                "kind": "esp32-firmware",
-        "size": 912688,
-        "notes": "Firmware du module Flow Connect Display."
+    "spiffs-supervisor": [
+      {
+        "title": "spiffs-supervisor",
+        "label": "spiffs-supervisor",
+        "version": "1.0.2",
+        "build_date": "2026-05-22T16:10:29+02:00",
+        "target": "spiffs-supervisor",
+        "path": "spiffs-supervisor-1.0.2.bin",
+        "kind": "esp32-spiffs",
+        "size": 974848
       }
     ],
-    "nextion": [
-            {
-                "title": "Nextion",
-                "label": "Nextion",
-                "version": "6.0.0",
-                "build_date": "2026-05-13",
-                "target": "nextion",
-                "path": "Nextion_Flowio_Intelligent_800x480.tft",
-                "kind": "nextion-tft",
-        "size": 1016956,
-        "notes": "Image TFT pour l'écran Nextion."
-      }
-    ],
-    "spiffs": [
-            {
-                "title": "Assets Supervisor",
-                "label": "Assets web Supervisor",
-                "version": "1.0.2",
-                "build_date": "2026-05-13T00:47:40+02:00",
-                "target": "spiffs",
-                "path": "spiffs-supervisor.bin",
-                "kind": "esp32-spiffs",
-        "size": 974848,
-        "notes": "Image SPIFFS contenant l'interface web Supervisor."
+    "supervisor": [
+      {
+        "title": "supervisor",
+        "label": "supervisor",
+        "version": "1.0.2",
+        "build_date": "2026-05-22T15:53:01+02:00",
+        "target": "supervisor",
+        "path": "supervisor-1.0.2.bin",
+        "kind": "esp32-firmware",
+        "size": 1441376
       }
     ]
   }
