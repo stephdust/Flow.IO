@@ -53,6 +53,8 @@ private:
     void pollWifiAndNetwork_();
     void pollFirmwareStatus_();
     void refreshFlowStatusFromDataStore_();
+    void refreshLocale_();
+    void syncFlowLocaleIfNeeded_();
     void updateBacklight_();
     void updateFactoryResetButton_();
     void scheduleFactoryReset_();
@@ -82,6 +84,9 @@ private:
     const WifiService* wifiSvc_ = nullptr;
     const NetworkAccessService* netAccessSvc_ = nullptr;
     const FirmwareUpdateService* fwUpdateSvc_ = nullptr;
+    const LocaleService* localeSvc_ = nullptr;
+    const FlowCfgRemoteService* flowCfgSvc_ = nullptr;
+    ServiceRegistry* services_ = nullptr;
     EventBus* eventBus_ = nullptr;
 
     St7789SupervisorDriverConfig driverCfg_{};
@@ -117,6 +122,11 @@ private:
     bool lastBacklightOn_ = false;
     bool cachedWifiHasRssi_ = false;
     int32_t cachedWifiRssiDbm_ = -127;
+    uint32_t localeGeneration_ = 0U;
+    bool flowLocaleSyncPending_ = true;
+    uint32_t flowLocaleRetryAtMs_ = 0U;
+    uint32_t flowLocaleAttempt_ = 0U;
+    char activeLanguage_[3]{"fr"};
 
     bool buttonPressed_ = false;
     bool buttonTriggered_ = false;

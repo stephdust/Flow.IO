@@ -9,6 +9,7 @@
 #include "Core/ConfigStore.h"
 #include "Core/EventBus/EventPayloads.h"
 #include "Core/AlarmIds.h"
+#include "Core/Generated/RuntimeUiAlarmText_Generated.h"
 #include "Domain/Pool/PoolBindings.h"
 #include "Domain/Pool/PoolDefaults.h"
 #include "Modules/IOModule/IORuntime.h"
@@ -85,6 +86,10 @@ static constexpr uint16_t kLocalNextionRtcReadTimeoutMs = 180U;
 static constexpr uint16_t kRemoteNextionRtcReadTimeoutMs = 2000U;
 static constexpr uint32_t kNextionDisplayVersionV1 = 1U;
 static constexpr uint32_t kNextionDisplayVersionLegacyV2 = 2U;
+static constexpr uint8_t kNextionConfigPagePrimary = 10U;
+static constexpr uint8_t kNextionConfigPageAlias = 2U;
+static constexpr uint8_t kNextionAlarmPagePrimary = 11U;
+static constexpr uint8_t kNextionAlarmPageAlias = 3U;
 static constexpr const char* kNextionDegreeC = "\xC2\xB0""C";
 
 static bool isSupportedNextionDisplayVersion_(uint32_t version)
@@ -146,6 +151,30 @@ static inline uint8_t normalizeLedPage_(uint8_t page)
 static bool isHomePageCode_(uint8_t pageId)
 {
     return pageId == 0U || pageId == 1U;
+}
+
+static bool isAlarmPageCode_(uint8_t pageId)
+{
+    return pageId == kNextionAlarmPagePrimary || pageId == kNextionAlarmPageAlias;
+}
+
+static bool isConfigPageCode_(uint8_t pageId)
+{
+    return pageId == kNextionConfigPagePrimary || pageId == kNextionConfigPageAlias;
+}
+
+static uint32_t alarmMaskFromId_(AlarmId id)
+{
+    switch (id) {
+        case AlarmId::PoolPsiLow: return 1UL;
+        case AlarmId::PoolPsiHigh: return 2UL;
+        case AlarmId::PoolPhTankLow: return 4UL;
+        case AlarmId::PoolChlorineTankLow: return 8UL;
+        case AlarmId::PoolPhPumpMaxUptime: return 16UL;
+        case AlarmId::PoolChlorinePumpMaxUptime: return 32UL;
+        case AlarmId::PoolWaterLevelLow: return 64UL;
+        default: return 0UL;
+    }
 }
 
 static bool isRtcDateTimeValid_(const HmiRtcDateTime& rtc)
@@ -321,7 +350,10 @@ void HMIModule::applyOutputConfig_()
     if (driver_ != wantedDriver) {
         driver_ = wantedDriver;
         driverReady_ = false;
-        if (!driver_) configMenuActive_ = false;
+        if (!driver_) {
+            configMenuActive_ = false;
+            alarmPageActive_ = false;
+        }
         if (driver_) viewDirty_ = true;
     }
 
@@ -345,7 +377,7 @@ void HMIModule::setRemoteUdpServer(HmiUdpServerModule* server)
 
 bool HMIModule::requestRefresh_()
 {
-    if (configMenuActive_) viewDirty_ = true;
+    if (configMenuActive_ || alarmPageActive_) viewDirty_ = true;
     return true;
 }
 
@@ -411,6 +443,7 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cmdSvc_ = services.get<CommandService>(ServiceId::Command);
     timeSvc_ = services.get<TimeService>(ServiceId::Time);
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
+    localeSvc_ = services.get<LocaleService>(ServiceId::Locale);
     statusLedsSvc_ = services.get<StatusLedsService>(ServiceId::StatusLeds);
     auto* ebSvc = services.get<EventBusService>(ServiceId::EventBus);
     eventBus_ = ebSvc ? ebSvc->bus : nullptr;
@@ -446,6 +479,10 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     dcfg.rxPin = Board::SerialMap::hmiRxPin();
     dcfg.txPin = Board::SerialMap::hmiTxPin();
     dcfg.baud = Board::SerialMap::HmiBaud;
+    dcfg.configPageId = kNextionConfigPagePrimary;
+    dcfg.configPageAliasId = kNextionConfigPageAlias;
+    dcfg.alarmPageId = kNextionAlarmPagePrimary;
+    dcfg.alarmPageAliasId = kNextionAlarmPageAlias;
     nextion_.setConfig(dcfg);
     applyOutputConfig_();
     driverReady_ = false;
@@ -453,6 +490,7 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     homePageVisible_ = false;
     menuSessionActive_ = false;
     menuPageVisible_ = false;
+    alarmPageActive_ = false;
     configMenuReady_ = false;
     configMenuActive_ = false;
     viewDirty_ = true;
@@ -476,6 +514,16 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     nextionVersion_ = 0U;
     activeConfigContextToken_ = 0U;
     nextConfigContextToken_ = 1U;
+    alarmPageIndex_ = 0U;
+    alarmPageCount_ = 1U;
+    alarmRowCount_ = 0U;
+    for (uint8_t i = 0; i < ConfigMenuModel::RowsPerPage; ++i) {
+        alarmRowIds_[i] = AlarmId::None;
+        alarmRowResettable_[i] = false;
+    }
+    snprintf(localeLang_, sizeof(localeLang_), "fr");
+    localeGenerationSeen_ = 0U;
+    refreshLocale_();
     phIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPh].ioId;
     orpIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotOrp].ioId;
     psiIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPsi].ioId;
@@ -497,6 +545,7 @@ void HMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
 void HMIModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
 {
+    refreshLocale_();
     applyOutputConfig_();
     refreshHomeBindings_();
     queueHomePublish_(kHomePublishAll);
@@ -1339,6 +1388,13 @@ void HMIModule::onEvent_(const Event& e)
                 homePublishMask |= kHomePublishAll;
             }
         }
+        if ((p->moduleId == (uint8_t)ConfigModuleId::System &&
+             strcmp(p->nvsKey, NvsKeys::System::Language) == 0) ||
+            (strcmp(p->module, "system") == 0 &&
+             strcmp(p->nvsKey, NvsKeys::System::Language) == 0)) {
+            refreshLocale_();
+            markAlarmViewDirty_();
+        }
     } else if (e.id == EventId::DataChanged && e.payload && e.len >= sizeof(DataChangedPayload)) {
         const DataChangedPayload* p = static_cast<const DataChangedPayload*>(e.payload);
         if (p->id == DATAKEY_WIFI_READY || p->id == DATAKEY_MQTT_READY) {
@@ -1381,6 +1437,7 @@ void HMIModule::onEvent_(const Event& e)
                e.len >= sizeof(AlarmPayload)) {
         const AlarmPayload* p = static_cast<const AlarmPayload*>(e.payload);
         const AlarmId id = (AlarmId)p->alarmId;
+        markAlarmViewDirty_();
         if (id == AlarmId::PoolPhTankLow ||
             id == AlarmId::PoolChlorineTankLow ||
             id == AlarmId::PoolPhPumpMaxUptime ||
@@ -1422,23 +1479,58 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
         return;
     }
 
+    if (e.type == HmiEventType::DisplaySleep) {
+        return;
+    }
+    if (e.type == HmiEventType::DisplayWake) {
+        if (alarmPageActive_ || configMenuActive_) {
+            viewDirty_ = true;
+        } else if (homePageVisible_) {
+            resetClockPublishStamps_();
+            queueHomePublish_(kHomePublishAll);
+        }
+        return;
+    }
+
     if (e.type == HmiEventType::Home) {
         homePageVisible_ = true;
         menuSessionActive_ = false;
         menuPageVisible_ = false;
+        alarmPageActive_ = false;
         configMenuActive_ = false;
         viewDirty_ = false;
         resetClockPublishStamps_();
         queueHomePublish_(kHomePublishAll);
     } else if (e.type == HmiEventType::Page) {
         homePageVisible_ = false;
-        menuPageVisible_ = false;
-        configMenuActive_ = false;
+        if (isAlarmPageId_(e.pageId)) {
+            alarmPageActive_ = true;
+            menuPageVisible_ = false;
+            configMenuActive_ = false;
+            menuSessionActive_ = false;
+            viewDirty_ = true;
+            return;
+        }
+        alarmPageActive_ = false;
+        if (!isConfigPageCode_(e.pageId)) {
+            menuPageVisible_ = false;
+            configMenuActive_ = false;
+        }
     }
 
     if (e.type == HmiEventType::ConfigEnter) {
+        if (isAlarmPageId_(e.pageId)) {
+            menuSessionActive_ = false;
+            menuPageVisible_ = false;
+            alarmPageActive_ = true;
+            configMenuActive_ = false;
+            homePageVisible_ = false;
+            viewDirty_ = true;
+            return;
+        }
         menuSessionActive_ = true;
         menuPageVisible_ = true;
+        alarmPageActive_ = false;
         homePageVisible_ = false;
         if (e.contextRef != 0U && restoreConfigContext_(e.contextRef)) {
             configMenuActive_ = true;
@@ -1450,6 +1542,16 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
     }
 
     if (e.type == HmiEventType::ConfigExit) {
+        if (alarmPageActive_) {
+            alarmPageActive_ = false;
+            viewDirty_ = false;
+            if (isHomePageCode_(e.pageId)) {
+                homePageVisible_ = true;
+                resetClockPublishStamps_();
+                queueHomePublish_(kHomePublishAll);
+            }
+            return;
+        }
         menuPageVisible_ = false;
         configMenuActive_ = false;
         viewDirty_ = false;
@@ -1467,6 +1569,22 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
             menuSessionActive_ = true;
         }
         return;
+    }
+
+    if (alarmPageActive_) {
+        switch (e.type) {
+            case HmiEventType::NextPage:
+                (void)nextAlarmPage_();
+                return;
+            case HmiEventType::PrevPage:
+                (void)prevAlarmPage_();
+                return;
+            case HmiEventType::RowActivate:
+                (void)resetAlarmRow_(e.row);
+                return;
+            default:
+                return;
+        }
     }
 
 #if !FLOW_HMI_CONFIG_MENU_ENABLED
@@ -1587,6 +1705,16 @@ void HMIModule::handleDriverEvent_(const HmiEvent& e)
             break;
         case HmiEventType::RowSetText:
             changed = menu_.setText(e.row, e.text);
+            if (!changed && strchr(e.text, ',') != nullptr) {
+                char normalized[sizeof(e.text)]{};
+                size_t p = 0U;
+                while (p + 1U < sizeof(normalized) && e.text[p] != '\0') {
+                    normalized[p] = (e.text[p] == ',') ? '.' : e.text[p];
+                    ++p;
+                }
+                normalized[p] = '\0';
+                changed = menu_.setText(e.row, normalized);
+            }
             if (!changed) {
                 ConfigMenuView view{};
                 menu_.buildView(view);
@@ -1867,6 +1995,225 @@ bool HMIModule::restoreConfigContext_(uint32_t token)
 #endif
 }
 
+void HMIModule::refreshLocale_()
+{
+    const char* nextLang = "fr";
+    uint32_t nextGeneration = localeGenerationSeen_;
+    if (localeSvc_ && localeSvc_->language) {
+        const char* svcLang = localeSvc_->language(localeSvc_->ctx);
+        if (svcLang && runtimeUiIsEnglishLang(svcLang)) {
+            nextLang = "en";
+        }
+    }
+    if (localeSvc_ && localeSvc_->generation) {
+        nextGeneration = localeSvc_->generation(localeSvc_->ctx);
+    }
+
+    const bool changed = strncmp(localeLang_, nextLang, sizeof(localeLang_)) != 0;
+    if (changed) {
+        snprintf(localeLang_, sizeof(localeLang_), "%s", nextLang);
+    }
+    if (changed || nextGeneration != localeGenerationSeen_) {
+        localeGenerationSeen_ = nextGeneration;
+        markAlarmViewDirty_();
+    }
+}
+
+void HMIModule::markAlarmViewDirty_()
+{
+    if (alarmPageActive_) {
+        viewDirty_ = true;
+    }
+}
+
+uint8_t HMIModule::collectAlarmIds_(AlarmId* out, uint8_t max) const
+{
+    if (!out || max == 0U || !alarmSvc_ || !alarmSvc_->listIds) return 0U;
+    return alarmSvc_->listIds(alarmSvc_->ctx, out, max);
+}
+
+bool HMIModule::readAlarmState_(AlarmId id, bool& active, bool& resettable, AlarmCondState& condition) const
+{
+    active = false;
+    resettable = false;
+    condition = AlarmCondState::Unknown;
+    if (!alarmSvc_) return false;
+
+    if (alarmSvc_->isActive) {
+        active = alarmSvc_->isActive(alarmSvc_->ctx, id);
+    }
+    if (alarmSvc_->isResettable) {
+        resettable = alarmSvc_->isResettable(alarmSvc_->ctx, id);
+    }
+
+    if (!alarmSvc_->buildAlarmState) return true;
+
+    char json[128]{};
+    if (!alarmSvc_->buildAlarmState(alarmSvc_->ctx, id, json, sizeof(json))) return true;
+
+    uint16_t c = 2U;
+    if (!findJsonUInt16_(json, "c", c)) return true;
+    if (c == 0U) condition = AlarmCondState::False;
+    else if (c == 1U) condition = AlarmCondState::True;
+    else condition = AlarmCondState::Unknown;
+    return true;
+}
+
+const char* HMIModule::alarmLabelForId_(AlarmId id) const
+{
+    const char* shortLabel = alarmLabelShortForId_(id);
+    if (shortLabel && shortLabel[0] != '\0') return shortLabel;
+    const uint32_t mask = alarmMaskFromId_(id);
+    if (mask == 0U) return "";
+    return runtimeUiAlarmActiveFlagLabel(mask, localeLang_);
+}
+
+const char* HMIModule::alarmLabelShortForId_(AlarmId id) const
+{
+    const bool en = runtimeUiIsEnglishLang(localeLang_);
+    switch (id) {
+        case AlarmId::PoolPsiLow: return en ? "Low PSI" : "PSI bas";
+        case AlarmId::PoolPsiHigh: return en ? "High PSI" : "PSI haut";
+        case AlarmId::PoolPhTankLow: return en ? "pH empty" : "pH vide";
+        case AlarmId::PoolChlorineTankLow: return en ? "Chlorine empty" : "Chlore vide";
+        case AlarmId::PoolPhPumpMaxUptime: return en ? "pH uptime" : "pH uptime";
+        case AlarmId::PoolChlorinePumpMaxUptime: return en ? "ORP uptime" : "ORP uptime";
+        case AlarmId::PoolWaterLevelLow: return en ? "Low water" : "Eau basse";
+        default: return "";
+    }
+}
+
+bool HMIModule::buildAlarmPageView_(ConfigMenuView& out, bool)
+{
+    out = ConfigMenuView{};
+    snprintf(out.breadcrumb, sizeof(out.breadcrumb), "%s", runtimeUiIsEnglishLang(localeLang_) ? "Alarms" : "Alarmes");
+    out.contextRef = 0U;
+    out.mode = ConfigMenuMode::Browse;
+    out.canHome = true;
+    out.canBack = false;
+    out.canValidate = false;
+    out.isHome = false;
+
+    AlarmId ids[Limits::Alarm::MaxAlarms]{};
+    const uint8_t totalCount = collectAlarmIds_(ids, (uint8_t)Limits::Alarm::MaxAlarms);
+    const uint8_t pageCount = totalCount == 0U
+        ? 1U
+        : (uint8_t)((totalCount + ConfigMenuModel::RowsPerPage - 1U) / ConfigMenuModel::RowsPerPage);
+    uint8_t pageIndex = alarmPageIndex_;
+    if (pageIndex >= pageCount) pageIndex = (uint8_t)(pageCount - 1U);
+
+    out.pageIndex = pageIndex;
+    out.pageCount = pageCount;
+
+    const uint8_t start = (uint8_t)(pageIndex * ConfigMenuModel::RowsPerPage);
+    uint8_t visibleCount = 0U;
+    for (uint8_t row = 0; row < ConfigMenuModel::RowsPerPage; ++row) {
+        const uint8_t idx = (uint8_t)(start + row);
+        ConfigMenuRowView& viewRow = out.rows[row];
+
+        if (idx >= totalCount) {
+            viewRow.visible = false;
+            alarmRowIds_[row] = AlarmId::None;
+            alarmRowResettable_[row] = false;
+            continue;
+        }
+        ++visibleCount;
+
+        const AlarmId id = ids[idx];
+        bool active = false;
+        bool resettable = false;
+        AlarmCondState condition = AlarmCondState::Unknown;
+        (void)readAlarmState_(id, active, resettable, condition);
+
+        const char* label = alarmLabelForId_(id);
+        char fallback[20]{};
+        if (!label || label[0] == '\0') {
+            snprintf(fallback, sizeof(fallback), "Alarm %u", (unsigned)((uint16_t)id));
+            label = fallback;
+        }
+
+        const char* prefix = "[ ]";
+        if (active && resettable) {
+            prefix = "[L]";
+        } else if (active && condition == AlarmCondState::True) {
+            prefix = "[!]";
+        } else if (active && condition == AlarmCondState::False) {
+            prefix = "[A]";
+        } else if (active) {
+            prefix = "[?]";
+        }
+
+        viewRow.visible = true;
+        viewRow.valueVisible = false;
+        viewRow.editable = false;
+        viewRow.dirty = false;
+        viewRow.canEnter = resettable;
+        viewRow.canEdit = false;
+        viewRow.widget = ConfigMenuWidget::Text;
+        viewRow.editType = 0U;
+        snprintf(viewRow.key, sizeof(viewRow.key), "alarm_%u", (unsigned)row);
+        snprintf(viewRow.label, sizeof(viewRow.label), "%s %s", prefix, label);
+        viewRow.value[0] = '\0';
+
+        alarmRowIds_[row] = id;
+        alarmRowResettable_[row] = resettable;
+    }
+    out.rowCountOnPage = visibleCount;
+
+    alarmPageIndex_ = pageIndex;
+    alarmPageCount_ = pageCount;
+    alarmRowCount_ = visibleCount;
+    return true;
+}
+
+bool HMIModule::resetAlarmRow_(uint8_t rowIndex)
+{
+    if (rowIndex >= ConfigMenuModel::RowsPerPage) return false;
+    if (!alarmSvc_ || !alarmSvc_->reset) return false;
+    if (!alarmRowResettable_[rowIndex]) return false;
+    const AlarmId id = alarmRowIds_[rowIndex];
+    if (id == AlarmId::None) return false;
+    const bool ok = alarmSvc_->reset(alarmSvc_->ctx, id);
+    if (ok) {
+        viewDirty_ = true;
+        queueHomePublish_(kHomePublishAlarmBits);
+    }
+    return ok;
+}
+
+bool HMIModule::nextAlarmPage_()
+{
+    if (alarmPageIndex_ + 1U >= alarmPageCount_) return false;
+    ++alarmPageIndex_;
+    viewDirty_ = true;
+    return true;
+}
+
+bool HMIModule::prevAlarmPage_()
+{
+    if (alarmPageIndex_ == 0U) return false;
+    --alarmPageIndex_;
+    viewDirty_ = true;
+    return true;
+}
+
+bool HMIModule::isAlarmPageId_(uint8_t pageId) const
+{
+    return isAlarmPageCode_(pageId);
+}
+
+bool HMIModule::isDisplaySleeping_() const
+{
+    if (driver_ == static_cast<const IHmiDriver*>(&nextion_)) {
+        return nextion_.isSleeping();
+    }
+    if (driver_ == static_cast<const IHmiDriver*>(&remoteUdp_) &&
+        remoteUdpServer_) {
+        return remoteUdpServer_->isDisplaySleeping();
+    }
+    return false;
+}
+
 bool HMIModule::render_()
 {
     if (!driver_) return false;
@@ -1903,6 +2250,19 @@ bool HMIModule::render_()
     return ok;
 }
 
+bool HMIModule::renderAlarmPage_()
+{
+    if (!driver_) return false;
+    ConfigMenuView view{};
+    if (!buildAlarmPageView_(view, false)) return false;
+    const bool ok = driver_->renderConfigMenu(view);
+    if (ok) {
+        lastRenderMs_ = millis();
+        lastConfigValueRefreshMs_ = lastRenderMs_;
+    }
+    return ok;
+}
+
 bool HMIModule::refreshConfigMenuValues_()
 {
     if (!driver_) return false;
@@ -1920,6 +2280,16 @@ bool HMIModule::refreshConfigMenuValues_()
 #else
     return false;
 #endif
+}
+
+bool HMIModule::refreshAlarmPageValues_()
+{
+    if (!driver_) return false;
+    ConfigMenuView view{};
+    if (!buildAlarmPageView_(view, true)) return false;
+    const bool ok = driver_->refreshConfigMenuValues(view);
+    if (ok) lastConfigValueRefreshMs_ = millis();
+    return ok;
 }
 
 bool HMIModule::buildMenuJson_(char* out, size_t outLen)
@@ -2031,8 +2401,10 @@ void HMIModule::loop()
     }
 
     const uint32_t now = millis();
+    const bool displaySleeping = isDisplaySleeping_();
     if (driverReady_ &&
         driver_ == static_cast<IHmiDriver*>(&nextion_) &&
+        !displaySleeping &&
         !configMenuActive_ &&
         (uint32_t)(now - lastDisplayVersionProbeMs_) >= kDisplayVersionProbePeriodMs) {
         lastDisplayVersionProbeMs_ = now;
@@ -2081,22 +2453,34 @@ void HMIModule::loop()
     }
     serviceRtcBridge_(now);
     queueClockPublishIfDue_(now);
+    refreshLocale_();
     if (driverReady_ &&
         driver_ &&
         driver_->isLegacyV2() &&
         !configMenuActive_ &&
+        !alarmPageActive_ &&
         (uint32_t)(now - lastLegacyV2FullRefreshMs_) >= kLegacyV2FullRefreshPeriodMs) {
         lastLegacyV2FullRefreshMs_ = now;
         queueHomePublish_(kHomePublishAll);
         LOGD("HMI Legacy V2 periodic Home full refresh queued");
     }
-    if (kConfigMenuEnabled && configMenuActive_ && driver_ && viewDirty_) {
+    if (alarmPageActive_ && driver_ && !displaySleeping && viewDirty_) {
+        if (renderAlarmPage_()) {
+            viewDirty_ = false;
+        }
+    } else if (alarmPageActive_ &&
+               driver_ &&
+               !displaySleeping &&
+               (uint32_t)(now - lastConfigValueRefreshMs_) >= 2000U) {
+        (void)refreshAlarmPageValues_();
+    } else if (kConfigMenuEnabled && configMenuActive_ && driver_ && !displaySleeping && viewDirty_) {
         if (render_()) {
             viewDirty_ = false;
         }
     } else if (kConfigMenuEnabled &&
                configMenuActive_ &&
                driver_ &&
+               !displaySleeping &&
                (uint32_t)(now - lastConfigValueRefreshMs_) >= 5000U) {
         (void)refreshConfigMenuValues_();
     }

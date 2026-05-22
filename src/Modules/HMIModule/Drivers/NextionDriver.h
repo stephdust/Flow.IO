@@ -17,8 +17,10 @@ struct NextionDriverConfig {
     uint16_t displayVersionReadTimeoutMs = 180U;
     uint8_t homePageId = 0U;
     uint8_t configPageId = 10U;
+    uint8_t alarmPageId = 11U;
     uint8_t homePageAliasId = 0xFFU;
     uint8_t configPageAliasId = 0xFFU;
+    uint8_t alarmPageAliasId = 0xFFU;
 };
 
 using NextionDebugCallback = void (*)(void* ctx, const char* kind, const uint8_t* data, uint8_t len);
@@ -57,6 +59,7 @@ public:
     bool currentPage(uint8_t& out) const;
     bool isHomePage() const;
     bool isConfigPage() const;
+    bool isAlarmPage() const;
     bool setTouchEnabled(bool enabled);
     bool setObjectVisible(const char* objectName, bool visible);
     bool showConfigLoading(const char* title);
@@ -95,6 +98,8 @@ private:
     bool handlePageId_(uint8_t pageId, bool emitEvents, HmiEvent& out);
     bool isHomePageId_(uint8_t pageId) const;
     bool isConfigPageId_(uint8_t pageId) const;
+    bool isAlarmPageId_(uint8_t pageId) const;
+    bool isMenuPageId_(uint8_t pageId) const;
     void emitDebug_(const char* kind, const uint8_t* data, uint8_t len) const;
 
     bool sendCmd_(const char* cmd);

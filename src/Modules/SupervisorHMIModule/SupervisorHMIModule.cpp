@@ -28,7 +28,34 @@ static constexpr uint32_t kButtonArmHighStableMs = 500U;
 static constexpr uint32_t kFactoryResetMessageDelayMs = 900U;
 static constexpr uint32_t kPageRotateMs = 10000U;
 static constexpr uint32_t kWifiRssiRefreshMs = 3000U;
+static constexpr uint32_t kFlowLocaleRetryMinMs = 800U;
+static constexpr uint32_t kFlowLocaleRetryMaxMs = 30000U;
 static constexpr uint8_t kI2cLcdCfgBranch = 3U; // Must stay in sync with I2CCfgClient route table.
+
+const char* normalizeLang_(const char* value)
+{
+    if (!value) return "fr";
+    char a = value[0];
+    char b = value[1];
+    if (a >= 'A' && a <= 'Z') a = (char)(a + ('a' - 'A'));
+    if (b >= 'A' && b <= 'Z') b = (char)(b + ('a' - 'A'));
+    if (a == 'e' && b == 'n') return "en";
+    if (a == 'f' && b == 'r') return "fr";
+    return "fr";
+}
+
+uint32_t flowLocaleRetryDelayMs_(uint32_t attempt)
+{
+    uint32_t delayMs = kFlowLocaleRetryMinMs;
+    for (uint32_t i = 0; i < attempt && delayMs < kFlowLocaleRetryMaxMs; ++i) {
+        delayMs <<= 1U;
+        if (delayMs > kFlowLocaleRetryMaxMs) {
+            delayMs = kFlowLocaleRetryMaxMs;
+            break;
+        }
+    }
+    return delayMs;
+}
 
 const SupervisorBoardSpec& supervisorBoardSpec_(const BoardSpec& board)
 {
@@ -139,6 +166,8 @@ uint32_t SupervisorHMIModule::buildRenderKey_() const
     mix(&view_.hasRssi, sizeof(view_.hasRssi));
     mix(&view_.rssiDbm, sizeof(view_.rssiDbm));
     mix(&view_.pageIndex, sizeof(view_.pageIndex));
+    mix(view_.language, strnlen(view_.language, sizeof(view_.language)) + 1U);
+    mix(&view_.localeGeneration, sizeof(view_.localeGeneration));
     mix(view_.ip, strnlen(view_.ip, sizeof(view_.ip)) + 1U);
     mix(&view_.flowLinkOk, sizeof(view_.flowLinkOk));
     mix(&view_.flowMqttReady, sizeof(view_.flowMqttReady));
@@ -222,6 +251,7 @@ void SupervisorHMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(lcdAutoOffVar_, kCfgModuleId, kI2cLcdCfgBranch);
     cfg.registerVar(lcdMotionGpioVar_, kCfgModuleId, kI2cLcdCfgBranch);
 
+    services_ = &services;
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);
     cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
     cmdSvc_ = services.get<CommandService>(ServiceId::Command);
@@ -230,11 +260,14 @@ void SupervisorHMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
     netAccessSvc_ = services.get<NetworkAccessService>(ServiceId::NetworkAccess);
     fwUpdateSvc_ = services.get<FirmwareUpdateService>(ServiceId::FirmwareUpdate);
+    localeSvc_ = services.get<LocaleService>(ServiceId::Locale);
+    flowCfgSvc_ = services.get<FlowCfgRemoteService>(ServiceId::FlowCfg);
     eventBus_ = eventBusSvc_ ? eventBusSvc_->bus : nullptr;
     (void)logHub_;
 
     if (eventBus_) {
         eventBus_->subscribe(EventId::DataChanged, &SupervisorHMIModule::onEventStatic_, this);
+        eventBus_->subscribe(EventId::ConfigChanged, &SupervisorHMIModule::onEventStatic_, this);
     }
 
     syncMotionInputConfig_();
@@ -249,6 +282,7 @@ void SupervisorHMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
     lastMotionMs_ = millis();
     copyText_(view_.fwState, sizeof(view_.fwState), "idle");
     copyText_(view_.fwTarget, sizeof(view_.fwTarget), "none");
+    refreshLocale_();
     setDefaultBanner_();
     refreshFlowStatusFromDataStore_();
 
@@ -271,6 +305,10 @@ void SupervisorHMIModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
 void SupervisorHMIModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
 {
+    refreshLocale_();
+    flowLocaleSyncPending_ = true;
+    flowLocaleAttempt_ = 0U;
+    flowLocaleRetryAtMs_ = 0U;
     syncMotionInputConfig_();
     lastAutoOffEnabled_ = lcdCfg_.autoOff60s;
     LOGI("Supervisor HMI LCD cfg auto_off_60s=%d motion_gpio=%ld",
@@ -280,11 +318,25 @@ void SupervisorHMIModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
 
 void SupervisorHMIModule::onEvent_(const Event& e)
 {
-    if (e.id != EventId::DataChanged) return;
-    if (!e.payload || e.len < sizeof(DataChangedPayload)) return;
-    const DataChangedPayload* p = static_cast<const DataChangedPayload*>(e.payload);
-    if (p->id < DataKeys::FlowRemoteBase || p->id >= DataKeys::FlowRemoteEndExclusive) return;
-    flowRuntimeDirty_ = true;
+    if (e.id == EventId::DataChanged) {
+        if (!e.payload || e.len < sizeof(DataChangedPayload)) return;
+        const DataChangedPayload* p = static_cast<const DataChangedPayload*>(e.payload);
+        if (p->id < DataKeys::FlowRemoteBase || p->id >= DataKeys::FlowRemoteEndExclusive) return;
+        flowRuntimeDirty_ = true;
+        return;
+    }
+
+    if (e.id == EventId::ConfigChanged) {
+        if (!e.payload || e.len < sizeof(ConfigChangedPayload)) return;
+        const ConfigChangedPayload* p = static_cast<const ConfigChangedPayload*>(e.payload);
+        if (p->moduleId == (uint8_t)ConfigModuleId::System &&
+            strcmp(p->nvsKey, NvsKeys::System::Language) == 0) {
+            refreshLocale_();
+            flowLocaleSyncPending_ = true;
+            flowLocaleAttempt_ = 0U;
+            flowLocaleRetryAtMs_ = 0U;
+        }
+    }
 }
 
 void SupervisorHMIModule::pollWifiAndNetwork_()
@@ -427,12 +479,84 @@ void SupervisorHMIModule::refreshFlowStatusFromDataStore_()
     }
 }
 
+void SupervisorHMIModule::refreshLocale_()
+{
+    if (!localeSvc_ && services_) {
+        localeSvc_ = services_->get<LocaleService>(ServiceId::Locale);
+    }
+
+    const char* lang = "fr";
+    uint32_t generation = localeGeneration_;
+    if (localeSvc_ && localeSvc_->language) {
+        lang = localeSvc_->language(localeSvc_->ctx);
+    }
+    if (localeSvc_ && localeSvc_->generation) {
+        generation = localeSvc_->generation(localeSvc_->ctx);
+    }
+
+    const char* normalized = normalizeLang_(lang);
+    const bool langChanged = strncmp(activeLanguage_, normalized, sizeof(activeLanguage_)) != 0;
+    const bool generationChanged = (generation != localeGeneration_);
+    if (!langChanged && !generationChanged && view_.text != nullptr) return;
+
+    copyText_(activeLanguage_, sizeof(activeLanguage_), normalized);
+    localeGeneration_ = generation;
+    copyText_(view_.language, sizeof(view_.language), normalized);
+    view_.localeGeneration = generation;
+    view_.text = supervisorHmiTextSetForLanguage(normalized);
+
+    if (langChanged) {
+        flowLocaleSyncPending_ = true;
+        flowLocaleAttempt_ = 0U;
+        flowLocaleRetryAtMs_ = 0U;
+    }
+}
+
+void SupervisorHMIModule::syncFlowLocaleIfNeeded_()
+{
+    if (!flowLocaleSyncPending_) return;
+    if ((int32_t)(millis() - flowLocaleRetryAtMs_) < 0) return;
+
+    if (!flowCfgSvc_ && services_) {
+        flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
+    }
+    if (!flowCfgSvc_ || !flowCfgSvc_->applyPatchJson) {
+        ++flowLocaleAttempt_;
+        flowLocaleRetryAtMs_ = millis() + flowLocaleRetryDelayMs_(flowLocaleAttempt_);
+        return;
+    }
+    if (flowCfgSvc_->isReady && !flowCfgSvc_->isReady(flowCfgSvc_->ctx)) {
+        ++flowLocaleAttempt_;
+        flowLocaleRetryAtMs_ = millis() + flowLocaleRetryDelayMs_(flowLocaleAttempt_);
+        return;
+    }
+
+    char patch[48] = {0};
+    char ack[64] = {0};
+    snprintf(patch, sizeof(patch), "{\"system\":{\"lang\":\"%s\"}}", activeLanguage_);
+    const bool ok = flowCfgSvc_->applyPatchJson(flowCfgSvc_->ctx, patch, ack, sizeof(ack));
+    if (ok) {
+        flowLocaleSyncPending_ = false;
+        flowLocaleAttempt_ = 0U;
+        flowLocaleRetryAtMs_ = 0U;
+        LOGI("FlowIO locale synchronized lang=%s", activeLanguage_);
+        return;
+    }
+
+    ++flowLocaleAttempt_;
+    flowLocaleRetryAtMs_ = millis() + flowLocaleRetryDelayMs_(flowLocaleAttempt_);
+    LOGW("FlowIO locale sync failed lang=%s retry_in_ms=%lu",
+         activeLanguage_,
+         (unsigned long)(flowLocaleRetryAtMs_ - millis()));
+}
+
 void SupervisorHMIModule::scheduleFactoryReset_()
 {
     if (factoryResetPending_) return;
     factoryResetPending_ = true;
     factoryResetExecuteAtMs_ = millis() + kFactoryResetMessageDelayMs;
-    copyText_(view_.banner, sizeof(view_.banner), "Factory reset starting...");
+    const SupervisorHmiTextSet* text = view_.text ? view_.text : supervisorHmiTextSetDefault();
+    copyText_(view_.banner, sizeof(view_.banner), text->bannerFactoryResetStarting);
     LOGW("Factory reset requested from local button");
 }
 
@@ -444,7 +568,8 @@ void SupervisorHMIModule::executePendingFactoryReset_()
     factoryResetExecuteAtMs_ = 0U;
     if (!cmdSvc_ || !cmdSvc_->execute) {
         factoryResetPending_ = false;
-        copyText_(view_.banner, sizeof(view_.banner), "Factory reset failed: command unavailable");
+        const SupervisorHmiTextSet* text = view_.text ? view_.text : supervisorHmiTextSetDefault();
+        copyText_(view_.banner, sizeof(view_.banner), text->bannerFactoryResetFailed);
         LOGE("Factory reset failed: command service unavailable");
         return;
     }
@@ -453,7 +578,8 @@ void SupervisorHMIModule::executePendingFactoryReset_()
     const bool ok = cmdSvc_->execute(cmdSvc_->ctx, "system.factory_reset", "{}", nullptr, reply, sizeof(reply));
     if (!ok) {
         factoryResetPending_ = false;
-        copyText_(view_.banner, sizeof(view_.banner), "Factory reset failed");
+        const SupervisorHmiTextSet* text = view_.text ? view_.text : supervisorHmiTextSetDefault();
+        copyText_(view_.banner, sizeof(view_.banner), text->bannerFactoryResetFailed);
         LOGE("Factory reset command failed reply=%s", reply[0] ? reply : "<empty>");
     }
 }
@@ -508,9 +634,10 @@ void SupervisorHMIModule::updateFactoryResetButton_()
         buttonPressed_ = true;
         buttonPressedAtMs_ = now;
         const uint32_t holdSeconds = (factoryResetHoldMs_ + 999U) / 1000U;
+        const SupervisorHmiTextSet* text = view_.text ? view_.text : supervisorHmiTextSetDefault();
         snprintf(view_.banner,
                  sizeof(view_.banner),
-                 "Keep holding %lus for factory reset",
+                 text->bannerKeepHoldingFmt,
                  (unsigned long)holdSeconds);
         return;
     }
@@ -607,15 +734,16 @@ void SupervisorHMIModule::updateBacklight_()
 void SupervisorHMIModule::rebuildBanner_()
 {
     if (factoryResetPending_) return;
+    const SupervisorHmiTextSet* text = view_.text ? view_.text : supervisorHmiTextSetDefault();
     if (!driver_.isBacklightOn()) {
-        copyText_(view_.banner, sizeof(view_.banner), "PIR idle: backlight off");
+        copyText_(view_.banner, sizeof(view_.banner), text->bannerPirIdleBacklightOff);
         return;
     }
     if (buttonPressed_ && !buttonTriggered_) {
         const uint32_t holdSeconds = (factoryResetHoldMs_ + 999U) / 1000U;
         snprintf(view_.banner,
                  sizeof(view_.banner),
-                 "Keep holding %lus for factory reset",
+                 text->bannerKeepHoldingFmt,
                  (unsigned long)holdSeconds);
         return;
     }
@@ -624,12 +752,13 @@ void SupervisorHMIModule::rebuildBanner_()
 
 void SupervisorHMIModule::setDefaultBanner_()
 {
+    const SupervisorHmiTextSet* text = view_.text ? view_.text : supervisorHmiTextSetDefault();
     if (factoryResetPin_ < 0) {
-        copyText_(view_.banner, sizeof(view_.banner), "Local display ready");
+        copyText_(view_.banner, sizeof(view_.banner), text->bannerLocalDisplayReady);
         return;
     }
     const uint32_t holdSeconds = (factoryResetHoldMs_ + 999U) / 1000U;
-    snprintf(view_.banner, sizeof(view_.banner), "Hold reset button %lus for factory reset", (unsigned long)holdSeconds);
+    snprintf(view_.banner, sizeof(view_.banner), text->bannerHoldResetFmt, (unsigned long)holdSeconds);
 }
 
 void SupervisorHMIModule::loop()
@@ -653,6 +782,7 @@ void SupervisorHMIModule::loop()
     }
 
     pollWifiAndNetwork_();
+    refreshLocale_();
 
     const uint32_t now = millis();
     if ((uint32_t)(now - lastFwPollMs_) >= kFwPollMs) {
@@ -664,6 +794,7 @@ void SupervisorHMIModule::loop()
         flowRuntimeDirty_ = false;
         refreshFlowStatusFromDataStore_();
     }
+    syncFlowLocaleIfNeeded_();
 
     updateFactoryResetButton_();
     updateBacklight_();

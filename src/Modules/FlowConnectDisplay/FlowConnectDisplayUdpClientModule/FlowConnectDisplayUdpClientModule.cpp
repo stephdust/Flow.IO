@@ -26,8 +26,10 @@ void FlowConnectDisplayUdpClientModule::init(ConfigStore& cfgStore, ServiceRegis
     cfg.baud = Board::SerialMap::HmiBaud;
     cfg.homePageId = 1U;
     cfg.configPageId = 2U;
+    cfg.alarmPageId = 3U;
     cfg.homePageAliasId = 0U;
     cfg.configPageAliasId = 10U;
+    cfg.alarmPageAliasId = 11U;
     nextion_.setConfig(cfg);
     nextion_.setDebugCallback(&FlowConnectDisplayUdpClientModule::nextionDebugCallback_, this);
 }

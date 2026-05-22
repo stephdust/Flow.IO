@@ -156,6 +156,13 @@
     "runtimeui.poollogic.v04.display.activeText": "Active",
     "runtimeui.poollogic.v04.display.inactiveText": "Off",
     "runtimeui.poollogic.v04.group": "Mode",
-    "runtimeui.poollogic.v04.label": "ORP Auto"
+    "runtimeui.poollogic.v04.label": "ORP Auto",
+    "runtimeui.poollogic.alarms.flag00.label": "Water Pressure Low",
+    "runtimeui.poollogic.alarms.flag01.label": "Water Pressure High",
+    "runtimeui.poollogic.alarms.flag02.label": "pH Tank Low",
+    "runtimeui.poollogic.alarms.flag03.label": "Chlorine Tank Low",
+    "runtimeui.poollogic.alarms.flag04.label": "pH Pump Maximum Uptime Reached",
+    "runtimeui.poollogic.alarms.flag05.label": "Orp Pump Maximum Uptime Reached",
+    "runtimeui.poollogic.alarms.flag06.label": "Pool water level low"
   }
 }

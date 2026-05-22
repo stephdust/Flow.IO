@@ -5,6 +5,7 @@
 
 #include "Modules/SupervisorHMIModule/Drivers/St7789SupervisorDriver.h"
 
+#include "Core/Generated/RuntimeUiAlarmText_Generated.h"
 #include "Core/Generated/RuntimeUiManifest_Generated.h"
 #include <Arduino.h>
 #include <Fonts/FreeSans9pt7b.h>
@@ -75,7 +76,7 @@ enum class SupervisorPage : uint8_t {
 };
 
 struct AlarmRowDef {
-    const char* label;
+    uint8_t index;
 };
 
 struct GaugeBand {
@@ -85,15 +86,16 @@ struct GaugeBand {
 };
 
 static constexpr AlarmRowDef kAlarmRows[kSupervisorAlarmSlotCount] = {
-    {"PSI Bas"},
-    {"PSI Haut"},
-    {"pH vide"},
-    {"Chlore vide"},
-    {"pH Uptime"},
-    {"ORP Uptime"},
-    {"Eau basse"},
-    {""},
+    {0U},
+    {1U},
+    {2U},
+    {3U},
+    {4U},
+    {5U},
+    {6U},
+    {7U},
 };
+static_assert(kSupervisorAlarmSlotCount == kSupervisorHmiAlarmLabelCount, "Alarm text catalog size mismatch");
 
 static constexpr GaugeBand kPhGaugeBands[] = {
     {6.4f, 6.8f, kColorAlarmAct},
@@ -420,6 +422,11 @@ void drawHeaderTime_(SupervisorSt7789& d, bool swapBytes, int16_t w, const char*
     d.print(timeTxt ? timeTxt : "--:--");
 }
 
+const SupervisorHmiTextSet* textSet_(const SupervisorHmiViewModel& vm)
+{
+    return vm.text ? vm.text : supervisorHmiTextSetDefault();
+}
+
 uint8_t systemState_(const SupervisorHmiViewModel& vm)
 {
     if (!vm.flowLinkOk) return 0U;
@@ -439,7 +446,8 @@ void drawSystemStatus_(SupervisorSt7789& d,
                        int16_t x,
                        int16_t y,
                        int16_t w,
-                       uint8_t state)
+                       uint8_t state,
+                       const SupervisorHmiViewModel& vm)
 {
     d.fillRect(x, y, w, 24, panelColor_(swapBytes, kColorGaugeCardBg));
     if (state >= 2U) {
@@ -453,7 +461,8 @@ void drawSystemStatus_(SupervisorSt7789& d,
         return;
     }
 
-    const char* label = (state == 1U) ? "MQTT off" : "Flow indispo";
+    const SupervisorHmiTextSet* text = textSet_(vm);
+    const char* label = (state == 1U) ? text->stateMqttOff : text->stateFlowUnavailable;
     setGfxFont_(d, swapBytes, &FreeSans9pt7b, systemStateColor_(state), kColorGaugeCardBg);
     const int16_t tw = gfxTextWidth_(d, label);
     d.setCursor((int16_t)(x + ((w - tw) / 2)), (int16_t)(gfxBaselineCenteredInBox_(d, label, y, 24) + 1));
@@ -512,11 +521,14 @@ void drawAlarmSummary_(SupervisorSt7789& d,
                        int16_t w,
                        uint8_t actCount,
                        uint8_t resettableCount,
-                       uint8_t clrCount)
+                       uint8_t clrCount,
+                       const SupervisorHmiViewModel& vm)
 {
     const int16_t bodyTop = kHeaderH + 4;
+    const SupervisorHmiTextSet* text = textSet_(vm);
     char summary[48] = {0};
-    snprintf(summary, sizeof(summary), "Alarmes: %u ACT   %u RST   %u CLR",
+    snprintf(summary, sizeof(summary), "%s: %u ACT   %u RST   %u CLR",
+             text->alarmSummaryTitle,
              (unsigned)actCount,
              (unsigned)resettableCount,
              (unsigned)clrCount);
@@ -545,9 +557,16 @@ void drawAlarmRow_(SupervisorSt7789& d,
 
 void drawAlarmBody_(SupervisorSt7789& d, bool swapBytes, int16_t w, const SupervisorHmiViewModel& vm)
 {
-    drawAlarmSummary_(d, swapBytes, w, vm.flowAlarmActCount, vm.flowAlarmResettableCount, vm.flowAlarmClrCount);
+    drawAlarmSummary_(d, swapBytes, w, vm.flowAlarmActCount, vm.flowAlarmResettableCount, vm.flowAlarmClrCount, vm);
     for (uint8_t i = 0; i < kSupervisorAlarmSlotCount; ++i) {
-        drawAlarmRow_(d, swapBytes, w, i, kAlarmRows[i].label, vm.flowAlarmStates[i]);
+        const uint8_t alarmSlotIndex = kAlarmRows[i].index;
+        const uint32_t mask = (alarmSlotIndex < 32U) ? (1UL << alarmSlotIndex) : 0U;
+        const char* alarmLabel = runtimeUiAlarmActiveFlagLabel(mask, vm.language);
+        if (!alarmLabel || alarmLabel[0] == '\0') {
+            const SupervisorHmiTextSet* text = textSet_(vm);
+            alarmLabel = text->measureFallback;
+        }
+        drawAlarmRow_(d, swapBytes, w, i, alarmLabel, vm.flowAlarmStates[i]);
     }
 }
 
@@ -744,6 +763,7 @@ bool ipTextChanged_(const SupervisorHmiViewModel& prev, const SupervisorHmiViewM
 
 bool alarmCardChanged_(const SupervisorHmiViewModel& prev, const SupervisorHmiViewModel& curr, uint8_t startIndex)
 {
+    if (prev.localeGeneration != curr.localeGeneration) return true;
     for (uint8_t i = 0; i < 4U; ++i) {
         const uint8_t alarmIndex = (uint8_t)(startIndex + i);
         if (alarmIndex >= kSupervisorAlarmSlotCount) break;
@@ -757,6 +777,7 @@ bool dashboardSlotEquivalent_(const SupervisorDashboardSlotViewModel& lhs,
 
 bool metricCardChanged_(const SupervisorHmiViewModel& prev, const SupervisorHmiViewModel& curr, uint8_t index)
 {
+    if (prev.localeGeneration != curr.localeGeneration) return true;
     if (index >= kSupervisorDashboardSlotCount) return true;
     return !dashboardSlotEquivalent_(prev.flowDashboardSlots[index], curr.flowDashboardSlots[index]);
 }
@@ -815,13 +836,20 @@ void drawAlarmCard_(SupervisorSt7789& d,
     for (uint8_t i = 0; i < rowsPerCard; ++i) {
         const uint8_t alarmIndex = (uint8_t)(startIndex + i);
         if (alarmIndex >= kSupervisorAlarmSlotCount) break;
-        if (!kAlarmRows[alarmIndex].label || kAlarmRows[alarmIndex].label[0] == '\0') continue;
+        const uint8_t alarmSlotIndex = kAlarmRows[alarmIndex].index;
+        const uint32_t mask = (alarmSlotIndex < 32U) ? (1UL << alarmSlotIndex) : 0U;
+        const char* alarmLabel = runtimeUiAlarmActiveFlagLabel(mask, vm.language);
+        if (!alarmLabel || alarmLabel[0] == '\0') {
+            const SupervisorHmiTextSet* text = textSet_(vm);
+            alarmLabel = text->measureFallback;
+        }
+        if (!alarmLabel || alarmLabel[0] == '\0') continue;
 
         const int16_t rowCenterY = (int16_t)(y + topPad + ((int16_t)i * rowGap));
         const uint16_t textColor = alarmTextColor_(vm, alarmIndex);
         const uint16_t indicatorColor = alarmIndicatorColor_(vm, alarmIndex);
-        const uint32_t mask = (alarmIndex < 32U) ? (1UL << alarmIndex) : 0U;
-        const bool active = (vm.flowAlarmActiveMask & mask) != 0U;
+        const uint32_t stateMask = (alarmIndex < 32U) ? (1UL << alarmIndex) : 0U;
+        const bool active = (vm.flowAlarmActiveMask & stateMask) != 0U;
 
         drawGfxTextCenteredY_(d,
                               swapBytes,
@@ -831,7 +859,7 @@ void drawAlarmCard_(SupervisorSt7789& d,
                               labelX,
                               (int16_t)(rowCenterY - 12),
                               24,
-                              kAlarmRows[alarmIndex].label);
+                              alarmLabel);
         drawAlarmIndicator_(d, swapBytes, iconCx, rowCenterY, indicatorColor, active);
     }
 }
@@ -969,15 +997,17 @@ void drawDashboardSlotCard_(SupervisorSt7789& d,
                             int16_t y,
                             int16_t w,
                             int16_t h,
-                            const SupervisorDashboardSlotViewModel& slot)
+                            const SupervisorDashboardSlotViewModel& slot,
+                            const SupervisorHmiViewModel& vm)
 {
     const uint16_t cardBg = slot.enabled
         ? ((slot.bgColor565 != 0U) ? slot.bgColor565 : kColorGaugeCardBg)
         : kColorGaugeCardBg;
     const uint16_t labelColor = slot.enabled ? kColorMuted : kColorOff;
     const uint16_t valueColor = (slot.enabled && slot.available) ? kColorValue : kColorMuted;
+    const SupervisorHmiTextSet* text = textSet_(vm);
     const char* label = slot.enabled
-        ? ((slot.label[0] != '\0') ? slot.label : "Mesure")
+        ? ((slot.label[0] != '\0') ? slot.label : text->measureFallback)
         : "";
 
     char valueBuf[24] = {0};
@@ -1019,7 +1049,7 @@ void drawMeasuresBody_(SupervisorSt7789& d, bool swapBytes, int16_t w, int16_t h
 {
     for (uint8_t i = 0; i < kSupervisorDashboardSlotCount; ++i) {
         const Rect r = metricCardRect_(w, h, i);
-        drawDashboardSlotCard_(d, swapBytes, r.x, r.y, r.w, r.h, vm.flowDashboardSlots[i]);
+        drawDashboardSlotCard_(d, swapBytes, r.x, r.y, r.w, r.h, vm.flowDashboardSlots[i], vm);
     }
 }
 }
@@ -1153,7 +1183,7 @@ bool St7789SupervisorDriver::render(const SupervisorHmiViewModel& vm, bool force
         for (uint8_t i = 0; i < kSupervisorDashboardSlotCount; ++i) {
             if (!haveLastVm_ || metricCardChanged_(lastVm_, vm, i)) {
                 const Rect r = metricCardRect_(w, h, i);
-                drawDashboardSlotCard_(display_, swapBytes, r.x, r.y, r.w, r.h, vm.flowDashboardSlots[i]);
+                drawDashboardSlotCard_(display_, swapBytes, r.x, r.y, r.w, r.h, vm.flowDashboardSlots[i], vm);
             }
         }
     }

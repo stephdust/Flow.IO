@@ -22,3 +22,4 @@
 #include "IWebInterface.h"
 #include "IFirmwareUpdate.h"
 #include "IFlowCfg.h"
+#include "ILocale.h"
