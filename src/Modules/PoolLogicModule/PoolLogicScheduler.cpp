@@ -90,9 +90,6 @@ bool PoolLogicModule::applyFiltrationWindowSlot_(uint8_t startHour, uint8_t stop
         return false;
     }
 
-    filtrationCalcStart_ = window.startHour;
-    filtrationCalcStop_ = window.endHour;
-
     bool windowActive = filtrationWindowActive_;
     if (schedSvc_->isActive) {
         windowActive = schedSvc_->isActive(schedSvc_->ctx, SLOT_FILTR_WINDOW);
@@ -136,9 +133,24 @@ bool PoolLogicModule::recalcAndApplyFiltrationWindow_(uint8_t* startHourOut,
     // filtration state changes continue to arrive as regular scheduler events.
     if (!applyFiltrationWindowSlot_(startHour, stopHour)) return false;
 
+    bool startStored = false;
+    bool stopStored = false;
     if (cfgStore_) {
-        (void)cfgStore_->set(calcStartVar_, startHour);
-        (void)cfgStore_->set(calcStopVar_, stopHour);
+        startStored = cfgStore_->set(calcStartVar_, startHour);
+        stopStored = cfgStore_->set(calcStopVar_, stopHour);
+        if (!startStored || !stopStored) {
+            LOGW("Failed to persist calculated filtration window start=%u stop=%u",
+                 (unsigned)startHour,
+                 (unsigned)stopHour);
+        }
+    }
+    if (!cfgStore_ || !startStored) filtrationCalcStart_ = startHour;
+    if (!cfgStore_ || !stopStored) filtrationCalcStop_ = stopHour;
+
+    if (cfgMqttPub_) {
+        // Recompute commands should always refresh MQTT cfg consumers, even if
+        // computed values stayed identical and ConfigStore emitted no change.
+        cfgMqttPub_->requestFullSync(MqttPublishPriority::Normal);
     }
     if (startHourOut) *startHourOut = startHour;
     if (stopHourOut) *stopHourOut = stopHour;

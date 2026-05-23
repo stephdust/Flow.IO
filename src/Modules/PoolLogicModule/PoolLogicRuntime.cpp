@@ -129,7 +129,7 @@ MqttBuildResult PoolLogicModule::buildCfgBase_(MqttBuildContext& buildCtx)
 
 uint8_t PoolLogicModule::runtimeSnapshotCount() const
 {
-    return 2;
+    return 3;
 }
 
 bool PoolLogicModule::writeRuntimeUiValue(uint8_t valueId, IRuntimeUiWriter& writer) const
@@ -154,6 +154,7 @@ const char* PoolLogicModule::runtimeSnapshotSuffix(uint8_t idx) const
 {
     if (idx == 0) return "rt/poollogic/ph";
     if (idx == 1) return "rt/poollogic/orp";
+    if (idx == 2) return "rt/poollogic/heat_assist";
     return nullptr;
 }
 
@@ -165,7 +166,7 @@ RuntimeRouteClass PoolLogicModule::runtimeSnapshotClass(uint8_t idx) const
 
 bool PoolLogicModule::runtimeSnapshotAffectsKey(uint8_t idx, DataKey key) const
 {
-    if (idx > 1) return false;
+    if (idx > 2) return false;
     if (key >= DATAKEY_IO_BASE && key < (DataKey)(DATAKEY_IO_BASE + IO_MAX_ENDPOINTS)) return true;
     if (key >= DATAKEY_POOL_DEVICE_STATE_BASE &&
         key < (DataKey)(DATAKEY_POOL_DEVICE_STATE_BASE + POOL_DEVICE_MAX)) return true;
@@ -177,6 +178,61 @@ bool PoolLogicModule::buildRuntimeSnapshot(uint8_t idx, char* out, size_t len, u
     if (!out || len == 0) return false;
 
     const uint32_t nowMs = millis();
+    if (idx == 2) {
+        constexpr uint8_t kHeatAssistFlagProbeRunning = (1U << 0);
+        constexpr uint8_t kHeatAssistFlagHeatingActive = (1U << 1);
+        constexpr uint8_t kHeatAssistFlagFastCycle = (1U << 2);
+        const bool probeRunning = (heatAssistFlags_ & kHeatAssistFlagProbeRunning) != 0U;
+        const bool heatingActive = (heatAssistFlags_ & kHeatAssistFlagHeatingActive) != 0U;
+        const bool fastCycle = (heatAssistFlags_ & kHeatAssistFlagFastCycle) != 0U;
+        const uint16_t nowSec = (uint16_t)((nowMs / 1000UL) & 0xFFFFU);
+        const uint16_t probeStartSec = (uint16_t)(heatAssistTimingPacked_ & 0xFFFFU);
+        const uint16_t lastProbeEndSec = (uint16_t)((heatAssistTimingPacked_ >> 16) & 0xFFFFU);
+        const auto reasonToStr = [this]() -> const char* {
+            switch (heatAssistReason_) {
+                case HeatAssistReason::Disabled: return "DISABLED";
+                case HeatAssistReason::ManualMode: return "MANUAL_MODE";
+                case HeatAssistReason::PsiBlocked: return "PSI_BLOCKED";
+                case HeatAssistReason::SetpointInvalid: return "SETPOINT_INVALID";
+                case HeatAssistReason::TempUnavailable: return "TEMP_UNAVAILABLE";
+                case HeatAssistReason::ProbeWait30m: return "PROBE_WAIT_30M";
+                case HeatAssistReason::ProbeWait20m: return "PROBE_WAIT_20M";
+                case HeatAssistReason::ProbeRunning: return "PROBE_RUNNING";
+                case HeatAssistReason::Heating: return "HEATING";
+                case HeatAssistReason::IdlePumpOn: return "IDLE_PUMP_ON";
+                case HeatAssistReason::SetpointReached: return "SETPOINT_REACHED";
+                default: return "UNKNOWN";
+            }
+        };
+        const uint32_t idleIntervalMin = fastCycle ? 20U : 30U;
+        const uint32_t idleIntervalSec = idleIntervalMin * 60U;
+        const uint32_t probeRemainMs = probeRunning
+                                           ? ((((uint16_t)(nowSec - probeStartSec)) >= 5U * 60U)
+                                                  ? 0U
+                                                  : ((5U * 60U) - (uint32_t)((uint16_t)(nowSec - probeStartSec))) * 1000U)
+                                           : 0U;
+        const uint32_t idleElapsedSec = (lastProbeEndSec == 0U) ? idleIntervalSec : (uint32_t)((uint16_t)(nowSec - lastProbeEndSec));
+        const uint32_t idleRemainMs = probeRunning
+                                          ? 0U
+                                          : ((idleElapsedSec >= idleIntervalSec) ? 0U : (idleIntervalSec - idleElapsedSec) * 1000U);
+        const int wrote = snprintf(out,
+                                   len,
+                                   "{\"en\":%s,\"pr\":%s,\"ha\":%s,\"fc\":%s,"
+                                   "\"ri\":\"%s\",\"ivm\":%lu,\"prm\":%lu,\"irm\":%lu,\"t\":%lu}",
+                                   (autoMode_ && heaterAutoMode_) ? "true" : "false",
+                                   probeRunning ? "true" : "false",
+                                   heatingActive ? "true" : "false",
+                                   fastCycle ? "true" : "false",
+                                   reasonToStr(),
+                                   (unsigned long)idleIntervalMin,
+                                   (unsigned long)probeRemainMs,
+                                   (unsigned long)idleRemainMs,
+                                   (unsigned long)nowMs);
+        if (wrote < 0 || (size_t)wrote >= len) return false;
+        maxTsOut = nowMs ? nowMs : 1U;
+        return true;
+    }
+
     const bool isPh = (idx == 0);
     const bool isOrp = (idx == 1);
     if (!isPh && !isOrp) return false;

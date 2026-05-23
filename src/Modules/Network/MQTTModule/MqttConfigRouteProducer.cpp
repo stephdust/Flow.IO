@@ -259,8 +259,11 @@ bool MqttConfigRouteProducer::enqueueByRoute_(uint8_t idx, MqttPublishPriority p
 {
     if (!mqttSvc_ || !mqttSvc_->enqueue) return false;
     if (idx >= routeCount_) return false;
-    if (idx < 32U && (buildingMask_ & (1UL << idx)) != 0UL) {
-        republishAfterPublishMask_ |= (1UL << idx);
+    const uint32_t bit = (idx < 32U) ? (1UL << idx) : 0UL;
+    const bool wasPending = isPending_(idx);
+    const bool wasBuilding = (bit != 0UL) && ((buildingMask_ & bit) != 0UL);
+    if (wasBuilding) {
+        republishAfterPublishMask_ |= bit;
     }
     setPending_(idx, true);
     setNeedsEnqueue_(idx, true);
@@ -280,6 +283,11 @@ bool MqttConfigRouteProducer::enqueueByRoute_(uint8_t idx, MqttPublishPriority p
 
     ++metricsRefusedWin_;
     ++metricsRefusedTotal_;
+    // If a route was already pending and this enqueue was refused, preserve a
+    // one-shot republish so changes that arrived in-between are not lost.
+    if (bit != 0UL && wasPending) {
+        republishAfterPublishMask_ |= bit;
+    }
     if (idx < MaxRoutes && retryFirstRefusedMs_[idx] == 0U) {
         retryFirstRefusedMs_[idx] = nowMs;
     }

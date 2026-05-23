@@ -13,7 +13,13 @@
 #include "Core/ModuleLog.h"
 
 namespace {
-constexpr float kHeaterHysteresisC = 0.5f;
+constexpr float kHeaterHysteresisC = 0.3f;
+constexpr uint16_t kHeatAssistProbeRunSec = 5U * 60U;
+constexpr uint16_t kHeatAssistIdleSlowSec = 30U * 60U;
+constexpr uint16_t kHeatAssistIdleFastSec = 20U * 60U;
+constexpr uint8_t kHeatAssistFlagProbeRunning = (1U << 0);
+constexpr uint8_t kHeatAssistFlagHeatingActive = (1U << 1);
+constexpr uint8_t kHeatAssistFlagFastCycle = (1U << 2);
 
 const char* poolDeviceSvcStatusStr_(PoolDeviceSvcStatus st)
 {
@@ -470,25 +476,62 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
         portEXIT_CRITICAL(&pendingMux_);
     }
 
+    auto hasHeatAssistFlag = [&](uint8_t flag) -> bool {
+        return (heatAssistFlags_ & flag) != 0U;
+    };
+
+    auto setHeatAssistFlag = [&](uint8_t flag, bool enabled) {
+        if (enabled) heatAssistFlags_ = (uint8_t)(heatAssistFlags_ | flag);
+        else heatAssistFlags_ = (uint8_t)(heatAssistFlags_ & (uint8_t)(~flag));
+    };
+
+    auto setHeatAssistReason = [&](HeatAssistReason reason) {
+        heatAssistReason_ = reason;
+    };
+
+    auto resetHeatAssistSession = [&]() {
+        setHeatAssistFlag(kHeatAssistFlagProbeRunning, false);
+        setHeatAssistFlag(kHeatAssistFlagHeatingActive, false);
+        heatAssistTimingPacked_ = (heatAssistTimingPacked_ & 0xFFFF0000UL);
+    };
+
+    const uint16_t nowSec = (uint16_t)((nowMs / 1000UL) & 0xFFFFU);
+    auto getProbeStartSec = [&]() -> uint16_t {
+        return (uint16_t)(heatAssistTimingPacked_ & 0xFFFFU);
+    };
+    auto getLastProbeEndSec = [&]() -> uint16_t {
+        return (uint16_t)((heatAssistTimingPacked_ >> 16) & 0xFFFFU);
+    };
+    auto setProbeStartSec = [&](uint16_t sec) {
+        heatAssistTimingPacked_ = (heatAssistTimingPacked_ & 0xFFFF0000UL) | (uint32_t)sec;
+    };
+    auto setLastProbeEndSec = [&](uint16_t sec) {
+        heatAssistTimingPacked_ = (heatAssistTimingPacked_ & 0x0000FFFFUL) | (((uint32_t)sec) << 16);
+    };
+    auto elapsedSecSince = [&](uint16_t pastSec) -> uint16_t {
+        return (uint16_t)(nowSec - pastSec);
+    };
+
     // Filtration arbitration intentionally applies safety, then manual mode,
     // then automatic scheduling/winter logic in that order.
-    bool filtrationDesired = filtrationFsm_.on;
+    bool filtrationDesiredBase = filtrationFsm_.on;
     if (psiError_) {
         // Safety first: PSI alarms must stop filtration even in manual mode.
-        filtrationDesired = false;
+        filtrationDesiredBase = false;
     } else if (!autoMode_) {
         // Legacy-like manual mode: when auto_mode is off, keep filtration fully manual.
-        filtrationDesired = filtrationFsm_.on;
+        filtrationDesiredBase = filtrationFsm_.on;
     } else {
         if (filtrationFsm_.on && haveAirTemp && airTemp <= freezeHoldTempC_) {
             // Freeze hold: once running, never stop under freeze-hold threshold.
-            filtrationDesired = true;
+            filtrationDesiredBase = true;
         } else {
             const bool scheduleDemand = windowActive;
             const bool winterDemand = winterMode_ && haveAirTemp && (airTemp < winterStartTempC_);
-            filtrationDesired = (scheduleDemand || winterDemand);
+            filtrationDesiredBase = (scheduleDemand || winterDemand);
         }
     }
+    bool filtrationDesired = filtrationDesiredBase;
 
     // Robot and SWG remain pure derived outputs in auto mode; manual mode keeps
     // the current state untouched unless another safety rule overrides it.
@@ -535,17 +578,105 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
     }
 
     bool heaterDesired = heaterFsm_.on;
-    if (autoMode_ && heaterAutoMode_) {
-        const bool heaterAllowed = filtrationDesired && !psiError_ && haveWaterTemp;
-        if (!heaterAllowed || !std::isfinite(heaterSetpoint_)) {
+    if (!heaterAutoMode_) {
+        resetHeatAssistSession();
+        setHeatAssistFlag(kHeatAssistFlagFastCycle, false);
+        setLastProbeEndSec(0U);
+        setHeatAssistReason(HeatAssistReason::Disabled);
+    } else if (!autoMode_) {
+        resetHeatAssistSession();
+        setHeatAssistReason(HeatAssistReason::ManualMode);
+    } else if (psiError_) {
+        resetHeatAssistSession();
+        heaterDesired = false;
+        setHeatAssistReason(HeatAssistReason::PsiBlocked);
+    } else if (!std::isfinite(heaterSetpoint_)) {
+        resetHeatAssistSession();
+        heaterDesired = false;
+        setHeatAssistReason(HeatAssistReason::SetpointInvalid);
+    } else {
+        const float heaterStartThreshold = heaterSetpoint_ - kHeaterHysteresisC;
+        const float heaterStopThreshold = heaterSetpoint_ + kHeaterHysteresisC;
+        const bool fastCycle = hasHeatAssistFlag(kHeatAssistFlagFastCycle);
+        const uint16_t idleSec = fastCycle ? kHeatAssistIdleFastSec : kHeatAssistIdleSlowSec;
+
+        auto startProbe = [&]() {
+            setHeatAssistFlag(kHeatAssistFlagProbeRunning, true);
+            setHeatAssistFlag(kHeatAssistFlagHeatingActive, false);
+            setProbeStartSec(nowSec);
+            filtrationDesired = true;
             heaterDesired = false;
-        } else {
-            const float heaterStartThreshold = heaterSetpoint_ - kHeaterHysteresisC;
-            const float heaterStopThreshold = heaterSetpoint_ + kHeaterHysteresisC;
-            if (heaterFsm_.on) {
-                heaterDesired = (waterTemp < heaterStopThreshold);
+            setHeatAssistReason(HeatAssistReason::ProbeRunning);
+        };
+
+        if (hasHeatAssistFlag(kHeatAssistFlagHeatingActive)) {
+            filtrationDesired = true;
+            if (!haveWaterTemp) {
+                heaterDesired = false;
+                setHeatAssistReason(HeatAssistReason::TempUnavailable);
+            } else if (waterTemp >= heaterStopThreshold) {
+                setHeatAssistFlag(kHeatAssistFlagHeatingActive, false);
+                setHeatAssistFlag(kHeatAssistFlagProbeRunning, false);
+                setProbeStartSec(0U);
+                setLastProbeEndSec(nowSec);
+                setHeatAssistFlag(kHeatAssistFlagFastCycle, true);
+                heaterDesired = false;
+                filtrationDesired = false;
+                setHeatAssistReason(HeatAssistReason::SetpointReached);
             } else {
-                heaterDesired = (waterTemp <= heaterStartThreshold);
+                heaterDesired = true;
+                setHeatAssistReason(HeatAssistReason::Heating);
+            }
+        } else if (hasHeatAssistFlag(kHeatAssistFlagProbeRunning)) {
+            filtrationDesired = true;
+            heaterDesired = false;
+            const uint16_t probeElapsedSec = elapsedSecSince(getProbeStartSec());
+            if (probeElapsedSec >= kHeatAssistProbeRunSec) {
+                setHeatAssistFlag(kHeatAssistFlagProbeRunning, false);
+                setProbeStartSec(0U);
+                if (!haveWaterTemp) {
+                    filtrationDesired = filtrationDesiredBase;
+                    setLastProbeEndSec(nowSec);
+                    setHeatAssistReason(HeatAssistReason::TempUnavailable);
+                } else if (waterTemp <= heaterStartThreshold) {
+                    setHeatAssistFlag(kHeatAssistFlagHeatingActive, true);
+                    filtrationDesired = true;
+                    heaterDesired = true;
+                    setHeatAssistReason(HeatAssistReason::Heating);
+                } else {
+                    setLastProbeEndSec(nowSec);
+                    filtrationDesired = filtrationDesiredBase;
+                    setHeatAssistReason(fastCycle ? HeatAssistReason::ProbeWait20m
+                                                  : HeatAssistReason::ProbeWait30m);
+                }
+            } else {
+                setHeatAssistReason(HeatAssistReason::ProbeRunning);
+            }
+        } else if (filtrationFsm_.on || filtrationDesiredBase) {
+            filtrationDesired = filtrationDesiredBase;
+            if (!haveWaterTemp) {
+                heaterDesired = false;
+                setHeatAssistReason(HeatAssistReason::TempUnavailable);
+            } else {
+                if (heaterFsm_.on) {
+                    heaterDesired = (waterTemp < heaterStopThreshold);
+                } else {
+                    heaterDesired = (waterTemp <= heaterStartThreshold);
+                }
+                setHeatAssistReason(heaterDesired ? HeatAssistReason::Heating
+                                                  : HeatAssistReason::IdlePumpOn);
+            }
+        } else {
+            heaterDesired = false;
+            filtrationDesired = false;
+            const uint16_t lastProbeEndSec = getLastProbeEndSec();
+            const bool dueForProbe =
+                (lastProbeEndSec == 0U) || (elapsedSecSince(lastProbeEndSec) >= idleSec);
+            if (dueForProbe) {
+                startProbe();
+            } else {
+                setHeatAssistReason(fastCycle ? HeatAssistReason::ProbeWait20m
+                                              : HeatAssistReason::ProbeWait30m);
             }
         }
     }

@@ -1,29 +1,29 @@
 {
   "schema": "flowio.firmware-manifest.v1",
-  "generated_at": "2026-05-22T16:24:11+02:00",
-  "release": "2026.05.22",
+  "generated_at": "2026-05-24T00:45:34+02:00",
+  "release": "2026.05.24",
   "artifacts": {
-    "Flowio_Enhanced_480x320": [
+    "nextion": [
       {
         "title": "Flowio_Enhanced_480x320",
         "label": "Flowio_Enhanced_480x320",
         "version": "6.0.0",
         "build_date": "2026-05-22T15:49:49+02:00",
-        "target": "Flowio_Enhanced_480x320",
+        "target": "nextion",
         "path": "Flowio_Enhanced_480x320-6.0.0.tft",
         "kind": "nextion-tft",
+        "route": "/fwupdate/nextion",
         "size": 1854452
-      }
-    ],
-    "Flowio_Intelligent_800x480": [
+      },
       {
         "title": "Flowio_Intelligent_800x480",
         "label": "Flowio_Intelligent_800x480",
         "version": "6.0.0",
         "build_date": "2026-05-22T15:49:49+02:00",
-        "target": "Flowio_Intelligent_800x480",
+        "target": "nextion",
         "path": "Flowio_Intelligent_800x480-6.0.0.tft",
         "kind": "nextion-tft",
+        "route": "/fwupdate/nextion",
         "size": 1103112
       }
     ],
@@ -32,22 +32,24 @@
         "title": "flowio",
         "label": "flowio",
         "version": "1.0.2",
-        "build_date": "2026-05-22T16:24:11+02:00",
+        "build_date": "2026-05-24T00:45:34+02:00",
         "target": "flowio",
         "path": "flowio-1.0.2.bin",
         "kind": "esp32-firmware",
-        "size": 1302368
+        "route": "/fwupdate/flowio",
+        "size": 1303856
       }
     ],
-    "spiffs-supervisor": [
+    "spiffs": [
       {
         "title": "spiffs-supervisor",
         "label": "spiffs-supervisor",
         "version": "1.0.2",
-        "build_date": "2026-05-22T16:10:29+02:00",
-        "target": "spiffs-supervisor",
+        "build_date": "2026-05-24T00:10:07+02:00",
+        "target": "spiffs",
         "path": "spiffs-supervisor-1.0.2.bin",
         "kind": "esp32-spiffs",
+        "route": "/fwupdate/spiffs",
         "size": 974848
       }
     ],
@@ -56,10 +58,11 @@
         "title": "supervisor",
         "label": "supervisor",
         "version": "1.0.2",
-        "build_date": "2026-05-22T15:53:01+02:00",
+        "build_date": "2026-05-24T00:10:01+02:00",
         "target": "supervisor",
         "path": "supervisor-1.0.2.bin",
         "kind": "esp32-firmware",
+        "route": "/fwupdate/supervisor",
         "size": 1441376
       }
     ]

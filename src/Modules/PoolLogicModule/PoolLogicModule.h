@@ -88,6 +88,20 @@ private:
         float lastError = 0.0f;
     };
 
+    enum class HeatAssistReason : uint8_t {
+        Disabled = 0,
+        ManualMode,
+        PsiBlocked,
+        SetpointInvalid,
+        TempUnavailable,
+        ProbeWait30m,
+        ProbeWait20m,
+        ProbeRunning,
+        Heating,
+        IdlePumpOn,
+        SetpointReached,
+    };
+
     static constexpr uint8_t SLOT_DAILY_RECALC = 3;
     static constexpr uint8_t SLOT_FILTR_WINDOW = 4;
 
@@ -182,6 +196,9 @@ private:
     DeviceFsm phPumpFsm_{};
     DeviceFsm orpPumpFsm_{};
     DeviceFsm heaterFsm_{};
+    uint32_t heatAssistTimingPacked_ = 0;
+    uint8_t heatAssistFlags_ = 0;
+    HeatAssistReason heatAssistReason_ = HeatAssistReason::Disabled;
     TemporalPidState phPidState_{};
     TemporalPidState orpPidState_{};
 
@@ -320,11 +337,8 @@ private:
     const TimeSchedulerService* schedSvc_ = nullptr;
     const IOServiceV2* ioSvc_ = nullptr;
     const PoolDeviceService* poolSvc_ = nullptr;
-    const HAService* haSvc_ = nullptr;
-    const CommandService* cmdSvc_ = nullptr;
     const MqttService* mqttSvc_ = nullptr;
     const AlarmService* alarmSvc_ = nullptr;
-    const LogHubService* logHub_ = nullptr;
     MqttConfigRouteProducer* cfgMqttPub_ = nullptr;
 
     // Lifecycle

@@ -53,6 +53,47 @@ def _resolve_firmware_version():
     return "0.0.0"
 
 
+def _classify_artifact(software, ext):
+    software_name = str(software or "").strip()
+    norm = software_name.lower()
+
+    if ext == "tft":
+        return {
+            "category": "nextion",
+            "target": "nextion",
+            "kind": "nextion-tft",
+            "route": "/fwupdate/nextion",
+        }
+    if norm.startswith("spiffs-supervisor") or norm == "spiffs":
+        return {
+            "category": "spiffs",
+            "target": "spiffs",
+            "kind": "esp32-spiffs",
+            "route": "/fwupdate/spiffs",
+        }
+    if norm == "supervisor":
+        return {
+            "category": "supervisor",
+            "target": "supervisor",
+            "kind": "esp32-firmware",
+            "route": "/fwupdate/supervisor",
+        }
+    if norm == "flowio":
+        return {
+            "category": "flowio",
+            "target": "flowio",
+            "kind": "esp32-firmware",
+            "route": "/fwupdate/flowio",
+        }
+
+    return {
+        "category": software_name,
+        "target": software_name,
+        "kind": "esp32-firmware" if ext == "bin" else "nextion-tft",
+        "route": "",
+    }
+
+
 def _update_manifest():
     out_dir = _binary_dir()
     now_iso = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -79,22 +120,20 @@ def _update_manifest():
         software = match.group("software")
         version = match.group("version")
         ext = match.group("ext")
-
-        kind = "nextion-tft" if ext == "tft" else "esp32-firmware"
-        if "spiffs" in software:
-            kind = "esp32-spiffs"
+        spec = _classify_artifact(software, ext)
 
         entry = {
             "title": software,
             "label": software,
             "version": version,
             "build_date": mtime_iso,
-            "target": software,
+            "target": spec["target"],
             "path": path.name,
-            "kind": kind,
+            "kind": spec["kind"],
+            "route": spec["route"],
             "size": stat.st_size,
         }
-        artifacts.setdefault(software, []).append(entry)
+        artifacts.setdefault(spec["category"], []).append(entry)
 
     manifest = {
         "schema": "flowio.firmware-manifest.v1",

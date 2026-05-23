@@ -226,14 +226,13 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(orpPumpDeviceVar_, kCfgModuleId, kCfgBranchDevice);
     cfg.registerVar(heaterDeviceVar_, kCfgModuleId, kCfgBranchDevice);
 
-    logHub_ = services.get<LogHubService>(ServiceId::LogHub);
     const EventBusService* ebSvc = services.get<EventBusService>(ServiceId::EventBus);
     eventBus_ = ebSvc ? ebSvc->bus : nullptr;
     schedSvc_ = services.get<TimeSchedulerService>(ServiceId::TimeScheduler);
     ioSvc_ = services.get<IOServiceV2>(ServiceId::Io);
     poolSvc_ = services.get<PoolDeviceService>(ServiceId::PoolDevice);
-    haSvc_ = services.get<HAService>(ServiceId::Ha);
-    cmdSvc_ = services.get<CommandService>(ServiceId::Command);
+    const HAService* haSvc = services.get<HAService>(ServiceId::Ha);
+    const CommandService* cmdSvc = services.get<CommandService>(ServiceId::Command);
     alarmSvc_ = services.get<AlarmService>(ServiceId::Alarm);
     if (!ioSvc_) {
         LOGW("PoolLogic waiting for IOServiceV2");
@@ -243,7 +242,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
     }
     // HA entities are still registered from the lifecycle layer because they
     // are part of startup wiring, not of the control algorithm itself.
-    if (haSvc_ && haSvc_->addSwitch) {
+    if (haSvc && haSvc->addSwitch) {
         const HASwitchEntry autoModeSwitch{
             "poollogic",
             "pl_auto",
@@ -340,16 +339,16 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:chart-timeline-variant",
             "config"
         };
-        (void)haSvc_->addSwitch(haSvc_->ctx, &autoModeSwitch);
-        (void)haSvc_->addSwitch(haSvc_->ctx, &winterModeSwitch);
-        (void)haSvc_->addSwitch(haSvc_->ctx, &phAutoModeSwitch);
-        (void)haSvc_->addSwitch(haSvc_->ctx, &orpAutoModeSwitch);
-        (void)haSvc_->addSwitch(haSvc_->ctx, &heaterAutoModeSwitch);
-        (void)haSvc_->addSwitch(haSvc_->ctx, &phDosePlusSwitch);
-        (void)haSvc_->addSwitch(haSvc_->ctx, &chlorineGeneratorModeSwitch);
-        (void)haSvc_->addSwitch(haSvc_->ctx, &chlorineGeneratorOrpControlSwitch);
+        (void)haSvc->addSwitch(haSvc->ctx, &autoModeSwitch);
+        (void)haSvc->addSwitch(haSvc->ctx, &winterModeSwitch);
+        (void)haSvc->addSwitch(haSvc->ctx, &phAutoModeSwitch);
+        (void)haSvc->addSwitch(haSvc->ctx, &orpAutoModeSwitch);
+        (void)haSvc->addSwitch(haSvc->ctx, &heaterAutoModeSwitch);
+        (void)haSvc->addSwitch(haSvc->ctx, &phDosePlusSwitch);
+        (void)haSvc->addSwitch(haSvc->ctx, &chlorineGeneratorModeSwitch);
+        (void)haSvc->addSwitch(haSvc->ctx, &chlorineGeneratorOrpControlSwitch);
     }
-    if (haSvc_ && haSvc_->addSensor) {
+    if (haSvc && haSvc->addSensor) {
         const HASensorEntry filtrationStart{
             "poollogic",
             "pl_flt_start",
@@ -370,10 +369,24 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:clock-end",
             "h"
         };
-        (void)haSvc_->addSensor(haSvc_->ctx, &filtrationStart);
-        (void)haSvc_->addSensor(haSvc_->ctx, &filtrationStop);
+        const HASensorEntry heatAssistReason{
+            "poollogic",
+            "pl_has_rsn",
+            "Heat Assist Reason",
+            "rt/poollogic/heat_assist",
+            "{{ value_json.ri | default('UNKNOWN', true) }}",
+            nullptr,
+            "mdi:information-outline",
+            nullptr,
+            false,
+            nullptr,
+            true
+        };
+        (void)haSvc->addSensor(haSvc->ctx, &filtrationStart);
+        (void)haSvc->addSensor(haSvc->ctx, &filtrationStop);
+        (void)haSvc->addSensor(haSvc->ctx, &heatAssistReason);
     }
-    if (haSvc_ && haSvc_->addNumber) {
+    if (haSvc && haSvc->addNumber) {
         const HANumberEntry waterTempSetpoint{
             "poollogic",
             "pl_wat_temp_sp",
@@ -598,22 +611,22 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:gauge-full",
             "bar"
         };
-        (void)haSvc_->addNumber(haSvc_->ctx, &waterTempSetpoint);
-        (void)haSvc_->addNumber(haSvc_->ctx, &filtrationStartMin);
-        (void)haSvc_->addNumber(haSvc_->ctx, &filtrationStopMax);
-        (void)haSvc_->addNumber(haSvc_->ctx, &delayPidsMin);
-        (void)haSvc_->addNumber(haSvc_->ctx, &delayElectroMin);
-        (void)haSvc_->addNumber(haSvc_->ctx, &fillMinUptime);
-        (void)haSvc_->addNumber(haSvc_->ctx, &phSetpoint);
-        (void)haSvc_->addNumber(haSvc_->ctx, &orpSetpoint);
-        (void)haSvc_->addNumber(haSvc_->ctx, &heaterSetpoint);
-        (void)haSvc_->addNumber(haSvc_->ctx, &chlorineGeneratorMinTemp);
-        (void)haSvc_->addNumber(haSvc_->ctx, &phWindowMin);
-        (void)haSvc_->addNumber(haSvc_->ctx, &orpWindowMin);
-        (void)haSvc_->addNumber(haSvc_->ctx, &psiLowThreshold);
-        (void)haSvc_->addNumber(haSvc_->ctx, &psiHighThreshold);
+        (void)haSvc->addNumber(haSvc->ctx, &waterTempSetpoint);
+        (void)haSvc->addNumber(haSvc->ctx, &filtrationStartMin);
+        (void)haSvc->addNumber(haSvc->ctx, &filtrationStopMax);
+        (void)haSvc->addNumber(haSvc->ctx, &delayPidsMin);
+        (void)haSvc->addNumber(haSvc->ctx, &delayElectroMin);
+        (void)haSvc->addNumber(haSvc->ctx, &fillMinUptime);
+        (void)haSvc->addNumber(haSvc->ctx, &phSetpoint);
+        (void)haSvc->addNumber(haSvc->ctx, &orpSetpoint);
+        (void)haSvc->addNumber(haSvc->ctx, &heaterSetpoint);
+        (void)haSvc->addNumber(haSvc->ctx, &chlorineGeneratorMinTemp);
+        (void)haSvc->addNumber(haSvc->ctx, &phWindowMin);
+        (void)haSvc->addNumber(haSvc->ctx, &orpWindowMin);
+        (void)haSvc->addNumber(haSvc->ctx, &psiLowThreshold);
+        (void)haSvc->addNumber(haSvc->ctx, &psiHighThreshold);
     }
-    if (haSvc_ && haSvc_->addButton) {
+    if (haSvc && haSvc->addButton) {
         const HAButtonEntry filtrationRecalc{
             "poollogic",
             "pl_flt_recalc",
@@ -623,12 +636,12 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "config",
             "mdi:refresh"
         };
-        (void)haSvc_->addButton(haSvc_->ctx, &filtrationRecalc);
+        (void)haSvc->addButton(haSvc->ctx, &filtrationRecalc);
     }
-    if (cmdSvc_ && cmdSvc_->registerHandler) {
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "poollogic.filtration.write", &PoolLogicModule::cmdFiltrationWriteStatic_, this);
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "poollogic.filtration.recalc", &PoolLogicModule::cmdFiltrationRecalcStatic_, this);
-        cmdSvc_->registerHandler(cmdSvc_->ctx, "poollogic.auto_mode.set", &PoolLogicModule::cmdAutoModeSetStatic_, this);
+    if (cmdSvc && cmdSvc->registerHandler) {
+        cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.filtration.write", &PoolLogicModule::cmdFiltrationWriteStatic_, this);
+        cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.filtration.recalc", &PoolLogicModule::cmdFiltrationRecalcStatic_, this);
+        cmdSvc->registerHandler(cmdSvc->ctx, "poollogic.auto_mode.set", &PoolLogicModule::cmdAutoModeSetStatic_, this);
         static constexpr const char* kMqttControlCmds[] = {
             "poollogic.auto_mode.toggle",
             "poollogic.ph_auto_mode.set",
@@ -654,7 +667,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "poollogic.chlorine_generator.toggle"
         };
         for (uint8_t i = 0; i < (uint8_t)(sizeof(kMqttControlCmds) / sizeof(kMqttControlCmds[0])); ++i) {
-            cmdSvc_->registerHandler(cmdSvc_->ctx, kMqttControlCmds[i], &PoolLogicModule::cmdMqttControlStatic_, this);
+            cmdSvc->registerHandler(cmdSvc->ctx, kMqttControlCmds[i], &PoolLogicModule::cmdMqttControlStatic_, this);
         }
     }
     // PoolLogic owns the alarm definitions but delegates evaluation to the
@@ -780,7 +793,6 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
     LOGI("PoolLogic ready");
     (void)cfgStore_;
-    (void)logHub_;
 }
 
 void PoolLogicModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)

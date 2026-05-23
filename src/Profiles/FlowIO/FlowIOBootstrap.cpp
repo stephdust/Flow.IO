@@ -207,9 +207,11 @@ void setupProfile(AppContext& ctx)
     configureIoModule(ctx, modules);
     configurePoolDevices(ctx, modules);
 
+    // Keep PoolLogic runtime snapshots first so HA-critical state (including
+    // heat_assist reason) stays available even when runtime route capacity is reached.
+    requireSetup(modules.mqttModule.registerRuntimeProvider(&modules.poolLogicModule), "register runtime provider poollogic");
     requireSetup(modules.mqttModule.registerRuntimeProvider(&modules.ioModule), "register runtime provider io");
     requireSetup(modules.mqttModule.registerRuntimeProvider(&modules.poolDeviceModule), "register runtime provider pooldev");
-    requireSetup(modules.mqttModule.registerRuntimeProvider(&modules.poolLogicModule), "register runtime provider poollogic");
     requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.systemModule), "register runtime ui provider system");
     requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.wifiModule), "register runtime ui provider wifi");
     requireSetup(modules.i2cCfgServerModule.registerRuntimeUiProvider(&modules.mqttModule), "register runtime ui provider mqtt");

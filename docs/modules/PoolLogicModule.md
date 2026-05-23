@@ -8,7 +8,8 @@ Il:
 - pilote les équipements via `PoolDeviceService` (filtration, pompe pH, pompe ORP/chlore liquide, robot, électrolyse, remplissage)
 - applique les règles automatiques (modes, seuils, délais, sécurités)
 - exécute la régulation pH/ORP en **PID temporel** (duty-cycle dans une fenêtre fixe)
-- expose des snapshots runtime MQTT (`rt/poollogic/ph`, `rt/poollogic/orp`)
+- pilote un protocole de **chauffage assisté** (`heat_assist`) quand la température d'eau dépend de la filtration
+- expose des snapshots runtime MQTT (`rt/poollogic/ph`, `rt/poollogic/orp`, `rt/poollogic/heat_assist`)
 - enregistre des commandes métier et des entités Home Assistant
 - surveille la pression via `AlarmService`
 
@@ -40,8 +41,55 @@ Interfaces runtime exposées:
 - `IRuntimeSnapshotProvider`
   - `rt/poollogic/ph`
   - `rt/poollogic/orp`
+  - `rt/poollogic/heat_assist`
 
 Ces snapshots sont routés vers MQTT via `MQTTModule::RuntimeProducer` (providers enregistrés dans le bootstrap de profil `FlowIO`), pas publiés directement par `PoolLogicModule`.
+
+## Guide utilisateur: protocole chauffage assisté (`heat_assist`)
+
+### Pourquoi ce protocole existe
+
+Sur certaines installations, la température d'eau n'est fiable que si la pompe de filtration a tourné un peu.  
+Le protocole `heat_assist` résout ce point: il fait d'abord un cycle court de filtration pour mesurer, puis décide si le chauffage doit réellement démarrer.
+
+### Conditions d'activation
+
+- `auto_mode` activé
+- `heater_auto_mode` activé
+- pas d'alarme pression PSI bloquante
+
+Si une de ces conditions n'est pas remplie, `heat_assist` reste inactif.
+
+### Fonctionnement pas à pas
+
+1. Si la pompe est déjà en marche, le chauffage suit une hystérésis classique autour de la consigne.
+2. Si la pompe est arrêtée en mode auto, le système lance une **filtration de sondage de 5 minutes**.
+3. Cette phase de sondage est répétée toutes les **30 minutes** en régime normal, puis toutes les **20 minutes** après un cycle de chauffe terminé.
+4. À la fin des 5 minutes, la température est lue.
+5. Si l'eau est sous le seuil bas d'hystérésis, la pompe reste ON et le chauffage passe ON jusqu'au seuil haut d'hystérésis.
+6. Quand le seuil haut est atteint, chauffage OFF, pompe OFF, puis reprise du cycle de sondage en cadence 5 minutes / 20 minutes.
+
+### Exemples concrets
+
+1. Eau froide le matin (pompe arrêtée): 08:00 sondage 5 min, 08:05 eau sous seuil bas donc chauffage ON + pompe ON, puis 10:10 seuil haut atteint donc chauffage OFF + pompe OFF. Ensuite le module passe en sondage périodique 5 min / 20 min.
+
+2. Eau proche de la consigne (pompe arrêtée): sondage 5 min, mesure au-dessus du seuil bas, pas de chauffe, retour en attente jusqu'au prochain sondage.
+
+3. Passage en manuel: si `auto_mode` est désactivé, `heat_assist` n'orchestre plus la chauffe automatique et la raison affichée passe à `MANUAL_MODE`.
+
+### Lecture des motifs (`reason`) pour comprendre le comportement
+
+- `DISABLED`: mode auto chauffage désactivé.
+- `MANUAL_MODE`: mode auto global désactivé.
+- `PSI_BLOCKED`: chauffage bloqué par la sécurité pression.
+- `SETPOINT_INVALID`: consigne chauffage invalide.
+- `TEMP_UNAVAILABLE`: température indisponible au moment de la décision.
+- `PROBE_WAIT_30M`: attente avant le prochain sondage (cadence normale).
+- `PROBE_WAIT_20M`: attente avant le prochain sondage (après cycle de chauffe).
+- `PROBE_RUNNING`: cycle de sondage 5 min en cours.
+- `HEATING`: chauffe active (pompe + chauffage).
+- `IDLE_PUMP_ON`: pompe en marche mais pas de demande de chauffe.
+- `SETPOINT_REACHED`: seuil haut atteint, arrêt chauffe/pompe effectué.
 
 ## Config / NVS
 
@@ -381,6 +429,7 @@ Codes de blocage renvoyés par `PoolDevice` (`blockReason`):
 Snapshots publiés (via `RuntimeProducer` du `MQTTModule`):
 - `rt/poollogic/ph`
 - `rt/poollogic/orp`
+- `rt/poollogic/heat_assist`
 
 Payload (champs principaux):
 - `id`: `ph` ou `orp`
@@ -401,6 +450,17 @@ Payload (champs principaux):
 Sémantique importante:
 - `input/setpoint/error` sont des valeurs latched au compute PID
 - `rt/io/input/*` reste la source des mesures live brutes
+
+### Snapshot `rt/poollogic/heat_assist` (lecture orientée usage)
+
+- `en`: protocole autorisé (`auto_mode` + `heater_auto_mode`)
+- `pr`: sondage 5 min en cours
+- `ha`: chauffe active
+- `fc`: cadence rapide active (5 min / 20 min)
+- `ri`: motif courant (`reason`)
+- `ivm`: intervalle d'attente courant en minutes (20 ou 30)
+- `prm`: temps restant du sondage courant (ms)
+- `irm`: temps restant avant prochain sondage (ms)
 
 ## Config MQTT (`cfg/poollogic*`)
 
@@ -426,6 +486,7 @@ Entités enregistrées par `PoolLogicModule`:
 - sensors:
   - `calculated_filtration_start`
   - `calculated_filtration_stop`
+  - `heat_assist_reason`
 - numbers (section configuration):
   - `delay_pids_min`
   - `ph_setpoint`
