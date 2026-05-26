@@ -612,6 +612,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "bar"
         };
         (void)haSvc->addNumber(haSvc->ctx, &waterTempSetpoint);
+        (void)haSvc->addNumber(haSvc->ctx, &heaterSetpoint);
         (void)haSvc->addNumber(haSvc->ctx, &filtrationStartMin);
         (void)haSvc->addNumber(haSvc->ctx, &filtrationStopMax);
         (void)haSvc->addNumber(haSvc->ctx, &delayPidsMin);
@@ -619,7 +620,6 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         (void)haSvc->addNumber(haSvc->ctx, &fillMinUptime);
         (void)haSvc->addNumber(haSvc->ctx, &phSetpoint);
         (void)haSvc->addNumber(haSvc->ctx, &orpSetpoint);
-        (void)haSvc->addNumber(haSvc->ctx, &heaterSetpoint);
         (void)haSvc->addNumber(haSvc->ctx, &chlorineGeneratorMinTemp);
         (void)haSvc->addNumber(haSvc->ctx, &phWindowMin);
         (void)haSvc->addNumber(haSvc->ctx, &orpWindowMin);

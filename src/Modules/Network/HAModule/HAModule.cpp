@@ -16,8 +16,20 @@
 #include <stdarg.h>
 #include <string.h>
 
+#ifndef FLOW_HA_BOOT_TRACE
+#define FLOW_HA_BOOT_TRACE 0
+#endif
+
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::HAModule)
 #include "Core/ModuleLog.h"
+
+#if FLOW_HA_BOOT_TRACE
+#define HA_BOOT_TRACE_D(...) LOGD(__VA_ARGS__)
+#define HA_BOOT_TRACE_I(...) LOGI(__VA_ARGS__)
+#else
+#define HA_BOOT_TRACE_D(...) do {} while (0)
+#define HA_BOOT_TRACE_I(...) do {} while (0)
+#endif
 
 namespace {
 static constexpr uint8_t kHaCfgBranch = 1;
@@ -235,7 +247,13 @@ bool HAModule::ensureStorage_()
     if (!buttons_) buttons_ = new (std::nothrow) HAButtonEntry[MAX_HA_BUTTONS]{};
     if (!pendingBits_) pendingBits_ = new (std::nothrow) uint32_t[HA_PENDING_WORDS]{};
 
-    if (sensors_ && binarySensors_ && switches_ && numbers_ && buttons_ && pendingBits_) return true;
+    if (sensors_ && binarySensors_ && switches_ && numbers_ && buttons_ && pendingBits_) {
+        HA_BOOT_TRACE_D("ha boot trace: oneshot storage ready table_cap=%u pending_bytes=%u",
+                        (unsigned)entityTableCapacityBytes_(),
+                        (unsigned)(sizeof(uint32_t) * HA_PENDING_WORDS));
+        return true;
+    }
+    HA_BOOT_TRACE_I("ha boot trace: oneshot storage allocation failed, releasing partial storage");
     releaseOneShotResources_();
     return false;
 #else
@@ -264,6 +282,10 @@ size_t HAModule::entityTableCapacityBytes_() const
 void HAModule::releaseOneShotResources_()
 {
 #if FLOW_HA_ONESHOT_DISCOVERY
+    const uint16_t releasedEntityCount = entityCount_();
+    const size_t releasedEntityUsedBytes = entityTableUsedBytes_();
+    const size_t releasedEntityCapBytes = entityTableCapacityBytes_();
+    const size_t releasedPendingBytes = sizeof(uint32_t) * HA_PENDING_WORDS;
     delete[] sensors_;
     delete[] binarySensors_;
     delete[] switches_;
@@ -285,6 +307,11 @@ void HAModule::releaseOneShotResources_()
     published_ = true;
     oneShotCompleted_ = true;
     oneShotResourcesReleased_ = true;
+    HA_BOOT_TRACE_I("ha boot trace: oneshot release entities=%u used=%u cap=%u pending_bytes=%u",
+                    (unsigned)releasedEntityCount,
+                    (unsigned)releasedEntityUsedBytes,
+                    (unsigned)releasedEntityCapBytes,
+                    (unsigned)releasedPendingBytes);
 #endif
 }
 
@@ -387,7 +414,14 @@ bool HAModule::addNumberEntry(const HANumberEntry& entry)
         }
     }
 
-    if (numberCount_ >= MAX_HA_NUMBERS) return false;
+    if (numberCount_ >= MAX_HA_NUMBERS) {
+        LOGW("HA number table full (%u/%u) reject=%s/%s",
+             (unsigned)numberCount_,
+             (unsigned)MAX_HA_NUMBERS,
+             entry.ownerId ? entry.ownerId : "?",
+             entry.objectSuffix ? entry.objectSuffix : "?");
+        return false;
+    }
     numbers_[numberCount_++] = entry;
     BufferUsageTracker::note(TrackedBufferId::HaEntityTables,
                              entityTableUsedBytes_(),
@@ -753,8 +787,12 @@ bool HAModule::publishButton(const char* objectId, const char* name,
 void HAModule::setStartupReady(bool ready)
 {
     startupReady_ = ready;
+    HA_BOOT_TRACE_D("ha boot trace: startup ready=%d pending=%d",
+                    ready ? 1 : 0,
+                    anyPending_() ? 1 : 0);
     if (ready) {
-        (void)enqueuePending_(MqttPublishPriority::Low);
+        const bool queued = enqueuePending_(MqttPublishPriority::Low);
+        HA_BOOT_TRACE_D("ha boot trace: startup enqueue=%d", queued ? 1 : 0);
     }
 }
 
@@ -867,6 +905,10 @@ void HAModule::markAllPending_()
     for (uint16_t i = 0; i < count; ++i) {
         setPending_(i, true);
     }
+    HA_BOOT_TRACE_D("ha boot trace: mark all pending messages=%u entities=%u cleanups=%u",
+                    (unsigned)count,
+                    (unsigned)entityCount_(),
+                    (unsigned)MAX_HA_DISCOVERY_CLEANUPS);
 }
 
 bool HAModule::anyPending_() const
@@ -888,8 +930,15 @@ bool HAModule::enqueuePending_(MqttPublishPriority prio)
     constexpr uint8_t kFlags = (uint8_t)MqttEnqueueFlags::SilentRejectLog;
     for (uint16_t i = 0; i < count; ++i) {
         if (!isPending_(i)) continue;
-        return mqttSvc_->enqueue(mqttSvc_->ctx, ProducerId, i, (uint8_t)prio, kFlags);
+        const bool queued = mqttSvc_->enqueue(mqttSvc_->ctx, ProducerId, i, (uint8_t)prio, kFlags);
+        HA_BOOT_TRACE_D("ha boot trace: enqueue message=%u/%u prio=%u queued=%d",
+                        (unsigned)i,
+                        (unsigned)count,
+                        (unsigned)prio,
+                        queued ? 1 : 0);
+        return queued;
     }
+    HA_BOOT_TRACE_D("ha boot trace: enqueue skipped (no pending)");
     return false;
 }
 
@@ -1004,6 +1053,10 @@ MqttBuildResult HAModule::buildMessage_(uint16_t messageId, MqttBuildContext& bu
     setHaDeviceId(*dsSvc_->store, deviceId_);
 
     const uint16_t entityCount = entityCount_();
+    HA_BOOT_TRACE_D("ha boot trace: build message=%u entity_count=%u total=%u",
+                    (unsigned)messageId,
+                    (unsigned)entityCount,
+                    (unsigned)messageCount_());
     if (messageId < entityCount) {
         if (!buildEntityMessage_(messageId, buildCtx)) return MqttBuildResult::PermanentError;
         return MqttBuildResult::Ready;
@@ -1017,19 +1070,26 @@ MqttBuildResult HAModule::buildMessage_(uint16_t messageId, MqttBuildContext& bu
 void HAModule::onMessagePublished_(uint16_t messageId)
 {
     setPending_(messageId, false);
+    const bool done = !anyPending_();
     if (dsSvc_ && dsSvc_->store) {
-        const bool done = !anyPending_();
         setHaAutoconfigPublished(*dsSvc_->store, done);
     }
-    published_ = !anyPending_();
+    published_ = done;
+    HA_BOOT_TRACE_D("ha boot trace: published message=%u done=%d",
+                    (unsigned)messageId,
+                    done ? 1 : 0);
 }
 
 void HAModule::onMessageDropped_(uint16_t messageId)
 {
     setPending_(messageId, false);
+    const bool done = !anyPending_();
     if (dsSvc_ && dsSvc_->store) {
-        setHaAutoconfigPublished(*dsSvc_->store, !anyPending_());
+        setHaAutoconfigPublished(*dsSvc_->store, done);
     }
+    HA_BOOT_TRACE_I("ha boot trace: dropped message=%u done=%d",
+                    (unsigned)messageId,
+                    done ? 1 : 0);
 }
 
 void HAModule::onEventStatic(const Event& e, void* user)
@@ -1047,6 +1107,9 @@ void HAModule::onEvent(const Event& e)
     if (!dsSvc_ || !dsSvc_->store) return;
 
     if (payload->id == DATAKEY_WIFI_READY) {
+        HA_BOOT_TRACE_D("ha boot trace: event wifi_ready=%d mqtt_ready=%d",
+                        wifiReady(*dsSvc_->store) ? 1 : 0,
+                        mqttReady(*dsSvc_->store) ? 1 : 0);
         if (wifiReady(*dsSvc_->store) && mqttReady(*dsSvc_->store)) {
             (void)enqueuePending_(MqttPublishPriority::Low);
         }
@@ -1054,6 +1117,9 @@ void HAModule::onEvent(const Event& e)
     }
 
     if (payload->id == DATAKEY_MQTT_READY) {
+        HA_BOOT_TRACE_D("ha boot trace: event mqtt_ready=%d wifi_ready=%d",
+                        mqttReady(*dsSvc_->store) ? 1 : 0,
+                        wifiReady(*dsSvc_->store) ? 1 : 0);
         if (wifiReady(*dsSvc_->store) && mqttReady(*dsSvc_->store)) {
             (void)enqueuePending_(MqttPublishPriority::Low);
         }
@@ -1066,6 +1132,7 @@ void HAModule::requestAutoconfigRefresh()
     if (oneShotCompleted_) return;
     published_ = false;
     markAllPending_();
+    HA_BOOT_TRACE_D("ha boot trace: refresh requested");
     if (dsSvc_ && dsSvc_->store) {
         setHaAutoconfigPublished(*dsSvc_->store, false);
     }
@@ -1076,6 +1143,7 @@ void HAModule::loop()
 #if FLOW_HA_ONESHOT_DISCOVERY
     if (published_ && !anyPending_()) {
         LOGI("HA one-shot discovery complete, releasing resources");
+        HA_BOOT_TRACE_I("ha boot trace: loop detected completion, deleting task");
         releaseOneShotResources_();
         vTaskDelete(nullptr);
     }
@@ -1114,6 +1182,10 @@ void HAModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(deviceIdVar, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(prefixVar, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(modelVar, kCfgModuleId, kCfgBranchId);
+    HA_BOOT_TRACE_I("ha boot trace: init oneshot=%d max_entities=%u max_messages=%u",
+                    FLOW_HA_ONESHOT_DISCOVERY ? 1 : 0,
+                    (unsigned)MAX_HA_ENTITIES,
+                    (unsigned)MAX_HA_MESSAGES);
 
     eventBusSvc_ = services.get<EventBusService>(ServiceId::EventBus);
     dsSvc_ = services.get<DataStoreService>(ServiceId::DataStore);

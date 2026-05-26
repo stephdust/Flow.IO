@@ -54,11 +54,12 @@ MemoryPressureState deriveMemoryPressureState_(const SystemStatsSnapshot& snap)
     const uint32_t largestBytes = snap.heap.largestFreeBlock;
     const uint8_t frag = snap.heap.fragPercent;
 
-    // Supervisor profile: classify pressure from current live heap conditions only.
-    if (freeBytes < 20000U && largestBytes < 8000U && frag > 45U) return MemoryPressureState::Panic;
-    if (freeBytes < 24000U && largestBytes < 12000U && frag > 35U) return MemoryPressureState::Critical;
-    if (freeBytes < 28000U && largestBytes < 16000U && frag > 28U) return MemoryPressureState::Shedding;
-    if (freeBytes < 30000U && largestBytes < 20000U && frag > 20U) return MemoryPressureState::Constrained;
+    // Keep "shedding" below 20KB free heap, then tighten higher states to
+    // reduce warning churn while preserving severe-state protection.
+    if (freeBytes < 12000U && largestBytes < 5000U && frag > 55U) return MemoryPressureState::Panic;
+    if (freeBytes < 16000U && largestBytes < 7000U && frag > 45U) return MemoryPressureState::Critical;
+    if (freeBytes < 20000U && largestBytes < 10000U && frag > 35U) return MemoryPressureState::Shedding;
+    if (freeBytes < 24000U && largestBytes < 14000U && frag > 28U) return MemoryPressureState::Constrained;
     return MemoryPressureState::Normal;
 }
 

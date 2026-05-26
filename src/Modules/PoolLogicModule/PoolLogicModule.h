@@ -369,7 +369,7 @@ private:
     bool writeDeviceDesired_(uint8_t deviceSlot, bool on);
     void syncDeviceState_(uint8_t deviceSlot, DeviceFsm& fsm, uint32_t nowMs, bool& turnedOnOut, bool& turnedOffOut);
     uint32_t stateUptimeSec_(const DeviceFsm& fsm, uint32_t nowMs) const;
-    bool loadAnalogSensor_(IoId ioId, float& out) const;
+    bool loadAnalogSensor_(IoId ioId, float& out, uint32_t* tsMsOut = nullptr) const;
     bool loadDigitalSensor_(IoId ioId, bool& out) const;
     void resetTemporalPidState_(TemporalPidState& st, uint32_t nowMs);
     bool stepTemporalPid_(TemporalPidState& st,

@@ -227,6 +227,7 @@ void setupProfile(AppContext& ctx)
 void loopProfile(AppContext&)
 {
     ModuleInstances& modules = moduleInstances();
+    releaseIoHomeAssistantDiscoveryHeapIfDone(modules);
     refreshIoHomeAssistantIfNeeded(modules);
     delay(20);
 }

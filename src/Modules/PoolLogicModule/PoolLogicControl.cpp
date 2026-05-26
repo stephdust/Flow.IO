@@ -14,6 +14,7 @@
 
 namespace {
 constexpr float kHeaterHysteresisC = 0.3f;
+constexpr uint32_t kHeaterTempFreshMaxMs = 10UL * 60UL * 1000UL;
 constexpr uint16_t kHeatAssistProbeRunSec = 5U * 60U;
 constexpr uint16_t kHeatAssistIdleSlowSec = 30U * 60U;
 constexpr uint16_t kHeatAssistIdleFastSec = 20U * 60U;
@@ -215,10 +216,13 @@ uint32_t PoolLogicModule::stateUptimeSec_(const DeviceFsm& fsm, uint32_t nowMs) 
     return (uint32_t)((nowMs - fsm.stateSinceMs) / 1000UL);
 }
 
-bool PoolLogicModule::loadAnalogSensor_(IoId ioId, float& out) const
+bool PoolLogicModule::loadAnalogSensor_(IoId ioId, float& out, uint32_t* tsMsOut) const
 {
     if (!ioSvc_ || !ioSvc_->readAnalog) return false;
-    return ioSvc_->readAnalog(ioSvc_->ctx, ioId, &out, nullptr, nullptr) == IO_OK;
+    uint32_t tsMs = 0U;
+    if (ioSvc_->readAnalog(ioSvc_->ctx, ioId, &out, &tsMs, nullptr) != IO_OK) return false;
+    if (tsMsOut) *tsMsOut = tsMs;
+    return true;
 }
 
 bool PoolLogicModule::loadDigitalSensor_(IoId ioId, bool& out) const
@@ -402,7 +406,12 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
 
     const bool havePsi = loadAnalogSensor_(psiIoId_, psi);
     const bool havePh = loadAnalogSensor_(phIoId_, ph);
-    const bool haveWaterTemp = loadAnalogSensor_(waterTempIoId_, waterTemp);
+    uint32_t waterTempTsMs = 0U;
+    const bool haveWaterTemp = loadAnalogSensor_(waterTempIoId_, waterTemp, &waterTempTsMs);
+    const bool waterTempFresh =
+        haveWaterTemp &&
+        (waterTempTsMs != 0U) &&
+        ((uint32_t)(nowMs - waterTempTsMs) <= kHeaterTempFreshMaxMs);
     const bool haveAirTemp = loadAnalogSensor_(airTempIoId_, airTemp);
     const bool haveOrp = loadAnalogSensor_(orpIoId_, orp);
     const bool haveLevel = loadDigitalSensor_(levelIoId_, poolLevelOn);
@@ -611,7 +620,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
 
         if (hasHeatAssistFlag(kHeatAssistFlagHeatingActive)) {
             filtrationDesired = true;
-            if (!haveWaterTemp) {
+            if (!waterTempFresh) {
                 heaterDesired = false;
                 setHeatAssistReason(HeatAssistReason::TempUnavailable);
             } else if (waterTemp >= heaterStopThreshold) {
@@ -634,7 +643,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
             if (probeElapsedSec >= kHeatAssistProbeRunSec) {
                 setHeatAssistFlag(kHeatAssistFlagProbeRunning, false);
                 setProbeStartSec(0U);
-                if (!haveWaterTemp) {
+                if (!waterTempFresh) {
                     filtrationDesired = filtrationDesiredBase;
                     setLastProbeEndSec(nowSec);
                     setHeatAssistReason(HeatAssistReason::TempUnavailable);
@@ -654,7 +663,7 @@ void PoolLogicModule::runControlLoop_(uint32_t nowMs)
             }
         } else if (filtrationFsm_.on || filtrationDesiredBase) {
             filtrationDesired = filtrationDesiredBase;
-            if (!haveWaterTemp) {
+            if (!waterTempFresh) {
                 heaterDesired = false;
                 setHeatAssistReason(HeatAssistReason::TempUnavailable);
             } else {

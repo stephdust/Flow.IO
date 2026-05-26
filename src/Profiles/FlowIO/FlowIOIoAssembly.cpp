@@ -13,7 +13,18 @@
 #include "Core/Services/Services.h"
 #include "Domain/Pool/PoolBindings.h"
 #include "Modules/IOModule/IORuntime.h"
+#include "Modules/Network/HAModule/HARuntime.h"
 #include "Profiles/FlowIO/FlowIOProfile.h"
+
+#ifndef FLOW_HA_BOOT_TRACE
+#define FLOW_HA_BOOT_TRACE 0
+#endif
+
+#if FLOW_HA_BOOT_TRACE
+#define FLOWIO_HA_BOOT_TRACE(FMT, ...) Board::SerialMap::logSerial().printf("[HA-BOOT] " FMT "\r\n", ##__VA_ARGS__)
+#else
+#define FLOWIO_HA_BOOT_TRACE(FMT, ...) do {} while (0)
+#endif
 
 namespace {
 
@@ -75,6 +86,8 @@ struct FlowIoDiscoveryHeap {
 };
 
 FlowIoDiscoveryHeap* gDiscoveryHeap = nullptr;
+bool gDiscoveryHeapReleaseWaitLogged = false;
+bool gOneShotRefreshBypassedLogged = false;
 
 bool ensureDiscoveryHeap()
 {
@@ -82,7 +95,32 @@ bool ensureDiscoveryHeap()
     gDiscoveryHeap = static_cast<FlowIoDiscoveryHeap*>(
         heap_caps_calloc(1, sizeof(FlowIoDiscoveryHeap), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
     );
+    if (gDiscoveryHeap) {
+        FLOWIO_HA_BOOT_TRACE("FlowIO discovery heap allocated (%u bytes)", (unsigned)sizeof(FlowIoDiscoveryHeap));
+    } else {
+        FLOWIO_HA_BOOT_TRACE("FlowIO discovery heap allocation failed (%u bytes)", (unsigned)sizeof(FlowIoDiscoveryHeap));
+    }
     return gDiscoveryHeap != nullptr;
+}
+
+void releaseDiscoveryHeapIfReady(ModuleInstances& modules)
+{
+#if FLOW_HA_ONESHOT_DISCOVERY
+    if (!gDiscoveryHeap || !modules.ioDataStore) return;
+    if (!haAutoconfigPublished(*modules.ioDataStore)) {
+        if (!gDiscoveryHeapReleaseWaitLogged) {
+            FLOWIO_HA_BOOT_TRACE("FlowIO discovery heap waiting for HA publish completion");
+            gDiscoveryHeapReleaseWaitLogged = true;
+        }
+        return;
+    }
+    heap_caps_free(gDiscoveryHeap);
+    gDiscoveryHeap = nullptr;
+    gDiscoveryHeapReleaseWaitLogged = false;
+    FLOWIO_HA_BOOT_TRACE("FlowIO discovery heap released after HA one-shot publish");
+#else
+    (void)modules;
+#endif
 }
 
 const DomainIoBinding* findBindingByRole(const DomainSpec& domain, DomainRole role)
@@ -420,6 +458,14 @@ void registerIoHomeAssistant(AppContext& ctx, ModuleInstances& modules)
 
 void refreshIoHomeAssistantIfNeeded(ModuleInstances& modules)
 {
+#if FLOW_HA_ONESHOT_DISCOVERY
+    if (!gOneShotRefreshBypassedLogged) {
+        FLOWIO_HA_BOOT_TRACE("FlowIO IO->HA dynamic refresh bypassed in one-shot mode");
+        gOneShotRefreshBypassedLogged = true;
+    }
+    releaseDiscoveryHeapIfReady(modules);
+    return;
+#endif
     if (!modules.haService) return;
     const uint32_t dirtyMask = modules.ioModule.takeAnalogConfigDirtyMask();
     if (dirtyMask == 0) return;
@@ -428,6 +474,11 @@ void refreshIoHomeAssistantIfNeeded(ModuleInstances& modules)
     if (modules.haService->requestRefresh) {
         (void)modules.haService->requestRefresh(modules.haService->ctx);
     }
+}
+
+void releaseIoHomeAssistantDiscoveryHeapIfDone(ModuleInstances& modules)
+{
+    releaseDiscoveryHeapIfReady(modules);
 }
 
 }  // namespace FlowIO

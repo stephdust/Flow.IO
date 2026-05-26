@@ -1193,6 +1193,25 @@ void HMIModule::queueHomePublish_(uint32_t mask)
     homePublishMask_ |= mask;
     after = homePublishMask_;
     portEXIT_CRITICAL(&homePublishMux_);
+    if (after == before) {
+        static uint32_t noChangeCount = 0U;
+        static uint32_t lastNoChangeLogMs = 0U;
+        ++noChangeCount;
+        const uint32_t now = millis();
+        if (lastNoChangeLogMs == 0U ||
+            (uint32_t)(now - lastNoChangeLogMs) >= 5000U) {
+            LOGD("HMI Home queue unchanged mask=0x%03lx pending=0x%03lx repeats=%lu home=%d cfg=%d alarm=%d",
+                 (unsigned long)mask,
+                 (unsigned long)after,
+                 (unsigned long)noChangeCount,
+                 homePageVisible_ ? 1 : 0,
+                 configMenuActive_ ? 1 : 0,
+                 alarmPageActive_ ? 1 : 0);
+            noChangeCount = 0U;
+            lastNoChangeLogMs = now;
+        }
+        return;
+    }
     LOGD("HMI Home queue add=0x%03lx pending:0x%03lx->0x%03lx home=%d cfg=%d alarm=%d",
          (unsigned long)mask,
          (unsigned long)before,

@@ -56,7 +56,8 @@
     "poollogic/device/heater_slot": {
       "type": "UInt8",
       "label_t": "cfgdocs.poollogic.device.heater_slot.label",
-      "help_t": "cfgdocs.poollogic.device.heater_slot.help"
+      "help_t": "cfgdocs.poollogic.device.heater_slot.help",
+      "enum_set": "poollogic_device_slot"
     },
     "poollogic/device/orp_pump_slot": {
       "type": "UInt8",

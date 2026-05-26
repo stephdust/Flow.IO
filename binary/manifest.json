@@ -1,7 +1,7 @@
 {
   "schema": "flowio.firmware-manifest.v1",
-  "generated_at": "2026-05-24T00:45:34+02:00",
-  "release": "2026.05.24",
+  "generated_at": "2026-05-26T10:22:30+02:00",
+  "release": "2026.05.26",
   "artifacts": {
     "nextion": [
       {
@@ -32,12 +32,12 @@
         "title": "flowio",
         "label": "flowio",
         "version": "1.0.2",
-        "build_date": "2026-05-24T00:45:34+02:00",
+        "build_date": "2026-05-26T10:22:30+02:00",
         "target": "flowio",
         "path": "flowio-1.0.2.bin",
         "kind": "esp32-firmware",
         "route": "/fwupdate/flowio",
-        "size": 1303856
+        "size": 1306064
       }
     ],
     "spiffs": [
@@ -45,7 +45,7 @@
         "title": "spiffs-supervisor",
         "label": "spiffs-supervisor",
         "version": "1.0.2",
-        "build_date": "2026-05-24T00:10:07+02:00",
+        "build_date": "2026-05-24T15:33:31+02:00",
         "target": "spiffs",
         "path": "spiffs-supervisor-1.0.2.bin",
         "kind": "esp32-spiffs",
@@ -58,7 +58,7 @@
         "title": "supervisor",
         "label": "supervisor",
         "version": "1.0.2",
-        "build_date": "2026-05-24T00:10:01+02:00",
+        "build_date": "2026-05-24T15:33:53+02:00",
         "target": "supervisor",
         "path": "supervisor-1.0.2.bin",
         "kind": "esp32-firmware",
