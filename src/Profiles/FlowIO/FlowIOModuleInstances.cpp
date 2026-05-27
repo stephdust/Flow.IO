@@ -14,7 +14,7 @@ ModuleInstances::ModuleInstances(const BoardSpec& board)
 
 ModuleInstances& moduleInstances()
 {
-    static ModuleInstances instances{BoardCatalog::flowIODINv1()};
+    static ModuleInstances instances{BoardCatalog::activeBoard()};
     return instances;
 }
 

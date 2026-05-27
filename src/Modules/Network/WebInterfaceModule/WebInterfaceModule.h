@@ -38,7 +38,7 @@ public:
     const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
 
     uint8_t dependencyCount() const override {
-#if defined(FLOW_PROFILE_MICRONOVA)
+#if defined(FLOW_PROFILE_MICRONOVA) || defined(FLOW_PROFILE_FLOWIOS3)
         return 5;
 #else
         return 6;
@@ -50,7 +50,7 @@ public:
         if (i == 2) return ModuleId::EventBus;
         if (i == 3) return ModuleId::DataStore;
         if (i == 4) return ModuleId::Command;
-#if !defined(FLOW_PROFILE_MICRONOVA)
+#if !defined(FLOW_PROFILE_MICRONOVA) && !defined(FLOW_PROFILE_FLOWIOS3)
         if (i == 5) return ModuleId::I2cCfgClient;
 #endif
         return ModuleId::Unknown;

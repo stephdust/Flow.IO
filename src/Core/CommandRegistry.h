@@ -7,7 +7,7 @@
 #include <stddef.h>
 
 /** @brief Maximum number of registered commands. */
-constexpr uint8_t MAX_COMMANDS = 48;
+constexpr uint8_t MAX_COMMANDS = 64;
 
 /** @brief Command invocation context. */
 struct CommandRequest {

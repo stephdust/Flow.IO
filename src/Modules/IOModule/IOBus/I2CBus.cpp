@@ -4,10 +4,38 @@
  */
 
 #include "I2CBus.h"
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::IOModule)
+#include "Core/ModuleLog.h"
+#include <Arduino.h>
+
+namespace {
+static bool isValidI2cPinLocal(int pin)
+{
+#if defined(ARDUINO_ARCH_ESP32)
+    return (pin >= 0) && digitalPinIsValid((uint8_t)pin);
+#else
+    return pin >= 0;
+#endif
+}
+}  // namespace
 
 void I2CBus::begin(int sda, int scl, uint32_t frequencyHz)
 {
-    Wire.begin(sda, scl, frequencyHz);
+    lastBeginSda_ = sda;
+    lastBeginScl_ = scl;
+    lastBeginFrequencyHz_ = frequencyHz;
+
+    const bool sdaValid = isValidI2cPinLocal(sda);
+    const bool sclValid = isValidI2cPinLocal(scl);
+    LOGI("i2c.begin request sda=%d (%s) scl=%d (%s) freq=%lu",
+         sda,
+         sdaValid ? "valid" : "invalid",
+         scl,
+         sclValid ? "valid" : "invalid",
+         (unsigned long)frequencyHz);
+
+    lastBeginOk_ = Wire.begin(sda, scl, frequencyHz);
+    LOGI("i2c.begin result ok=%s", lastBeginOk_ ? "true" : "false");
     if (!mutex_) mutex_ = xSemaphoreCreateMutex();
 }
 

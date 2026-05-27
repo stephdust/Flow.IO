@@ -28,6 +28,8 @@ struct WifiConfig {
     char mdns[33] = "flowio";
 #elif defined(FLOW_PROFILE_FLOWIO)
     char mdns[33] = "flowio-core";
+#elif defined(FLOW_PROFILE_FLOWIOS3)
+    char mdns[33] = "flowio-core";
 #elif defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
     char mdns[33] = "flow-connect-display";
 #elif defined(FLOW_PROFILE_MICRONOVA)

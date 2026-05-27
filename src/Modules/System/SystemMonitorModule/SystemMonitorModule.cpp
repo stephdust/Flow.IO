@@ -103,8 +103,14 @@ bool isLikelyValidTaskHandle_(TaskHandle_t handle)
 {
     const uintptr_t raw = (uintptr_t)handle;
     if (raw == 0U) return false;
-    // ESP32 task handles are pointers in DRAM/IRAM address ranges.
+    // Task handles are TCB pointers in DRAM; lower bounds differ by target.
+    // ESP32-S3 (and RISC-V families) commonly allocate around 0x3FCxxxxx.
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32C3) || \
+    defined(CONFIG_IDF_TARGET_ESP32C6) || defined(CONFIG_IDF_TARGET_ESP32H2)
+    if (raw < 0x3FC00000U) return false;
+#else
     if (raw < 0x3FF00000U) return false;
+#endif
     if (raw > 0x60000000U) return false;
     return true;
 }

@@ -5,6 +5,7 @@
 
 #include "Modules/HMIModule/HMIModule.h"
 
+#include "App/BuildFlags.h"
 #include "Board/BoardSerialMap.h"
 #include "Core/ConfigStore.h"
 #include "Core/EventBus/EventPayloads.h"
@@ -96,6 +97,12 @@ static constexpr uint8_t kNextionConfigPageAlias = 2U;
 static constexpr uint8_t kNextionAlarmPagePrimary = 11U;
 static constexpr uint8_t kNextionAlarmPageAlias = 3U;
 static constexpr const char* kNextionDegreeC = "\xC2\xB0""C";
+static constexpr bool kFrontLedsSupported =
+#if FLOW_BUILD_IS_FLOWIOS3
+    false;
+#else
+    true;
+#endif
 
 static bool isSupportedNextionDisplayVersion_(uint32_t version)
 {
@@ -393,7 +400,7 @@ void HMIModule::applyOutputConfig_()
         (cfgData_.veniceTxGpio >= 0 && cfgData_.veniceTxGpio <= 127) ? (int8_t)cfgData_.veniceTxGpio : (int8_t)-1;
     venice_.setConfig(veniceCfg);
 
-    if (!cfgData_.ledsEnabled) {
+    if (!kFrontLedsSupported || !cfgData_.ledsEnabled) {
         wifiBlinkOn_ = false;
     }
     ledMaskValid_ = false;
@@ -1337,6 +1344,7 @@ void HMIModule::flushHomePublish_()
 
 void HMIModule::applyLedMask_(bool force)
 {
+    if (!kFrontLedsSupported) return;
     if (!cfgData_.ledsEnabled) return;
     if (!statusLedsSvc_ || !statusLedsSvc_->setMask) return;
 
@@ -2558,7 +2566,7 @@ void HMIModule::loop()
             (void)validateDriverDisplayVersion_(false);
         }
     }
-    if (cfgData_.ledsEnabled) {
+    if (kFrontLedsSupported && cfgData_.ledsEnabled) {
         bool wifiConnected = false;
         bool mqttConnected = false;
         if (dsSvc_ && dsSvc_->store) {

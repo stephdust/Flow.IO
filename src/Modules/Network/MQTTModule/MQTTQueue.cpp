@@ -542,3 +542,28 @@ void MQTTModule::updateAndReportQueueOccupancy_(uint32_t nowMs)
 
     occLastReportMs_ = nowMs;
 }
+
+void MQTTModule::clearAllJobs_(const char* reason)
+{
+    uint16_t jobsUsed = 0U;
+    uint16_t highCount = 0U;
+    uint16_t normalCount = 0U;
+    uint16_t lowCount = 0U;
+
+    portENTER_CRITICAL(&jobsMux_);
+    snapshotQueueStatsNoLock_(jobsUsed, highCount, normalCount, lowCount);
+    memset(jobs_, 0, sizeof(jobs_));
+    highQ_ = JobRing<HighQueueCap>{};
+    normalQ_ = JobRing<NormalQueueCap>{};
+    lowQ_ = JobRing<LowQueueCap>{};
+    portEXIT_CRITICAL(&jobsMux_);
+
+    if (jobsUsed == 0U && highCount == 0U && normalCount == 0U && lowCount == 0U) return;
+
+    LOGW("queue reset reason=%s jobs=%u qh=%u qn=%u ql=%u",
+         reason ? reason : "unknown",
+         (unsigned)jobsUsed,
+         (unsigned)highCount,
+         (unsigned)normalCount,
+         (unsigned)lowCount);
+}

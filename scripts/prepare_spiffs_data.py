@@ -1,6 +1,7 @@
 from pathlib import Path
 import gzip
 import shutil
+import os
 import subprocess
 
 Import("env")
@@ -21,28 +22,29 @@ pio_env = str(env.subst("$PIOENV") or "").strip()
 
 def _run_step(cmd):
     print(f"[prepare_spiffs_data] run: {' '.join(cmd)}")
-    subprocess.run(cmd, cwd=str(project_dir), check=True)
+    step_env = os.environ.copy()
+    if pio_env:
+        step_env["PIOENV"] = pio_env
+    subprocess.run(cmd, cwd=str(project_dir), check=True, env=step_env)
 
 if src_dir.exists():
-    is_supervisor_env = pio_env.startswith("Supervisor")
-    if is_supervisor_env:
-        transients = (
-            project_dir / "data" / "webinterface" / "cfgdocs.json",
-            project_dir / "data" / "webinterface" / "cfgmods.json",
-            project_dir / "data" / "webinterface" / "cfgdocs.jz",
-            project_dir / "data" / "webinterface" / "cfgmods.jz",
-        )
-        # Ensure a clean state before regeneration.
-        for transient in transients:
-            if transient.exists():
-                transient.unlink()
-        _run_step(["python3", "scripts/generate_config_docs.py"])
-        _run_step(["python3", "scripts/generate_cfgdoc_chunks.py"])
-        # Keep only segmented cfgdoc assets in source data.
-        for transient in transients:
-            if transient.exists():
-                transient.unlink()
-                print(f"[prepare_spiffs_data] removed transient {transient}")
+    transients = (
+        project_dir / "data" / "webinterface" / "cfgdocs.json",
+        project_dir / "data" / "webinterface" / "cfgmods.json",
+        project_dir / "data" / "webinterface" / "cfgdocs.jz",
+        project_dir / "data" / "webinterface" / "cfgmods.jz",
+    )
+    # Ensure a clean state before regeneration.
+    for transient in transients:
+        if transient.exists():
+            transient.unlink()
+    _run_step(["python3", "scripts/generate_config_docs.py"])
+    _run_step(["python3", "scripts/generate_cfgdoc_chunks.py"])
+    # Keep only segmented cfgdoc assets in source data.
+    for transient in transients:
+        if transient.exists():
+            transient.unlink()
+            print(f"[prepare_spiffs_data] removed transient {transient}")
 
     if staging_dir.exists():
         shutil.rmtree(staging_dir)

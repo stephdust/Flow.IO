@@ -337,6 +337,7 @@ private:
     int16_t allocJobSlot_();
     const MqttPublishProducer* findProducer_(uint8_t producerId) const;
     void updateAndReportQueueOccupancy_(uint32_t nowMs);
+    void clearAllJobs_(const char* reason);
 
     // Producers and runtime publishing
     void enqueueAlarmFullSync_();

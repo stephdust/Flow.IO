@@ -37,6 +37,8 @@ SPECS: List[Tuple[str, str, str, str, str]] = [
     ("mq_pass", "FLOW_WIRDEF_MQ_PASS", "profile", "string", "\"LNqGl1OPt4RhFuNE\""),
     ("mq_base", "FLOW_WIRDEF_MQ_BASE", "profile", "string", "\"flowio\""),
     ("mq_tid", "FLOW_WIRDEF_MQ_TID", "profile", "string", "\"\""),
+    ("ha_ep", "FLOW_WIRDEF_HA_ENTITY_PREFIX", "profile", "string", "\"fio\""),
+    ("log_mqtt_lvl", "FLOW_WIRDEF_LOG_MQTT_LVL", "profile", "int32", "1"),
 
     # IO module behavior
     ("io_ads", "FLOW_MODDEF_IO_ADS", "module", "int32", "125"),

@@ -11,6 +11,7 @@
 #include "Core/ServiceBinding.h"
 #include "Core/Services/Services.h"
 #include "Core/Runtime.h"
+#include "Core/WokwiDefaultOverrides.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -66,6 +67,7 @@ private:
         bool enabled = true;
         char vendor[32] = "Flow.io";
         char deviceId[32] = "";
+        char entityPrefix[16] = FLOW_WIRDEF_HA_ENTITY_PREFIX;
         char discoveryPrefix[32] = "homeassistant";
         char model[40] = "Flow Controller";
     };
@@ -86,7 +88,6 @@ private:
     char nodeTopicId_[32] = {0};
     char objectPrefix_[8] = "fio";
     char originName_[32] = "Flow.io";
-    uint16_t entityHash2_ = 0;
 
     char stateTopicBuf_[96] = {0};
     char objectIdBuf_[96] = {0};
@@ -127,6 +128,10 @@ private:
     ConfigVariable<char,0> deviceIdVar {
         NVS_KEY(NvsKeys::Ha::DeviceId),"device_id","ha",ConfigType::CharArray,
         (char*)cfgData_.deviceId,ConfigPersistence::Persistent,sizeof(cfgData_.deviceId)
+    };
+    ConfigVariable<char,0> entityPrefixVar {
+        NVS_KEY(NvsKeys::Ha::EntityPrefix),"entity_prefix","ha",ConfigType::CharArray,
+        (char*)cfgData_.entityPrefix,ConfigPersistence::Persistent,sizeof(cfgData_.entityPrefix)
     };
     ConfigVariable<char,0> prefixVar {
         NVS_KEY(NvsKeys::Ha::DiscoveryPrefix),"disc_prefix","ha",ConfigType::CharArray,
@@ -223,7 +228,6 @@ private:
     static void makeDeviceId(char* out, size_t len);
     static void makeHexNodeId(char* out, size_t len);
     static void sanitizeId(const char* in, char* out, size_t outLen);
-    static uint16_t hash2Digits(const char* in);
 
     HAService haSvc_{
         ServiceBinding::bind<&HAModule::addSensorSvc_>,

@@ -6,6 +6,10 @@
 #include "Profiles/FlowIO/FlowIOProfile.h"
 #endif
 
+#if FLOW_BUILD_IS_FLOWIOS3
+#include "Profiles/FlowIOS3/FlowIOS3Profile.h"
+#endif
+
 #if FLOW_BUILD_IS_SUPERVISOR
 #include "Profiles/Supervisor/SupervisorProfile.h"
 #endif
@@ -27,6 +31,8 @@ const FirmwareProfile& resolveProfile()
 {
 #if FLOW_BUILD_IS_FLOWIO
     return Profiles::FlowIO::profile();
+#elif FLOW_BUILD_IS_FLOWIOS3
+    return Profiles::FlowIOS3::profile();
 #elif FLOW_BUILD_IS_SUPERVISOR
     return Profiles::Supervisor::profile();
 #elif FLOW_BUILD_IS_FLOW_CONNECT_DISPLAY

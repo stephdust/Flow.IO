@@ -5,6 +5,8 @@
 namespace BoardCatalog {
 
 const BoardSpec& flowIODINv1();
+const BoardSpec& flowIODINv1S3();
+const BoardSpec& flowIOS3();
 const BoardSpec& flowIODINv2();
 const BoardSpec& supervisorBoardRev1();
 const BoardSpec& micronovaBoardRev1();

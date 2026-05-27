@@ -20,6 +20,8 @@ const DomainSpec& activeDomain()
 {
 #if FLOW_BUILD_IS_FLOWIO
     return pool();
+#elif FLOW_BUILD_IS_FLOWIOS3
+    return pool();
 #elif FLOW_BUILD_IS_SUPERVISOR
     return supervisor();
 #else

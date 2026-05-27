@@ -11,7 +11,7 @@ const FirmwareProfile& profile()
 {
     static const FirmwareProfile kProfile{
         "FlowIO",
-        &BoardCatalog::flowIODINv1(),
+        &BoardCatalog::activeBoard(),
         &DomainCatalog::pool(),
         {
             "Flow.io",

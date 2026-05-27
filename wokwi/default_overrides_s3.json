@@ -1,0 +1,14 @@
+{
+  "io_a0s": 1,
+  "mq_host": "192.168.86.250",
+  "mq_user": "",
+  "mq_pass":"",
+  "mq_base": "flowios3",
+  "mq_tid": "ESP32-123456",
+  "log_mqtt_lvl": 0,
+  "ha_ep": "fios3",
+  "io_sda": 42,
+  "io_scl": 41,
+  "io_pcfen": true,
+  "io_pcfad": 32
+}

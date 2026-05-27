@@ -70,7 +70,8 @@ enum IOBindingPortKind : uint8_t {
     IO_PORT_KIND_INA226 = 8,
     IO_PORT_KIND_SHT40 = 9,
     IO_PORT_KIND_BMP280 = 10,
-    IO_PORT_KIND_BME680 = 11
+    IO_PORT_KIND_BME680 = 11,
+    IO_PORT_KIND_TCA9554_OUTPUT = 12
 };
 
 struct IOBindingPortSpec {

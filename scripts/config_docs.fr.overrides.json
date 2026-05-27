@@ -55,6 +55,10 @@
     "label": "Identifiant appareil HA",
     "help": "Identifiant exposé a Home Assistant pour cet appareil."
   },
+  "ha/entity_prefix": {
+    "label": "Préfixe des entités Home Assistant",
+    "help": "Préfixe appliqué aux object_id Home Assistant: <prefix>_<entité>. Si vide, seul le nom de l'entité est utilisé."
+  },
   "poollogic/pid/ph_setpoint": {
     "label": "Consigne pH",
     "help": "Valeur cible de pH pour la régulation."

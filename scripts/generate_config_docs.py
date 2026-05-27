@@ -164,6 +164,121 @@ def _resolve_meta_i18n(node: Any, translations: Dict[str, str]) -> Any:
     return out
 
 
+def _detect_pio_env() -> str:
+    if env is not None:
+        try:
+            value = str(env.subst("$PIOENV") or "").strip()
+            if value:
+                return value
+        except Exception:
+            pass
+    return str(os.getenv("PIOENV", "") or "").strip()
+
+
+def _profile_from_pio_env(pio_env: str) -> str:
+    name = str(pio_env or "").strip().lower()
+    if "flowios3" in name or "flowio_s3" in name or "flowio-s3" in name:
+        return "flowios3"
+    if name.startswith("flowio") or "flowio" in name:
+        return "flowio"
+    return "generic"
+
+
+def _to_int(value: Any) -> Optional[int]:
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
+def _apply_profile_specific_io_enum_sets(meta: dict, profile: str) -> dict:
+    if not isinstance(meta, dict):
+        return meta
+    enum_sets = meta.get("enum_sets")
+    if not isinstance(enum_sets, dict):
+        return meta
+
+    def sanitize_enum_entry(entry: dict, label: str) -> dict:
+        out = dict(entry or {})
+        out["label"] = label
+        # Keep this label stable regardless of cfgdoc i18n token overlays.
+        out.pop("label_t", None)
+        out.pop("label_i18n", None)
+        return out
+
+    # Digital input bindings: pin labels differ across FlowIO and FlowIOS3.
+    din_key = "flowio_binding_port_digital_input"
+    din_entries = enum_sets.get(din_key)
+    if isinstance(din_entries, list):
+        current = [item for item in din_entries if isinstance(item, dict)]
+        din_labels_flowio = {
+            200: "PortDigitalIn1 - digital_in1 (FlowIO GPIO34) [200]",
+            201: "PortDigitalIn2 - digital_in2 (FlowIO GPIO36) [201]",
+            202: "PortDigitalIn3 - digital_in3 (FlowIO GPIO39) [202]",
+            203: "PortDigitalIn4 - digital_in4 (FlowIO GPIO35) [203]",
+        }
+        din_labels_flowios3 = {
+            200: "PortDigitalIn1 - digital_in1 (FlowIOS3 GPIO4) [200]",
+            201: "PortDigitalIn2 - digital_in2 (FlowIOS3 GPIO5) [201]",
+            202: "PortDigitalIn3 - digital_in3 (FlowIOS3 GPIO6) [202]",
+            203: "PortDigitalIn4 - digital_in4 (FlowIOS3 GPIO7) [203]",
+            204: "PortDigitalIn5 - digital_in5 (FlowIOS3 GPIO8) [204]",
+            205: "PortDigitalIn6 - digital_in6 (FlowIOS3 GPIO9) [205]",
+            206: "PortDigitalIn7 - digital_in7 (FlowIOS3 GPIO10) [206]",
+            207: "PortDigitalIn8 - digital_in8 (FlowIOS3 GPIO11) [207]",
+        }
+
+        selected_labels = None
+        if profile == "flowio":
+            selected_labels = din_labels_flowio
+        elif profile == "flowios3":
+            selected_labels = din_labels_flowios3
+
+        if selected_labels is not None:
+            filtered: List[dict] = []
+            for entry in current:
+                value = _to_int(entry.get("value"))
+                if value is None or value not in selected_labels:
+                    continue
+                filtered.append(sanitize_enum_entry(entry, selected_labels[value]))
+            enum_sets[din_key] = filtered
+
+    # Digital output bindings: FlowIO uses PCF8574 ports, FlowIOS3 uses TCA9554 ports.
+    dout_key = "flowio_binding_port_digital_output"
+    dout_entries = enum_sets.get(dout_key)
+    if isinstance(dout_entries, list):
+        current = [item for item in dout_entries if isinstance(item, dict)]
+        filtered: List[dict] = []
+        for entry in current:
+            value = _to_int(entry.get("value"))
+            if value is None:
+                continue
+            keep = True
+            # Micronova aux_output must not be exposed on FlowIO / FlowIOS3 profiles.
+            if profile in ("flowio", "flowios3") and value == 1:
+                keep = False
+            if profile == "flowio":
+                keep = keep and not (300 <= value <= 399)
+            elif profile == "flowios3":
+                keep = keep and not (400 <= value <= 499)
+            if keep:
+                filtered.append(dict(entry))
+
+        # Ensure FlowIO exposes all 8 PCF bits (400..407) in UI bindings.
+        if profile == "flowio":
+            present_values = {_to_int(item.get("value")) for item in filtered}
+            if 407 not in present_values:
+                filtered.append(
+                    {
+                        "value": 407,
+                        "label": "PortPCF0Bit7 - Sortie PCF8574 - Bit 7 [407]",
+                    }
+                )
+        enum_sets[dout_key] = filtered
+
+    return meta
+
+
 def _resolved_docs(docs: Dict[str, dict], translations: Dict[str, str]) -> Dict[str, dict]:
     return {
         key: _resolve_doc_i18n_fields(value, translations)
@@ -189,7 +304,11 @@ def main() -> None:
     cfgmods_docs, cfgmods_meta, cfgmods_files = _load_text_docs(src_root, stem="cfgmods", locale=locale)
     i18n, i18n_files = _load_text_translations(src_root, locale=locale)
 
+    pio_env = _detect_pio_env()
+    profile = _profile_from_pio_env(pio_env)
+
     combined_meta = _resolve_meta_i18n(_merge_meta_dict(cfgdocs_meta, cfgmods_meta), i18n)
+    combined_meta = _apply_profile_specific_io_enum_sets(combined_meta, profile)
 
     merged_docs = _resolved_docs(dict(cfgdocs_docs), i18n)
 
@@ -220,7 +339,8 @@ def main() -> None:
     print(
         f"[generate_config_docs] wrote {out_path} "
         f"(docs={len(cfgdocs_payload['docs'])} cfgmods={len(cfgmods_payload['docs'])} "
-        f"text_files={len(cfgdocs_files) + len(cfgmods_files)} i18n_files={len(i18n_files)})"
+        f"text_files={len(cfgdocs_files) + len(cfgmods_files)} i18n_files={len(i18n_files)} "
+        f"pio_env={pio_env or '-'} profile={profile})"
     )
 
 

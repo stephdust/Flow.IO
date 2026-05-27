@@ -9,7 +9,36 @@
 #include "Core/MqttTopics.h"
 
 #include <esp_heap_caps.h>
+#include <esp_err.h>
 #include <string.h>
+
+#define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::MQTTModule)
+#include "Core/ModuleLog.h"
+
+namespace {
+const char* socketErrName(int err)
+{
+    switch (err) {
+        case 0: return "OK";
+        case 104: return "ECONNRESET";
+        case 107: return "ENOTCONN";
+        case 113: return "EHOSTUNREACH";
+        case 128: return "ENOTCONN_RTOS";
+        default: return "UNKNOWN";
+    }
+}
+
+const char* tlsEspHint(esp_err_t err)
+{
+    switch (err) {
+        case 0x8008: return "peer closed TCP (FIN)";
+        case 0x8006: return "TCP connect timeout";
+        case 0x8004: return "connect to host failed";
+        case 0x8001: return "cannot resolve host";
+        default: return "";
+    }
+}
+}
 
 bool MQTTModule::ensureClient_()
 {
@@ -17,8 +46,29 @@ bool MQTTModule::ensureClient_()
 
     destroyClient_();
 
-    const int uriLen = snprintf(brokerUri_, sizeof(brokerUri_), "mqtt://%s:%ld", cfgData_.host, (long)cfgData_.port);
-    if (!(uriLen > 0 && (size_t)uriLen < sizeof(brokerUri_))) return false;
+    if (cfgData_.host[0] == '\0') {
+        LOGW("mqtt cfg invalid: empty host");
+        return false;
+    }
+
+    int32_t effectivePort = cfgData_.port;
+    if (effectivePort <= 0 || effectivePort > 65535) {
+        LOGW("mqtt cfg invalid port=%ld, fallback=%u",
+             (long)cfgData_.port,
+             (unsigned)Limits::Mqtt::Defaults::Port);
+        effectivePort = Limits::Mqtt::Defaults::Port;
+    }
+
+    const int uriLen = snprintf(brokerUri_, sizeof(brokerUri_), "mqtt://%s:%ld", cfgData_.host, (long)effectivePort);
+    if (!(uriLen > 0 && (size_t)uriLen < sizeof(brokerUri_))) {
+        LOGW("mqtt cfg invalid: broker uri too long");
+        return false;
+    }
+    LOGD("mqtt cfg host=%s port=%ld user=%s client_id=%s",
+         cfgData_.host,
+         (long)effectivePort,
+         cfgData_.user[0] ? cfgData_.user : "<empty>",
+         deviceId_);
 
     esp_mqtt_client_config_t cfg = {};
 #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
@@ -49,9 +99,13 @@ bool MQTTModule::ensureClient_()
 #endif
 
     client_ = esp_mqtt_client_init(&cfg);
-    if (!client_) return false;
+    if (!client_) {
+        LOGW("mqtt client init failed");
+        return false;
+    }
 
     if (esp_mqtt_client_register_event(client_, MQTT_EVENT_ANY, &MQTTModule::mqttEventHandlerStatic_, this) != ESP_OK) {
+        LOGW("mqtt register event failed");
         destroyClient_();
         return false;
     }
@@ -86,16 +140,40 @@ void MQTTModule::connectMqtt_()
         setState_(MQTTState::ErrorWait);
         return;
     }
+    LOGD("mqtt connect attempt broker=%s user=%s client_id=%s",
+         brokerUri_,
+         cfgData_.user[0] ? cfgData_.user : "<empty>",
+         deviceId_);
 
     esp_err_t err = ESP_FAIL;
     if (!clientStarted_) {
         err = esp_mqtt_client_start(client_);
-        if (err == ESP_OK) clientStarted_ = true;
+        if (err == ESP_OK) {
+            clientStarted_ = true;
+        } else {
+            // Defensive fallback: recover when local state says "stopped" but IDF client is already running.
+            const esp_err_t reconnectErr = esp_mqtt_client_reconnect(client_);
+            if (reconnectErr == ESP_OK) {
+                LOGW("mqtt start failed (%s), reconnect fallback ok", esp_err_to_name(err));
+                err = ESP_OK;
+                clientStarted_ = true;
+            }
+        }
     } else {
         err = esp_mqtt_client_reconnect(client_);
+        if (err != ESP_OK) {
+            // Defensive fallback: recover when local state says "started" but IDF client requires start.
+            const esp_err_t startErr = esp_mqtt_client_start(client_);
+            if (startErr == ESP_OK) {
+                LOGW("mqtt reconnect failed (%s), start fallback ok", esp_err_to_name(err));
+                err = ESP_OK;
+                clientStarted_ = true;
+            }
+        }
     }
 
     if (err != ESP_OK) {
+        LOGW("mqtt connect failed err=%s (%d)", esp_err_to_name(err), (int)err);
         setState_(MQTTState::ErrorWait);
         return;
     }
@@ -150,11 +228,32 @@ void MQTTModule::onConnect_(bool)
     }
 }
 
-void MQTTModule::onDisconnect_(const esp_mqtt_error_codes_t*)
+void MQTTModule::onDisconnect_(const esp_mqtt_error_codes_t* err)
 {
     if (suppressDisconnectEvent_) {
         suppressDisconnectEvent_ = false;
         return;
+    }
+
+    // Keep "started" flag for unexpected disconnects: the IDF client task usually remains active and expects reconnect().
+    clientStarted_ = (client_ != nullptr);
+    if (err) {
+        if (err->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+            LOGW("mqtt disconnected: refused code=%d", (int)err->connect_return_code);
+        } else if (err->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+            LOGW("mqtt disconnected: transport sock_errno=%d(%s) tls_esp=%d(%s) hint=%s tls_stack=%d cert_flags=0x%x",
+                 err->esp_transport_sock_errno,
+                 socketErrName(err->esp_transport_sock_errno),
+                 (int)err->esp_tls_last_esp_err,
+                 esp_err_to_name(err->esp_tls_last_esp_err),
+                 tlsEspHint(err->esp_tls_last_esp_err),
+                 err->esp_tls_stack_err,
+                 (unsigned)err->esp_tls_cert_verify_flags);
+        } else {
+            LOGW("mqtt disconnected: error_type=%d", (int)err->error_type);
+        }
+    } else {
+        LOGW("mqtt disconnected: no error details");
     }
 
     setState_(MQTTState::ErrorWait);
@@ -214,6 +313,22 @@ void MQTTModule::mqttEventHandlerStatic_(void* handler_args,
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
             self->onConnect_(ev->session_present != 0);
+            break;
+        case MQTT_EVENT_ERROR:
+            if (ev && ev->error_handle) {
+                const esp_mqtt_error_codes_t* err = ev->error_handle;
+                LOGW("mqtt event error: type=%d sock_errno=%d(%s) tls_esp=%d(%s) hint=%s tls_stack=%d refused=%d",
+                     (int)err->error_type,
+                     err->esp_transport_sock_errno,
+                     socketErrName(err->esp_transport_sock_errno),
+                     (int)err->esp_tls_last_esp_err,
+                     esp_err_to_name(err->esp_tls_last_esp_err),
+                     tlsEspHint(err->esp_tls_last_esp_err),
+                     err->esp_tls_stack_err,
+                     (int)err->connect_return_code);
+            } else {
+                LOGW("mqtt event error: no details");
+            }
             break;
         case MQTT_EVENT_DISCONNECTED:
             self->onDisconnect_(ev ? ev->error_handle : nullptr);

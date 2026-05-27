@@ -9,6 +9,8 @@
 #include "Domain/Pool/PoolBindings.h"
 #include "Modules/IOModule/IORuntime.h"
 #include <Arduino.h>
+#include <Preferences.h>
+#include <esp_rom_sys.h>
 #include <esp_heap_caps.h>
 #include <new>
 #include <stdlib.h>
@@ -21,10 +23,68 @@ IOModule::IOModule(const BoardSpec& board)
 
 void IOModule::applyBoardDefaults_(const BoardSpec& board)
 {
+    boardProfileName_ = board.name ? board.name : "unknown";
     const I2cBusSpec* ioBus = boardFindI2cBus(board, "io");
     if (!ioBus) return;
-    cfgData_.i2cSda = ioBus->sdaPin;
-    cfgData_.i2cScl = ioBus->sclPin;
+    boardDefaultI2cSda_ = ioBus->sdaPin;
+    boardDefaultI2cScl_ = ioBus->sclPin;
+    cfgData_.i2cSda = boardDefaultI2cSda_;
+    cfgData_.i2cScl = boardDefaultI2cScl_;
+}
+
+void IOModule::logI2cConfigTrace_(const char* stage) const
+{
+    const char* sdaKeyActive = i2cSdaVar_.nvsKey ? i2cSdaVar_.nvsKey : "(null)";
+    const char* sclKeyActive = i2cSclVar_.nvsKey ? i2cSclVar_.nvsKey : "(null)";
+
+    Preferences prefs;
+    bool opened = prefs.begin(NvsKeys::StorageNamespace, true);
+
+    bool activeSdaExists = false;
+    bool activeSclExists = false;
+    bool legacySdaExists = false;
+    bool legacySclExists = false;
+    int activeSdaStored = 0;
+    int activeSclStored = 0;
+    int legacySdaStored = 0;
+    int legacySclStored = 0;
+
+    if (opened) {
+        activeSdaExists = prefs.isKey(sdaKeyActive);
+        activeSclExists = prefs.isKey(sclKeyActive);
+        legacySdaExists = prefs.isKey(NvsKeys::Io::IO_SDA);
+        legacySclExists = prefs.isKey(NvsKeys::Io::IO_SCL);
+        activeSdaStored = prefs.getInt(sdaKeyActive, 0);
+        activeSclStored = prefs.getInt(sclKeyActive, 0);
+        legacySdaStored = prefs.getInt(NvsKeys::Io::IO_SDA, 0);
+        legacySclStored = prefs.getInt(NvsKeys::Io::IO_SCL, 0);
+        prefs.end();
+    }
+
+    const bool sdaValid = (cfgData_.i2cSda >= 0) && digitalPinIsValid((uint8_t)cfgData_.i2cSda);
+    const bool sclValid = (cfgData_.i2cScl >= 0) && digitalPinIsValid((uint8_t)cfgData_.i2cScl);
+    LOGI("io.i2c trace stage=%s board=%s defaults=(%ld,%ld) active_keys=(%s,%s) cfg=(%ld,%ld) valid=(%s,%s)",
+         stage ? stage : "?",
+         boardProfileName_ ? boardProfileName_ : "unknown",
+         (long)boardDefaultI2cSda_,
+         (long)boardDefaultI2cScl_,
+         sdaKeyActive,
+         sclKeyActive,
+         (long)cfgData_.i2cSda,
+         (long)cfgData_.i2cScl,
+         sdaValid ? "true" : "false",
+         sclValid ? "true" : "false");
+    LOGI("io.i2c nvs ns=%s opened=%s active=(sda:%s/%d scl:%s/%d) legacy=(sda:%s/%d scl:%s/%d)",
+         NvsKeys::StorageNamespace,
+         opened ? "true" : "false",
+         activeSdaExists ? "present" : "absent",
+         activeSdaStored,
+         activeSclExists ? "present" : "absent",
+         activeSclStored,
+         legacySdaExists ? "present" : "absent",
+         legacySdaStored,
+         legacySclExists ? "present" : "absent",
+         legacySclStored);
 }
 
 namespace {
@@ -62,6 +122,9 @@ static constexpr uint8_t kCfgBranchIoI1 = 18;
 static constexpr uint8_t kCfgBranchIoI2 = 19;
 static constexpr uint8_t kCfgBranchIoI3 = 20;
 static constexpr uint8_t kCfgBranchIoI4 = 21;
+static constexpr uint8_t kCfgBranchIoI5 = 44;
+static constexpr uint8_t kCfgBranchIoI6 = 45;
+static constexpr uint8_t kCfgBranchIoI7 = 46;
 static constexpr uint8_t kCfgBranchIoBus = 22;
 static constexpr uint8_t kCfgBranchIoDs18b20 = 23;
 static constexpr uint8_t kCfgBranchIoGpio = 24;
@@ -98,6 +161,9 @@ static constexpr MqttConfigRouteProducer::Route kIoCfgRoutes[] = {
     {19, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoI2}, "io/input/i02", "io/input/i02", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {20, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoI3}, "io/input/i03", "io/input/i03", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {21, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoI4}, "io/input/i04", "io/input/i04", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {44, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoI5}, "io/input/i05", "io/input/i05", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {45, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoI6}, "io/input/i06", "io/input/i06", (uint8_t)MqttPublishPriority::Normal, nullptr},
+    {46, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoI7}, "io/input/i07", "io/input/i07", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {22, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoBus}, "io/drivers/bus", "io/drivers/bus", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {23, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoDs18b20}, "io/drivers/ds18b20", "io/drivers/ds18b20", (uint8_t)MqttPublishPriority::Normal, nullptr},
     {24, {(uint8_t)ConfigModuleId::Io, kCfgBranchIoGpio}, "io/drivers/gpio", "io/drivers/gpio", (uint8_t)MqttPublishPriority::Normal, nullptr},
@@ -300,6 +366,9 @@ ConfigVariable<float,0>* IOModule::counterTotalVar_(uint8_t logicalIdx)
         case 2: return &extraDigitalCounterCfgVars_->i2TotalVar_;
         case 3: return &extraDigitalCounterCfgVars_->i3TotalVar_;
         case 4: return &extraDigitalCounterCfgVars_->i4TotalVar_;
+        case 5: return &extraDigitalCounterCfgVars_->i5TotalVar_;
+        case 6: return &extraDigitalCounterCfgVars_->i6TotalVar_;
+        case 7: return &extraDigitalCounterCfgVars_->i7TotalVar_;
         default: return nullptr;
     }
 }
@@ -1686,7 +1755,8 @@ bool IOModule::resolveDigitalOutputBinding_(PhysicalPortId portId,
                                             uint8_t& pinOut,
                                             uint8_t& backendOut,
                                             uint8_t& channelOut,
-                                            bool& usesPcfOut) const
+                                            bool& usesPcfOut,
+                                            bool& usesTcaOut) const
 {
     const IOBindingPortSpec* spec = bindingPortSpec_(portId);
     if (!spec) return false;
@@ -1696,6 +1766,7 @@ bool IOModule::resolveDigitalOutputBinding_(PhysicalPortId portId,
         backendOut = IO_BACKEND_GPIO;
         channelOut = spec->param0;
         usesPcfOut = false;
+        usesTcaOut = false;
         return true;
     }
     if (spec->kind == IO_PORT_KIND_PCF8574_OUTPUT) {
@@ -1703,6 +1774,15 @@ bool IOModule::resolveDigitalOutputBinding_(PhysicalPortId portId,
         backendOut = IO_BACKEND_PCF8574;
         channelOut = spec->param0;
         usesPcfOut = true;
+        usesTcaOut = false;
+        return true;
+    }
+    if (spec->kind == IO_PORT_KIND_TCA9554_OUTPUT) {
+        pinOut = 0U;
+        backendOut = IO_BACKEND_TCA9554;
+        channelOut = spec->param0;
+        usesPcfOut = false;
+        usesTcaOut = true;
         return true;
     }
     return false;
@@ -1821,6 +1901,7 @@ bool IOModule::configureRuntime_()
     }
 
     bool needPcfOutput = false;
+    bool needTcaOutput = false;
     for (uint8_t i = 0; i < MAX_DIGITAL_SLOTS; ++i) {
         const DigitalSlot& s = digitalSlots_[i];
         if (!s.used || s.kind != DIGITAL_SLOT_OUTPUT) continue;
@@ -1831,7 +1912,9 @@ bool IOModule::configureRuntime_()
         const IOBindingPortSpec* spec = bindingPortSpec_(bindingPort);
         if (spec && spec->kind == IO_PORT_KIND_PCF8574_OUTPUT) {
             needPcfOutput = true;
-            break;
+        }
+        if (spec && spec->kind == IO_PORT_KIND_TCA9554_OUTPUT) {
+            needTcaOutput = true;
         }
     }
 
@@ -1846,11 +1929,18 @@ bool IOModule::configureRuntime_()
         cfgData_.bmp280Enabled ||
         cfgData_.bme680Enabled ||
         cfgData_.ina226Enabled ||
-        needPcfOutput;
+        needPcfOutput ||
+        needTcaOutput;
 
     if (needI2c) {
         // Concrete bus/driver assembly is centralized here so the rest of the module can stay on kernel types.
         i2cBus_.begin(cfgData_.i2cSda, cfgData_.i2cScl);
+        if (!i2cBus_.beginOk()) {
+            LOGW("i2c.begin failed sda=%d scl=%d freq=%lu",
+                 i2cBus_.beginSda(),
+                 i2cBus_.beginScl(),
+                 (unsigned long)i2cBus_.beginFrequencyHz());
+        }
         const bool ads48Present = i2cBus_.probe(0x48);
         const bool ads49Present = i2cBus_.probe(0x49);
         LOGI("ADS1115 probe 0x48: %s", ads48Present ? "found" : "not found");
@@ -1964,7 +2054,8 @@ bool IOModule::configureRuntime_()
         uint8_t backend = IO_BACKEND_GPIO;
         uint8_t channel = 0U;
         bool usesPcfOut = false;
-        if (!resolveDigitalOutputBinding_(s.outDef.bindingPort, pin, backend, channel, usesPcfOut)) {
+        bool usesTcaOut = false;
+        if (!resolveDigitalOutputBinding_(s.outDef.bindingPort, pin, backend, channel, usesPcfOut, usesTcaOut)) {
             LOGW("Digital output %s unresolved binding_port=%u",
                  s.endpointId,
                  (unsigned)s.outDef.bindingPort);
@@ -1975,6 +2066,10 @@ bool IOModule::configureRuntime_()
 
         IDigitalPinDriver* driver = nullptr;
         if (usesPcfOut) {
+            if (needTcaOutput) {
+                LOGW("Digital output %s uses PCF8574 but TCA9554 outputs are also configured; mixed expanders not supported", s.endpointId);
+                continue;
+            }
             if (!cfgData_.pcfEnabled) {
                 LOGW("Digital output %s requires PCF8574 but module is disabled", s.endpointId);
                 continue;
@@ -1993,6 +2088,29 @@ bool IOModule::configureRuntime_()
                 }
             }
             driver = allocPcfBitDriver_(s.outDef.id, pcfDriver_, channel, s.outDef.activeHigh);
+        } else if (usesTcaOut) {
+            if (needPcfOutput) {
+                LOGW("Digital output %s uses TCA9554 but PCF8574 outputs are also configured; mixed expanders not supported", s.endpointId);
+                continue;
+            }
+            if (!cfgData_.pcfEnabled) {
+                LOGW("Digital output %s requires TCA9554 but expander module is disabled", s.endpointId);
+                continue;
+            }
+            if (!tcaDriver_) {
+                IMaskOutputDriver* tcaMaskDriver = allocTcaDriver_("tca9554", &i2cBus_, cfgData_.pcfAddress);
+                if (!tcaMaskDriver) {
+                    LOGW("TCA9554 pool exhausted");
+                    continue;
+                }
+                tcaDriver_ = static_cast<Tca9554Driver*>(tcaMaskDriver);
+                if (!makeMaskProvider(tcaDriver_).begin()) {
+                    LOGW("TCA9554 not detected at 0x%02X", cfgData_.pcfAddress);
+                    tcaDriver_ = nullptr;
+                    continue;
+                }
+            }
+            driver = allocTcaBitDriver_(s.outDef.id, tcaDriver_, channel, s.outDef.activeHigh);
         } else {
             driver = allocGpioDriver_(s.outDef.id, pin, true, s.outDef.activeHigh);
         }
@@ -2042,6 +2160,11 @@ bool IOModule::configureRuntime_()
     if (needAnalogSource[IO_SRC_INA226] || cfgData_.ina226Enabled) {
         const bool present = i2cBus_.probe(cfgData_.ina226Address);
         LOGI("INA226 probe 0x%02X: %s", cfgData_.ina226Address, present ? "found" : "not found");
+    }
+
+    if (needTcaOutput && !needPcfOutput && cfgData_.pcfEnabled) {
+        const bool present = i2cBus_.probe(cfgData_.pcfAddress);
+        LOGI("TCA9554 probe 0x%02X: %s", cfgData_.pcfAddress, present ? "found" : "not found");
     }
 
     if (needAnalogSource[IO_SRC_ADS_INTERNAL_SINGLE]) {
@@ -2190,12 +2313,22 @@ bool IOModule::configureRuntime_()
     }
 
     if (cfgData_.pcfEnabled) {
-        IMaskOutputDriver* driver = pcfDriver_ ? static_cast<IMaskOutputDriver*>(pcfDriver_)
-                                               : allocPcfDriver_("pcf8574_led", &i2cBus_, cfgData_.pcfAddress);
-        if (!driver) {
-            LOGW("PCF8574 pool exhausted");
+        IMaskOutputDriver* driver = nullptr;
+        if (needTcaOutput && !needPcfOutput) {
+            driver = tcaDriver_ ? static_cast<IMaskOutputDriver*>(tcaDriver_)
+                                : allocTcaDriver_("tca9554_led", &i2cBus_, cfgData_.pcfAddress);
+            if (driver && !tcaDriver_) {
+                tcaDriver_ = static_cast<Tca9554Driver*>(driver);
+                if (!makeMaskProvider(driver).begin()) {
+                    LOGW("TCA9554 not detected at 0x%02X", cfgData_.pcfAddress);
+                    tcaDriver_ = nullptr;
+                    driver = nullptr;
+                }
+            }
         } else {
-            if (!pcfDriver_) {
+            driver = pcfDriver_ ? static_cast<IMaskOutputDriver*>(pcfDriver_)
+                                : allocPcfDriver_("pcf8574_led", &i2cBus_, cfgData_.pcfAddress);
+            if (driver && !pcfDriver_) {
                 pcfDriver_ = static_cast<Pcf8574Driver*>(driver);
                 if (!makeMaskProvider(driver).begin()) {
                     LOGW("PCF8574 not detected at 0x%02X", cfgData_.pcfAddress);
@@ -2203,6 +2336,10 @@ bool IOModule::configureRuntime_()
                     driver = nullptr;
                 }
             }
+        }
+        if (!driver) {
+            LOGW("%s pool exhausted",
+                 (needTcaOutput && !needPcfOutput) ? "TCA9554" : "PCF8574");
         }
         if (driver) {
             ledMaskProvider_ = makeMaskProvider(driver);
@@ -2261,13 +2398,19 @@ bool IOModule::configureRuntime_()
     runtimeReady_ = true;
     pcfLastEnabled_ = cfgData_.pcfEnabled;
 
-    LOGI("I/O ready (ads=%ldms ds=%ldms i2c_ai=%s din=%ldms endpoints=%u pcf=%s)",
+    const char* expanderState = "off";
+    if (cfgData_.pcfEnabled) {
+        if (needTcaOutput && !needPcfOutput) expanderState = "tca9554";
+        else expanderState = "pcf8574";
+    }
+
+    LOGI("I/O ready (ads=%ldms ds=%ldms i2c_ai=%s din=%ldms endpoints=%u expander=%s)",
          (long)adsJob.periodMs,
          (long)dsJob.periodMs,
          needI2cAnalogJob ? "20ms" : "off",
          (long)dinJob.periodMs,
          (unsigned)registry_.count(),
-         cfgData_.pcfEnabled ? "on" : "off");
+         expanderState);
 
     return true;
 }
@@ -2382,11 +2525,27 @@ IDigitalPinDriver* IOModule::allocPcfBitDriver_(const char* driverId, Pcf8574Dri
     return new (mem) Pcf8574BitDriver(driverId, parent, bit, activeHigh);
 }
 
+IDigitalPinDriver* IOModule::allocTcaBitDriver_(const char* driverId, Tca9554Driver* parent, uint8_t bit, bool activeHigh)
+{
+    if (tcaBitDriverPoolUsed_ >= MAX_DIGITAL_OUTPUTS) return nullptr;
+    void* mem = heap_caps_malloc(sizeof(Tca9554BitDriver), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!mem) return nullptr;
+    ++tcaBitDriverPoolUsed_;
+    return new (mem) Tca9554BitDriver(driverId, parent, bit, activeHigh);
+}
+
 IMaskOutputDriver* IOModule::allocPcfDriver_(const char* driverId, I2CBus* bus, uint8_t address)
 {
     if (pcfDriverPoolUsed_ >= 1) return nullptr;
     void* mem = pcfDriverPool_[pcfDriverPoolUsed_++];
     return new (mem) Pcf8574Driver(driverId, bus, address);
+}
+
+IMaskOutputDriver* IOModule::allocTcaDriver_(const char* driverId, I2CBus* bus, uint8_t address)
+{
+    if (tcaDriverPoolUsed_ >= 1) return nullptr;
+    void* mem = tcaDriverPool_[tcaDriverPoolUsed_++];
+    return new (mem) Tca9554Driver(driverId, bus, address);
 }
 
 Pcf8574MaskEndpoint* IOModule::allocMaskEndpoint_(const char* endpointId, MaskWriteFn writeFn, MaskReadFn readFn, void* fnCtx)
@@ -2497,17 +2656,17 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
         cfg.registerVar(extra.a##INDEX##C0Var_, kCfgModuleId, BRANCH); \
         cfg.registerVar(extra.a##INDEX##C1Var_, kCfgModuleId, BRANCH); \
         cfg.registerVar(extra.a##INDEX##PrecVar_, kCfgModuleId, BRANCH);
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(6, kCfgBranchIoA6)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(7, kCfgBranchIoA7)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(8, kCfgBranchIoA8)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(9, kCfgBranchIoA9)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(10, kCfgBranchIoA10)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(11, kCfgBranchIoA11)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(12, kCfgBranchIoA12)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(13, kCfgBranchIoA13)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(14, kCfgBranchIoA14)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(15, kCfgBranchIoA15)
-        FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(16, kCfgBranchIoA16)
+        if (ANALOG_CFG_SLOTS > 6U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(6, kCfgBranchIoA6) }
+        if (ANALOG_CFG_SLOTS > 7U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(7, kCfgBranchIoA7) }
+        if (ANALOG_CFG_SLOTS > 8U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(8, kCfgBranchIoA8) }
+        if (ANALOG_CFG_SLOTS > 9U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(9, kCfgBranchIoA9) }
+        if (ANALOG_CFG_SLOTS > 10U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(10, kCfgBranchIoA10) }
+        if (ANALOG_CFG_SLOTS > 11U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(11, kCfgBranchIoA11) }
+        if (ANALOG_CFG_SLOTS > 12U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(12, kCfgBranchIoA12) }
+        if (ANALOG_CFG_SLOTS > 13U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(13, kCfgBranchIoA13) }
+        if (ANALOG_CFG_SLOTS > 14U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(14, kCfgBranchIoA14) }
+        if (ANALOG_CFG_SLOTS > 15U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(15, kCfgBranchIoA15) }
+        if (ANALOG_CFG_SLOTS > 16U) { FLOW_IO_REGISTER_EXTRA_ANALOG_CFG(16, kCfgBranchIoA16) }
 #undef FLOW_IO_REGISTER_EXTRA_ANALOG_CFG
     } else {
         LOGE("failed to allocate extra analog config vars");
@@ -2518,6 +2677,9 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(i2NameVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2BindingVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2ActiveHighVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2PullModeVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2EdgeModeVar_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2C0Var_, kCfgModuleId, kCfgBranchIoI2); cfg.registerVar(i2PrecVar_, kCfgModuleId, kCfgBranchIoI2);
     cfg.registerVar(i3NameVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3BindingVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3ActiveHighVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3PullModeVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3EdgeModeVar_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3C0Var_, kCfgModuleId, kCfgBranchIoI3); cfg.registerVar(i3PrecVar_, kCfgModuleId, kCfgBranchIoI3);
     cfg.registerVar(i4NameVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4BindingVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4ActiveHighVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4PullModeVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4EdgeModeVar_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4C0Var_, kCfgModuleId, kCfgBranchIoI4); cfg.registerVar(i4PrecVar_, kCfgModuleId, kCfgBranchIoI4);
+    if (DIGITAL_INPUT_CFG_SLOTS > 5U) { cfg.registerVar(i5NameVar_, kCfgModuleId, kCfgBranchIoI5); cfg.registerVar(i5BindingVar_, kCfgModuleId, kCfgBranchIoI5); cfg.registerVar(i5ActiveHighVar_, kCfgModuleId, kCfgBranchIoI5); cfg.registerVar(i5PullModeVar_, kCfgModuleId, kCfgBranchIoI5); cfg.registerVar(i5EdgeModeVar_, kCfgModuleId, kCfgBranchIoI5); cfg.registerVar(i5C0Var_, kCfgModuleId, kCfgBranchIoI5); cfg.registerVar(i5PrecVar_, kCfgModuleId, kCfgBranchIoI5); }
+    if (DIGITAL_INPUT_CFG_SLOTS > 6U) { cfg.registerVar(i6NameVar_, kCfgModuleId, kCfgBranchIoI6); cfg.registerVar(i6BindingVar_, kCfgModuleId, kCfgBranchIoI6); cfg.registerVar(i6ActiveHighVar_, kCfgModuleId, kCfgBranchIoI6); cfg.registerVar(i6PullModeVar_, kCfgModuleId, kCfgBranchIoI6); cfg.registerVar(i6EdgeModeVar_, kCfgModuleId, kCfgBranchIoI6); cfg.registerVar(i6C0Var_, kCfgModuleId, kCfgBranchIoI6); cfg.registerVar(i6PrecVar_, kCfgModuleId, kCfgBranchIoI6); }
+    if (DIGITAL_INPUT_CFG_SLOTS > 7U) { cfg.registerVar(i7NameVar_, kCfgModuleId, kCfgBranchIoI7); cfg.registerVar(i7BindingVar_, kCfgModuleId, kCfgBranchIoI7); cfg.registerVar(i7ActiveHighVar_, kCfgModuleId, kCfgBranchIoI7); cfg.registerVar(i7PullModeVar_, kCfgModuleId, kCfgBranchIoI7); cfg.registerVar(i7EdgeModeVar_, kCfgModuleId, kCfgBranchIoI7); cfg.registerVar(i7C0Var_, kCfgModuleId, kCfgBranchIoI7); cfg.registerVar(i7PrecVar_, kCfgModuleId, kCfgBranchIoI7); }
 
     if (ensureDigitalInputModeCfgVars_()) {
         ExtraDigitalInputModeConfigVars& modes = *extraDigitalInputModeCfgVars_;
@@ -2526,6 +2688,9 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
         cfg.registerVar(modes.i2ModeVar_, kCfgModuleId, kCfgBranchIoI2);
         cfg.registerVar(modes.i3ModeVar_, kCfgModuleId, kCfgBranchIoI3);
         cfg.registerVar(modes.i4ModeVar_, kCfgModuleId, kCfgBranchIoI4);
+        if (DIGITAL_INPUT_CFG_SLOTS > 5U) cfg.registerVar(modes.i5ModeVar_, kCfgModuleId, kCfgBranchIoI5);
+        if (DIGITAL_INPUT_CFG_SLOTS > 6U) cfg.registerVar(modes.i6ModeVar_, kCfgModuleId, kCfgBranchIoI6);
+        if (DIGITAL_INPUT_CFG_SLOTS > 7U) cfg.registerVar(modes.i7ModeVar_, kCfgModuleId, kCfgBranchIoI7);
     } else {
         LOGE("failed to allocate digital input mode config vars");
     }
@@ -2537,6 +2702,9 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
         cfg.registerVar(totals.i2TotalVar_, kCfgModuleId, kCfgBranchIoI2);
         cfg.registerVar(totals.i3TotalVar_, kCfgModuleId, kCfgBranchIoI3);
         cfg.registerVar(totals.i4TotalVar_, kCfgModuleId, kCfgBranchIoI4);
+        if (DIGITAL_INPUT_CFG_SLOTS > 5U) cfg.registerVar(totals.i5TotalVar_, kCfgModuleId, kCfgBranchIoI5);
+        if (DIGITAL_INPUT_CFG_SLOTS > 6U) cfg.registerVar(totals.i6TotalVar_, kCfgModuleId, kCfgBranchIoI6);
+        if (DIGITAL_INPUT_CFG_SLOTS > 7U) cfg.registerVar(totals.i7TotalVar_, kCfgModuleId, kCfgBranchIoI7);
     } else {
         LOGE("failed to allocate digital counter config vars");
     }
@@ -2568,6 +2736,22 @@ void IOModule::init(ConfigStore& cfg, ServiceRegistry& services)
 void IOModule::onConfigLoaded(ConfigStore& cfg, ServiceRegistry& services)
 {
     cfgStore_ = &cfg;
+    const bool sdaValid = (cfgData_.i2cSda >= 0) && digitalPinIsValid((uint8_t)cfgData_.i2cSda);
+    const bool sclValid = (cfgData_.i2cScl >= 0) && digitalPinIsValid((uint8_t)cfgData_.i2cScl);
+    if (!sdaValid || !sclValid) {
+        LOGW("io.i2c invalid persisted pins sda=%ld scl=%ld, fallback to board defaults sda=%ld scl=%ld",
+             (long)cfgData_.i2cSda,
+             (long)cfgData_.i2cScl,
+             (long)boardDefaultI2cSda_,
+             (long)boardDefaultI2cScl_);
+        if (cfgStore_) {
+            (void)cfgStore_->eraseKey(i2cSdaVar_.nvsKey);
+            (void)cfgStore_->eraseKey(i2cSclVar_.nvsKey);
+        }
+        cfgData_.i2cSda = boardDefaultI2cSda_;
+        cfgData_.i2cScl = boardDefaultI2cScl_;
+    }
+    logI2cConfigTrace_("onConfigLoaded");
     if (!cfgMqttPubConfigured_) {
         cfgMqttPub_.configure(this,
                               kIoCfgProducerId,
@@ -2608,6 +2792,7 @@ void IOModule::configureRuntimeAfterConfig_()
          (long)cfgData_.i2cSda,
          (long)cfgData_.i2cScl,
          runtimeReady_ ? "true" : "false");
+    logI2cConfigTrace_("runtimeInit");
 
     runtimeInitAttempted_ = true;
     if (cfgData_.enabled) {

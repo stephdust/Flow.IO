@@ -17,7 +17,7 @@
 
 #ifndef FLOW_WIRDEF_MQ_HOST
 #if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
-#define FLOW_WIRDEF_MQ_HOST "flowio.cloud.shiftr.io"
+#define FLOW_WIRDEF_MQ_HOST "192.168.86.250"
 #else
 #define FLOW_WIRDEF_MQ_HOST "flowio.cloud.shiftr.io"
 #endif
@@ -33,7 +33,7 @@
 
 #ifndef FLOW_WIRDEF_MQ_USER
 #if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
-#define FLOW_WIRDEF_MQ_USER "flowio"
+#define FLOW_WIRDEF_MQ_USER ""
 #else
 #define FLOW_WIRDEF_MQ_USER "flowio"
 #endif
@@ -41,7 +41,7 @@
 
 #ifndef FLOW_WIRDEF_MQ_PASS
 #if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
-#define FLOW_WIRDEF_MQ_PASS "LNqGl1OPt4RhFuNE"
+#define FLOW_WIRDEF_MQ_PASS ""
 #else
 #define FLOW_WIRDEF_MQ_PASS "LNqGl1OPt4RhFuNE"
 #endif
@@ -49,7 +49,7 @@
 
 #ifndef FLOW_WIRDEF_MQ_BASE
 #if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
-#define FLOW_WIRDEF_MQ_BASE "flowio"
+#define FLOW_WIRDEF_MQ_BASE "flowios3"
 #else
 #define FLOW_WIRDEF_MQ_BASE "flowio"
 #endif
@@ -57,9 +57,25 @@
 
 #ifndef FLOW_WIRDEF_MQ_TID
 #if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
-#define FLOW_WIRDEF_MQ_TID "ESP32-670D34"
+#define FLOW_WIRDEF_MQ_TID "ESP32-123456"
 #else
 #define FLOW_WIRDEF_MQ_TID ""
+#endif
+#endif
+
+#ifndef FLOW_WIRDEF_HA_ENTITY_PREFIX
+#if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
+#define FLOW_WIRDEF_HA_ENTITY_PREFIX "fios3"
+#else
+#define FLOW_WIRDEF_HA_ENTITY_PREFIX "fio"
+#endif
+#endif
+
+#ifndef FLOW_WIRDEF_LOG_MQTT_LVL
+#if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
+#define FLOW_WIRDEF_LOG_MQTT_LVL 0
+#else
+#define FLOW_WIRDEF_LOG_MQTT_LVL 1
 #endif
 #endif
 
@@ -101,7 +117,7 @@
 
 #ifndef FLOW_WIRDEF_IO_SDA
 #if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
-#define FLOW_WIRDEF_IO_SDA 21
+#define FLOW_WIRDEF_IO_SDA 42
 #else
 #define FLOW_WIRDEF_IO_SDA 21
 #endif
@@ -109,7 +125,7 @@
 
 #ifndef FLOW_WIRDEF_IO_SCL
 #if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
-#define FLOW_WIRDEF_IO_SCL 22
+#define FLOW_WIRDEF_IO_SCL 41
 #else
 #define FLOW_WIRDEF_IO_SCL 22
 #endif
@@ -141,7 +157,7 @@
 
 #ifndef FLOW_WIRDEF_IO_PCFAD
 #if defined(FLOW_WOKWI_DEFAULT_OVERRIDES)
-#define FLOW_WIRDEF_IO_PCFAD 0x20u
+#define FLOW_WIRDEF_IO_PCFAD 32u
 #else
 #define FLOW_WIRDEF_IO_PCFAD 0x20u
 #endif

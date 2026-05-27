@@ -45,6 +45,7 @@
     let webProfileName = 'Supervisor';
     let webProfileKey = 'supervisor';
     let webLocalConfigLabel = 'Config Store Supervisor';
+    let webLocalRuntime = false;
     let webRemoteConfigEnabled = true;
     let hideMenuSvg = false;
     let disableWebIcons = false;
@@ -494,6 +495,7 @@
         webProfileName = rawProfile;
         webProfileKey = rawProfile.toLowerCase();
       }
+      webLocalRuntime = data.local_runtime === true;
       const label = String(data.local_config_label || '').trim();
       webLocalConfigLabel = label || (isMicronovaProfile()
         ? tr('cfg.local.micronova', 'Config Store Micronova')
@@ -506,6 +508,12 @@
       if (isMicronovaProfile()) {
         poolMeasureDomainState.micronova.active = true;
       }
+      if (webLocalRuntime && !isMicronovaProfile()) {
+        logSourceMeta.supervisor.label = 'Flow.io';
+      } else {
+        logSourceMeta.supervisor.label = 'Supervisor';
+      }
+      applyLogSourceUi();
       document.body.classList.toggle('profile-micronova', isMicronovaProfile());
       applyProfileUiText();
       renderPoolMeasureDomainButtons();
@@ -634,6 +642,7 @@
         webLocalConfigLabel = label || (isMicronovaProfile()
           ? tr('cfg.local.micronova', 'Config Store Micronova')
           : tr('cfg.local.supervisor', 'Config Store Supervisor'));
+        webLocalRuntime = initialMeta.local_runtime === true;
         webRemoteConfigEnabled = initialMeta.remote_config_enabled !== false;
         networkMode = normalizeNetworkMode(initialMeta.network_mode);
       }
@@ -1792,6 +1801,19 @@
       return logSourceMeta[logSource] || logSourceMeta.supervisor;
     }
 
+    function applyLogSourceUi() {
+      const localOnly = webLocalRuntime === true;
+      if (logSourceSelect) {
+        logSourceSelect.hidden = localOnly;
+        logSourceSelect.disabled = localOnly;
+      }
+      if (localOnly && logSource !== 'supervisor') {
+        setLogSource('supervisor');
+      } else if (logSourceSelect && logSourceSelect.value !== logSource) {
+        logSourceSelect.value = logSource;
+      }
+    }
+
     function setWsStatusText(status) {
       if (!wsStatus) return;
       const meta = activeLogSourceMeta();
@@ -1892,7 +1914,10 @@
     }
 
     function setLogSource(source) {
-      const normalized = String(source || '').trim().toLowerCase();
+      let normalized = String(source || '').trim().toLowerCase();
+      if (webLocalRuntime && normalized === 'flowio') {
+        normalized = 'supervisor';
+      }
       logSource = Object.prototype.hasOwnProperty.call(logSourceMeta, normalized) ? normalized : 'supervisor';
       if (logSourceSelect && logSourceSelect.value !== logSource) {
         logSourceSelect.value = logSource;
@@ -1943,6 +1968,7 @@
         setLogSource(logSourceSelect.value);
       });
     }
+    applyLogSourceUi();
     refreshAutoscrollUi();
     logSource = 'supervisor';
     setWsStatusText(tr('terminal.inactive', 'inactif'));
@@ -5970,6 +5996,7 @@
       if (source !== 'supervisor') {
         return tr('cfg.remote.flow', 'Config Store Flow.io');
       }
+      if (webLocalConfigLabel) return webLocalConfigLabel;
       return isMicronovaProfile()
         ? tr('cfg.local.micronova', 'Config Store Micronova')
         : tr('cfg.local.supervisor', 'Config Store Supervisor');

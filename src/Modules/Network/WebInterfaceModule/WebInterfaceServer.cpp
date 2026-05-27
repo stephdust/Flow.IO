@@ -11,12 +11,20 @@
 #include "Core/Generated/RuntimeUiManifest_Generated.h"
 #include "Core/Generated/RuntimeUiManifestJson_Generated.h"
 #include "Core/I2cCfgProtocol.h"
+#include "Core/Services/IAlarm.h"
 #include "Core/SystemLimits.h"
 #include "Core/SystemStats.h"
-#if !defined(FLOW_PROFILE_MICRONOVA)
+#if !defined(FLOW_PROFILE_MICRONOVA) && !defined(FLOW_PROFILE_FLOWIOS3)
 #include "Modules/Network/I2CCfgClientModule/I2CCfgClientRuntime.h"
-#else
+#endif
+#if defined(FLOW_PROFILE_MICRONOVA)
 #include "Modules/Micronova/MicronovaBoilerModule/MicronovaBoilerModuleDataModel.h"
+#include "Modules/Network/MQTTModule/MQTTRuntime.h"
+#endif
+#if defined(FLOW_PROFILE_FLOWIOS3)
+#include "Domain/Pool/PoolBindings.h"
+#include "Modules/IOModule/IORuntime.h"
+#include "Modules/PoolDeviceModule/PoolDeviceRuntime.h"
 #include "Modules/Network/MQTTModule/MQTTRuntime.h"
 #endif
 
@@ -365,6 +373,8 @@ void appendJsonFieldValue_(Print& out, const char* key, JsonVariantConst value)
     appendJsonFieldName_(out, key);
     serializeJson(value, out);
 }
+
+bool dashboardSlotDegreeCUnit_(const char* unit);
 
 bool sendFlowStatusCompactResponse_(AsyncWebServerRequest* request, const FlowCfgRemoteService* flowCfgSvc)
 {
@@ -939,6 +949,70 @@ bool appendRuntimeUiJsonValuesToStream_(Print& out, const uint8_t* payload, size
 
 constexpr size_t kMaxRuntimeHttpIds = 48U;
 
+#if !defined(FLOW_PROFILE_MICRONOVA)
+void printRuntimeValuePrefix_(Print& out, bool& firstValue, RuntimeUiId id, const char* key, const char* type, const char* unit)
+{
+    if (!firstValue) out.print(',');
+    firstValue = false;
+    out.print("{\"id\":");
+    out.print((unsigned)id);
+    out.print(",\"key\":");
+    printJsonEscaped_(out, key);
+    out.print(",\"type\":");
+    printJsonEscaped_(out, type);
+    if (unit && unit[0] != '\0') {
+        out.print(",\"unit\":");
+        printJsonEscaped_(out, unit);
+    }
+}
+
+void printRuntimeBool_(Print& out, bool& firstValue, RuntimeUiId id, const char* key, bool value)
+{
+    printRuntimeValuePrefix_(out, firstValue, id, key, "bool", nullptr);
+    out.print(",\"value\":");
+    out.print(value ? "true" : "false");
+    out.print('}');
+}
+
+void printRuntimeI32_(Print& out, bool& firstValue, RuntimeUiId id, const char* key, int32_t value, const char* unit = nullptr)
+{
+    printRuntimeValuePrefix_(out, firstValue, id, key, "int32", unit);
+    out.print(",\"value\":");
+    out.print((int32_t)value);
+    out.print('}');
+}
+
+void printRuntimeU32_(Print& out, bool& firstValue, RuntimeUiId id, const char* key, uint32_t value, const char* unit = nullptr)
+{
+    printRuntimeValuePrefix_(out, firstValue, id, key, "uint32", unit);
+    out.print(",\"value\":");
+    out.print((unsigned long)value);
+    out.print('}');
+}
+
+void printRuntimeF32_(Print& out, bool& firstValue, RuntimeUiId id, const char* key, float value, const char* unit = nullptr)
+{
+    printRuntimeValuePrefix_(out, firstValue, id, key, "float", unit);
+    out.print(",\"value\":");
+    out.print(value, 3);
+    out.print('}');
+}
+
+void printRuntimeString_(Print& out, bool& firstValue, RuntimeUiId id, const char* key, const char* value)
+{
+    printRuntimeValuePrefix_(out, firstValue, id, key, "string", nullptr);
+    out.print(",\"value\":");
+    printJsonEscaped_(out, value ? value : "");
+    out.print('}');
+}
+
+void printRuntimeUnavailable_(Print& out, bool& firstValue, RuntimeUiId id, const char* key, const char* type)
+{
+    printRuntimeValuePrefix_(out, firstValue, id, key, type, nullptr);
+    out.print(",\"status\":\"unavailable\"}");
+}
+#endif
+
 #if defined(FLOW_PROFILE_MICRONOVA)
 constexpr RuntimeUiId kMicronovaRuntimeIdOnline = makeRuntimeUiId(ModuleId::MicronovaBoiler, 1);
 constexpr RuntimeUiId kMicronovaRuntimeIdStateCode = makeRuntimeUiId(ModuleId::MicronovaBoiler, 2);
@@ -1133,6 +1207,657 @@ void sendMicronovaLocalRuntimeValuesResponse_(AsyncWebServerRequest* request,
 }
 #endif
 
+#if defined(FLOW_PROFILE_FLOWIOS3)
+bool flowios3LoadPoolModeFlags_(ConfigStore* cfgStore,
+                                bool& hasMode,
+                                bool& autoMode,
+                                bool& winterMode,
+                                bool& phAutoMode,
+                                bool& orpAutoMode)
+{
+    hasMode = false;
+    autoMode = false;
+    winterMode = false;
+    phAutoMode = false;
+    orpAutoMode = false;
+    if (!cfgStore) return false;
+
+    char moduleJson[320] = {0};
+    bool truncated = false;
+    if (!cfgStore->toJsonModule("poollogic/mode", moduleJson, sizeof(moduleJson), &truncated, true)) {
+        return false;
+    }
+
+    StaticJsonDocument<384> doc;
+    if (deserializeJson(doc, moduleJson)) return false;
+    JsonObjectConst root = doc.as<JsonObjectConst>();
+    if (root.isNull()) return false;
+
+    hasMode = true;
+    autoMode = root["auto_mode"] | false;
+    winterMode = root["winter_mode"] | false;
+    phAutoMode = root["ph_auto_mode"] | false;
+    orpAutoMode = root["orp_auto_mode"] | false;
+    return true;
+}
+
+void flowios3LoadMqttServer_(ConfigStore* cfgStore, char* out, size_t outLen)
+{
+    if (!out || outLen == 0U) return;
+    out[0] = '\0';
+    if (!cfgStore) return;
+
+    char moduleJson[320] = {0};
+    bool truncated = false;
+    if (!cfgStore->toJsonModule("mqtt", moduleJson, sizeof(moduleJson), &truncated, true)) return;
+
+    StaticJsonDocument<384> doc;
+    if (deserializeJson(doc, moduleJson)) return;
+    JsonObjectConst root = doc.as<JsonObjectConst>();
+    if (root.isNull()) return;
+
+    const char* host = root["host"] | "";
+    const int32_t port = root["port"] | 0;
+    if (!host || host[0] == '\0') return;
+    if (port > 0) {
+        snprintf(out, outLen, "%s:%ld", host, (long)port);
+    } else {
+        snprintf(out, outLen, "%s", host);
+    }
+}
+
+void flowios3LoadAlarmMasks_(const AlarmService* alarmSvc,
+                             uint32_t& activeMask,
+                             uint32_t& resettableMask,
+                             uint32_t& conditionMask)
+{
+    activeMask = 0U;
+    resettableMask = 0U;
+    conditionMask = 0U;
+    if (!alarmSvc || !alarmSvc->listIds || !alarmSvc->buildAlarmState) return;
+
+    AlarmId ids[Limits::Alarm::MaxAlarms] = {};
+    const uint8_t count = alarmSvc->listIds(alarmSvc->ctx, ids, (uint8_t)Limits::Alarm::MaxAlarms);
+    for (uint8_t i = 0; i < count; ++i) {
+        char stateJson[144] = {0};
+        if (!alarmSvc->buildAlarmState(alarmSvc->ctx, ids[i], stateJson, sizeof(stateJson))) continue;
+
+        StaticJsonDocument<192> doc;
+        if (deserializeJson(doc, stateJson)) continue;
+        const uint8_t slot = doc["slot"] | 255U;
+        if (slot >= 32U) continue;
+        const uint32_t bit = (1UL << slot);
+
+        const uint8_t active = doc["a"] | 0U;
+        const uint8_t resettable = doc["r"] | 0U;
+        const uint8_t cond = doc["c"] | 0U;
+        if (active != 0U) activeMask |= bit;
+        if (resettable != 0U) resettableMask |= bit;
+        if (cond == 1U) conditionMask |= bit;
+    }
+}
+
+struct Flowios3RuntimeContext {
+    bool poolModeLoaded = false;
+    bool poolModeAvailable = false;
+    bool poolAutoMode = false;
+    bool poolWinterMode = false;
+    bool poolPhAutoMode = false;
+    bool poolOrpAutoMode = false;
+    bool mqttServerLoaded = false;
+    char mqttServer[96] = {0};
+    bool alarmMasksLoaded = false;
+    uint32_t alarmActiveMask = 0U;
+    uint32_t alarmResettableMask = 0U;
+    uint32_t alarmConditionMask = 0U;
+    bool systemStatsLoaded = false;
+    SystemStatsSnapshot systemStats{};
+};
+
+void flowios3EnsurePoolMode_(Flowios3RuntimeContext& ctx, ConfigStore* cfgStore)
+{
+    if (ctx.poolModeLoaded) return;
+    ctx.poolModeLoaded = true;
+    ctx.poolModeAvailable = flowios3LoadPoolModeFlags_(cfgStore,
+                                                       ctx.poolModeAvailable,
+                                                       ctx.poolAutoMode,
+                                                       ctx.poolWinterMode,
+                                                       ctx.poolPhAutoMode,
+                                                       ctx.poolOrpAutoMode);
+}
+
+void flowios3EnsureMqttServer_(Flowios3RuntimeContext& ctx, ConfigStore* cfgStore)
+{
+    if (ctx.mqttServerLoaded) return;
+    ctx.mqttServerLoaded = true;
+    flowios3LoadMqttServer_(cfgStore, ctx.mqttServer, sizeof(ctx.mqttServer));
+}
+
+void flowios3EnsureAlarmMasks_(Flowios3RuntimeContext& ctx, const AlarmService* alarmSvc)
+{
+    if (ctx.alarmMasksLoaded) return;
+    ctx.alarmMasksLoaded = true;
+    flowios3LoadAlarmMasks_(alarmSvc, ctx.alarmActiveMask, ctx.alarmResettableMask, ctx.alarmConditionMask);
+}
+
+void flowios3EnsureSystemStats_(Flowios3RuntimeContext& ctx)
+{
+    if (ctx.systemStatsLoaded) return;
+    ctx.systemStatsLoaded = true;
+    SystemStats::collect(ctx.systemStats);
+}
+
+void flowios3PrintUnavailableByManifestType_(Print& out, bool& firstValue, RuntimeUiId id)
+{
+    const RuntimeUiManifestItem* item = findRuntimeUiManifestItem(id);
+    printRuntimeUnavailable_(out, firstValue, id, item ? item->key : "", item ? item->type : "unknown");
+}
+
+bool appendFlowios3LocalRuntimeValue_(Print& out,
+                                      DataStore* dataStore,
+                                      ConfigStore* cfgStore,
+                                      const AlarmService* alarmSvc,
+                                      RuntimeUiId id,
+                                      bool& firstValue,
+                                      Flowios3RuntimeContext& ctx)
+{
+    if (!dataStore) {
+        flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+        return true;
+    }
+
+    switch (id) {
+        case 901:
+            flowios3EnsureAlarmMasks_(ctx, alarmSvc);
+            printRuntimeU32_(out, firstValue, id, "alarms.active_mask", ctx.alarmActiveMask);
+            return true;
+        case 902:
+            flowios3EnsureAlarmMasks_(ctx, alarmSvc);
+            printRuntimeU32_(out, firstValue, id, "alarms.resettable_mask", ctx.alarmResettableMask);
+            return true;
+        case 903:
+            flowios3EnsureAlarmMasks_(ctx, alarmSvc);
+            printRuntimeU32_(out, firstValue, id, "alarms.condition_mask", ctx.alarmConditionMask);
+            return true;
+        case 2301:
+            flowios3EnsurePoolMode_(ctx, cfgStore);
+            if (!ctx.poolModeAvailable) {
+                flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            } else {
+                printRuntimeBool_(out, firstValue, id, "pool.auto_mode", ctx.poolAutoMode);
+            }
+            return true;
+        case 2302:
+            flowios3EnsurePoolMode_(ctx, cfgStore);
+            if (!ctx.poolModeAvailable) {
+                flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            } else {
+                printRuntimeBool_(out, firstValue, id, "pool.winter_mode", ctx.poolWinterMode);
+            }
+            return true;
+        case 2303:
+            flowios3EnsurePoolMode_(ctx, cfgStore);
+            if (!ctx.poolModeAvailable) {
+                flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            } else {
+                printRuntimeBool_(out, firstValue, id, "pool.ph_auto_mode", ctx.poolPhAutoMode);
+            }
+            return true;
+        case 2304:
+            flowios3EnsurePoolMode_(ctx, cfgStore);
+            if (!ctx.poolModeAvailable) {
+                flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            } else {
+                printRuntimeBool_(out, firstValue, id, "pool.orp_auto_mode", ctx.poolOrpAutoMode);
+            }
+            return true;
+        case 2201:
+        case 2202:
+        case 2203:
+        case 2204: {
+            uint8_t slot = PoolBinding::kDeviceSlotFiltrationPump;
+            const char* key = "pool.filtration_on";
+            if (id == 2202) {
+                slot = PoolBinding::kDeviceSlotPhPump;
+                key = "pool.ph_pump_on";
+            } else if (id == 2203) {
+                slot = PoolBinding::kDeviceSlotChlorinePump;
+                key = "pool.chlorine_pump_on";
+            } else if (id == 2204) {
+                slot = PoolBinding::kDeviceSlotRobot;
+                key = "pool.robot_on";
+            }
+
+            PoolDeviceRuntimeStateEntry state{};
+            if (!poolDeviceRuntimeState(*dataStore, slot, state)) {
+                flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            } else {
+                printRuntimeBool_(out, firstValue, id, key, state.actualOn);
+            }
+            return true;
+        }
+        case 2001:
+            printRuntimeBool_(out, firstValue, id, "mqtt.ready", mqttReady(*dataStore));
+            return true;
+        case 2002:
+            flowios3EnsureMqttServer_(ctx, cfgStore);
+            if (ctx.mqttServer[0] == '\0') {
+                flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            } else {
+                printRuntimeString_(out, firstValue, id, "mqtt.server", ctx.mqttServer);
+            }
+            return true;
+        case 2003:
+            printRuntimeU32_(out, firstValue, id, "mqtt.rx_drop", mqttRxDrop(*dataStore));
+            return true;
+        case 2004:
+            printRuntimeU32_(out, firstValue, id, "mqtt.parse_fail", mqttParseFail(*dataStore));
+            return true;
+        case 2005:
+            printRuntimeU32_(out, firstValue, id, "mqtt.handler_fail", mqttHandlerFail(*dataStore));
+            return true;
+        case 2006:
+            printRuntimeU32_(out, firstValue, id, "mqtt.oversize_drop", mqttOversizeDrop(*dataStore));
+            return true;
+        case 2101:
+        case 2102:
+        case 2103:
+        case 2104:
+        case 2106: {
+            uint8_t runtimeIndex = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterTemp].runtimeIndex;
+            const char* key = "pool.water_temp";
+            const char* unit = "\xC2\xB0""C";
+            if (id == 2102) {
+                runtimeIndex = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotAirTemp].runtimeIndex;
+                key = "pool.air_temp";
+            } else if (id == 2103) {
+                runtimeIndex = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPh].runtimeIndex;
+                key = "pool.ph";
+                unit = nullptr;
+            } else if (id == 2104) {
+                runtimeIndex = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotOrp].runtimeIndex;
+                key = "pool.orp";
+                unit = "mV";
+            } else if (id == 2106) {
+                runtimeIndex = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPsi].runtimeIndex;
+                key = "pool.psi";
+                unit = "PSI";
+            }
+
+            float value = 0.0f;
+            if (!ioEndpointFloat(*dataStore, runtimeIndex, value)) {
+                flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            } else {
+                printRuntimeF32_(out, firstValue, id, key, value, unit);
+            }
+            return true;
+        }
+        case 2105: {
+            const uint8_t runtimeIndex = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterCounter].runtimeIndex;
+            float value = 0.0f;
+            if (ioEndpointFloat(*dataStore, runtimeIndex, value)) {
+                printRuntimeF32_(out, firstValue, id, "pool.water_counter", value, "L");
+                return true;
+            }
+            int32_t counterInt = 0;
+            if (ioEndpointInt(*dataStore, runtimeIndex, counterInt)) {
+                printRuntimeF32_(out, firstValue, id, "pool.water_counter", (float)counterInt, "L");
+                return true;
+            }
+            flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            return true;
+        }
+        case 2107:
+        case 2108:
+        case 2109:
+        case 2110:
+        case 2111:
+        case 2112:
+        case 2113:
+        case 2114:
+            flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            return true;
+        case 1701:
+            printRuntimeString_(out, firstValue, id, "system.firmware", FirmwareVersion::Full);
+            return true;
+        case 1702:
+            flowios3EnsureSystemStats_(ctx);
+            printRuntimeU32_(out, firstValue, id, "system.uptime_ms", (uint32_t)ctx.systemStats.uptimeMs, "ms");
+            return true;
+        case 1703:
+            flowios3EnsureSystemStats_(ctx);
+            printRuntimeU32_(out, firstValue, id, "system.heap_free", ctx.systemStats.heap.freeBytes, "B");
+            return true;
+        case 1704:
+            flowios3EnsureSystemStats_(ctx);
+            printRuntimeU32_(out, firstValue, id, "system.heap_min_free", ctx.systemStats.heap.minFreeBytes, "B");
+            return true;
+        case 1001:
+            printRuntimeBool_(out, firstValue, id, "wifi.ready", wifiReady(*dataStore));
+            return true;
+        case 1002: {
+            const IpV4 ip = wifiIp(*dataStore);
+            char ipText[16] = {0};
+            snprintf(ipText, sizeof(ipText), "%u.%u.%u.%u", (unsigned)ip.b[0], (unsigned)ip.b[1], (unsigned)ip.b[2], (unsigned)ip.b[3]);
+            printRuntimeString_(out, firstValue, id, "wifi.ip", ipText);
+            return true;
+        }
+        case 1003:
+            if (!WiFi.isConnected()) {
+                flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            } else {
+                printRuntimeI32_(out, firstValue, id, "wifi.rssi", (int32_t)WiFi.RSSI(), "dBm");
+            }
+            return true;
+        default:
+            flowios3PrintUnavailableByManifestType_(out, firstValue, id);
+            return true;
+    }
+}
+
+void sendFlowios3LocalRuntimeValuesResponse_(AsyncWebServerRequest* request,
+                                             DataStore* dataStore,
+                                             ConfigStore* cfgStore,
+                                             const AlarmService* alarmSvc,
+                                             const RuntimeUiId* ids,
+                                             size_t idCount)
+{
+    if (!request || !dataStore) {
+        if (request) request->send(503, "application/json", "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"runtime.values.local\"}}");
+        return;
+    }
+    if (!ids || idCount == 0U) {
+        request->send(400, "application/json", "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"runtime.values.ids\"}}");
+        return;
+    }
+
+    Flowios3RuntimeContext ctx{};
+    AsyncResponseStream* response = request->beginResponseStream("application/json");
+    addNoCacheHeaders_(response);
+    response->print("{\"ok\":true,\"values\":[");
+    bool firstValue = true;
+    for (size_t i = 0U; i < idCount; ++i) {
+        (void)appendFlowios3LocalRuntimeValue_(*response, dataStore, cfgStore, alarmSvc, ids[i], firstValue, ctx);
+    }
+    response->print("]}");
+    request->send(response);
+}
+
+bool flowios3BuildStatusDomainJson_(FlowStatusDomain domain,
+                                    DataStore* dataStore,
+                                    ConfigStore* cfgStore,
+                                    const AlarmService* alarmSvc,
+                                    char* out,
+                                    size_t outLen)
+{
+    if (!out || outLen == 0U) return false;
+    out[0] = '\0';
+
+    Flowios3RuntimeContext ctx{};
+    StaticJsonDocument<768> doc;
+    doc["ok"] = true;
+
+    if (domain == FlowStatusDomain::System) {
+        flowios3EnsureSystemStats_(ctx);
+        doc["fw"] = FirmwareVersion::Full;
+        doc["upms"] = (uint64_t)ctx.systemStats.uptimeMs64;
+        JsonObject heap = doc.createNestedObject("heap");
+        heap["free"] = ctx.systemStats.heap.freeBytes;
+        heap["min_free"] = ctx.systemStats.heap.minFreeBytes;
+        heap["larg"] = ctx.systemStats.heap.largestFreeBlock;
+        heap["frag"] = ctx.systemStats.heap.fragPercent;
+        return serializeJson(doc, out, outLen) > 0U;
+    }
+
+    if (domain == FlowStatusDomain::Wifi) {
+        JsonObject wifi = doc.createNestedObject("wifi");
+        const bool wifiUp = dataStore ? wifiReady(*dataStore) : false;
+        wifi["rdy"] = wifiUp;
+        IpV4 ip = dataStore ? wifiIp(*dataStore) : IpV4{{0, 0, 0, 0}};
+        char ipText[20] = {0};
+        snprintf(ipText, sizeof(ipText), "%u.%u.%u.%u", (unsigned)ip.b[0], (unsigned)ip.b[1], (unsigned)ip.b[2], (unsigned)ip.b[3]);
+        wifi["ip"] = ipText;
+        if (wifiUp && WiFi.status() == WL_CONNECTED) {
+            wifi["rssi"] = (int32_t)WiFi.RSSI();
+            wifi["hrss"] = true;
+        } else {
+            wifi["rssi"] = 0;
+            wifi["hrss"] = false;
+        }
+        return serializeJson(doc, out, outLen) > 0U;
+    }
+
+    if (domain == FlowStatusDomain::Mqtt) {
+        JsonObject mqtt = doc.createNestedObject("mqtt");
+        mqtt["rdy"] = dataStore ? mqttReady(*dataStore) : false;
+        flowios3EnsureMqttServer_(ctx, cfgStore);
+        mqtt["srv"] = ctx.mqttServer;
+        mqtt["rxdrp"] = dataStore ? mqttRxDrop(*dataStore) : 0U;
+        mqtt["prsf"] = dataStore ? mqttParseFail(*dataStore) : 0U;
+        mqtt["hndf"] = dataStore ? mqttHandlerFail(*dataStore) : 0U;
+        mqtt["ovr"] = dataStore ? mqttOversizeDrop(*dataStore) : 0U;
+        return serializeJson(doc, out, outLen) > 0U;
+    }
+
+    if (domain == FlowStatusDomain::Pool) {
+        JsonObject pool = doc.createNestedObject("pool");
+        bool hasMode = false;
+        bool autoMode = false;
+        bool winterMode = false;
+        bool phAutoMode = false;
+        bool orpAutoMode = false;
+        (void)flowios3LoadPoolModeFlags_(cfgStore, hasMode, autoMode, winterMode, phAutoMode, orpAutoMode);
+        pool["has"] = hasMode;
+        pool["auto"] = autoMode;
+        pool["wint"] = winterMode;
+        pool["pha"] = phAutoMode;
+        pool["ora"] = orpAutoMode;
+
+        auto setFloat = [&](const char* key, uint8_t runtimeIndex, uint8_t decimals) {
+            float value = 0.0f;
+            if (!dataStore || !ioEndpointFloat(*dataStore, runtimeIndex, value)) {
+                pool[key] = nullptr;
+                return;
+            }
+            const float scale = (decimals == 2U) ? 100.0f : (decimals == 1U ? 10.0f : 1.0f);
+            const float rounded = (decimals == 0U) ? roundf(value) : (roundf(value * scale) / scale);
+            pool[key] = rounded;
+        };
+        setFloat("wat", PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterTemp].runtimeIndex, 1U);
+        setFloat("air", PoolBinding::kSensorBindings[PoolBinding::kSensorSlotAirTemp].runtimeIndex, 1U);
+        setFloat("ph", PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPh].runtimeIndex, 2U);
+        setFloat("orp", PoolBinding::kSensorBindings[PoolBinding::kSensorSlotOrp].runtimeIndex, 0U);
+
+        auto setDevice = [&](const char* key, uint8_t slot) {
+            PoolDeviceRuntimeStateEntry state{};
+            if (!dataStore || !poolDeviceRuntimeState(*dataStore, slot, state)) {
+                pool[key] = nullptr;
+                return;
+            }
+            pool[key] = state.actualOn;
+        };
+        setDevice("fil", PoolBinding::kDeviceSlotFiltrationPump);
+        setDevice("php", PoolBinding::kDeviceSlotPhPump);
+        setDevice("clp", PoolBinding::kDeviceSlotChlorinePump);
+        setDevice("rbt", PoolBinding::kDeviceSlotRobot);
+        return serializeJson(doc, out, outLen) > 0U;
+    }
+
+    if (domain == FlowStatusDomain::I2c) {
+        JsonObject i2c = doc.createNestedObject("i2c");
+        i2c["ena"] = false;
+        i2c["sta"] = false;
+        i2c["adr"] = 0;
+        i2c["req"] = 0;
+        i2c["breq"] = 0;
+        i2c["bcrc"] = 0;
+        i2c["bfmt"] = 0;
+        i2c["seen"] = false;
+        i2c["ago"] = 0;
+        i2c["lnk"] = true;
+        i2c["sup_ip"] = "0.0.0.0";
+        return serializeJson(doc, out, outLen) > 0U;
+    }
+
+    if (domain == FlowStatusDomain::Alarm) {
+        flowios3EnsureAlarmMasks_(ctx, alarmSvc);
+        JsonObject alm = doc.createNestedObject("alm");
+        const uint32_t activeMask = ctx.alarmActiveMask;
+        uint8_t count = 0U;
+        for (uint8_t bit = 0U; bit < 32U; ++bit) {
+            if ((activeMask & (1UL << bit)) != 0U) ++count;
+        }
+        alm["cnt"] = count;
+        JsonArray codes = alm.createNestedArray("codes");
+        for (uint8_t bit = 0U; bit < 32U; ++bit) {
+            if ((activeMask & (1UL << bit)) == 0U) continue;
+            char code[20] = {0};
+            snprintf(code, sizeof(code), "alarm_%u", (unsigned)(bit + 1U));
+            codes.add(code);
+        }
+        return serializeJson(doc, out, outLen) > 0U;
+    }
+
+    return false;
+}
+
+bool sendFlowios3StatusCompactResponse_(AsyncWebServerRequest* request,
+                                        DataStore* dataStore,
+                                        ConfigStore* cfgStore,
+                                        const AlarmService* alarmSvc)
+{
+    if (!request) return false;
+    char systemJson[640] = {0};
+    char wifiJson[320] = {0};
+    char mqttJson[384] = {0};
+    char poolJson[512] = {0};
+    char i2cJson[256] = {0};
+    if (!flowios3BuildStatusDomainJson_(FlowStatusDomain::System, dataStore, cfgStore, alarmSvc, systemJson, sizeof(systemJson))) return false;
+    if (!flowios3BuildStatusDomainJson_(FlowStatusDomain::Wifi, dataStore, cfgStore, alarmSvc, wifiJson, sizeof(wifiJson))) return false;
+    if (!flowios3BuildStatusDomainJson_(FlowStatusDomain::Mqtt, dataStore, cfgStore, alarmSvc, mqttJson, sizeof(mqttJson))) return false;
+    if (!flowios3BuildStatusDomainJson_(FlowStatusDomain::Pool, dataStore, cfgStore, alarmSvc, poolJson, sizeof(poolJson))) return false;
+    if (!flowios3BuildStatusDomainJson_(FlowStatusDomain::I2c, dataStore, cfgStore, alarmSvc, i2cJson, sizeof(i2cJson))) return false;
+
+    StaticJsonDocument<768> systemDoc;
+    StaticJsonDocument<512> wifiDoc;
+    StaticJsonDocument<512> mqttDoc;
+    StaticJsonDocument<640> poolDoc;
+    StaticJsonDocument<320> i2cDoc;
+    if (deserializeJson(systemDoc, systemJson)) return false;
+    if (deserializeJson(wifiDoc, wifiJson)) return false;
+    if (deserializeJson(mqttDoc, mqttJson)) return false;
+    if (deserializeJson(poolDoc, poolJson)) return false;
+    if (deserializeJson(i2cDoc, i2cJson)) return false;
+
+    AsyncResponseStream* response = request->beginResponseStream("application/json");
+    addNoCacheHeaders_(response);
+    response->print("{\"ok\":true");
+    JsonObjectConst systemRoot = systemDoc.as<JsonObjectConst>();
+    if (!systemRoot["fw"].isNull()) appendJsonFieldValue_(*response, "fw", systemRoot["fw"]);
+    if (!systemRoot["upms"].isNull()) appendJsonFieldValue_(*response, "upms", systemRoot["upms"]);
+    if (!systemRoot["heap"].isNull()) appendJsonFieldValue_(*response, "heap", systemRoot["heap"]);
+
+    JsonObjectConst wifiRoot = wifiDoc.as<JsonObjectConst>();
+    if (!wifiRoot["wifi"].isNull()) appendJsonFieldValue_(*response, "wifi", wifiRoot["wifi"]);
+    JsonObjectConst mqttRoot = mqttDoc.as<JsonObjectConst>();
+    if (!mqttRoot["mqtt"].isNull()) appendJsonFieldValue_(*response, "mqtt", mqttRoot["mqtt"]);
+    JsonObjectConst poolRoot = poolDoc.as<JsonObjectConst>();
+    if (!poolRoot["pool"].isNull()) appendJsonFieldValue_(*response, "pool", poolRoot["pool"]);
+    JsonObjectConst i2cRoot = i2cDoc.as<JsonObjectConst>();
+    if (!i2cRoot["i2c"].isNull()) appendJsonFieldValue_(*response, "i2c", i2cRoot["i2c"]);
+
+    response->print("}");
+    request->send(response);
+    return true;
+}
+
+bool flowios3ReadDashboardSlotValue_(DataStore* dataStore, RuntimeUiId runtimeId, float& valueOut)
+{
+    if (!dataStore) return false;
+    switch (runtimeId) {
+        case 2101:
+            return ioEndpointFloat(*dataStore, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterTemp].runtimeIndex, valueOut);
+        case 2102:
+            return ioEndpointFloat(*dataStore, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotAirTemp].runtimeIndex, valueOut);
+        case 2103:
+            return ioEndpointFloat(*dataStore, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPh].runtimeIndex, valueOut);
+        case 2104:
+            return ioEndpointFloat(*dataStore, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotOrp].runtimeIndex, valueOut);
+        case 2105: {
+            if (ioEndpointFloat(*dataStore, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterCounter].runtimeIndex, valueOut)) return true;
+            int32_t counterInt = 0;
+            if (!ioEndpointInt(*dataStore, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotWaterCounter].runtimeIndex, counterInt)) return false;
+            valueOut = (float)counterInt;
+            return true;
+        }
+        case 2106:
+            return ioEndpointFloat(*dataStore, PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPsi].runtimeIndex, valueOut);
+        default:
+            return false;
+    }
+}
+
+void sendFlowios3DashboardSlotsResponse_(AsyncResponseStream& response, bool& firstSlot, DataStore* dataStore)
+{
+    struct SlotDef {
+        RuntimeUiId id;
+        const char* label;
+        uint8_t decimals;
+        const char* bgColor;
+    };
+    static const SlotDef kSlots[8] = {
+        {2101, "Temperature eau", 1U, "#0EA5E9"},
+        {2102, "Temperature air", 1U, "#22C55E"},
+        {2103, "pH", 2U, "#F59E0B"},
+        {2104, "ORP", 0U, "#EF4444"},
+        {2105, "Volume eau", 1U, "#6366F1"},
+        {2106, "Pression pompe", 2U, "#14B8A6"},
+        {2107, "Temperature BMP280", 1U, "#64748B"},
+        {2108, "Temperature BME680", 1U, "#64748B"},
+    };
+
+    for (uint8_t i = 0U; i < 8U; ++i) {
+        const SlotDef& slot = kSlots[i];
+        float value = 0.0f;
+        const bool available = flowios3ReadDashboardSlotValue_(dataStore, slot.id, value);
+        const RuntimeUiManifestItem* item = findRuntimeUiManifestItem(slot.id);
+        const char* unit = (item && item->unit) ? item->unit : "";
+        char valueText[32] = {0};
+        if (available) {
+            if (slot.decimals > 0U) {
+                snprintf(valueText, sizeof(valueText), "%.*f", (int)slot.decimals, (double)value);
+            } else {
+                snprintf(valueText, sizeof(valueText), "%ld", lroundf(value));
+            }
+        } else {
+            snprintf(valueText, sizeof(valueText), "Indisponible");
+        }
+
+        if (!firstSlot) response.print(',');
+        response.print("{\"slot\":");
+        response.print((unsigned)i);
+        response.print(",\"runtime_ui_id\":");
+        response.print((unsigned long)slot.id);
+        response.print(",\"label\":");
+        printJsonEscaped_(response, slot.label);
+        response.print(",\"value\":");
+        printJsonEscaped_(response, valueText);
+        response.print(",\"unit\":");
+        if (unit && unit[0] != '\0') {
+            printJsonEscaped_(response, dashboardSlotDegreeCUnit_(unit) ? "\xC2\xB0""C" : unit);
+        } else {
+            printJsonEscaped_(response, "");
+        }
+        response.print(",\"bg_color\":");
+        printJsonEscaped_(response, slot.bgColor);
+        response.print(",\"available\":");
+        response.print(available ? "true" : "false");
+        response.print("}");
+        firstSlot = false;
+    }
+}
+#endif
+
 bool parseRuntimeUiIdsCsv_(const char* raw, RuntimeUiId* idsOut, size_t capacity, size_t& countOut)
 {
     countOut = 0U;
@@ -1249,7 +1974,7 @@ bool dashboardSlotDegreeCUnit_(const char* unit)
     return (uint8_t)unit[0] == 0xC2 && (uint8_t)unit[1] == 0xB0 && unit[2] == 'C' && unit[3] == '\0';
 }
 
-#if !defined(FLOW_PROFILE_MICRONOVA)
+#if !defined(FLOW_PROFILE_MICRONOVA) && !defined(FLOW_PROFILE_FLOWIOS3)
 void dashboardSlotBgColorHex_(uint16_t color565, char* out, size_t outLen)
 {
     if (!out || outLen < 8U) return;
@@ -2457,6 +3182,10 @@ void WebInterfaceModule::startServer_()
         doc["local_runtime"] = true;
         doc["local_config_label"] = "Config Store Micronova";
         doc["remote_config_enabled"] = false;
+#elif defined(FLOW_PROFILE_FLOWIOS3)
+        doc["local_runtime"] = true;
+        doc["local_config_label"] = "Config Store Flow.io";
+        doc["remote_config_enabled"] = false;
 #else
         doc["local_runtime"] = false;
         doc["local_config_label"] = "Config Store Supervisor";
@@ -3183,6 +3912,14 @@ void WebInterfaceModule::startServer_()
         char srcStr[24] = {0};
         copyRequestParamValue_(request, "src", false, srcStr, sizeof(srcStr), "");
         LOGI("runtime.call route=/api/flow/status src=%s", srcStr[0] ? srcStr : "-");
+#if defined(FLOW_PROFILE_FLOWIOS3)
+        const AlarmService* alarmSvc = services_ ? services_->get<AlarmService>(ServiceId::Alarm) : nullptr;
+        if (!sendFlowios3StatusCompactResponse_(request, dataStore_, cfgStore_, alarmSvc)) {
+            request->send(500, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status.local\"}}");
+        }
+        return;
+#else
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
@@ -3198,6 +3935,7 @@ void WebInterfaceModule::startServer_()
         }
 
         (void)sendFlowStatusCompactResponse_(request, flowCfgSvc_);
+#endif
     });
 
     server_.on("/api/flow/status/domain", HTTP_GET, [this](AsyncWebServerRequest* request) {
@@ -3208,20 +3946,6 @@ void WebInterfaceModule::startServer_()
         char srcStr[24] = {0};
         copyRequestParamValue_(request, "src", false, srcStr, sizeof(srcStr), "");
         LOGI("runtime.call route=/api/flow/status/domain src=%s", srcStr[0] ? srcStr : "-");
-        if (!flowCfgSvc_ && services_) {
-            flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
-        }
-        if (!flowCfgSvc_ || !flowCfgSvc_->runtimeStatusDomainJson) {
-            request->send(503, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flow.status.domain\"}}");
-            return;
-        }
-        if (flowCfgSvc_->isReady && !flowCfgSvc_->isReady(flowCfgSvc_->ctx)) {
-            request->send(503, "application/json",
-                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flow.status.domain.link\"}}");
-            return;
-        }
-
         if (!request->hasParam("d")) {
             request->send(400, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"flow.status.domain\"}}");
@@ -3236,6 +3960,34 @@ void WebInterfaceModule::startServer_()
         if (!parseFlowStatusDomainParam_(domainStr, domain)) {
             request->send(400, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"BadDomain\",\"where\":\"flow.status.domain\"}}");
+            return;
+        }
+
+#if defined(FLOW_PROFILE_FLOWIOS3)
+        char domainBuf[768] = {0};
+        const AlarmService* alarmSvc = services_ ? services_->get<AlarmService>(ServiceId::Alarm) : nullptr;
+        if (!flowios3BuildStatusDomainJson_(domain, dataStore_, cfgStore_, alarmSvc, domainBuf, sizeof(domainBuf))) {
+            request->send(200, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status.domain.local\"}}");
+            return;
+        }
+        LOGI("runtime.call route=/api/flow/status/domain src=%s domain=%s result=ok",
+             srcStr[0] ? srcStr : "-",
+             domainStr);
+        request->send(200, "application/json", domainBuf);
+        return;
+#else
+        if (!flowCfgSvc_ && services_) {
+            flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
+        }
+        if (!flowCfgSvc_ || !flowCfgSvc_->runtimeStatusDomainJson) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flow.status.domain\"}}");
+            return;
+        }
+        if (flowCfgSvc_->isReady && !flowCfgSvc_->isReady(flowCfgSvc_->ctx)) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flow.status.domain.link\"}}");
             return;
         }
 
@@ -3260,6 +4012,7 @@ void WebInterfaceModule::startServer_()
              srcStr[0] ? srcStr : "-",
              domainStr);
         request->send(200, "application/json", domainBuf);
+#endif
     });
 
     server_.on("/api/runtime/manifest", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
@@ -3301,7 +4054,9 @@ void WebInterfaceModule::startServer_()
         addNoCacheHeaders_(response);
         response->print("{\"ok\":true,\"slots\":[");
         bool first = true;
-#if !defined(FLOW_PROFILE_MICRONOVA)
+#if defined(FLOW_PROFILE_FLOWIOS3)
+        sendFlowios3DashboardSlotsResponse_(*response, first, dataStore_);
+#elif !defined(FLOW_PROFILE_MICRONOVA)
         if (dataStore_) {
             const FlowRemoteRuntimeData& flow = flowRemoteRuntime(*dataStore_);
             for (uint8_t i = 0U; i < kFlowRemoteDashboardSlotCount; ++i) {
@@ -3372,6 +4127,11 @@ void WebInterfaceModule::startServer_()
 
 #if defined(FLOW_PROFILE_MICRONOVA)
         sendMicronovaLocalRuntimeValuesResponse_(request, dataStore_, ids, idCount);
+#elif defined(FLOW_PROFILE_FLOWIOS3)
+        {
+            const AlarmService* alarmSvc = services_ ? services_->get<AlarmService>(ServiceId::Alarm) : nullptr;
+            sendFlowios3LocalRuntimeValuesResponse_(request, dataStore_, cfgStore_, alarmSvc, ids, idCount);
+        }
 #else
         sendRuntimeUiValuesResponse_(request, flowCfgSvc_, ids, idCount);
 #endif
@@ -3436,6 +4196,11 @@ void WebInterfaceModule::startServer_()
 
 #if defined(FLOW_PROFILE_MICRONOVA)
             sendMicronovaLocalRuntimeValuesResponse_(request, dataStore_, ids, idCount);
+#elif defined(FLOW_PROFILE_FLOWIOS3)
+            {
+                const AlarmService* alarmSvc = services_ ? services_->get<AlarmService>(ServiceId::Alarm) : nullptr;
+                sendFlowios3LocalRuntimeValuesResponse_(request, dataStore_, cfgStore_, alarmSvc, ids, idCount);
+            }
 #else
             sendRuntimeUiValuesResponse_(request, flowCfgSvc_, ids, idCount);
 #endif
@@ -3471,6 +4236,31 @@ void WebInterfaceModule::startServer_()
                                  "/api/flowcfg/modules",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
+#if defined(FLOW_PROFILE_FLOWIOS3)
+        if (!cfgStore_) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flowcfg.modules\"}}");
+            return;
+        }
+
+        constexpr uint8_t kMaxModules = Limits::Config::Capacity::ModuleListMax;
+        const char* modules[kMaxModules] = {0};
+        const uint8_t moduleCount = cfgStore_->listModules(modules, kMaxModules);
+
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        addNoCacheHeaders_(response);
+        response->print("{\"ok\":true,\"modules\":[");
+        bool first = true;
+        for (uint8_t i = 0; i < moduleCount; ++i) {
+            if (!modules[i] || modules[i][0] == '\0') continue;
+            if (!first) response->print(',');
+            printJsonEscaped_(*response, modules[i]);
+            first = false;
+        }
+        response->print("]}");
+        request->send(response);
+        return;
+#else
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
@@ -3492,6 +4282,7 @@ void WebInterfaceModule::startServer_()
         }
 
         request->send(200, "application/json", out);
+#endif
     });
 
     server_.on("/api/flowcfg/children", HTTP_GET, [this](AsyncWebServerRequest* request) {
@@ -3499,6 +4290,74 @@ void WebInterfaceModule::startServer_()
                                  "/api/flowcfg/children",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
+#if defined(FLOW_PROFILE_FLOWIOS3)
+        if (!cfgStore_) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flowcfg.children\"}}");
+            return;
+        }
+
+        char prefix[128] = {0};
+        copyRequestParamValue_(request, "prefix", false, prefix, sizeof(prefix), "");
+        size_t prefixLen = strnlen(prefix, sizeof(prefix));
+        while (prefixLen > 0 && prefix[0] == '/') {
+            memmove(prefix, prefix + 1, prefixLen);
+            --prefixLen;
+        }
+        while (prefixLen > 0 && prefix[prefixLen - 1] == '/') {
+            prefix[prefixLen - 1] = '\0';
+            --prefixLen;
+        }
+
+        constexpr uint8_t kMaxModules = Limits::Config::Capacity::ModuleListMax;
+        const char* modules[kMaxModules] = {0};
+        const uint8_t moduleCount = cfgStore_->listModules(modules, kMaxModules);
+
+        const char* childStarts[kMaxModules] = {0};
+        size_t childLens[kMaxModules] = {0};
+        uint8_t childCount = 0;
+        bool hasExact = false;
+
+        for (uint8_t i = 0; i < moduleCount; ++i) {
+            const char* childStart = nullptr;
+            size_t childLen = 0;
+            bool exact = false;
+            if (!childTokenForPrefix_(modules[i], prefix, prefixLen, childStart, childLen, exact)) {
+                if (exact) hasExact = true;
+                continue;
+            }
+
+            bool duplicate = false;
+            for (uint8_t j = 0; j < childCount; ++j) {
+                if (tokensEqual_(childStart, childLen, childStarts[j], childLens[j])) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) continue;
+
+            childStarts[childCount] = childStart;
+            childLens[childCount] = childLen;
+            ++childCount;
+        }
+
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        addNoCacheHeaders_(response);
+        response->print("{\"ok\":true,\"has_exact\":");
+        response->print(hasExact ? "true" : "false");
+        response->print(",\"children\":[");
+        for (uint8_t i = 0; i < childCount; ++i) {
+            if (i > 0) response->print(',');
+            response->print('\"');
+            for (size_t j = 0; j < childLens[i]; ++j) {
+                response->print(childStarts[i][j]);
+            }
+            response->print('\"');
+        }
+        response->print("]}");
+        request->send(response);
+        return;
+#else
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
@@ -3521,6 +4380,7 @@ void WebInterfaceModule::startServer_()
             return;
         }
         request->send(200, "application/json", out);
+#endif
     });
 
     server_.on("/api/flowcfg/module", HTTP_GET, [this](AsyncWebServerRequest* request) {
@@ -3528,6 +4388,50 @@ void WebInterfaceModule::startServer_()
                                  "/api/flowcfg/module",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
+#if defined(FLOW_PROFILE_FLOWIOS3)
+        if (!cfgStore_) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flowcfg.module\"}}");
+            return;
+        }
+        if (!request->hasParam("name")) {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\",\"where\":\"flowcfg.module.name\"}}");
+            return;
+        }
+
+        char moduleStr[64] = {0};
+        copyRequestParamValue_(request, "name", false, moduleStr, sizeof(moduleStr), "");
+        if (moduleStr[0] == '\0') {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\",\"where\":\"flowcfg.module.name\"}}");
+            return;
+        }
+
+        char moduleName[64] = {0};
+        snprintf(moduleName, sizeof(moduleName), "%s", moduleStr);
+        sanitizeJsonString_(moduleName);
+
+        bool truncated = false;
+        char moduleJson[Limits::Mqtt::Buffers::StateCfg] = {0};
+        if (!cfgStore_->toJsonModule(moduleStr, moduleJson, sizeof(moduleJson), &truncated)) {
+            request->send(404, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotFound\",\"where\":\"flowcfg.module.get\"}}");
+            return;
+        }
+
+        AsyncResponseStream* response = request->beginResponseStream("application/json");
+        addNoCacheHeaders_(response);
+        response->print("{\"ok\":true,\"module\":");
+        printJsonEscaped_(*response, moduleName);
+        response->print(",\"truncated\":");
+        response->print(truncated ? "true" : "false");
+        response->print(",\"data\":");
+        response->print(moduleJson);
+        response->print('}');
+        request->send(response);
+        return;
+#else
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
@@ -3577,6 +4481,7 @@ void WebInterfaceModule::startServer_()
         response->print(moduleJson);
         response->print('}');
         request->send(response);
+#endif
     });
 
     server_.on("/api/flowcfg/apply", HTTP_POST, [this](AsyncWebServerRequest* request) {
@@ -3584,6 +4489,28 @@ void WebInterfaceModule::startServer_()
                                  "/api/flowcfg/apply",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
+#if defined(FLOW_PROFILE_FLOWIOS3)
+        if (!cfgStore_) {
+            request->send(503, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"NotReady\",\"where\":\"flowcfg.apply\"}}");
+            return;
+        }
+        if (!request->hasParam("patch", true)) {
+            request->send(400, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"InvalidArg\",\"where\":\"flowcfg.apply.patch\"}}");
+            return;
+        }
+
+        char patchStr[Limits::Mqtt::Buffers::StateCfg] = {0};
+        copyRequestParamValue_(request, "patch", true, patchStr, sizeof(patchStr), "");
+        if (!cfgStore_->applyJson(patchStr)) {
+            request->send(500, "application/json",
+                          "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flowcfg.apply.exec\"}}");
+            return;
+        }
+        request->send(200, "application/json", "{\"ok\":true}");
+        return;
+#else
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
@@ -3611,6 +4538,7 @@ void WebInterfaceModule::startServer_()
             return;
         }
         request->send(200, "application/json", ack);
+#endif
     });
 
     server_.on("/api/supervisorcfg/modules", HTTP_GET, [this](AsyncWebServerRequest* request) {

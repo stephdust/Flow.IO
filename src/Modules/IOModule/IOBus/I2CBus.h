@@ -13,6 +13,10 @@ class I2CBus {
 public:
     // IOModule is fixed on I2C bus 0 (global Wire). Only SDA/SCL/frequency are configurable.
     void begin(int sda, int scl, uint32_t frequencyHz = 100000);
+    bool beginOk() const { return lastBeginOk_; }
+    int beginSda() const { return lastBeginSda_; }
+    int beginScl() const { return lastBeginScl_; }
+    uint32_t beginFrequencyHz() const { return lastBeginFrequencyHz_; }
 
     bool lock(uint32_t timeoutMs);
     void unlock();
@@ -29,4 +33,8 @@ public:
 
 private:
     SemaphoreHandle_t mutex_ = nullptr;
+    bool lastBeginOk_ = false;
+    int lastBeginSda_ = -1;
+    int lastBeginScl_ = -1;
+    uint32_t lastBeginFrequencyHz_ = 0;
 };

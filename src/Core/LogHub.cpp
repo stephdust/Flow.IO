@@ -6,6 +6,7 @@
 #include "Core/BufferUsageTracker.h"
 #include "Core/ConfigStore.h"
 #include "Core/LogModuleIds.h"
+#include "Core/WokwiDefaultOverrides.h"
 #include <Arduino.h>
 #include <stdio.h>
 #include <string.h>
@@ -111,6 +112,12 @@ bool LogHub::registerConfigVar_(ModuleRegistration& slot)
     slot.minLevelVar.value = &slot.minLevelRaw;
     slot.minLevelVar.persistence = ConfigPersistence::Persistent;
     slot.minLevelVar.size = 0;
+
+#if !defined(FLOW_PROFILE_MICRONOVA)
+    if (slot.id == (LogModuleId)LogModuleIdValue::MQTTModule) {
+        slot.minLevelRaw = (int32_t)clampLevel_(FLOW_WIRDEF_LOG_MQTT_LVL);
+    }
+#endif
 
     cfg_->registerVar(slot.minLevelVar, cfgModuleId_, cfgLocalBranchId_);
     cfg_->loadPersistentVar(slot.minLevelVar);

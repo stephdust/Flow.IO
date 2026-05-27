@@ -24,6 +24,8 @@
 #include "Modules/IOModule/IODrivers/Pcf8574BitDriver.h"
 #include "Modules/IOModule/IODrivers/Pcf8574Driver.h"
 #include "Modules/IOModule/IODrivers/Sht40Driver.h"
+#include "Modules/IOModule/IODrivers/Tca9554BitDriver.h"
+#include "Modules/IOModule/IODrivers/Tca9554Driver.h"
 #include "Modules/IOModule/IOEndpoints/AnalogSensorEndpoint.h"
 #include "Modules/IOModule/IOEndpoints/DigitalActuatorEndpoint.h"
 #include "Modules/IOModule/IOEndpoints/DigitalSensorEndpoint.h"
@@ -152,7 +154,8 @@ private:
                                       uint8_t& pinOut,
                                       uint8_t& backendOut,
                                       uint8_t& channelOut,
-                                      bool& usesPcfOut) const;
+                                      bool& usesPcfOut,
+                                      bool& usesTcaOut) const;
     bool resolveDsBusAddress_(OneWireBus* bus, const char* runtimeKey, uint8_t outAddr[8]);
     bool runtimeSnapshotRouteFromIndex_(uint8_t snapshotIdx, uint8_t& routeTypeOut, uint8_t& slotIdxOut) const;
     bool buildEndpointSnapshot_(IOEndpoint* ep, char* out, size_t len, uint32_t& maxTsOut, bool invalidAsUndefined = false) const;
@@ -188,6 +191,7 @@ private:
     void traceDigitalCounters_(uint32_t nowMs);
     void beginIoCycle_(uint32_t nowMs);
     void markIoCycleChanged_(IoId id);
+    void logI2cConfigTrace_(const char* stage) const;
     static bool writeDigitalOut_(void* ctx, bool on);
     void applyBoardDefaults_(const BoardSpec& board);
     void pollPulseOutputs_(uint32_t nowMs);
@@ -209,7 +213,9 @@ private:
     IAnalogSourceDriver* allocBme680Driver_(const char* driverId, I2CBus* bus, const Bme680DriverConfig& cfg);
     IAnalogSourceDriver* allocIna226Driver_(const char* driverId, I2CBus* bus, const Ina226DriverConfig& cfg);
     IDigitalPinDriver* allocPcfBitDriver_(const char* driverId, Pcf8574Driver* parent, uint8_t bit, bool activeHigh);
+    IDigitalPinDriver* allocTcaBitDriver_(const char* driverId, Tca9554Driver* parent, uint8_t bit, bool activeHigh);
     IMaskOutputDriver* allocPcfDriver_(const char* driverId, I2CBus* bus, uint8_t address);
+    IMaskOutputDriver* allocTcaDriver_(const char* driverId, I2CBus* bus, uint8_t address);
     Pcf8574MaskEndpoint* allocMaskEndpoint_(const char* endpointId, MaskWriteFn writeFn, MaskReadFn readFn, void* fnCtx);
 
     static constexpr uint8_t MAX_ANALOG_ENDPOINTS = Limits::Io::MaxAnalogEndpoints;
@@ -219,6 +225,9 @@ private:
     static constexpr uint8_t ANALOG_CFG_SLOTS = Limits::Io::AnalogConfigSlots;
     static constexpr uint8_t DIGITAL_INPUT_CFG_SLOTS = Limits::Io::DigitalInputConfigSlots;
     static constexpr uint8_t DIGITAL_CFG_SLOTS = Limits::Io::DigitalOutputConfigSlots;
+    static constexpr uint8_t ANALOG_CFG_STORAGE_SLOTS = (ANALOG_CFG_SLOTS < 17U) ? 17U : ANALOG_CFG_SLOTS;
+    static constexpr uint8_t DIGITAL_INPUT_CFG_STORAGE_SLOTS =
+        (DIGITAL_INPUT_CFG_SLOTS < 8U) ? 8U : DIGITAL_INPUT_CFG_SLOTS;
     /** End-exclusive upper bounds for each static id range. */
     static constexpr IoId IO_ID_DO_MAX = IO_ID_DO_BASE + MAX_DIGITAL_OUTPUTS;
     static constexpr IoId IO_ID_DI_MAX = IO_ID_DI_BASE + MAX_DIGITAL_INPUTS;
@@ -390,13 +399,19 @@ private:
         ConfigVariable<float,0> i2TotalVar_;
         ConfigVariable<float,0> i3TotalVar_;
         ConfigVariable<float,0> i4TotalVar_;
+        ConfigVariable<float,0> i5TotalVar_;
+        ConfigVariable<float,0> i6TotalVar_;
+        ConfigVariable<float,0> i7TotalVar_;
 
         explicit ExtraDigitalCounterConfigVars(IODigitalInputSlotConfig* digitalCfg)
             : i0TotalVar_{NVS_KEY(NvsKeys::Io::IO_I0CT), "counter_total", "io/input/i00", ConfigType::Float, &digitalCfg[0].counterTotal, ConfigPersistence::Persistent, 0},
               i1TotalVar_{NVS_KEY(NvsKeys::Io::IO_I1CT), "counter_total", "io/input/i01", ConfigType::Float, &digitalCfg[1].counterTotal, ConfigPersistence::Persistent, 0},
               i2TotalVar_{NVS_KEY(NvsKeys::Io::IO_I2CT), "counter_total", "io/input/i02", ConfigType::Float, &digitalCfg[2].counterTotal, ConfigPersistence::Persistent, 0},
               i3TotalVar_{NVS_KEY(NvsKeys::Io::IO_I3CT), "counter_total", "io/input/i03", ConfigType::Float, &digitalCfg[3].counterTotal, ConfigPersistence::Persistent, 0},
-              i4TotalVar_{NVS_KEY(NvsKeys::Io::IO_I4CT), "counter_total", "io/input/i04", ConfigType::Float, &digitalCfg[4].counterTotal, ConfigPersistence::Persistent, 0}
+              i4TotalVar_{NVS_KEY(NvsKeys::Io::IO_I4CT), "counter_total", "io/input/i04", ConfigType::Float, &digitalCfg[4].counterTotal, ConfigPersistence::Persistent, 0},
+              i5TotalVar_{NVS_KEY(NvsKeys::Io::IO_I5CT), "counter_total", "io/input/i05", ConfigType::Float, &digitalCfg[5].counterTotal, ConfigPersistence::Persistent, 0},
+              i6TotalVar_{NVS_KEY(NvsKeys::Io::IO_I6CT), "counter_total", "io/input/i06", ConfigType::Float, &digitalCfg[6].counterTotal, ConfigPersistence::Persistent, 0},
+              i7TotalVar_{NVS_KEY(NvsKeys::Io::IO_I7CT), "counter_total", "io/input/i07", ConfigType::Float, &digitalCfg[7].counterTotal, ConfigPersistence::Persistent, 0}
         {
         }
     };
@@ -407,20 +422,26 @@ private:
         ConfigVariable<uint8_t,0> i2ModeVar_;
         ConfigVariable<uint8_t,0> i3ModeVar_;
         ConfigVariable<uint8_t,0> i4ModeVar_;
+        ConfigVariable<uint8_t,0> i5ModeVar_;
+        ConfigVariable<uint8_t,0> i6ModeVar_;
+        ConfigVariable<uint8_t,0> i7ModeVar_;
 
         explicit ExtraDigitalInputModeConfigVars(IODigitalInputSlotConfig* digitalCfg)
             : i0ModeVar_{NVS_KEY(NvsKeys::Io::IO_I0MD), "mode", "io/input/i00", ConfigType::UInt8, &digitalCfg[0].mode, ConfigPersistence::Persistent, 0},
               i1ModeVar_{NVS_KEY(NvsKeys::Io::IO_I1MD), "mode", "io/input/i01", ConfigType::UInt8, &digitalCfg[1].mode, ConfigPersistence::Persistent, 0},
               i2ModeVar_{NVS_KEY(NvsKeys::Io::IO_I2MD), "mode", "io/input/i02", ConfigType::UInt8, &digitalCfg[2].mode, ConfigPersistence::Persistent, 0},
               i3ModeVar_{NVS_KEY(NvsKeys::Io::IO_I3MD), "mode", "io/input/i03", ConfigType::UInt8, &digitalCfg[3].mode, ConfigPersistence::Persistent, 0},
-              i4ModeVar_{NVS_KEY(NvsKeys::Io::IO_I4MD), "mode", "io/input/i04", ConfigType::UInt8, &digitalCfg[4].mode, ConfigPersistence::Persistent, 0}
+              i4ModeVar_{NVS_KEY(NvsKeys::Io::IO_I4MD), "mode", "io/input/i04", ConfigType::UInt8, &digitalCfg[4].mode, ConfigPersistence::Persistent, 0},
+              i5ModeVar_{NVS_KEY(NvsKeys::Io::IO_I5MD), "mode", "io/input/i05", ConfigType::UInt8, &digitalCfg[5].mode, ConfigPersistence::Persistent, 0},
+              i6ModeVar_{NVS_KEY(NvsKeys::Io::IO_I6MD), "mode", "io/input/i06", ConfigType::UInt8, &digitalCfg[6].mode, ConfigPersistence::Persistent, 0},
+              i7ModeVar_{NVS_KEY(NvsKeys::Io::IO_I7MD), "mode", "io/input/i07", ConfigType::UInt8, &digitalCfg[7].mode, ConfigPersistence::Persistent, 0}
         {
         }
     };
 
     IOModuleConfig cfgData_{};
-    IOAnalogSlotConfig analogCfg_[ANALOG_CFG_SLOTS]{};
-    IODigitalInputSlotConfig digitalInCfg_[DIGITAL_INPUT_CFG_SLOTS]{};
+    IOAnalogSlotConfig analogCfg_[ANALOG_CFG_STORAGE_SLOTS]{};
+    IODigitalInputSlotConfig digitalInCfg_[DIGITAL_INPUT_CFG_STORAGE_SLOTS]{};
     IODigitalOutputSlotConfig digitalCfg_[DIGITAL_CFG_SLOTS]{};
     const IOBindingPortSpec* bindingPorts_ = nullptr;
     uint8_t bindingPortCount_ = 0;
@@ -446,6 +467,7 @@ private:
     IOMaskProvider ledMaskProvider_{};
     Pcf8574MaskEndpoint* ledMaskEp_ = nullptr;
     Pcf8574Driver* pcfDriver_ = nullptr;
+    Tca9554Driver* tcaDriver_ = nullptr;
     IOServiceV2 ioSvc_{
         ServiceBinding::bind<&IOModule::ioCount_>,
         ServiceBinding::bind<&IOModule::ioIdAt_>,
@@ -482,6 +504,7 @@ private:
     alignas(Bme680Driver) uint8_t bme680DriverPool_[1][sizeof(Bme680Driver)]{};
     alignas(Ina226Driver) uint8_t ina226DriverPool_[1][sizeof(Ina226Driver)]{};
     alignas(Pcf8574Driver) uint8_t pcfDriverPool_[1][sizeof(Pcf8574Driver)]{};
+    alignas(Tca9554Driver) uint8_t tcaDriverPool_[1][sizeof(Tca9554Driver)]{};
     alignas(Pcf8574MaskEndpoint) uint8_t maskEndpointPool_[1][sizeof(Pcf8574MaskEndpoint)]{};
     uint8_t analogEndpointPoolUsed_ = 0;
     uint8_t digitalSensorEndpointPoolUsed_ = 0;
@@ -489,6 +512,7 @@ private:
     uint8_t gpioDriverPoolUsed_ = 0;
     uint8_t gpioCounterDriverPoolUsed_ = 0;
     uint8_t pcfBitDriverPoolUsed_ = 0;
+    uint8_t tcaBitDriverPoolUsed_ = 0;
     uint8_t adsDriverPoolUsed_ = 0;
     uint8_t dsDriverPoolUsed_ = 0;
     uint8_t sht40DriverPoolUsed_ = 0;
@@ -496,9 +520,13 @@ private:
     uint8_t bme680DriverPoolUsed_ = 0;
     uint8_t ina226DriverPoolUsed_ = 0;
     uint8_t pcfDriverPoolUsed_ = 0;
+    uint8_t tcaDriverPoolUsed_ = 0;
     uint8_t maskEndpointPoolUsed_ = 0;
     bool runtimeReady_ = false;
     bool runtimeInitAttempted_ = false;
+    int32_t boardDefaultI2cSda_ = FLOW_WIRDEF_IO_SDA;
+    int32_t boardDefaultI2cScl_ = FLOW_WIRDEF_IO_SCL;
+    const char* boardProfileName_ = "unknown";
     bool pcfEnableNeedsReinitWarned_ = false;
     uint32_t counterTraceLastMs_ = 0;
     uint32_t analogCalcLogLastMs_[3]{0, 0, 0};
@@ -511,8 +539,13 @@ private:
     ExtraDigitalCounterConfigVars* extraDigitalCounterCfgVars_ = nullptr;
 
     ConfigVariable<bool,0> enabledVar_ { NVS_KEY(NvsKeys::Io::IO_EN),"enabled","io",ConfigType::Bool,&cfgData_.enabled,ConfigPersistence::Persistent,0 };
+#if defined(FLOW_BOARD_FLOWIO_S3)
+    ConfigVariable<int32_t,0> i2cSdaVar_ { NVS_KEY(NvsKeys::Io::IO_SDA_S3),"sda","io/drivers/bus",ConfigType::Int32,&cfgData_.i2cSda,ConfigPersistence::Persistent,0 };
+    ConfigVariable<int32_t,0> i2cSclVar_ { NVS_KEY(NvsKeys::Io::IO_SCL_S3),"scl","io/drivers/bus",ConfigType::Int32,&cfgData_.i2cScl,ConfigPersistence::Persistent,0 };
+#else
     ConfigVariable<int32_t,0> i2cSdaVar_ { NVS_KEY(NvsKeys::Io::IO_SDA),"sda","io/drivers/bus",ConfigType::Int32,&cfgData_.i2cSda,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> i2cSclVar_ { NVS_KEY(NvsKeys::Io::IO_SCL),"scl","io/drivers/bus",ConfigType::Int32,&cfgData_.i2cScl,ConfigPersistence::Persistent,0 };
+#endif
     ConfigVariable<int32_t,0> adsPollVar_ { NVS_KEY(NvsKeys::Io::IO_ADS),"poll_ms","io/drivers/ads1115",ConfigType::Int32,&cfgData_.adsPollMs,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> dsPollVar_ { NVS_KEY(NvsKeys::Io::IO_DS),"poll_ms","io/drivers/ds18b20",ConfigType::Int32,&cfgData_.dsPollMs,ConfigPersistence::Persistent,0 };
     ConfigVariable<int32_t,0> digitalPollVar_ { NVS_KEY(NvsKeys::Io::IO_DIN),"poll_ms","io/drivers/gpio",ConfigType::Int32,&cfgData_.digitalPollMs,ConfigPersistence::Persistent,0 };
@@ -594,6 +627,29 @@ private:
     ConfigVariable<uint8_t,0> i4EdgeModeVar_{NVS_KEY(NvsKeys::Io::IO_I4ED),"edge_mode","io/input/i04",ConfigType::UInt8,&digitalInCfg_[4].edgeMode,ConfigPersistence::Persistent,0};
     ConfigVariable<float,0> i4C0Var_{NVS_KEY(NvsKeys::Io::IO_I4C0),"i04_c0","io/input/i04",ConfigType::Float,&digitalInCfg_[4].c0,ConfigPersistence::Persistent,0};
     ConfigVariable<int32_t,0> i4PrecVar_{NVS_KEY(NvsKeys::Io::IO_I4P),"i04_prec","io/input/i04",ConfigType::Int32,&digitalInCfg_[4].precision,ConfigPersistence::Persistent,0};
+    ConfigVariable<char,0> i5NameVar_{NVS_KEY(NvsKeys::Io::IO_I5NM),"i05_name","io/input/i05",ConfigType::CharArray,(char*)digitalInCfg_[5].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[5].name)};
+    ConfigVariable<PhysicalPortId,0> i5BindingVar_{NVS_KEY(NvsKeys::Io::IO_I5BP),"binding_port","io/input/i05",ConfigType::UInt16,&digitalInCfg_[5].bindingPort,ConfigPersistence::Persistent,0};
+    ConfigVariable<bool,0> i5ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I5AH),"i05_active_high","io/input/i05",ConfigType::Bool,&digitalInCfg_[5].activeHigh,ConfigPersistence::Persistent,0};
+    ConfigVariable<uint8_t,0> i5PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I5PU),"i05_pull_mode","io/input/i05",ConfigType::UInt8,&digitalInCfg_[5].pullMode,ConfigPersistence::Persistent,0};
+    ConfigVariable<uint8_t,0> i5EdgeModeVar_{NVS_KEY(NvsKeys::Io::IO_I5ED),"edge_mode","io/input/i05",ConfigType::UInt8,&digitalInCfg_[5].edgeMode,ConfigPersistence::Persistent,0};
+    ConfigVariable<float,0> i5C0Var_{NVS_KEY(NvsKeys::Io::IO_I5C0),"i05_c0","io/input/i05",ConfigType::Float,&digitalInCfg_[5].c0,ConfigPersistence::Persistent,0};
+    ConfigVariable<int32_t,0> i5PrecVar_{NVS_KEY(NvsKeys::Io::IO_I5P),"i05_prec","io/input/i05",ConfigType::Int32,&digitalInCfg_[5].precision,ConfigPersistence::Persistent,0};
+
+    ConfigVariable<char,0> i6NameVar_{NVS_KEY(NvsKeys::Io::IO_I6NM),"i06_name","io/input/i06",ConfigType::CharArray,(char*)digitalInCfg_[6].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[6].name)};
+    ConfigVariable<PhysicalPortId,0> i6BindingVar_{NVS_KEY(NvsKeys::Io::IO_I6BP),"binding_port","io/input/i06",ConfigType::UInt16,&digitalInCfg_[6].bindingPort,ConfigPersistence::Persistent,0};
+    ConfigVariable<bool,0> i6ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I6AH),"i06_active_high","io/input/i06",ConfigType::Bool,&digitalInCfg_[6].activeHigh,ConfigPersistence::Persistent,0};
+    ConfigVariable<uint8_t,0> i6PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I6PU),"i06_pull_mode","io/input/i06",ConfigType::UInt8,&digitalInCfg_[6].pullMode,ConfigPersistence::Persistent,0};
+    ConfigVariable<uint8_t,0> i6EdgeModeVar_{NVS_KEY(NvsKeys::Io::IO_I6ED),"edge_mode","io/input/i06",ConfigType::UInt8,&digitalInCfg_[6].edgeMode,ConfigPersistence::Persistent,0};
+    ConfigVariable<float,0> i6C0Var_{NVS_KEY(NvsKeys::Io::IO_I6C0),"i06_c0","io/input/i06",ConfigType::Float,&digitalInCfg_[6].c0,ConfigPersistence::Persistent,0};
+    ConfigVariable<int32_t,0> i6PrecVar_{NVS_KEY(NvsKeys::Io::IO_I6P),"i06_prec","io/input/i06",ConfigType::Int32,&digitalInCfg_[6].precision,ConfigPersistence::Persistent,0};
+
+    ConfigVariable<char,0> i7NameVar_{NVS_KEY(NvsKeys::Io::IO_I7NM),"i07_name","io/input/i07",ConfigType::CharArray,(char*)digitalInCfg_[7].name,ConfigPersistence::Persistent,sizeof(digitalInCfg_[7].name)};
+    ConfigVariable<PhysicalPortId,0> i7BindingVar_{NVS_KEY(NvsKeys::Io::IO_I7BP),"binding_port","io/input/i07",ConfigType::UInt16,&digitalInCfg_[7].bindingPort,ConfigPersistence::Persistent,0};
+    ConfigVariable<bool,0> i7ActiveHighVar_{NVS_KEY(NvsKeys::Io::IO_I7AH),"i07_active_high","io/input/i07",ConfigType::Bool,&digitalInCfg_[7].activeHigh,ConfigPersistence::Persistent,0};
+    ConfigVariable<uint8_t,0> i7PullModeVar_{NVS_KEY(NvsKeys::Io::IO_I7PU),"i07_pull_mode","io/input/i07",ConfigType::UInt8,&digitalInCfg_[7].pullMode,ConfigPersistence::Persistent,0};
+    ConfigVariable<uint8_t,0> i7EdgeModeVar_{NVS_KEY(NvsKeys::Io::IO_I7ED),"edge_mode","io/input/i07",ConfigType::UInt8,&digitalInCfg_[7].edgeMode,ConfigPersistence::Persistent,0};
+    ConfigVariable<float,0> i7C0Var_{NVS_KEY(NvsKeys::Io::IO_I7C0),"i07_c0","io/input/i07",ConfigType::Float,&digitalInCfg_[7].c0,ConfigPersistence::Persistent,0};
+    ConfigVariable<int32_t,0> i7PrecVar_{NVS_KEY(NvsKeys::Io::IO_I7P),"i07_prec","io/input/i07",ConfigType::Int32,&digitalInCfg_[7].precision,ConfigPersistence::Persistent,0};
 
     ConfigVariable<char,0> d0NameVar_{NVS_KEY(NvsKeys::Io::IO_D0NM),"d00_name","io/output/d00",ConfigType::CharArray,(char*)digitalCfg_[0].name,ConfigPersistence::Persistent,sizeof(digitalCfg_[0].name)};
     ConfigVariable<PhysicalPortId,0> d0BindingVar_{NVS_KEY(NvsKeys::Io::IO_D0BP),"binding_port","io/output/d00",ConfigType::UInt16,&digitalCfg_[0].bindingPort,ConfigPersistence::Persistent,0};

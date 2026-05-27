@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#if defined(FLOW_PROFILE_FLOWIO) || defined(FLOW_PROFILE_MICRONOVA)
+#if defined(FLOW_PROFILE_FLOWIO) || defined(FLOW_PROFILE_FLOWIOS3) || defined(FLOW_PROFILE_MICRONOVA)
 /**
  * @brief Reusable config MQTT producer for module-owned cfg/* publications.
  *

@@ -156,18 +156,6 @@ void HAModule::sanitizeId(const char* in, char* out, size_t outLen)
     out[w] = '\0';
 }
 
-uint16_t HAModule::hash2Digits(const char* in)
-{
-    // 32-bit FNV-1a reduced to 2 decimal digits for short per-device entity prefixes.
-    uint32_t h = 2166136261u;
-    const char* p = in ? in : "";
-    while (*p) {
-        h ^= (uint8_t)(*p++);
-        h *= 16777619u;
-    }
-    return (uint16_t)(h % 100u);
-}
-
 bool HAModule::addSensorSvc_(const HASensorEntry* entry)
 {
     if (!entry) return false;
@@ -469,8 +457,23 @@ bool HAModule::addButtonEntry(const HAButtonEntry& entry)
 bool HAModule::buildObjectId(const char* suffix, char* out, size_t outLen) const
 {
     if (!suffix || !out || outLen == 0) return false;
+    char cleanPrefix[sizeof(cfgData_.entityPrefix)] = {0};
+    sanitizeId(cfgData_.entityPrefix, cleanPrefix, sizeof(cleanPrefix));
+    char cleanSuffix[96] = {0};
+    sanitizeId(suffix, cleanSuffix, sizeof(cleanSuffix));
+    if (cleanSuffix[0] == '\0') return false;
+
+    size_t prefixLen = strnlen(cleanPrefix, sizeof(cleanPrefix));
+    while (prefixLen > 0 && cleanPrefix[prefixLen - 1] == '_') {
+        cleanPrefix[--prefixLen] = '\0';
+    }
+
     char raw[256] = {0};
-    snprintf(raw, sizeof(raw), "%s%02u_%s", objectPrefix_, (unsigned)entityHash2_, suffix);
+    if (cleanPrefix[0] != '\0') {
+        snprintf(raw, sizeof(raw), "%s_%s", cleanPrefix, cleanSuffix);
+    } else {
+        snprintf(raw, sizeof(raw), "%s", cleanSuffix);
+    }
     sanitizeId(raw, out, outLen);
     return out[0] != '\0';
 }
@@ -805,6 +808,7 @@ void HAModule::setBranding(const char* objectPrefix,
         snprintf(objectPrefix_, sizeof(objectPrefix_), "%s", objectPrefix);
         sanitizeId(objectPrefix_, objectPrefix_, sizeof(objectPrefix_));
         if (objectPrefix_[0] == '\0') snprintf(objectPrefix_, sizeof(objectPrefix_), "fio");
+        snprintf(cfgData_.entityPrefix, sizeof(cfgData_.entityPrefix), "%s", objectPrefix_);
     }
     if (originName && originName[0] != '\0') {
         snprintf(originName_, sizeof(originName_), "%s", originName);
@@ -838,7 +842,6 @@ void HAModule::refreshIdentityFromConfig()
 
     // HA `device.identifiers` should follow the effective MQTT topic device id when available.
     snprintf(deviceIdent_, sizeof(deviceIdent_), "%s-%s", cfgData_.vendor, idForEntityPrefix);
-    entityHash2_ = hash2Digits(idForEntityPrefix);
 }
 
 bool HAModule::resolveMqttTopicDeviceId_(char* out, size_t outLen) const
@@ -1180,6 +1183,7 @@ void HAModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(enabledVar, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(vendorVar, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(deviceIdVar, kCfgModuleId, kCfgBranchId);
+    cfg.registerVar(entityPrefixVar, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(prefixVar, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(modelVar, kCfgModuleId, kCfgBranchId);
     HA_BOOT_TRACE_I("ha boot trace: init oneshot=%d max_entities=%u max_messages=%u",
