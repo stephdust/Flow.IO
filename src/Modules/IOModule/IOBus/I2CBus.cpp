@@ -4,6 +4,7 @@
  */
 
 #include "I2CBus.h"
+#include "Core/I2cGlobalMutex.h"
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::IOModule)
 #include "Core/ModuleLog.h"
 #include <Arduino.h>
@@ -42,12 +43,26 @@ void I2CBus::begin(int sda, int scl, uint32_t frequencyHz)
 bool I2CBus::lock(uint32_t timeoutMs)
 {
     if (!mutex_) return false;
-    return xSemaphoreTake(mutex_, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+    const TickType_t start = xTaskGetTickCount();
+    const TickType_t timeoutTicks = pdMS_TO_TICKS(timeoutMs);
+    if (xSemaphoreTake(mutex_, timeoutTicks) != pdTRUE) return false;
+
+    const TickType_t elapsed = xTaskGetTickCount() - start;
+    uint32_t remainMs = 0U;
+    if (elapsed < timeoutTicks) {
+        remainMs = (uint32_t)pdTICKS_TO_MS(timeoutTicks - elapsed);
+    }
+    if (!flowI2cGlobalLock(remainMs)) {
+        xSemaphoreGive(mutex_);
+        return false;
+    }
+    return true;
 }
 
 void I2CBus::unlock()
 {
     if (!mutex_) return;
+    flowI2cGlobalUnlock();
     xSemaphoreGive(mutex_);
 }
 

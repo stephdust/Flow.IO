@@ -11,7 +11,6 @@
 #include <esp_wifi.h>
 #include <esp_err.h>
 #include <ctype.h>
-#include <new>
 #include <string.h>
 
 namespace {
@@ -32,6 +31,7 @@ bool isKnownDefaultMdnsHost_(const char* host)
 {
     if (!host || host[0] == '\0') return true;
     return strcmp(host, "flowio") == 0 ||
+           strcmp(host, "flowio-s3") == 0 ||
            strcmp(host, "flowio-core") == 0 ||
            strcmp(host, "flowio-display") == 0 ||
            strcmp(host, "flow-connect-display") == 0 ||
@@ -459,16 +459,26 @@ void WifiModule::processScan_()
     if (scanRunning_) {
         const int16_t status = WiFi.scanComplete();
         if (status == WIFI_SCAN_RUNNING) return;
+        if (status == WIFI_SCAN_FAILED) {
+            // Arduino-ESP32 async scan can transiently report FAILED (-2) before
+            // posting final scan-done bits; keep waiting until timeout expires.
+            const uint32_t now = millis();
+            const uint32_t timeoutMs = (scanTimeoutMs_ > 0U) ? scanTimeoutMs_ : (kScanPrimaryDwellMs * 20U);
+            if ((now - scanLastStartMs_) < timeoutMs) {
+                return;
+            }
+        }
 
         if (status < 0) {
             if (scanFailRetryCount_ == 0U) {
                 ++scanFailRetryCount_;
                 WiFi.scanDelete();
-                const int16_t retryStatus = WiFi.scanNetworks(true, false, false, 500);
+                const int16_t retryStatus = WiFi.scanNetworks(true, false, false, kScanRetryDwellMs);
                 if (retryStatus != WIFI_SCAN_FAILED) {
                     portENTER_CRITICAL(&scanMux_);
                     scanRunning_ = true;
                     scanLastStartMs_ = millis();
+                    scanTimeoutMs_ = kScanRetryDwellMs * 20U;
                     scanLastError_ = 0;
                     portEXIT_CRITICAL(&scanMux_);
                     LOGW("WiFi scan retry started after status=%d", (int)status);
@@ -477,6 +487,7 @@ void WifiModule::processScan_()
             }
             portENTER_CRITICAL(&scanMux_);
             scanRunning_ = false;
+            scanTimeoutMs_ = 0U;
             scanLastError_ = status;
             scanLastDoneMs_ = millis();
             portEXIT_CRITICAL(&scanMux_);
@@ -547,11 +558,12 @@ void WifiModule::processScan_()
             // Retry once with longer channel dwell before concluding "no network".
             ++scanApRetryCount_;
             WiFi.scanDelete();
-            const int16_t retryStatus = WiFi.scanNetworks(true, false, false, 500);
+            const int16_t retryStatus = WiFi.scanNetworks(true, false, false, kScanRetryDwellMs);
             if (retryStatus != WIFI_SCAN_FAILED) {
                 portENTER_CRITICAL(&scanMux_);
                 scanRunning_ = true;
                 scanLastStartMs_ = millis();
+                scanTimeoutMs_ = kScanRetryDwellMs * 20U;
                 scanLastError_ = 0;
                 portEXIT_CRITICAL(&scanMux_);
                 LOGW("WiFi scan AP retry started");
@@ -568,6 +580,7 @@ void WifiModule::processScan_()
         }
         scanHasResults_ = true;
         scanRunning_ = false;
+        scanTimeoutMs_ = 0U;
         scanFailRetryCount_ = 0;
         scanLastError_ = 0;
         scanLastDoneMs_ = millis();
@@ -594,10 +607,11 @@ void WifiModule::processScan_()
     }
 
     scanRequested_ = false;
-    const int16_t startStatus = WiFi.scanNetworks(true, false, false, 360);
+    const int16_t startStatus = WiFi.scanNetworks(true, false, false, kScanPrimaryDwellMs);
     if (startStatus == WIFI_SCAN_FAILED) {
         portENTER_CRITICAL(&scanMux_);
         scanRunning_ = false;
+        scanTimeoutMs_ = 0U;
         scanLastError_ = WIFI_SCAN_FAILED;
         scanLastDoneMs_ = millis();
         portEXIT_CRITICAL(&scanMux_);
@@ -608,6 +622,7 @@ void WifiModule::processScan_()
     portENTER_CRITICAL(&scanMux_);
     scanRunning_ = true;
     scanLastStartMs_ = millis();
+    scanTimeoutMs_ = kScanPrimaryDwellMs * 20U;
     scanLastError_ = 0;
     portEXIT_CRITICAL(&scanMux_);
 }

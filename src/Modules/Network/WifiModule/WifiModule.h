@@ -30,7 +30,7 @@ struct WifiConfig {
 #elif defined(FLOW_PROFILE_FLOWIO)
     char mdns[33] = "flowio-core";
 #elif defined(FLOW_PROFILE_FLOWIOS3)
-    char mdns[33] = "flowio-core";
+    char mdns[33] = "flowio";
 #elif defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
     char mdns[33] = "flow-connect-display";
 #elif defined(FLOW_PROFILE_MICRONOVA)
@@ -61,6 +61,9 @@ public:
     uint16_t taskStackSize() const override {
 #if defined(FLOW_PROFILE_SUPERVISOR) || defined(FLOW_PROFILE_MICRONOVA)
         return 4096;
+#elif defined(FLOW_PROFILE_FLOWIOS3)
+        // S3 profile runs AP+STA rescue flows and scan retries; keep extra stack margin.
+        return 4608;
 #else
         return 2816;
 #endif
@@ -96,6 +99,8 @@ private:
     static constexpr bool kScanIncludeHidden = true;
 #endif
     static constexpr uint32_t kScanThrottleMs = Limits::Wifi::Timing::ScanThrottleMs;
+    static constexpr uint32_t kScanPrimaryDwellMs = 360U;
+    static constexpr uint32_t kScanRetryDwellMs = 500U;
     static constexpr uint32_t kInitialConnectDelayMs = Limits::Wifi::Timing::InitialConnectDelayMs;
     static constexpr uint32_t kStartupTransientLogWindowMs = Limits::Wifi::Timing::StartupTransientLogWindowMs;
 
@@ -136,6 +141,7 @@ private:
     uint8_t scanFailRetryCount_ = 0;
     uint32_t scanLastStartMs_ = 0;
     uint32_t scanLastDoneMs_ = 0;
+    uint32_t scanTimeoutMs_ = 0;
     uint16_t scanGeneration_ = 0;
     WifiScanEntry scanEntries_[kScanMaxResults] = {};
     portMUX_TYPE scanMux_ = portMUX_INITIALIZER_UNLOCKED;

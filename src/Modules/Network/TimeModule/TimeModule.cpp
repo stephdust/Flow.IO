@@ -8,6 +8,12 @@
 #include "Core/Runtime.h"
 #include "Core/CommandRegistry.h"
 #include "Core/SystemLimits.h"
+#include "Core/I2cGlobalMutex.h"
+#if FLOW_RTC_PCF85063
+#include "Board/BoardCatalog.h"
+#include "Board/BoardSpec.h"
+#include <Wire.h>
+#endif
 #include <ArduinoJson.h>
 #include <time.h>
 #include <cstdlib>
@@ -29,6 +35,17 @@ static constexpr MqttConfigRouteProducer::Route kTimeCfgRoutes[] = {
 };
 static constexpr uint64_t kMinExternalRtcEpochSec = 1609459200ULL; // 2021-01-01
 static constexpr uint32_t kExternalRtcNtpRetryMs = 60000UL;
+#if FLOW_RTC_PCF85063
+static constexpr uint8_t kPcf85063Addr = 0x51;
+static constexpr uint8_t kPcf85063RegCtrl1 = 0x00;
+static constexpr uint8_t kPcf85063RegSeconds = 0x04;
+static constexpr uint8_t kPcf85063Ctrl1CapSel = 0x01;
+static constexpr int kPcf85063YearOffset = 1970;
+static constexpr uint32_t kInternalRtcFallbackDelayMs = 5000U;
+static constexpr uint32_t kInternalRtcFallbackRetryMs = 10000U;
+static constexpr uint32_t kInternalRtcWriteRetryMs = 60000U;
+static constexpr uint32_t kInternalRtcDailyResyncMs = 24UL * 60UL * 60UL * 1000UL;
+#endif
 }
 
 // Fast-clock test mode:
@@ -48,6 +65,18 @@ static const char* schedulerEdgeStr(uint8_t edge)
     if (edge == (uint8_t)SchedulerEdge::Stop) return "stop";
     return "trigger";
 }
+
+#if FLOW_RTC_PCF85063
+static uint8_t decToBcd_(uint8_t val)
+{
+    return (uint8_t)(((val / 10U) << 4) | (val % 10U));
+}
+
+static uint8_t bcdToDec_(uint8_t val)
+{
+    return (uint8_t)(((val >> 4) * 10U) + (val & 0x0FU));
+}
+#endif
 
 static bool parseCmdArgsObject_(const CommandRequest& req, JsonObjectConst& outObj)
 {
@@ -246,7 +275,7 @@ bool TimeModule::formatLocalTime_(char* out, size_t len) const {
     return true;
 }
 
-bool TimeModule::setExternalEpoch_(uint64_t epochSec)
+bool TimeModule::setRtcEpoch_(uint64_t epochSec, bool fromInternalRtc, const char* sourceTag)
 {
     if (epochSec < kMinExternalRtcEpochSec) return false;
 
@@ -263,10 +292,252 @@ bool TimeModule::setExternalEpoch_(uint64_t epochSec)
     _retryCount = 0;
     _retryDelayMs = 2000;
     syncedFromExternalRtc_ = true;
+    syncedFromInternalRtc_ = fromInternalRtc;
     setState(TimeSyncState::Synced);
-    LOGI("Time set from external RTC epoch=%llu", (unsigned long long)epochSec);
+#if FLOW_RTC_PCF85063
+    if (fromInternalRtc) {
+        lastInternalRtcResyncMs_ = millis();
+    }
+#endif
+    LOGI("Time set from %s RTC epoch=%llu",
+         sourceTag ? sourceTag : (fromInternalRtc ? "internal" : "external"),
+         (unsigned long long)epochSec);
     return true;
 }
+
+bool TimeModule::setExternalEpoch_(uint64_t epochSec)
+{
+#if FLOW_RTC_PCF85063
+    // On Waveshare target, the on-board PCF85063 is authoritative when available.
+    if (syncedFromInternalRtc_) {
+        LOGW("Ignoring external RTC update while internal RTC is active (epoch=%llu)",
+             (unsigned long long)epochSec);
+        return false;
+    }
+#endif
+    return setRtcEpoch_(epochSec, false, "external");
+}
+
+#if FLOW_RTC_PCF85063
+uint32_t TimeModule::dayStampFromEpoch_(uint64_t epochSec)
+{
+    const time_t t = (time_t)epochSec;
+    struct tm local{};
+    if (!localtime_r(&t, &local)) return 0xFFFFFFFFUL;
+    return ((uint32_t)(local.tm_year + 1900) * 1000UL) + (uint32_t)local.tm_yday;
+}
+
+bool TimeModule::internalRtcReadRegs_(uint8_t reg, uint8_t* data, uint8_t len)
+{
+    if (!data || len == 0) return false;
+    if (!flowI2cGlobalLock(50U)) return false;
+
+    Wire.beginTransmission(kPcf85063Addr);
+    Wire.write(reg);
+    const uint8_t txStatus = Wire.endTransmission(false);
+    if (txStatus != 0) {
+        flowI2cGlobalUnlock();
+        return false;
+    }
+
+    const uint8_t read = Wire.requestFrom((int)kPcf85063Addr, (int)len);
+    if (read != len) {
+        while (Wire.available()) (void)Wire.read();
+        flowI2cGlobalUnlock();
+        return false;
+    }
+
+    for (uint8_t i = 0; i < len; ++i) {
+        data[i] = (uint8_t)Wire.read();
+    }
+    flowI2cGlobalUnlock();
+    return true;
+}
+
+bool TimeModule::internalRtcWriteRegs_(uint8_t reg, const uint8_t* data, uint8_t len)
+{
+    if (!data || len == 0) return false;
+    if (!flowI2cGlobalLock(50U)) return false;
+
+    Wire.beginTransmission(kPcf85063Addr);
+    Wire.write(reg);
+    for (uint8_t i = 0; i < len; ++i) {
+        Wire.write(data[i]);
+    }
+    const uint8_t txStatus = Wire.endTransmission();
+    flowI2cGlobalUnlock();
+    return txStatus == 0;
+}
+
+bool TimeModule::ensureInternalRtcInit_()
+{
+    if (internalRtcInitDone_) return internalRtcReady_;
+    internalRtcInitDone_ = true;
+
+    const BoardSpec& board = BoardCatalog::activeBoard();
+    const I2cBusSpec* ioBus = boardFindI2cBus(board, "io");
+    if (!ioBus) {
+        LOGW("PCF85063 init skipped: io I2C bus missing");
+        return false;
+    }
+    internalRtcSda_ = ioBus->sdaPin;
+    internalRtcScl_ = ioBus->sclPin;
+    internalRtcFreqHz_ = ioBus->frequencyHz ? ioBus->frequencyHz : 400000U;
+    if (!Wire.begin(internalRtcSda_, internalRtcScl_, internalRtcFreqHz_)) {
+        LOGW("PCF85063 init failed: Wire.begin(sda=%d scl=%d hz=%lu)",
+             internalRtcSda_,
+             internalRtcScl_,
+             (unsigned long)internalRtcFreqHz_);
+        return false;
+    }
+
+    uint8_t ctrl1 = kPcf85063Ctrl1CapSel;
+    if (!internalRtcWriteRegs_(kPcf85063RegCtrl1, &ctrl1, 1)) {
+        LOGW("PCF85063 init failed: ctrl1 write");
+        return false;
+    }
+    if (!internalRtcReadRegs_(kPcf85063RegCtrl1, &ctrl1, 1)) {
+        LOGW("PCF85063 init failed: ctrl1 read");
+        return false;
+    }
+    if ((ctrl1 & 0x20U) != 0U) {
+        LOGW("PCF85063 clock stop bit still set (ctrl1=0x%02X)", (unsigned)ctrl1);
+        return false;
+    }
+
+    internalRtcReady_ = true;
+    LOGI("PCF85063 ready on I2C io bus (sda=%d scl=%d hz=%lu)",
+         internalRtcSda_,
+         internalRtcScl_,
+         (unsigned long)internalRtcFreqHz_);
+    return true;
+}
+
+bool TimeModule::internalRtcReadEpoch_(uint64_t& epochSec)
+{
+    epochSec = 0ULL;
+    if (!ensureInternalRtcInit_()) return false;
+
+    uint8_t buf[7] = {0};
+    if (!internalRtcReadRegs_(kPcf85063RegSeconds, buf, sizeof(buf))) return false;
+
+    const uint8_t second = bcdToDec_(buf[0] & 0x7FU);
+    const uint8_t minute = bcdToDec_(buf[1] & 0x7FU);
+    const uint8_t hour = bcdToDec_(buf[2] & 0x3FU);
+    const uint8_t day = bcdToDec_(buf[3] & 0x3FU);
+    const uint8_t month = bcdToDec_(buf[5] & 0x1FU);
+    const uint16_t year = (uint16_t)bcdToDec_(buf[6]) + (uint16_t)kPcf85063YearOffset;
+
+    if (year < 2021U || year > 2069U || month < 1U || month > 12U || day < 1U || day > 31U ||
+        hour > 23U || minute > 59U || second > 59U) {
+        return false;
+    }
+
+    struct tm local{};
+    local.tm_year = (int)year - 1900;
+    local.tm_mon = (int)month - 1;
+    local.tm_mday = (int)day;
+    local.tm_hour = (int)hour;
+    local.tm_min = (int)minute;
+    local.tm_sec = (int)second;
+    local.tm_isdst = -1;
+
+    const time_t converted = mktime(&local);
+    if (converted < (time_t)kMinExternalRtcEpochSec) return false;
+    epochSec = (uint64_t)converted;
+    return true;
+}
+
+bool TimeModule::internalRtcWriteEpoch_(uint64_t epochSec)
+{
+    if (!ensureInternalRtcInit_()) return false;
+    if (epochSec < (uint64_t)kMinExternalRtcEpochSec) return false;
+
+    const time_t t = (time_t)epochSec;
+    struct tm local{};
+    if (!localtime_r(&t, &local)) return false;
+
+    const uint16_t year = (uint16_t)(local.tm_year + 1900);
+    if (year < (uint16_t)kPcf85063YearOffset || year > (uint16_t)(kPcf85063YearOffset + 99)) return false;
+
+    uint8_t payload[7] = {
+        decToBcd_((uint8_t)local.tm_sec),
+        decToBcd_((uint8_t)local.tm_min),
+        decToBcd_((uint8_t)local.tm_hour),
+        decToBcd_((uint8_t)local.tm_mday),
+        decToBcd_((uint8_t)local.tm_wday),
+        decToBcd_((uint8_t)(local.tm_mon + 1)),
+        decToBcd_((uint8_t)(year - (uint16_t)kPcf85063YearOffset))
+    };
+    return internalRtcWriteRegs_(kPcf85063RegSeconds, payload, sizeof(payload));
+}
+
+void TimeModule::serviceInternalRtcFallback_(uint32_t nowMs)
+{
+    if (!ensureInternalRtcInit_()) return;
+    if (syncedFromInternalRtc_) return;
+    if (state == TimeSyncState::Synced && !syncedFromExternalRtc_) return;
+
+    bool immediateFallback = false;
+    if (state == TimeSyncState::Disabled) immediateFallback = true;
+    if (state == TimeSyncState::Synced && syncedFromExternalRtc_ && !syncedFromInternalRtc_) immediateFallback = true;
+
+    if (!immediateFallback && nowMs < kInternalRtcFallbackDelayMs) return;
+    if (lastInternalRtcReadAttemptMs_ != 0U &&
+        (uint32_t)(nowMs - lastInternalRtcReadAttemptMs_) < kInternalRtcFallbackRetryMs) {
+        return;
+    }
+    lastInternalRtcReadAttemptMs_ = nowMs;
+
+    uint64_t rtcEpoch = 0ULL;
+    if (!internalRtcReadEpoch_(rtcEpoch)) return;
+    if (setRtcEpoch_(rtcEpoch, true, "internal")) {
+        char localBuf[32] = {0};
+        (void)formatLocalTime_(localBuf, sizeof(localBuf));
+        LOGI("Internal RTC fallback applied at %s", localBuf);
+    }
+}
+
+void TimeModule::serviceInternalRtcWriteBack_(uint32_t nowMs)
+{
+    if (!ensureInternalRtcInit_()) return;
+    if (state != TimeSyncState::Synced || syncedFromInternalRtc_) return;
+
+    const uint64_t epoch = (uint64_t)nowEpoch_();
+    const uint32_t dayStamp = dayStampFromEpoch_(epoch);
+    if (dayStamp == 0xFFFFFFFFUL) return;
+
+    const bool dayChanged = (dayStamp != lastInternalRtcWriteDayStamp_);
+    if (!internalRtcWritePending_ && !dayChanged) return;
+    if (lastInternalRtcWriteAttemptMs_ != 0U &&
+        (uint32_t)(nowMs - lastInternalRtcWriteAttemptMs_) < kInternalRtcWriteRetryMs) {
+        return;
+    }
+    lastInternalRtcWriteAttemptMs_ = nowMs;
+
+    if (internalRtcWriteEpoch_(epoch)) {
+        lastInternalRtcWriteDayStamp_ = dayStamp;
+        internalRtcWritePending_ = false;
+        LOGI("Internal RTC updated from ESP epoch=%llu", (unsigned long long)epoch);
+    }
+}
+
+void TimeModule::serviceInternalRtcDailyResync_(uint32_t nowMs)
+{
+    if (!ensureInternalRtcInit_()) return;
+    if (!syncedFromInternalRtc_ || state != TimeSyncState::Synced) return;
+    if (lastInternalRtcResyncMs_ != 0U &&
+        (uint32_t)(nowMs - lastInternalRtcResyncMs_) < kInternalRtcDailyResyncMs) {
+        return;
+    }
+    lastInternalRtcResyncMs_ = nowMs;
+
+    uint64_t rtcEpoch = 0ULL;
+    if (!internalRtcReadEpoch_(rtcEpoch)) return;
+    (void)setRtcEpoch_(rtcEpoch, true, "internal");
+    LOGI("Internal RTC daily re-sync applied epoch=%llu", (unsigned long long)rtcEpoch);
+}
+#endif
 
 bool TimeModule::setSlotSvc_(const TimeSchedulerSlot* slotDef)
 {
@@ -402,6 +673,16 @@ void TimeModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     _retryCount = 0;
     _retryDelayMs = 2000;
     syncedFromExternalRtc_ = false;
+    syncedFromInternalRtc_ = false;
+#if FLOW_RTC_PCF85063
+    internalRtcInitDone_ = false;
+    internalRtcReady_ = false;
+    lastInternalRtcReadAttemptMs_ = 0;
+    lastInternalRtcWriteAttemptMs_ = 0;
+    lastInternalRtcResyncMs_ = 0;
+    lastInternalRtcWriteDayStamp_ = 0xFFFFFFFFUL;
+    internalRtcWritePending_ = true;
+#endif
 #ifdef TIME_TEST_FAST_CLOCK
     simBootMs_ = millis();
     setenv("TZ", cfgData.tz, 1);
@@ -437,6 +718,8 @@ void TimeModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
 }
 
 void TimeModule::loop() {
+    const uint32_t nowMs = millis();
+
     if (schedNeedsReload_) {
         (void)loadScheduleFromBlob_();
     }
@@ -467,7 +750,7 @@ void TimeModule::loop() {
         // If network becomes ready, onEvent() updates _netReady and _netReadyTs.
         if (_netReady) {
             constexpr uint32_t WARMUP_MS = 2000;
-            if (millis() - _netReadyTs >= WARMUP_MS) {
+            if (nowMs - _netReadyTs >= WARMUP_MS) {
                 LOGI("Network warmup done -> start syncing");
                 setState(TimeSyncState::Syncing);
             }
@@ -488,12 +771,16 @@ void TimeModule::loop() {
             _retryCount = 0;
             _retryDelayMs = 2000;
             syncedFromExternalRtc_ = false;
+            syncedFromInternalRtc_ = false;
+#if FLOW_RTC_PCF85063
+            internalRtcWritePending_ = true;
+#endif
 
             setState(TimeSyncState::Synced);
         } else {
             LOGW("Sync failed -> retry in %lu ms", (unsigned long)_retryDelayMs);
             if (syncedFromExternalRtc_) {
-                LOGW("Keeping external RTC time after NTP failure");
+                LOGW("Keeping RTC time after NTP failure");
                 setState(TimeSyncState::Synced);
             } else {
                 setState(TimeSyncState::ErrorWait);
@@ -508,7 +795,7 @@ void TimeModule::loop() {
             break;
         }
 
-        if (millis() - stateTs >= _retryDelayMs) {
+        if (nowMs - stateTs >= _retryDelayMs) {
             _retryCount++;
             uint32_t next = _retryDelayMs;
 
@@ -526,9 +813,9 @@ void TimeModule::loop() {
     case TimeSyncState::Synced:
         if (_netReady &&
             syncedFromExternalRtc_ &&
-            (uint32_t)(millis() - stateTs) > kExternalRtcNtpRetryMs) {
+            (uint32_t)(nowMs - stateTs) > kExternalRtcNtpRetryMs) {
             setState(TimeSyncState::Syncing);
-        } else if (_netReady && (millis() - stateTs > 6UL * 3600UL * 1000UL)) {
+        } else if (_netReady && (nowMs - stateTs > 6UL * 3600UL * 1000UL)) {
             setState(TimeSyncState::Syncing);
         }
         break;
@@ -537,6 +824,12 @@ void TimeModule::loop() {
         if (cfgData.enabled) setState(TimeSyncState::WaitingNetwork);
         break;
     }
+
+#if FLOW_RTC_PCF85063
+    serviceInternalRtcFallback_(nowMs);
+    serviceInternalRtcWriteBack_(nowMs);
+    serviceInternalRtcDailyResync_(nowMs);
+#endif
 
     tickScheduler_();
     vTaskDelay(pdMS_TO_TICKS(250));

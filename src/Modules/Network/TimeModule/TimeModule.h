@@ -12,6 +12,10 @@
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
 
+#ifndef FLOW_RTC_PCF85063
+#define FLOW_RTC_PCF85063 0
+#endif
+
 /** @brief Time sync configuration values. */
 struct TimeConfig {
     // Current backend is NTP. The module contract is intentionally generic
@@ -132,6 +136,7 @@ private:
     uint64_t epoch_() const;
     bool formatLocalTime_(char* out, size_t len) const;
     bool setExternalEpoch_(uint64_t epochSec);
+    bool setRtcEpoch_(uint64_t epochSec, bool fromInternalRtc, const char* sourceTag);
 
     bool setSlotSvc_(const TimeSchedulerSlot* slotDef);
     bool getSlotSvc_(uint8_t slot, TimeSchedulerSlot* outDef) const;
@@ -162,6 +167,18 @@ private:
     static bool isRecurringActiveNow_(const TimeSchedulerSlot& def, uint8_t weekBit, uint8_t prevWeekBit,
                                       uint32_t minuteOfDay);
 
+#if FLOW_RTC_PCF85063
+    bool ensureInternalRtcInit_();
+    bool internalRtcReadEpoch_(uint64_t& epochSec);
+    bool internalRtcWriteEpoch_(uint64_t epochSec);
+    bool internalRtcReadRegs_(uint8_t reg, uint8_t* data, uint8_t len);
+    bool internalRtcWriteRegs_(uint8_t reg, const uint8_t* data, uint8_t len);
+    void serviceInternalRtcFallback_(uint32_t nowMs);
+    void serviceInternalRtcWriteBack_(uint32_t nowMs);
+    void serviceInternalRtcDailyResync_(uint32_t nowMs);
+    static uint32_t dayStampFromEpoch_(uint64_t epochSec);
+#endif
+
     // ---- network warmup ----
     bool _netReady = false;
     uint32_t _netReadyTs = 0;
@@ -170,6 +187,20 @@ private:
     uint8_t _retryCount = 0;
     uint32_t _retryDelayMs = 2000; // 2s start
     bool syncedFromExternalRtc_ = false;
+    bool syncedFromInternalRtc_ = false;
+
+#if FLOW_RTC_PCF85063
+    bool internalRtcInitDone_ = false;
+    bool internalRtcReady_ = false;
+    int internalRtcSda_ = -1;
+    int internalRtcScl_ = -1;
+    uint32_t internalRtcFreqHz_ = 400000U;
+    uint32_t lastInternalRtcReadAttemptMs_ = 0;
+    uint32_t lastInternalRtcWriteAttemptMs_ = 0;
+    uint32_t lastInternalRtcResyncMs_ = 0;
+    uint32_t lastInternalRtcWriteDayStamp_ = 0xFFFFFFFFUL;
+    bool internalRtcWritePending_ = false;
+#endif
 
     // ---- time scheduler ----
     mutable portMUX_TYPE schedMux_ = portMUX_INITIALIZER_UNLOCKED;

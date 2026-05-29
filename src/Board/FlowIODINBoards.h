@@ -135,7 +135,7 @@ inline constexpr BoardSpec kFlowIODINv1S3{
 
 inline constexpr BoardSpec kFlowIOS3{
     "FlowIOS3",
-    "flowio-s3",
+    "flowio",
     kFlowIODINv1Uarts,
     (uint8_t)(sizeof(kFlowIODINv1Uarts) / sizeof(kFlowIODINv1Uarts[0])),
     kFlowIOS3I2c,

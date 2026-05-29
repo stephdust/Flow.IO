@@ -12,7 +12,9 @@
 #include <HTTPClient.h>
 #include <Update.h>
 #include <string.h>
+#include <esp_ota_ops.h>
 
+#include "App/BuildFlags.h"
 #include "Board/BoardSpec.h"
 #include "Core/ErrorCodes.h"
 #include "Core/FirmwareVersion.h"
@@ -813,6 +815,24 @@ bool FirmwareUpdateModule::runSupervisorUpdate_(const char* url, char* errOut, s
     activeSentBytes_ = 0;
     portEXIT_CRITICAL(&lock_);
 
+    const esp_partition_t* runningPartition = esp_ota_get_running_partition();
+    const esp_partition_t* updatePartition = esp_ota_get_next_update_partition(nullptr);
+    if (!updatePartition) {
+        writeSimpleError_(errOut, errOutLen, "ota partition unavailable");
+        http.end();
+        return false;
+    }
+    if (runningPartition && updatePartition->address == runningPartition->address) {
+        writeSimpleError_(errOut, errOutLen, "ota target equals running partition");
+        http.end();
+        return false;
+    }
+    if (contentLength > 0 && (size_t)contentLength > updatePartition->size) {
+        writeSimpleError_(errOut, errOutLen, "ota image too large for partition");
+        http.end();
+        return false;
+    }
+
     attachWebInterfaceSvcIfNeeded_();
     if (webInterfaceSvc_ && webInterfaceSvc_->setPaused) {
         webInterfaceSvc_->setPaused(webInterfaceSvc_->ctx, true);
@@ -1183,14 +1203,20 @@ bool FirmwareUpdateModule::cmdFlowIo_(void* userCtx, const CommandRequest& req, 
     char url[kUrlLen] = {0};
     const char* explicitUrl = self->parseUrlArg_(req, url, sizeof(url)) ? url : nullptr;
     char err[120] = {0};
-    if (!self->startUpdate_(FirmwareUpdateTarget::FlowIO, explicitUrl, err, sizeof(err))) {
+    FirmwareUpdateTarget target = FirmwareUpdateTarget::FlowIO;
+#if FLOW_BUILD_IS_FLOWIOS3
+    // FlowIOS3 is a local single-device build: route this command to local OTA update.
+    target = FirmwareUpdateTarget::Supervisor;
+#endif
+    if (!self->startUpdate_(target, explicitUrl, err, sizeof(err))) {
         if (!writeErrorJson(reply, replyLen, ErrorCode::Failed, "fw.update.flowio")) {
             snprintf(reply, replyLen, "{\"ok\":false}");
         }
         return false;
     }
 
-    snprintf(reply, replyLen, "{\"ok\":true,\"queued\":true,\"target\":\"flowio\"}");
+    const char* targetLabel = (target == FirmwareUpdateTarget::Supervisor) ? "esp32s3" : "flowio";
+    snprintf(reply, replyLen, "{\"ok\":true,\"queued\":true,\"target\":\"%s\"}", targetLabel);
     return true;
 }
 

@@ -244,6 +244,8 @@ namespace Wifi {
 /** @brief Maximum number of scanned networks retained for provisioning UIs. */
 #if defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
 constexpr uint8_t MaxScanResults = 8;
+#elif defined(FLOW_PROFILE_FLOWIOS3)
+constexpr uint8_t MaxScanResults = 12;
 #else
 constexpr uint8_t MaxScanResults = 24;
 #endif
@@ -252,6 +254,8 @@ namespace Buffers {
 /** @brief JSON document/output buffer used for WiFi scan status snapshots. */
 #if defined(FLOW_PROFILE_FLOW_CONNECT_DISPLAY)
 constexpr size_t ScanStatusJson = 1536;
+#elif defined(FLOW_PROFILE_FLOWIOS3)
+constexpr size_t ScanStatusJson = 4096;
 #else
 constexpr size_t ScanStatusJson = 3072;
 #endif

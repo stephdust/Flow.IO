@@ -31,6 +31,9 @@ namespace {
 #ifndef FLOW_HMI_CONFIG_MENU_ENABLED
 #define FLOW_HMI_CONFIG_MENU_ENABLED 1
 #endif
+#ifndef FLOW_TIME_PREFER_INTERNAL_RTC
+#define FLOW_TIME_PREFER_INTERNAL_RTC 0
+#endif
 static constexpr bool kConfigMenuEnabled = (FLOW_HMI_CONFIG_MENU_ENABLED != 0);
 static constexpr const char* kHmiModulePrefix = "hmi/";
 static constexpr const char* kPoolLogicSensorsModule = "poollogic/sensors";
@@ -1139,6 +1142,13 @@ void HMIModule::serviceRtcBridge_(uint32_t nowMs)
     const bool fromExternalRtc = timeSynced &&
                                  timeSvc_->isExternalRtc &&
                                  timeSvc_->isExternalRtc(timeSvc_->ctx);
+
+#if FLOW_TIME_PREFER_INTERNAL_RTC
+    if (timeSynced && fromExternalRtc) {
+        rtcFallbackCompleted_ = true;
+        return;
+    }
+#endif
 
     if (timeSynced && !fromExternalRtc) {
         rtcFallbackCompleted_ = true;

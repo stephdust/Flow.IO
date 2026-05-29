@@ -2616,7 +2616,7 @@
     function endpointForUpgradeTarget(target) {
       const key = String(target || '').trim().toLowerCase();
       if (key === 'flowio') return '/fwupdate/flowio';
-      if (key === 'esp32s3') return '/fwupdate/flowio';
+      if (key === 'esp32s3') return isFlowIOS3Profile() ? '/fwupdate/supervisor' : '/fwupdate/flowio';
       if (key === 'supervisor') return '/fwupdate/supervisor';
       if (key === 'nextion') return '/fwupdate/nextion';
       if (key === 'spiffs' || key === 'cfgdocs') return '/fwupdate/spiffs';
@@ -2650,6 +2650,10 @@
     }
 
     function resolveArtifactEndpoint(category, artifact, target) {
+      const categoryKey = String(category || '').trim().toLowerCase();
+      if (isFlowIOS3Profile() && categoryKey === 'esp32s3') {
+        return '/fwupdate/supervisor';
+      }
       const explicit = String(artifact && (artifact.route || artifact.endpoint || artifact.update_route) ? (artifact.route || artifact.endpoint || artifact.update_route) : '').trim();
       if (explicit) {
         if (/^\/fwupdate\//.test(explicit)) return explicit;
@@ -8573,13 +8577,17 @@
     }
 
     async function callSystemAction(target, action) {
+      const flowLocalProfile = isFlowIOS3Profile();
       let endpoint = '/api/system/reboot';
-      if (target === 'flow' && action === 'reboot') endpoint = '/api/flow/system/reboot';
+      if (target === 'flow' && action === 'reboot') {
+        endpoint = flowLocalProfile ? '/api/system/reboot' : '/api/flow/system/reboot';
+      }
       else if (target === 'flow' && action === 'hardware_reboot') endpoint = '/api/flow/system/hardware-reboot';
       else if (target === 'nextion' && action === 'reboot') endpoint = '/api/system/nextion/reboot';
-      else if (target === 'flow' && action === 'factory_reset') endpoint = '/api/flow/system/factory-reset';
+      else if (target === 'flow' && action === 'factory_reset') endpoint = flowLocalProfile ? '/api/system/factory-reset' : '/api/flow/system/factory-reset';
       else if (target === 'supervisor' && action === 'factory_reset') endpoint = '/api/system/factory-reset';
-      await fetchOkJson(endpoint, { method: 'POST' }, 'échec action', target === 'flow' ? fetchFlowRemoteQueued : fetch);
+      const flowUsesRemote = target === 'flow' && !flowLocalProfile;
+      await fetchOkJson(endpoint, { method: 'POST' }, 'échec action', flowUsesRemote ? fetchFlowRemoteQueued : fetch);
       if (target === 'flow' && action === 'factory_reset') {
         systemStatusText.textContent = 'Reset Flow.io en cours';
       } else if (target === 'flow' && action === 'hardware_reboot') {

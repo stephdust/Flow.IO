@@ -2302,17 +2302,27 @@ static const char kWebInterfaceFallbackPage[] PROGMEM = R"HTML(
     try {
       await api("/api/wifi/scan", { method: "POST", body: formBody({ force: "1" }) });
       put(wifiMsg, "Scan lance, attente des resultats...", "note");
-      await new Promise((resolve) => setTimeout(resolve, 2200));
-      const scan = await api("/api/wifi/scan");
-      const list = $("wifiList");
-      list.innerHTML = '<option value="">Saisie manuelle</option>';
-      (scan.networks || []).forEach((net) => {
-        const opt = document.createElement("option");
-        opt.value = net.ssid || "";
-        opt.textContent = `${net.ssid || "<hidden>"} (${net.rssi} dBm)`;
-        list.appendChild(opt);
-      });
-      put(wifiMsg, scan, "ok");
+      let scan = null;
+      let lastErr = null;
+      for (let attempt = 0; attempt < 8; ++attempt) {
+        try {
+          scan = await api("/api/wifi/scan");
+          const list = $("wifiList");
+          list.innerHTML = '<option value="">Saisie manuelle</option>';
+          (scan.networks || []).forEach((net) => {
+            const opt = document.createElement("option");
+            opt.value = net.ssid || "";
+            opt.textContent = `${net.ssid || "<hidden>"} (${net.rssi} dBm)`;
+            list.appendChild(opt);
+          });
+          put(wifiMsg, scan, "ok");
+          if (!scan.running && !scan.requested) break;
+        } catch (e) {
+          lastErr = e;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 450));
+      }
+      if (!scan && lastErr) throw lastErr;
     } catch (e) {
       put(wifiMsg, e.message, "bad");
     } finally {
