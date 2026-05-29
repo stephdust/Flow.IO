@@ -243,9 +243,10 @@ void SystemMonitorModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services
 void SystemMonitorModule::logBootInfo() {
     LOGI("Reset reason=%s", SystemStats::resetReasonStr());
     LOGI("CPU=%luMHz", (unsigned long)ESP.getCpuFreqMHz());
+    const bool psramOk = psramFound();
     const uint32_t psramSizeBytes = ESP.getPsramSize();
-    LOGI("PSRAM present=%s size=%luKB free=%luKB",
-         (psramSizeBytes > 0U) ? "yes" : "no",
+    LOGI("PSRAM found=%s size=%luKB free=%luKB",
+         psramOk ? "yes" : "no",
          (unsigned long)(psramSizeBytes / 1024U),
          (unsigned long)(ESP.getFreePsram() / 1024U));
 }

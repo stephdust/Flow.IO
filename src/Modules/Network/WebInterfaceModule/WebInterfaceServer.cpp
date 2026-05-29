@@ -148,6 +148,14 @@ constexpr uint32_t kHeapGuardAssetFreeBytesMajor = 15360U;
 constexpr uint32_t kHeapGuardAssetLargestBytesLight = 4096U;
 constexpr uint32_t kHeapGuardAssetLargestBytesMinor = 6144U;
 constexpr uint32_t kHeapGuardAssetLargestBytesMajor = 8192U;
+#if defined(FLOW_PROFILE_FLOWIOS3)
+constexpr uint32_t kHeapGuardAssetInternalFreeBytesLight = 6144U;
+constexpr uint32_t kHeapGuardAssetInternalFreeBytesMinor = 8192U;
+constexpr uint32_t kHeapGuardAssetInternalFreeBytesMajor = 10240U;
+constexpr uint32_t kHeapGuardAssetInternalLargestBytesLight = 3072U;
+constexpr uint32_t kHeapGuardAssetInternalLargestBytesMinor = 4096U;
+constexpr uint32_t kHeapGuardAssetInternalLargestBytesMajor = 6144U;
+#endif
 constexpr uint8_t kAssetBuildConcurrentLimit = 2U;
 void (*gHttpActivityHook)(void*) = nullptr;
 void* gHttpActivityHookCtx = nullptr;
@@ -309,6 +317,22 @@ bool shouldRejectAssetByFreeHeap_(const char* assetPath,
     const uint32_t largestBytes = (uint32_t)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
     if (freeBytesOut) *freeBytesOut = freeBytes;
     if (largestBytesOut) *largestBytesOut = largestBytes;
+#if defined(FLOW_PROFILE_FLOWIOS3)
+    const uint32_t freeInternal = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    const uint32_t largestInternal =
+        (uint32_t)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    const uint32_t minInternalFreeBytes = isLightWebAssetPath_(assetPath)
+        ? kHeapGuardAssetInternalFreeBytesLight
+        : isMinorWebAssetPath_(assetPath)
+        ? kHeapGuardAssetInternalFreeBytesMinor
+        : kHeapGuardAssetInternalFreeBytesMajor;
+    const uint32_t minInternalLargestBytes = isLightWebAssetPath_(assetPath)
+        ? kHeapGuardAssetInternalLargestBytesLight
+        : isMinorWebAssetPath_(assetPath)
+        ? kHeapGuardAssetInternalLargestBytesMinor
+        : kHeapGuardAssetInternalLargestBytesMajor;
+    return freeInternal < minInternalFreeBytes || largestInternal < minInternalLargestBytes;
+#else
     const uint32_t minFreeBytes = isLightWebAssetPath_(assetPath)
         ? kHeapGuardAssetFreeBytesLight
         : isMinorWebAssetPath_(assetPath)
@@ -320,6 +344,7 @@ bool shouldRejectAssetByFreeHeap_(const char* assetPath,
         ? kHeapGuardAssetLargestBytesMinor
         : kHeapGuardAssetLargestBytesMajor;
     return freeBytes < minFreeBytes || largestBytes < minLargestBytes;
+#endif
 }
 
 void buildProvisioningApSsid_(char* out, size_t outLen)
@@ -2602,15 +2627,63 @@ WebInterfaceModule::WebInterfaceModule(const BoardSpec& board)
     provisioningRequireMqttForConfigured_ = board.provisioning.requireMqttForConfigured;
 }
 
+WebInterfaceModule::~WebInterfaceModule()
+{
+    freeRuntimeValuesBodyScratch_();
+}
+
+void WebInterfaceModule::initRuntimeValuesBodyScratch_()
+{
+#if defined(FLOW_PROFILE_FLOWIOS3)
+    if (runtimeValuesBodyScratchInPsram_) return;
+    if (!psramFound()) {
+        runtimeValuesBodyScratch_ = runtimeValuesBodyScratchLocal_;
+        runtimeValuesBodyScratchInPsram_ = false;
+        LOGW("Web runtime body scratch keeps internal RAM (PSRAM not found) size=%u",
+             (unsigned)kRuntimeValuesBodyMax);
+        return;
+    }
+
+    void* ptr = heap_caps_malloc(kRuntimeValuesBodyMax + 1U, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!ptr) {
+        runtimeValuesBodyScratch_ = runtimeValuesBodyScratchLocal_;
+        runtimeValuesBodyScratchInPsram_ = false;
+        LOGW("Web runtime body scratch PSRAM alloc failed, fallback to internal size=%u",
+             (unsigned)kRuntimeValuesBodyMax);
+        return;
+    }
+
+    runtimeValuesBodyScratch_ = static_cast<char*>(ptr);
+    runtimeValuesBodyScratch_[0] = '\0';
+    runtimeValuesBodyScratchInPsram_ = true;
+    LOGI("Web runtime body scratch in PSRAM size=%u free_psram=%luKB",
+         (unsigned)kRuntimeValuesBodyMax,
+         (unsigned long)(ESP.getFreePsram() / 1024U));
+#endif
+}
+
+void WebInterfaceModule::freeRuntimeValuesBodyScratch_()
+{
+#if defined(FLOW_PROFILE_FLOWIOS3)
+    if (runtimeValuesBodyScratchInPsram_ && runtimeValuesBodyScratch_) {
+        heap_caps_free(runtimeValuesBodyScratch_);
+    }
+    runtimeValuesBodyScratch_ = runtimeValuesBodyScratchLocal_;
+    runtimeValuesBodyScratchInPsram_ = false;
+#endif
+}
+
 void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
     cfgStore_ = &cfg;
+    initRuntimeValuesBodyScratch_();
 
     services_ = &services;
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);
     logSinkReg_ = services.get<LogSinkRegistryService>(ServiceId::LogSinks);
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
     cmdSvc_ = services.get<CommandService>(ServiceId::Command);
+    hmiSvc_ = services.get<HmiService>(ServiceId::Hmi);
     flowCfgSvc_ = services.get<FlowCfgRemoteService>(ServiceId::FlowCfg);
     netAccessSvc_ = services.get<NetworkAccessService>(ServiceId::NetworkAccess);
     const DataStoreService* dsSvc = services.get<DataStoreService>(ServiceId::DataStore);
@@ -4180,7 +4253,7 @@ void WebInterfaceModule::startServer_()
             char* body = static_cast<char*>(request->_tempObject);
             request->_tempObject = nullptr;
 
-            StaticJsonDocument<2048> reqDoc;
+            StaticJsonDocument<kRuntimeValuesJsonDocCapacity> reqDoc;
             const DeserializationError reqErr = deserializeJson(reqDoc, body);
             releaseRuntimeValuesBodyScratch_();
             if (reqErr) {
@@ -4236,6 +4309,12 @@ void WebInterfaceModule::startServer_()
                     request->_tempObject = reinterpret_cast<void*>(1);
                     request->send(503, "application/json",
                                   "{\"ok\":false,\"err\":{\"code\":\"Busy\",\"where\":\"runtime.values.body\"}}");
+                    return;
+                }
+                if (!runtimeValuesBodyScratch_) {
+                    request->_tempObject = reinterpret_cast<void*>(1);
+                    request->send(500, "application/json",
+                                  "{\"ok\":false,\"err\":{\"code\":\"NoMemory\",\"where\":\"runtime.values.body\"}}");
                     return;
                 }
                 request->_tempObject = runtimeValuesBodyScratch_;
@@ -4916,6 +4995,41 @@ void WebInterfaceModule::startServer_()
     started_ = true;
     noteServerStarted_();
     LOGI("WebInterface server started, listening on 0.0.0.0:%d", kServerPort);
+
+    if (hmiSvc_ && hmiSvc_->setStatusLedState && hmiSvc_->setStatusLedAutoWifiMode) {
+        bool prevAutoMode = true;
+        if (hmiSvc_->isStatusLedAutoWifiMode) {
+            prevAutoMode = hmiSvc_->isStatusLedAutoWifiMode(hmiSvc_->ctx);
+        }
+        webStartLedPrevAutoMode_ = prevAutoMode;
+        webStartLedPrevAutoModeValid_ = true;
+
+        HmiStatusLedState webStartState{};
+        webStartState.enabled = true;
+        webStartState.blinkEnabled = true;
+        webStartState.red = 0;
+        webStartState.green = 255;
+        webStartState.blue = 0;
+        webStartState.brightness = 128;
+        webStartState.blinkOnMs = 60;
+        webStartState.blinkOffMs = 60;
+
+        const bool autoModeDisabled = hmiSvc_->setStatusLedAutoWifiMode(hmiSvc_->ctx, false);
+        const bool stateApplied = hmiSvc_->setStatusLedState(hmiSvc_->ctx, &webStartState);
+        if (autoModeDisabled && stateApplied) {
+            webStartLedPulseActive_ = true;
+            webStartLedPulseUntilMs_ = millis() + 2000U;
+            LOGI("Web start LED pulse active color=green duration_ms=2000");
+        } else {
+            if (autoModeDisabled && webStartLedPrevAutoModeValid_) {
+                hmiSvc_->setStatusLedAutoWifiMode(hmiSvc_->ctx, webStartLedPrevAutoMode_);
+            }
+            webStartLedPulseActive_ = false;
+            LOGW("Web start LED pulse failed auto_disabled=%d state_applied=%d",
+                 autoModeDisabled ? 1 : 0,
+                 stateApplied ? 1 : 0);
+        }
+    }
 
     char ip[16] = {0};
     NetworkAccessMode mode = NetworkAccessMode::None;

@@ -4,6 +4,7 @@
  * @brief UI orchestration module (menu model + HMI driver).
  */
 
+#include "App/BuildFlags.h"
 #include "Core/Module.h"
 #include "Core/NvsKeys.h"
 #include "Core/ServiceBinding.h"
@@ -15,6 +16,7 @@
 #include "Modules/HMIModule/Drivers/NextionDriver.h"
 #include "Modules/HMIModule/Drivers/RemoteHmiUdpDriver.h"
 #include "Modules/HMIModule/Drivers/TfaVeniceRf433Sink.h"
+#include "Modules/HMIModule/Drivers/Ws2812StatusLedDriver.h"
 #include "Modules/Network/HmiUdpServerModule/HmiUdpServerModule.h"
 
 class HMIModule : public Module {
@@ -25,7 +27,13 @@ public:
     uint16_t taskStackSize() const override { return 4096; }
     uint8_t taskCount() const override { return 1; }
     const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
-    uint32_t startDelayMs() const override { return 5000U; }
+    uint32_t startDelayMs() const override {
+#if FLOW_BUILD_IS_FLOWIOS3
+        return 0U;
+#else
+        return 5000U;
+#endif
+    }
 
     uint8_t dependencyCount() const override { return 10; }
     ModuleId dependency(uint8_t i) const override {
@@ -98,6 +106,7 @@ private:
     RemoteHmiUdpDriver remoteUdp_;
     HmiUdpServerModule* remoteUdpServer_ = nullptr;
     TfaVeniceRf433Sink venice_;
+    Ws2812StatusLedDriver ws2812StatusLed_;
     IHmiDriver* driver_ = nullptr;
 
     bool driverReady_ = false;
@@ -115,6 +124,12 @@ private:
     uint8_t ledMaskLast_ = 0;
     bool ledMaskValid_ = false;
     bool wifiBlinkOn_ = false;
+    bool ws2812AutoWifiMode_ = true;
+    bool ws2812AutoWifiApplied_ = false;
+    bool ws2812AutoWifiConnectedLast_ = false;
+    bool ws2812AutoWifiMqttLast_ = false;
+    bool ws2812AutoWifiAlarmActiveLast_ = false;
+    bool ws2812AutoWifiAlarmRedPhaseLast_ = false;
     uint32_t homePublishMask_ = 0U;
     portMUX_TYPE homePublishMux_ = portMUX_INITIALIZER_UNLOCKED;
     IoId phIoId_ = PoolBinding::kSensorBindings[PoolBinding::kSensorSlotPh].ioId;
@@ -171,6 +186,10 @@ private:
     bool openConfigModule_(const char* module);
     bool setLedPage_(uint8_t page);
     uint8_t getLedPage_() const;
+    bool setStatusLedState_(const HmiStatusLedState* state);
+    bool getStatusLedState_(HmiStatusLedState* out) const;
+    bool setStatusLedAutoWifiMode_(bool enabled);
+    bool isStatusLedAutoWifiMode_() const;
     bool refreshCurrentModule_();
     bool render_();
     bool renderAlarmPage_();
@@ -219,6 +238,7 @@ private:
     bool prevAlarmPage_();
     bool isAlarmPageId_(uint8_t pageId) const;
     bool isDisplaySleeping_() const;
+    void applyWs2812AutoWifiProfile_();
     void applyOutputConfig_();
     void applyLedMask_(bool force = false);
 
@@ -229,6 +249,10 @@ private:
         ServiceBinding::bind<&HMIModule::buildMenuJson_>,
         ServiceBinding::bind<&HMIModule::setLedPage_>,
         ServiceBinding::bind_or<&HMIModule::getLedPage_, (uint8_t)1U>,
+        ServiceBinding::bind<&HMIModule::setStatusLedState_>,
+        ServiceBinding::bind<&HMIModule::getStatusLedState_>,
+        ServiceBinding::bind<&HMIModule::setStatusLedAutoWifiMode_>,
+        ServiceBinding::bind<&HMIModule::isStatusLedAutoWifiMode_>,
         this
     };
 };

@@ -29,19 +29,26 @@ struct BoardSpec;
 class WebInterfaceModule : public Module {
 public:
     explicit WebInterfaceModule(const BoardSpec& board);
+    ~WebInterfaceModule() override;
 
     ModuleId moduleId() const override { return ModuleId::WebInterface; }
     const char* taskName() const override { return "webinterface"; }
     BaseType_t taskCore() const override { return 0; }
-    uint16_t taskStackSize() const override { return 4096; }
+    uint16_t taskStackSize() const override {
+#if defined(FLOW_PROFILE_FLOWIOS3)
+        return 8192;
+#else
+        return 4096;
+#endif
+    }
     uint8_t taskCount() const override { return 1; }
     const ModuleTaskSpec* taskSpecs() const override { return singleLoopTaskSpec(); }
 
     uint8_t dependencyCount() const override {
 #if defined(FLOW_PROFILE_MICRONOVA) || defined(FLOW_PROFILE_FLOWIOS3)
-        return 5;
-#else
         return 6;
+#else
+        return 7;
 #endif
     }
     ModuleId dependency(uint8_t i) const override {
@@ -50,8 +57,9 @@ public:
         if (i == 2) return ModuleId::EventBus;
         if (i == 3) return ModuleId::DataStore;
         if (i == 4) return ModuleId::Command;
+        if (i == 5) return ModuleId::Hmi;
 #if !defined(FLOW_PROFILE_MICRONOVA) && !defined(FLOW_PROFILE_FLOWIOS3)
-        if (i == 5) return ModuleId::I2cCfgClient;
+        if (i == 6) return ModuleId::I2cCfgClient;
 #endif
         return ModuleId::Unknown;
     }
@@ -100,6 +108,8 @@ private:
     void logWsLogPressure_(const char* reason);
     bool acquireRuntimeValuesBodyScratch_();
     void releaseRuntimeValuesBodyScratch_();
+    void initRuntimeValuesBodyScratch_();
+    void freeRuntimeValuesBodyScratch_();
 
     // Log formatting and local sink plumbing
     void flushLocalLogQueue_();
@@ -141,6 +151,7 @@ private:
     const TimeService* timeSvc_ = nullptr;
     const WifiService* wifiSvc_ = nullptr;
     const CommandService* cmdSvc_ = nullptr;
+    const HmiService* hmiSvc_ = nullptr;
     const FlowCfgRemoteService* flowCfgSvc_ = nullptr;
     const NetworkAccessService* netAccessSvc_ = nullptr;
     DataStore* dataStore_ = nullptr;
@@ -159,20 +170,32 @@ private:
     bool rebootPending_ = false;
     uint32_t rebootAtMs_ = 0;
     char rebootReason_[24] = {0};
+    bool webStartLedPulseActive_ = false;
+    uint32_t webStartLedPulseUntilMs_ = 0U;
+    bool webStartLedPrevAutoMode_ = true;
+    bool webStartLedPrevAutoModeValid_ = false;
 
 #if defined(FLOW_PROFILE_MICRONOVA)
     static constexpr UBaseType_t kLocalLogQueueLen = 6;
     static constexpr size_t kRuntimeValuesBodyMax = 512U;
+    static constexpr size_t kRuntimeValuesJsonDocCapacity = 768U;
+#elif defined(FLOW_PROFILE_FLOWIOS3)
+    static constexpr UBaseType_t kLocalLogQueueLen = 12;
+    static constexpr size_t kRuntimeValuesBodyMax = 4096U;
+    static constexpr size_t kRuntimeValuesJsonDocCapacity = 4096U;
 #else
     static constexpr UBaseType_t kLocalLogQueueLen = 12;
     static constexpr size_t kRuntimeValuesBodyMax = 2048U;
+    static constexpr size_t kRuntimeValuesJsonDocCapacity = 2048U;
 #endif
     QueueHandle_t localLogQueue_ = nullptr;
     static constexpr uint8_t kWsLogFlushBurstMax = 4U;
 
     char lineBuf_[kLineBufferSize] = {0};
     size_t lineLen_ = 0;
-    char runtimeValuesBodyScratch_[kRuntimeValuesBodyMax + 1U] = {0};
+    char runtimeValuesBodyScratchLocal_[kRuntimeValuesBodyMax + 1U] = {0};
+    char* runtimeValuesBodyScratch_ = runtimeValuesBodyScratchLocal_;
+    bool runtimeValuesBodyScratchInPsram_ = false;
     portMUX_TYPE runtimeValuesBodyMux_ = portMUX_INITIALIZER_UNLOCKED;
     volatile bool runtimeValuesBodyBusy_ = false;
     uint32_t wsFlowConnectCount_ = 0;

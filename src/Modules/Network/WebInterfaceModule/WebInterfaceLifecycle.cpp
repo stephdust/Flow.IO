@@ -146,6 +146,15 @@ void WebInterfaceModule::onEvent_(const Event& e)
 
 void WebInterfaceModule::loop()
 {
+    if (webStartLedPulseActive_ && (int32_t)(millis() - webStartLedPulseUntilMs_) >= 0) {
+        if (hmiSvc_ && hmiSvc_->setStatusLedAutoWifiMode && webStartLedPrevAutoModeValid_) {
+            hmiSvc_->setStatusLedAutoWifiMode(hmiSvc_->ctx, webStartLedPrevAutoMode_);
+        }
+        webStartLedPulseActive_ = false;
+        webStartLedPrevAutoModeValid_ = false;
+        LOGI("Web start LED pulse completed");
+    }
+
     if (rebootPending_ && (int32_t)(millis() - rebootAtMs_) >= 0) {
         LOGW("Web rebooting now reason=%s", rebootReason_);
         delay(80);
