@@ -9,6 +9,7 @@
 #include "Core/ServiceBinding.h"
 #include "Modules/Network/MQTTModule/MqttConfigRouteProducer.h"
 #include "Core/NvsKeys.h"
+#include "Core/WokwiDefaultOverrides.h"
 #include "Core/Services/Services.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -20,10 +21,10 @@ struct WifiConfig {
 #if defined(FLOW_PROFILE_MICRONOVA)
     char ssid[33] = "";
 #else
-    char ssid[33] = "Wokwi-GUEST";
+    char ssid[33] = FLOW_WIRDEF_WIFI_SSID;
 #endif
     // WPA/WPA2 supports 8..63 chars passphrase or 64-char hex PSK (+ '\0').
-    char pass[65] = "";
+    char pass[65] = FLOW_WIRDEF_WIFI_PASS;
 #if defined(FLOW_PROFILE_SUPERVISOR)
     char mdns[33] = "flowio";
 #elif defined(FLOW_PROFILE_FLOWIO)

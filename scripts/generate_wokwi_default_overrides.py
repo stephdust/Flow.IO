@@ -29,6 +29,10 @@ DEFAULT_INPUT_REL = Path("wokwi/default_overrides.json")
 
 # key, macro, owner, value_type, default_cpp
 SPECS: List[Tuple[str, str, str, str, str]] = [
+    # WiFi (profile wiring)
+    ("wifi_ssid", "FLOW_WIRDEF_WIFI_SSID", "profile", "string", "\"Wokwi-GUEST\""),
+    ("wifi_pass", "FLOW_WIRDEF_WIFI_PASS", "profile", "string", "\"\""),
+
     # MQTT (profile wiring)
     ("mq_en", "FLOW_WIRDEF_MQ_EN", "profile", "bool", "true"),
     ("mq_host", "FLOW_WIRDEF_MQ_HOST", "profile", "string", "\"flowio.cloud.shiftr.io\""),

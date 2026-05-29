@@ -2313,6 +2313,13 @@ bool IOModule::configureRuntime_()
     }
 
     if (cfgData_.pcfEnabled) {
+        // Do not expose/use the status LED mask endpoint when the expander lines
+        // are already allocated to digital outputs (relays). Writing a global mask
+        // would overwrite output startup states.
+        const bool expanderUsedByDigitalOutputs = needPcfOutput || needTcaOutput;
+        if (expanderUsedByDigitalOutputs) {
+            LOGI("Status LED mask disabled: expander is mapped to digital outputs");
+        } else {
         IMaskOutputDriver* driver = nullptr;
         if (needTcaOutput && !needPcfOutput) {
             driver = tcaDriver_ ? static_cast<IMaskOutputDriver*>(tcaDriver_)
@@ -2358,6 +2365,7 @@ bool IOModule::configureRuntime_()
                 registry_.add(ledMaskEp_);
                 setLedMask_(cfgData_.pcfMaskDefault, millis());
             }
+        }
         }
     }
 

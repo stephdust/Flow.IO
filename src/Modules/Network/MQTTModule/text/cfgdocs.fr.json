@@ -35,6 +35,11 @@
       "label_t": "cfgdocs.mqtt.topicdeviceid.label",
       "help_t": "cfgdocs.mqtt.topicdeviceid.help"
     },
+    "mqtt/deviceName": {
+      "type": "CharArray",
+      "label_t": "cfgdocs.mqtt.devicename.label",
+      "help_t": "cfgdocs.mqtt.devicename.help"
+    },
     "mqtt/user": {
       "type": "CharArray",
       "label_t": "cfgdocs.mqtt.user.label",

@@ -61,6 +61,7 @@ Module config: `mqtt`
 - `pass`
 - `baseTopic`
 - `topicDeviceId` (optionnel, segment `<deviceId>` des topics)
+- `deviceName` (optionnel, nom affiché pour Home Assistant Discovery `device.name`)
 - `enabled`
 
 Identité config interne:

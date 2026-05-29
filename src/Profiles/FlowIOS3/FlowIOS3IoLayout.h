@@ -155,10 +155,10 @@ inline constexpr DigitalOutputRoleDefault kDigitalOutputRoleDefaults[] = {
     {DomainRole::FiltrationPump, PortExio1, true, false, 0U}, // Pompe filtration.
     {DomainRole::PhPump, PortExio2, true, false, 0U}, // Pompe pH.
     {DomainRole::ChlorinePump, PortExio3, true, false, 0U}, // Pompe chlore.
-    {DomainRole::ChlorineGenerator, PortExio4, true, false, 0U}, // Electrolyseur.
-    {DomainRole::Robot, PortExio5, true, false, 0U}, // Robot.
-    {DomainRole::Lights, PortExio6, true, false, 0U}, // Eclairage.
-    {DomainRole::FillPump, PortExio7, true, false, 0U}, // Pompe de remplissage.
+    {DomainRole::Robot, PortExio4, true, false, 0U}, // Robot.
+    {DomainRole::FillPump, PortExio5, true, false, 0U}, // Pompe de remplissage.
+    {DomainRole::ChlorineGenerator, PortExio6, true, false, 0U}, // Electrolyseur.
+    {DomainRole::Lights, PortExio7, true, false, 0U}, // Eclairage.
     {DomainRole::WaterHeater, PortExio8, true, false, 0U}, // Chauffage.
 };
 

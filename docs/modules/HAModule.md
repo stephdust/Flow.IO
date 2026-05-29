@@ -94,6 +94,7 @@ Réactions:
   - si `entity_prefix` est vide: `object_id = <entity>` (sans préfixe)
 - payloads incluent:
   - device metadata
+  - `device.name` prioritairement depuis `mqtt.deviceName` (fallback: nom d'origine du profil)
   - `device.identifiers[0] = <vendor>-<mqttDeviceIdEffectif>` (priorité à `mqtt.topicDeviceId` / `mq_tid`; fallback sur `ha/device_id`)
   - `unique_id` construit avec `ha/device_id` (ou fallback MAC hex si vide)
   - le segment `<nodeTopicId>` du topic Discovery est dérivé de `ha/device_id` (ou fallback MAC hex si vide)

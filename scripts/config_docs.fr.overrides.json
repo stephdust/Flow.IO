@@ -35,6 +35,10 @@
     "label": "Topic de base",
     "help": "Préfixe MQTT utilisé pour les topics de publication et commande."
   },
+  "mqtt/deviceName": {
+    "label": "Nom d'appareil MQTT",
+    "help": "Nom d'appareil utilisé pour Home Assistant Discovery (device.name)."
+  },
   "mqtt/enabled": {
     "label": "MQTT activé",
     "help": "Active ou désactive le client MQTT."

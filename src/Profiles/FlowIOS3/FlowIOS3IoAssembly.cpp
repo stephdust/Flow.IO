@@ -432,8 +432,8 @@ void configureIoModule(const AppContext& ctx, ModuleInstances& modules)
             IODigitalInputDefinition def{};
             snprintf(def.id, sizeof(def.id), "%s", compat->endpointId);
             def.ioId = compat->ioId;
-            def.activeHigh = preset.activeHigh;
-            def.pullMode = preset.pullMode;
+            def.activeHigh = false;
+            def.pullMode = IO_PULL_UP;
             applyDigitalDefaultsForRole(preset.role, def);
             const uint8_t diOrdinal = digitalInputOrdinalFromPort(def.bindingPort);
             if (diOrdinal != 0U) {
@@ -454,8 +454,8 @@ void configureIoModule(const AppContext& ctx, ModuleInstances& modules)
         IODigitalInputDefinition def{};
         snprintf(def.id, sizeof(def.id), "DI Pin %u", (unsigned)(i + 1));
         def.ioId = (IoId)(IO_ID_DI_BASE + i);
-        def.activeHigh = true;
-        def.pullMode = IO_PULL_NONE;
+        def.activeHigh = false;
+        def.pullMode = IO_PULL_UP;
         def.mode = IO_DIGITAL_INPUT_STATE;
         def.edgeMode = IO_EDGE_RISING;
         def.counterDebounceUs = 0U;

@@ -1806,14 +1806,14 @@ void sendFlowios3DashboardSlotsResponse_(AsyncResponseStream& response, bool& fi
         const char* bgColor;
     };
     static const SlotDef kSlots[8] = {
-        {2101, "Temperature eau", 1U, "#0EA5E9"},
-        {2102, "Temperature air", 1U, "#22C55E"},
-        {2103, "pH", 2U, "#F59E0B"},
-        {2104, "ORP", 0U, "#EF4444"},
-        {2105, "Volume eau", 1U, "#6366F1"},
-        {2106, "Pression pompe", 2U, "#14B8A6"},
-        {2107, "Temperature BMP280", 1U, "#64748B"},
-        {2108, "Temperature BME680", 1U, "#64748B"},
+        {2101, "Temperature eau", 1U, "#E6EFFF"},
+        {2102, "Temperature air", 1U, "#E5F8FC"},
+        {2103, "pH", 2U, "#E8FAEF"},
+        {2104, "ORP", 0U, "#F0EAFE"},
+        {2105, "Volume eau", 1U, "#E4F6FA"},
+        {2106, "Pression pompe", 2U, "#E3F7FE"},
+        {2107, "Temperature BMP280", 1U, "#EAF8FD"},
+        {2108, "Temperature BME680", 1U, "#FEF0E8"},
     };
 
     for (uint8_t i = 0U; i < 8U; ++i) {
@@ -3597,10 +3597,11 @@ void WebInterfaceModule::startServer_()
         char pass[64] = {0};
         char baseTopic[48] = "flowio";
         char topicDeviceId[48] = {0};
+        char deviceName[48] = {0};
 
-        char mqttJson[512] = {0};
+        char mqttJson[640] = {0};
         if (cfgStore_->toJsonModule("mqtt", mqttJson, sizeof(mqttJson), nullptr, false)) {
-            StaticJsonDocument<512> doc;
+            StaticJsonDocument<640> doc;
             const DeserializationError err = deserializeJson(doc, mqttJson);
             if (err || !doc.is<JsonObjectConst>()) {
                 request->send(500, "application/json",
@@ -3616,6 +3617,7 @@ void WebInterfaceModule::startServer_()
             snprintf(pass, sizeof(pass), "%s", root["pass"] | "");
             snprintf(baseTopic, sizeof(baseTopic), "%s", root["baseTopic"] | "flowio");
             snprintf(topicDeviceId, sizeof(topicDeviceId), "%s", root["topicDeviceId"] | "");
+            snprintf(deviceName, sizeof(deviceName), "%s", root["deviceName"] | "");
         } else {
             LOGW("mqtt.config.get: module unavailable, returning defaults");
         }
@@ -3625,20 +3627,22 @@ void WebInterfaceModule::startServer_()
         sanitizeJsonString_(pass);
         sanitizeJsonString_(baseTopic);
         sanitizeJsonString_(topicDeviceId);
+        sanitizeJsonString_(deviceName);
 
-        char out[512] = {0};
+        char out[640] = {0};
         const int n = snprintf(out,
                                sizeof(out),
                                "{\"ok\":true,\"enabled\":%s,\"host\":\"%s\",\"port\":%ld,"
                                "\"user\":\"%s\",\"pass\":\"%s\",\"baseTopic\":\"%s\","
-                               "\"topicDeviceId\":\"%s\"}",
+                               "\"topicDeviceId\":\"%s\",\"deviceName\":\"%s\"}",
                                enabled ? "true" : "false",
                                host,
                                (long)port,
                                user,
                                pass,
                                baseTopic,
-                               topicDeviceId);
+                               topicDeviceId,
+                               deviceName);
         request->send(200,
                       "application/json",
                       (n > 0 && (size_t)n < sizeof(out))
@@ -3807,6 +3811,7 @@ void WebInterfaceModule::startServer_()
         char pass[64] = {0};
         char baseTopic[48] = {0};
         char topicDeviceId[48] = {0};
+        char deviceName[48] = {0};
         copyRequestParamValue_(request, "enabled", true, enabledStr, sizeof(enabledStr), "0");
         copyRequestParamValue_(request, "host", true, host, sizeof(host), "");
         copyRequestParamValue_(request, "port", true, portStr, sizeof(portStr), "1883");
@@ -3814,6 +3819,7 @@ void WebInterfaceModule::startServer_()
         copyRequestParamValue_(request, "pass", true, pass, sizeof(pass), "");
         copyRequestParamValue_(request, "baseTopic", true, baseTopic, sizeof(baseTopic), "flowio");
         copyRequestParamValue_(request, "topicDeviceId", true, topicDeviceId, sizeof(topicDeviceId), "");
+        copyRequestParamValue_(request, "deviceName", true, deviceName, sizeof(deviceName), "");
 
         const bool enabled = parseBoolParam_(enabledStr, false);
         int32_t port = (int32_t)atoi(portStr);
@@ -3823,20 +3829,22 @@ void WebInterfaceModule::startServer_()
         sanitizeJsonString_(pass);
         sanitizeJsonString_(baseTopic);
         sanitizeJsonString_(topicDeviceId);
+        sanitizeJsonString_(deviceName);
 
-        char patchJson[512] = {0};
+        char patchJson[640] = {0};
         const int n = snprintf(patchJson,
                                sizeof(patchJson),
                                "{\"mqtt\":{\"enabled\":%s,\"host\":\"%s\",\"port\":%ld,"
                                "\"user\":\"%s\",\"pass\":\"%s\",\"baseTopic\":\"%s\","
-                               "\"topicDeviceId\":\"%s\"}}",
+                               "\"topicDeviceId\":\"%s\",\"deviceName\":\"%s\"}}",
                                enabled ? "true" : "false",
                                host,
                                (long)port,
                                user,
                                pass,
                                baseTopic,
-                               topicDeviceId);
+                               topicDeviceId,
+                               deviceName);
         if (n <= 0 || (size_t)n >= sizeof(patchJson)) {
             request->send(400, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"ArgsTooLarge\",\"where\":\"mqtt.config.set\"}}");
@@ -3911,7 +3919,7 @@ void WebInterfaceModule::startServer_()
                                  kHttpLatencyFlowCfgWarnMs);
         char srcStr[24] = {0};
         copyRequestParamValue_(request, "src", false, srcStr, sizeof(srcStr), "");
-        LOGI("runtime.call route=/api/flow/status src=%s", srcStr[0] ? srcStr : "-");
+        LOGD("runtime.call route=/api/flow/status src=%s", srcStr[0] ? srcStr : "-");
 #if defined(FLOW_PROFILE_FLOWIOS3)
         const AlarmService* alarmSvc = services_ ? services_->get<AlarmService>(ServiceId::Alarm) : nullptr;
         if (!sendFlowios3StatusCompactResponse_(request, dataStore_, cfgStore_, alarmSvc)) {
@@ -3945,7 +3953,7 @@ void WebInterfaceModule::startServer_()
                                  kHttpLatencyFlowCfgWarnMs);
         char srcStr[24] = {0};
         copyRequestParamValue_(request, "src", false, srcStr, sizeof(srcStr), "");
-        LOGI("runtime.call route=/api/flow/status/domain src=%s", srcStr[0] ? srcStr : "-");
+        LOGD("runtime.call route=/api/flow/status/domain src=%s", srcStr[0] ? srcStr : "-");
         if (!request->hasParam("d")) {
             request->send(400, "application/json",
                           "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"flow.status.domain\"}}");
@@ -3954,7 +3962,7 @@ void WebInterfaceModule::startServer_()
         FlowStatusDomain domain = FlowStatusDomain::System;
         char domainStr[16] = {0};
         copyRequestParamValue_(request, "d", false, domainStr, sizeof(domainStr), "");
-        LOGI("runtime.call route=/api/flow/status/domain src=%s domain=%s",
+        LOGD("runtime.call route=/api/flow/status/domain src=%s domain=%s",
              srcStr[0] ? srcStr : "-",
              domainStr);
         if (!parseFlowStatusDomainParam_(domainStr, domain)) {
@@ -3971,7 +3979,7 @@ void WebInterfaceModule::startServer_()
                           "{\"ok\":false,\"err\":{\"code\":\"Failed\",\"where\":\"flow.status.domain.local\"}}");
             return;
         }
-        LOGI("runtime.call route=/api/flow/status/domain src=%s domain=%s result=ok",
+        LOGD("runtime.call route=/api/flow/status/domain src=%s domain=%s result=ok",
              srcStr[0] ? srcStr : "-",
              domainStr);
         request->send(200, "application/json", domainBuf);
@@ -3993,7 +4001,7 @@ void WebInterfaceModule::startServer_()
 
         char domainBuf[640] = {0};
         if (!flowCfgSvc_->runtimeStatusDomainJson(flowCfgSvc_->ctx, domain, domainBuf, sizeof(domainBuf))) {
-            LOGI("runtime.call route=/api/flow/status/domain src=%s domain=%s result=call_fail",
+            LOGD("runtime.call route=/api/flow/status/domain src=%s domain=%s result=call_fail",
                  srcStr[0] ? srcStr : "-",
                  domainStr);
             if (domainBuf[0] != '\0') {
@@ -4008,7 +4016,7 @@ void WebInterfaceModule::startServer_()
             return;
         }
 
-        LOGI("runtime.call route=/api/flow/status/domain src=%s domain=%s result=ok",
+        LOGD("runtime.call route=/api/flow/status/domain src=%s domain=%s result=ok",
              srcStr[0] ? srcStr : "-",
              domainStr);
         request->send(200, "application/json", domainBuf);
@@ -4017,7 +4025,7 @@ void WebInterfaceModule::startServer_()
 
     server_.on("/api/runtime/manifest", HTTP_GET, [this, beginSpiffsAssetResponse, sendPreparedAssetResponse](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/runtime/manifest");
-        LOGI("runtime.call route=/api/runtime/manifest");
+        LOGD("runtime.call route=/api/runtime/manifest");
 #if defined(FLOW_PROFILE_MICRONOVA)
         AsyncWebServerResponse* response =
             request->beginResponse(200,
@@ -4042,14 +4050,14 @@ void WebInterfaceModule::startServer_()
                                  "/api/runtime/alarms",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
-        LOGI("runtime.call route=/api/runtime/alarms");
+        LOGD("runtime.call route=/api/runtime/alarms");
         request->send(503, "application/json",
                       "{\"ok\":false,\"err\":{\"code\":\"Disabled\",\"where\":\"runtime.alarms.disabled\"}}");
     });
 
     server_.on("/api/runtime/dashboard_slots", HTTP_GET, [this](AsyncWebServerRequest* request) {
         HttpLatencyScope latency(request, "/api/runtime/dashboard_slots");
-        LOGI("runtime.call route=/api/runtime/dashboard_slots");
+        LOGD("runtime.call route=/api/runtime/dashboard_slots");
         AsyncResponseStream* response = request->beginResponseStream("application/json");
         addNoCacheHeaders_(response);
         response->print("{\"ok\":true,\"slots\":[");
@@ -4104,7 +4112,7 @@ void WebInterfaceModule::startServer_()
                                  "/api/runtime/values",
                                  kHttpLatencyFlowCfgInfoMs,
                                  kHttpLatencyFlowCfgWarnMs);
-        LOGI("runtime.call route=/api/runtime/values method=GET");
+        LOGD("runtime.call route=/api/runtime/values method=GET");
         if (!flowCfgSvc_ && services_) {
             flowCfgSvc_ = services_->get<FlowCfgRemoteService>(ServiceId::FlowCfg);
         }
@@ -4123,7 +4131,7 @@ void WebInterfaceModule::startServer_()
                           "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"runtime.values.ids\"}}");
             return;
         }
-        LOGI("runtime.call route=/api/runtime/values method=GET ids=%u", (unsigned)idCount);
+        LOGD("runtime.call route=/api/runtime/values method=GET ids=%u", (unsigned)idCount);
 
 #if defined(FLOW_PROFILE_MICRONOVA)
         sendMicronovaLocalRuntimeValuesResponse_(request, dataStore_, ids, idCount);
@@ -4145,7 +4153,7 @@ void WebInterfaceModule::startServer_()
                                      "/api/runtime/values",
                                      kHttpLatencyFlowCfgInfoMs,
                                      kHttpLatencyFlowCfgWarnMs);
-            LOGI("runtime.call route=/api/runtime/values method=POST");
+            LOGD("runtime.call route=/api/runtime/values method=POST");
             if (request->_tempObject == reinterpret_cast<void*>(1)) {
                 request->_tempObject = nullptr;
                 return;
@@ -4192,7 +4200,7 @@ void WebInterfaceModule::startServer_()
                               "{\"ok\":false,\"err\":{\"code\":\"BadRequest\",\"where\":\"runtime.values.ids\"}}");
                 return;
             }
-            LOGI("runtime.call route=/api/runtime/values method=POST ids=%u", (unsigned)idCount);
+            LOGD("runtime.call route=/api/runtime/values method=POST ids=%u", (unsigned)idCount);
 
 #if defined(FLOW_PROFILE_MICRONOVA)
             sendMicronovaLocalRuntimeValuesResponse_(request, dataStore_, ids, idCount);

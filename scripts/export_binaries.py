@@ -71,6 +71,13 @@ def _classify_artifact(software, ext):
             "kind": "esp32-spiffs",
             "route": "/fwupdate/spiffs",
         }
+    if norm == "esp32s3-spiffs":
+        return {
+            "category": "esp32s3-spiffs",
+            "target": "spiffs",
+            "kind": "esp32-spiffs",
+            "route": "/fwupdate/spiffs",
+        }
     if norm == "supervisor":
         return {
             "category": "supervisor",
@@ -83,6 +90,14 @@ def _classify_artifact(software, ext):
             "category": "flowio",
             "target": "flowio",
             "kind": "esp32-firmware",
+            "route": "/fwupdate/flowio",
+        }
+    if norm == "esp32s3":
+        return {
+            "category": "esp32s3",
+            "target": "esp32s3",
+            "kind": "esp32-firmware",
+            # Kept on FlowIO update endpoint for compatibility with current updater API.
             "route": "/fwupdate/flowio",
         }
 
@@ -165,6 +180,8 @@ def _export_program_bin(source, target, env):
 
     if env_name == "FlowIO":
         _copy_if_exists(build_dir / "firmware.bin", f"flowio-{fw_version}.bin")
+    elif env_name == "Waveshare-ESP32-S3":
+        _copy_if_exists(build_dir / "firmware.bin", f"esp32s3-{fw_version}.bin")
     elif env_name == "Supervisor":
         _copy_if_exists(build_dir / "firmware.bin", f"supervisor-{fw_version}.bin")
     elif env_name == "FlowConnectDisplay":
@@ -175,9 +192,12 @@ def _export_spiffs_bin(source, target, env):
     build_dir = Path(env.subst("$BUILD_DIR"))
     env_name = env.subst("$PIOENV")
     fw_version = _resolve_firmware_version()
-    if env_name != "Supervisor":
+    if env_name == "Supervisor":
+        _copy_if_exists(build_dir / "spiffs.bin", f"spiffs-supervisor-{fw_version}.bin")
         return
-    _copy_if_exists(build_dir / "spiffs.bin", f"spiffs-supervisor-{fw_version}.bin")
+    if env_name == "Waveshare-ESP32-S3":
+        _copy_if_exists(build_dir / "spiffs.bin", f"esp32s3-spiffs-{fw_version}.bin")
+        return
 
 
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", _export_program_bin)

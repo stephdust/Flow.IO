@@ -316,11 +316,48 @@ void SystemMonitorModule::logTaskStacks() {
     bool hasTask = false;
     uint16_t skippedInvalidHandles = 0;
 
+#if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1)
+    UBaseType_t liveTaskCount = uxTaskGetNumberOfTasks();
+    TaskStatus_t* liveTasks = nullptr;
+    if (liveTaskCount == 0U) {
+        LOGD("Stack none");
+        return;
+    }
+    if (liveTaskCount > 0U) {
+        liveTasks = static_cast<TaskStatus_t*>(pvPortMalloc(liveTaskCount * sizeof(TaskStatus_t)));
+    }
+    if (!liveTasks) {
+        LOGW("Stack snapshot unavailable (tasks=%u)", (unsigned)liveTaskCount);
+        return;
+    }
+    liveTaskCount = uxTaskGetSystemState(liveTasks, liveTaskCount, nullptr);
+    if (liveTaskCount == 0U) {
+        vPortFree(liveTasks);
+        LOGD("Stack none");
+        return;
+    }
+#else
+    static bool warnedNoTraceFacility = false;
+    if (!warnedNoTraceFacility) {
+        warnedNoTraceFacility = true;
+        LOGW("Stack task monitoring disabled (configUSE_TRACE_FACILITY not enabled)");
+    }
+    return;
+#endif
+
     const uint8_t n = moduleManager->getTaskEntryCount();
     for (uint8_t i = 0; i < n; ++i) {
         const ModuleManager::TaskEntry* task = moduleManager->getTaskEntry(i);
-        if (!task || !task->module || !task->handle) continue;
-        if (!isLikelyValidTaskHandle_(task->handle)) {
+        if (!task || !task->module) continue;
+
+        // Snapshot the task handle once to avoid a race where another core
+        // clears/replaces it between validation and the watermark query.
+        const TaskHandle_t taskHandle = task->handle;
+        if (!taskHandle) {
+            ++skippedInvalidHandles;
+            continue;
+        }
+        if (!isLikelyValidTaskHandle_(taskHandle)) {
             ++skippedInvalidHandles;
             continue;
         }
@@ -330,7 +367,24 @@ void SystemMonitorModule::logTaskStacks() {
         if (!specs || task->taskIndex >= taskCount) continue;
         const ModuleTaskSpec& spec = specs[task->taskIndex];
 
-        UBaseType_t hw = uxTaskGetStackHighWaterMark(task->handle);
+        UBaseType_t hw = 0;
+#if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1)
+        const TaskStatus_t* liveTask = nullptr;
+        for (UBaseType_t t = 0; t < liveTaskCount; ++t) {
+            if (liveTasks[t].xHandle == taskHandle) {
+                liveTask = &liveTasks[t];
+                break;
+            }
+        }
+        if (!liveTask) {
+            ++skippedInvalidHandles;
+            continue;
+        }
+        hw = (UBaseType_t)liveTask->usStackHighWaterMark;
+#else
+        ++skippedInvalidHandles;
+        continue;
+#endif
         hasTask = true;
         const bool isLow = (hw < 300);
 
@@ -380,6 +434,9 @@ void SystemMonitorModule::logTaskStacks() {
         if (skippedInvalidHandles > 0U) {
             LOGW("Stack skipped invalid handles=%u", (unsigned)skippedInvalidHandles);
         }
+#if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1)
+        vPortFree(liveTasks);
+#endif
         return;
     }
 
@@ -389,6 +446,9 @@ void SystemMonitorModule::logTaskStacks() {
     if (skippedInvalidHandles > 0U) {
         LOGW("Stack skipped invalid handles=%u", (unsigned)skippedInvalidHandles);
     }
+#if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1)
+    vPortFree(liveTasks);
+#endif
 }
 
 void SystemMonitorModule::logTrackedBuffers()

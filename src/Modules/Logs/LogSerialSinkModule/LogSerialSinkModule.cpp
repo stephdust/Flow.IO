@@ -18,7 +18,7 @@ struct SerialSinkCtx {
 };
 
 static SerialSinkCtx gSerialSinkCtx{};
-static HardwareSerial* gLogSerial = &Serial;
+static Stream* gLogSerial = &Serial;
 
 static const char* lvlStr(LogLevel lvl) {
     switch (lvl) {
@@ -144,13 +144,7 @@ void LogSerialSinkModule::init(ConfigStore& cfg, ServiceRegistry& services) {
     (void)cfg;
 
     gLogSerial = &Board::SerialMap::logSerial();
-    const int8_t rx = Board::SerialMap::logRxPin();
-    const int8_t tx = Board::SerialMap::logTxPin();
-    if (rx >= 0 && tx >= 0) {
-        gLogSerial->begin(Board::SerialMap::LogBaud, SERIAL_8N1, rx, tx);
-    } else {
-        gLogSerial->begin(Board::SerialMap::LogBaud);
-    }
+    Board::SerialMap::beginLogSerial();
 
     auto sinks = services.get<LogSinkRegistryService>(ServiceId::LogSinks);
     if (!sinks) return;

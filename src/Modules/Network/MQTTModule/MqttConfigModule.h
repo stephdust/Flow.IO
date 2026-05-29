@@ -18,6 +18,7 @@ struct MqttConfigData {
     char pass[Limits::Mqtt::Buffers::Pass] = FLOW_WIRDEF_MQ_PASS;
     char baseTopic[Limits::Mqtt::Buffers::BaseTopic] = FLOW_WIRDEF_MQ_BASE;
     char topicDeviceId[Limits::Mqtt::Buffers::DeviceId] = FLOW_WIRDEF_MQ_TID;
+    char deviceName[Limits::Mqtt::Buffers::DeviceName] = "";
 };
 
 class MqttConfigModule : public ModulePassive {
@@ -52,9 +53,12 @@ private:
         NVS_KEY(NvsKeys::Mqtt::TopicDeviceId), "topicDeviceId", "mqtt", ConfigType::CharArray,
         (char*)cfgData_.topicDeviceId, ConfigPersistence::Persistent, sizeof(cfgData_.topicDeviceId)
     };
+    ConfigVariable<char,0> deviceNameVar_{
+        NVS_KEY(NvsKeys::Mqtt::DeviceName), "deviceName", "mqtt", ConfigType::CharArray,
+        (char*)cfgData_.deviceName, ConfigPersistence::Persistent, sizeof(cfgData_.deviceName)
+    };
     ConfigVariable<bool,0> enabledVar_{
         NVS_KEY(NvsKeys::Mqtt::Enabled), "enabled", "mqtt", ConfigType::Bool,
         &cfgData_.enabled, ConfigPersistence::Persistent, 0
     };
 };
-

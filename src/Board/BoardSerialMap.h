@@ -19,14 +19,31 @@ static constexpr int8_t NoPin = -1;
 static constexpr int8_t Uart2Rx = 16;
 static constexpr int8_t Uart2Tx = 17;
 
-inline HardwareSerial& logSerial()
+inline Stream& logSerial()
 {
-    return SwapLogAndHmi ? Serial2 : Serial;
+    return SwapLogAndHmi ? static_cast<Stream&>(Serial2) : static_cast<Stream&>(Serial);
+}
+
+inline void beginLogSerial()
+{
+    if (SwapLogAndHmi) {
+        Serial2.begin(LogBaud, SERIAL_8N1, Uart2Rx, Uart2Tx);
+    } else {
+        Serial.begin(LogBaud);
+    }
 }
 
 inline HardwareSerial& hmiSerial()
 {
-    return SwapLogAndHmi ? Serial : Serial2;
+    if constexpr (SwapLogAndHmi) {
+#if defined(ARDUINO_USB_CDC_ON_BOOT) && (ARDUINO_USB_CDC_ON_BOOT == 1)
+        return Serial2;
+#else
+        return Serial;
+#endif
+    } else {
+        return Serial2;
+    }
 }
 
 inline int8_t logRxPin()

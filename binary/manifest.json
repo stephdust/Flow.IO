@@ -1,7 +1,7 @@
 {
   "schema": "flowio.firmware-manifest.v1",
-  "generated_at": "2026-05-27T00:10:20+02:00",
-  "release": "2026.05.27",
+  "generated_at": "2026-05-29T10:59:33+02:00",
+  "release": "2026.05.29",
   "artifacts": {
     "nextion": [
       {
@@ -27,17 +27,43 @@
         "size": 1103112
       }
     ],
+    "esp32s3": [
+      {
+        "title": "esp32s3",
+        "label": "esp32s3",
+        "version": "1.0.2",
+        "build_date": "2026-05-29T10:59:32+02:00",
+        "target": "esp32s3",
+        "path": "esp32s3-1.0.2.bin",
+        "kind": "esp32-firmware",
+        "route": "/fwupdate/flowio",
+        "size": 1551088
+      }
+    ],
+    "esp32s3-spiffs": [
+      {
+        "title": "esp32s3-spiffs",
+        "label": "esp32s3-spiffs",
+        "version": "1.0.2",
+        "build_date": "2026-05-29T10:58:54+02:00",
+        "target": "spiffs",
+        "path": "esp32s3-spiffs-1.0.2.bin",
+        "kind": "esp32-spiffs",
+        "route": "/fwupdate/spiffs",
+        "size": 1966080
+      }
+    ],
     "flowio": [
       {
         "title": "flowio",
         "label": "flowio",
         "version": "1.0.2",
-        "build_date": "2026-05-27T00:10:20+02:00",
+        "build_date": "2026-05-29T10:53:48+02:00",
         "target": "flowio",
         "path": "flowio-1.0.2.bin",
         "kind": "esp32-firmware",
         "route": "/fwupdate/flowio",
-        "size": 1313408
+        "size": 1313664
       }
     ],
     "spiffs": [
@@ -45,7 +71,7 @@
         "title": "spiffs-supervisor",
         "label": "spiffs-supervisor",
         "version": "1.0.2",
-        "build_date": "2026-05-26T23:13:05+02:00",
+        "build_date": "2026-05-27T23:22:21+02:00",
         "target": "spiffs",
         "path": "spiffs-supervisor-1.0.2.bin",
         "kind": "esp32-spiffs",
@@ -58,7 +84,7 @@
         "title": "supervisor",
         "label": "supervisor",
         "version": "1.0.2",
-        "build_date": "2026-05-26T23:13:02+02:00",
+        "build_date": "2026-05-27T23:22:40+02:00",
         "target": "supervisor",
         "path": "supervisor-1.0.2.bin",
         "kind": "esp32-firmware",

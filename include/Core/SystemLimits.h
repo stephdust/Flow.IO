@@ -127,6 +127,8 @@ constexpr size_t Pass = BoardCapacityProfile::kMqttBuffers.pass;
 constexpr size_t BaseTopic = BoardCapacityProfile::kMqttBuffers.baseTopic;
 /** @brief MQTT device identifier buffer length used by `MQTTModule::deviceId` (e.g. `ESP32-XXXXXX`). */
 constexpr size_t DeviceId = BoardCapacityProfile::kMqttBuffers.deviceId;
+/** @brief MQTT device display name buffer length used by MQTT config and HA device metadata. */
+constexpr size_t DeviceName = 32;
 /** @brief MQTT full topic buffer length used by `MQTTModule` fixed topics (`cmd`, `ack`, `status`, `cfg/*`). */
 constexpr size_t Topic = BoardCapacityProfile::kMqttBuffers.topic;
 /** @brief MQTT temporary topic buffer length for dynamic subtopics in `MQTTModule` (`cfg/<module>`, scheduler slots). */

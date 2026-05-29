@@ -530,6 +530,24 @@
       return webProfileKey === 'micronova';
     }
 
+    function isFlowIOS3Profile() {
+      const key = String(webProfileKey || '').trim().toLowerCase();
+      return key === 'flowios3'
+        || key === 'waveshare'
+        || key === 'esp32s3'
+        || key.indexOf('waveshare') >= 0
+        || key.indexOf('flowios3') === 0;
+    }
+
+    function isFlowIOProfile() {
+      return String(webProfileKey || '').trim().toLowerCase() === 'flowio';
+    }
+
+    function isSupervisorProfile() {
+      const key = String(webProfileKey || '').trim().toLowerCase();
+      return key === 'supervisor' || key.indexOf('supervisor') === 0;
+    }
+
     function runtimeDomainsForProfile() {
       return isMicronovaProfile()
         ? ['micronova', 'alarm']
@@ -599,6 +617,9 @@
         };
         const blockValues = isMicronovaProfile()
           ? new Set(['flow_soft', 'flow_hard', 'nextion', 'factory_reset'])
+          : (isFlowIOS3Profile() ? new Set(['supervisor', 'flow_hard']) : new Set());
+        const hiddenValues = isFlowIOS3Profile()
+          ? new Set(['supervisor', 'flow_hard'])
           : new Set();
         Array.from(rebootDeviceTargetSelect.options || []).forEach((option) => {
           if (!option) return;
@@ -606,9 +627,12 @@
             option.text = labelsByTarget[option.value];
           }
           option.disabled = blockValues.has(option.value);
+          option.hidden = hiddenValues.has(option.value);
         });
         if (blockValues.has(rebootDeviceTargetSelect.value)) {
-          rebootDeviceTargetSelect.value = 'supervisor';
+          const fallbackOption = Array.from(rebootDeviceTargetSelect.options || [])
+            .find((option) => option && !option.disabled && !option.hidden);
+          rebootDeviceTargetSelect.value = fallbackOption ? fallbackOption.value : 'supervisor';
         }
       }
     }
@@ -1767,6 +1791,8 @@
     ];
     const upgradeTargetDefs = {
       flowio: { manifestKey: 'flowio', target: 'flowio', endpoint: '/fwupdate/flowio', label: 'Flow.io', order: 10 },
+      esp32s3: { manifestKey: 'esp32s3', target: 'esp32s3', endpoint: '/fwupdate/flowio', label: 'ESP32-S3', order: 11 },
+      'esp32s3-spiffs': { manifestKey: 'esp32s3-spiffs', target: 'spiffs', endpoint: '/fwupdate/spiffs', label: 'Assets ESP32-S3', order: 12 },
       supervisor: { manifestKey: 'supervisor', target: 'supervisor', endpoint: '/fwupdate/supervisor', label: 'Supervisor', order: 20 },
       nextion: { manifestKey: 'nextion', target: 'nextion', endpoint: '/fwupdate/nextion', label: 'Nextion 800x480', order: 30 },
       spiffs: { manifestKey: 'spiffs', target: 'spiffs', endpoint: '/fwupdate/spiffs', label: 'Assets Supervisor', order: 40 },
@@ -2019,6 +2045,7 @@
     function upgradeTargetLabel(target) {
       const key = String(target || '').trim().toLowerCase();
       if (key === 'flowio') return 'Flow.io';
+      if (key === 'esp32s3') return 'ESP32-S3';
       if (key === 'supervisor') return isMicronovaProfile() ? 'Micronova' : 'Superviseur';
       if (key === 'nextion') return 'Nextion';
       if (key === 'spiffs') return 'SPIFFS';
@@ -2589,6 +2616,7 @@
     function endpointForUpgradeTarget(target) {
       const key = String(target || '').trim().toLowerCase();
       if (key === 'flowio') return '/fwupdate/flowio';
+      if (key === 'esp32s3') return '/fwupdate/flowio';
       if (key === 'supervisor') return '/fwupdate/supervisor';
       if (key === 'nextion') return '/fwupdate/nextion';
       if (key === 'spiffs' || key === 'cfgdocs') return '/fwupdate/spiffs';
@@ -2597,6 +2625,21 @@
 
     function manifestTargetDef(key) {
       return upgradeTargetDefs[String(key || '').trim().toLowerCase()] || null;
+    }
+
+    function manifestCategoryVisibleForProfile(category) {
+      const key = String(category || '').trim().toLowerCase();
+      if (!key) return false;
+      if (isMicronovaProfile() || isSupervisorProfile()) {
+        return key === 'supervisor' || key === 'spiffs' || key === 'cfgdocs' || key === 'nextion';
+      }
+      if (isFlowIOS3Profile()) {
+        return key === 'esp32s3' || key === 'esp32s3-spiffs';
+      }
+      if (isFlowIOProfile()) {
+        return key === 'flowio';
+      }
+      return true;
     }
 
     function resolveArtifactTarget(category, artifact) {
@@ -2632,6 +2675,7 @@
       const artifacts = (manifest.artifacts && typeof manifest.artifacts === 'object') ? manifest.artifacts : manifest;
       return Object.keys(artifacts)
         .reduce((entries, category) => {
+          if (!manifestCategoryVisibleForProfile(category)) return entries;
           const def = manifestTargetDef(category);
           const orderBase = def && Number.isFinite(def.order) ? def.order : 1000;
           manifestArtifactList(manifest, category)
@@ -7497,7 +7541,8 @@
     function renderPrimarySupervisorCfgFields(dataObj) {
       renderConfigFields(flowCfgFields, supCfgCurrentModule, dataObj, {
         controlsPrimaryPane: true,
-        perFieldApply: false
+        perFieldApply: flowCfgApplyPerFieldEnabled(supCfgCurrentModule),
+        onApplyField: appliquerPrimaryCfgField
       });
     }
 
@@ -7864,6 +7909,44 @@
         flowCfgStatus.textContent = 'Champ "' + key + '" applique.';
       } catch (err) {
         flowCfgStatus.textContent = 'Application du champ echouee: ' + err;
+        updateControlFieldApplyState(inputEl, applyBtn);
+      }
+    }
+
+    async function appliquerPrimaryCfgField(inputEl, applyBtn) {
+      if (!inputEl || !applyBtn || !supCfgCurrentModule) return;
+      const key = String(inputEl.dataset.key || '').trim();
+      if (!key) return;
+      if (!configFieldIsDirty(inputEl)) {
+        updateControlFieldApplyState(inputEl, applyBtn);
+        return;
+      }
+
+      try {
+        applyBtn.disabled = true;
+        applyBtn.classList.add('is-pending');
+        flowCfgStatus.textContent = 'Application locale du champ "' + key + '"...';
+
+        const patch = buildFlowCfgSingleFieldPatchJson(supCfgCurrentModule, inputEl);
+        const body = new URLSearchParams();
+        body.set('patch', patch);
+        const res = await fetchWithBusyRetry('/api/supervisorcfg/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body: body.toString()
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data || data.ok !== true) {
+          throw new Error(extractApiErrorMessage(data, 'apply refusé'));
+        }
+
+        clearCfgTreeNodeTextNameCache('supervisor');
+        await chargerPrimarySupervisorCfgModule(supCfgCurrentModule);
+        renderFlowCfgTree();
+        await refreshWebUiLocale(true);
+        flowCfgStatus.textContent = 'Champ local "' + key + '" applique.';
+      } catch (err) {
+        flowCfgStatus.textContent = 'Application locale du champ echouee: ' + err;
         updateControlFieldApplyState(inputEl, applyBtn);
       }
     }

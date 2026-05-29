@@ -74,6 +74,7 @@ private:
 
     const EventBusService* eventBusSvc_ = nullptr;
     const DataStoreService* dsSvc_ = nullptr;
+    const ConfigStoreService* cfgSvc_ = nullptr;
     const MqttService* mqttSvc_ = nullptr;
 
     HAConfig cfgData_{};
@@ -86,6 +87,7 @@ private:
     char deviceId_[32] = {0};
     char deviceIdent_[64] = {0};
     char nodeTopicId_[32] = {0};
+    char deviceName_[Limits::Mqtt::Buffers::DeviceName] = {0};
     char objectPrefix_[8] = "fio";
     char originName_[32] = "Flow.io";
 
@@ -163,6 +165,7 @@ private:
 
     void requestAutoconfigRefresh();
     void refreshIdentityFromConfig();
+    void refreshDeviceNameFromMqttConfig_();
     bool enqueuePending_(MqttPublishPriority prio);
     void markAllPending_();
     bool isPending_(uint16_t messageId) const;

@@ -9,6 +9,7 @@
 #include "Modules/Network/HAModule/HARuntime.h"
 #include "Core/MqttTopics.h"
 #include "Core/SystemLimits.h"
+#include <ArduinoJson.h>
 #include <esp_system.h>
 #include <ctype.h>
 #include <math.h>
@@ -562,7 +563,7 @@ bool HAModule::publishSensor(const char* objectId, const char* name,
              name, objectId, defaultEntityId, uniqueId,
              stateTopic, valueTemplate,
              stateClassField, entityCategoryField, iconField, unitField, hasEntityNameField, availabilityField,
-             originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
+             originName_, deviceIdent_, deviceName_, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
         LOGW("HA sensor payload truncated object=%s", objectId);
         return false;
     }
@@ -608,7 +609,7 @@ bool HAModule::publishBinarySensor(const char* objectId, const char* name,
              "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
              name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
              deviceClassField, entityCategoryField, iconField, availabilityField,
-             originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
+             originName_, deviceIdent_, deviceName_, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
         LOGW("HA binary_sensor payload truncated object=%s", objectId);
         return false;
     }
@@ -650,7 +651,7 @@ bool HAModule::publishSwitch(const char* objectId, const char* name,
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
                  commandTopic, payloadOn, payloadOff, icon,
                  entityCategoryField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
+                 originName_, deviceIdent_, deviceName_, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA switch payload truncated object=%s", objectId);
             return false;
         }
@@ -664,7 +665,7 @@ bool HAModule::publishSwitch(const char* objectId, const char* name,
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate,
                  commandTopic, payloadOn, payloadOff, entityCategoryField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
+                 originName_, deviceIdent_, deviceName_, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA switch payload truncated object=%s", objectId);
             return false;
         }
@@ -713,7 +714,7 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
                  rangeField, mode ? mode : "slider", icon, entityCategoryField, unitField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
+                 originName_, deviceIdent_, deviceName_, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA number payload truncated object=%s", objectId);
             return false;
         }
@@ -727,7 +728,7 @@ bool HAModule::publishNumber(const char* objectId, const char* name,
                  "\"mf\":\"%s\",\"mdl\":\"%s\",\"sw\":\"%s\",\"cu\":\"%s\"}}",
                  name, objectId, defaultEntityId, uniqueId, stateTopic, valueTemplate, commandTopic, commandTemplate,
                  rangeField, mode ? mode : "slider", entityCategoryField, unitField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
+                 originName_, deviceIdent_, deviceName_, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA number payload truncated object=%s", objectId);
             return false;
         }
@@ -764,7 +765,7 @@ bool HAModule::publishButton(const char* objectId, const char* name,
                  name, objectId, defaultEntityId, uniqueId,
                  commandTopic, payloadPress, icon,
                  entityCategoryField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
+                 originName_, deviceIdent_, deviceName_, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA button payload truncated object=%s", objectId);
             return false;
         }
@@ -778,7 +779,7 @@ bool HAModule::publishButton(const char* objectId, const char* name,
                  name, objectId, defaultEntityId, uniqueId,
                  commandTopic, payloadPress,
                  entityCategoryField, availabilityField,
-                 originName_, deviceIdent_, cfgData_.vendor, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
+                 originName_, deviceIdent_, deviceName_, cfgData_.vendor, cfgData_.model, FirmwareVersion::Full, kHaDeviceConfigUrl)) {
             LOGW("HA button payload truncated object=%s", objectId);
             return false;
         }
@@ -842,6 +843,26 @@ void HAModule::refreshIdentityFromConfig()
 
     // HA `device.identifiers` should follow the effective MQTT topic device id when available.
     snprintf(deviceIdent_, sizeof(deviceIdent_), "%s-%s", cfgData_.vendor, idForEntityPrefix);
+    refreshDeviceNameFromMqttConfig_();
+}
+
+void HAModule::refreshDeviceNameFromMqttConfig_()
+{
+    snprintf(deviceName_, sizeof(deviceName_), "%s", originName_);
+    if (!cfgSvc_ || !cfgSvc_->toJsonModule) return;
+
+    char mqttJson[Limits::Mqtt::Buffers::StateCfg] = {0};
+    bool truncated = false;
+    if (!cfgSvc_->toJsonModule(cfgSvc_->ctx, "mqtt", mqttJson, sizeof(mqttJson), &truncated)) return;
+
+    StaticJsonDocument<512> doc;
+    const DeserializationError err = deserializeJson(doc, mqttJson);
+    if (err || !doc.is<JsonObjectConst>()) return;
+
+    const char* configuredName = doc["deviceName"] | "";
+    if (configuredName && configuredName[0] != '\0') {
+        snprintf(deviceName_, sizeof(deviceName_), "%s", configuredName);
+    }
 }
 
 bool HAModule::resolveMqttTopicDeviceId_(char* out, size_t outLen) const
@@ -1193,6 +1214,7 @@ void HAModule::init(ConfigStore& cfg, ServiceRegistry& services)
 
     eventBusSvc_ = services.get<EventBusService>(ServiceId::EventBus);
     dsSvc_ = services.get<DataStoreService>(ServiceId::DataStore);
+    cfgSvc_ = services.get<ConfigStoreService>(ServiceId::ConfigStore);
     mqttSvc_ = services.get<MqttService>(ServiceId::Mqtt);
     if (!ensureStorage_()) {
         LOGE("HA storage allocation failed");

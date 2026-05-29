@@ -184,6 +184,22 @@ def _profile_from_pio_env(pio_env: str) -> str:
     return "generic"
 
 
+def _profile_override_from_project_options() -> Optional[str]:
+    from_env = str(os.getenv("FLOW_CFGDOC_PROFILE", "") or "").strip().lower()
+    if from_env in ("flowio", "flowios3", "generic"):
+        return from_env
+
+    if env is None:
+        return None
+    try:
+        value = str(env.GetProjectOption("custom_cfgdocs_profile") or "").strip().lower()
+    except Exception:
+        return None
+    if value in ("flowio", "flowios3", "generic"):
+        return value
+    return None
+
+
 def _to_int(value: Any) -> Optional[int]:
     try:
         return int(value)
@@ -264,6 +280,26 @@ def _apply_profile_specific_io_enum_sets(meta: dict, profile: str) -> dict:
             if keep:
                 filtered.append(dict(entry))
 
+        if profile == "flowios3":
+            dout_labels_flowios3 = {
+                300: "EXIO1 - PortOut0 / TCA9554 bit 0 [300]",
+                301: "EXIO2 - PortOut1 / TCA9554 bit 1 [301]",
+                302: "EXIO3 - PortOut2 / TCA9554 bit 2 [302]",
+                303: "EXIO4 - PortOut3 / TCA9554 bit 3 [303]",
+                304: "EXIO5 - PortOut4 / TCA9554 bit 4 [304]",
+                305: "EXIO6 - PortOut5 / TCA9554 bit 5 [305]",
+                306: "EXIO7 - PortOut6 / TCA9554 bit 6 [306]",
+                307: "EXIO8 - PortOut7 / TCA9554 bit 7 [307]",
+            }
+            relabeled: List[dict] = []
+            for entry in filtered:
+                value = _to_int(entry.get("value"))
+                if value is not None and value in dout_labels_flowios3:
+                    relabeled.append(sanitize_enum_entry(entry, dout_labels_flowios3[value]))
+                else:
+                    relabeled.append(dict(entry))
+            filtered = relabeled
+
         # Ensure FlowIO exposes all 8 PCF bits (400..407) in UI bindings.
         if profile == "flowio":
             present_values = {_to_int(item.get("value")) for item in filtered}
@@ -275,6 +311,34 @@ def _apply_profile_specific_io_enum_sets(meta: dict, profile: str) -> dict:
                     }
                 )
         enum_sets[dout_key] = filtered
+
+    # PoolLogic device slots: keep generic labels by default, but expose
+    # FlowIOS3 wiring-specific mapping in UI for faster setup.
+    slot_key = "poollogic_device_slot"
+    slot_entries = enum_sets.get(slot_key)
+    if profile == "flowios3" and isinstance(slot_entries, list):
+        current = [item for item in slot_entries if isinstance(item, dict)]
+        slot_labels_flowios3 = {
+            0: "Filtration Pump -> d00 (EXIO1 / PortOut0) [0]",
+            1: "pH Pump -> d01 (EXIO2 / PortOut1) [1]",
+            2: "Chlorine Pump -> d02 (EXIO3 / PortOut2) [2]",
+            3: "Robot -> d03 (EXIO4 / PortOut3) [3]",
+            4: "Fill Pump -> d04 (EXIO5 / PortOut4) [4]",
+            5: "Chlorine Generator -> d05 (EXIO6 / PortOut5) [5]",
+            6: "Lights -> d06 (EXIO7 / PortOut6) [6]",
+            7: "Water Heater -> d07 (EXIO8 / PortOut7) [7]",
+        }
+        relabeled: List[dict] = []
+        for entry in current:
+            value = _to_int(entry.get("value"))
+            if value is None:
+                continue
+            label = slot_labels_flowios3.get(value)
+            if label:
+                relabeled.append(sanitize_enum_entry(entry, label))
+            else:
+                relabeled.append(dict(entry))
+        enum_sets[slot_key] = relabeled
 
     return meta
 
@@ -305,7 +369,7 @@ def main() -> None:
     i18n, i18n_files = _load_text_translations(src_root, locale=locale)
 
     pio_env = _detect_pio_env()
-    profile = _profile_from_pio_env(pio_env)
+    profile = _profile_override_from_project_options() or _profile_from_pio_env(pio_env)
 
     combined_meta = _resolve_meta_i18n(_merge_meta_dict(cfgdocs_meta, cfgmods_meta), i18n)
     combined_meta = _apply_profile_specific_io_enum_sets(combined_meta, profile)

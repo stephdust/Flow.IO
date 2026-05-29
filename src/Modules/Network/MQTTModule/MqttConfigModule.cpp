@@ -10,6 +10,6 @@ void MqttConfigModule::init(ConfigStore& cfg, ServiceRegistry&)
     cfg.registerVar(passVar_, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(baseTopicVar_, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(topicDeviceIdVar_, kCfgModuleId, kCfgBranchId);
+    cfg.registerVar(deviceNameVar_, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(enabledVar_, kCfgModuleId, kCfgBranchId);
 }
-

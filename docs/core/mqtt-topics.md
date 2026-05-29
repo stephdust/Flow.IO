@@ -141,3 +141,4 @@ Topics discovery typiques:
 - `pass`
 - `baseTopic`
 - `topicDeviceId` (optionnel, segment `<deviceId>` stable pour les topics)
+- `deviceName` (optionnel, nom d'appareil utilisé par Home Assistant Discovery)

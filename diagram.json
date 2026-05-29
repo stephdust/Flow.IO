@@ -5,38 +5,38 @@
   "parts": [
     {
       "type": "board-esp32-s3-devkitc-1",
-      "id": "esp",
+      "id": "esæp",
       "top": -96.18,
       "left": -139.43,
       "attrs": { "flashSize": "8", "psramSize": "8", "psramType": "octal" }
     },
-    { "type": "wokwi-ds18b20", "id": "AirTemp", "top": -106.73, "left": 234.48, "attrs": {} },
-    { "type": "wokwi-ds18b20", "id": "WaterTemp", "top": -106.73, "left": 282.48, "attrs": {} },
-    { "type": "chip-ads1115", "id": "ads1115-int", "top": -27.78, "left": 484.8, "attrs": {} },
+    { "type": "wokwi-ds18b20", "id": "AirTemp", "top": 8.47, "left": -255.12, "attrs": {} },
+    { "type": "wokwi-ds18b20", "id": "WaterTemp", "top": -116.33, "left": -24.72, "attrs": {} },
+    { "type": "chip-ads1115", "id": "ads1115-int", "top": -8.58, "left": 254.4, "attrs": {} },
     {
       "type": "wokwi-text",
       "id": "text1",
-      "top": -134.4,
-      "left": 192,
+      "top": -144,
+      "left": -57.6,
       "attrs": { "text": "Air Temp" }
     },
     {
       "type": "wokwi-text",
       "id": "text2",
-      "top": -134.4,
-      "left": 278.4,
+      "top": -19.2,
+      "left": -278.4,
       "attrs": { "text": "Water Temp" }
     },
     {
       "type": "wokwi-text",
       "id": "text3",
-      "top": -57.6,
-      "left": 499.2,
+      "top": -38.4,
+      "left": 268.8,
       "attrs": { "text": "Internal ADS" }
     },
-    { "type": "wokwi-potentiometer", "id": "pot1", "top": -164.5, "left": 412.6, "attrs": {} },
-    { "type": "wokwi-potentiometer", "id": "pot2", "top": -164.5, "left": 518.2, "attrs": {} },
-    { "type": "wokwi-potentiometer", "id": "pot3", "top": -164.5, "left": 623.8, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": -145.3, "left": 182.2, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot2", "top": -145.3, "left": 287.8, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot3", "top": -145.3, "left": 393.4, "attrs": {} },
     {
       "type": "wokwi-vcc",
       "id": "vcc1",
@@ -45,127 +45,112 @@
       "rotate": 180,
       "attrs": {}
     },
-    { "type": "wokwi-gnd", "id": "gnd1", "top": -48, "left": 277.8, "attrs": {} },
-    { "type": "wokwi-gnd", "id": "gnd2", "top": -48, "left": 229.8, "attrs": {} },
+    { "type": "wokwi-gnd", "id": "gnd1", "top": -67.2, "left": -29.4, "attrs": {} },
+    { "type": "wokwi-gnd", "id": "gnd2", "top": 76.8, "left": -259.8, "attrs": {} },
     { "type": "wokwi-gnd", "id": "gnd3", "top": 134.4, "left": -163.8, "attrs": {} },
-    { "type": "wokwi-gnd", "id": "gnd4", "top": 28.8, "left": 431.4, "attrs": {} },
-    { "type": "wokwi-vcc", "id": "vcc2", "top": -56.84, "left": 460.8, "attrs": {} },
-    { "type": "wokwi-vcc", "id": "vcc3", "top": -114.44, "left": 710.4, "attrs": {} },
-    { "type": "wokwi-gnd", "id": "gnd5", "top": -76.8, "left": 383.4, "attrs": {} },
+    { "type": "wokwi-gnd", "id": "gnd4", "top": 48, "left": 201, "attrs": {} },
+    { "type": "wokwi-vcc", "id": "vcc2", "top": -37.64, "left": 230.4, "attrs": {} },
+    { "type": "wokwi-vcc", "id": "vcc3", "top": -95.24, "left": 480, "attrs": {} },
+    { "type": "wokwi-gnd", "id": "gnd5", "top": -57.6, "left": 153, "attrs": {} },
     {
       "type": "wokwi-text",
       "id": "text4",
-      "top": -192,
-      "left": 422.4,
+      "top": -172.8,
+      "left": 192,
       "attrs": { "text": "ORP" }
     },
-    { "type": "wokwi-text", "id": "text5", "top": -192, "left": 537.6, "attrs": { "text": "pH" } },
+    {
+      "type": "wokwi-text",
+      "id": "text5",
+      "top": -172.8,
+      "left": 307.2,
+      "attrs": { "text": "pH" }
+    },
     {
       "type": "wokwi-text",
       "id": "text6",
-      "top": -192,
-      "left": 652.8,
+      "top": -172.8,
+      "left": 422.4,
       "attrs": { "text": "PSI" }
     },
     {
       "type": "wokwi-vcc",
       "id": "vcc5",
-      "top": -39.36,
-      "left": -297.4,
+      "top": 210.24,
+      "left": -316.6,
       "rotate": 180,
       "attrs": {}
     },
-    {
-      "type": "wokwi-dip-switch-8",
-      "id": "sw1",
-      "top": -243.7,
-      "left": -353.3,
-      "rotate": 180,
-      "attrs": {}
-    },
+    { "type": "wokwi-dip-switch-8", "id": "sw1", "top": 15.9, "left": -372.9, "attrs": {} },
     {
       "type": "wokwi-resistor",
       "id": "r9",
-      "top": -92.6,
-      "left": -336.85,
+      "top": 157,
+      "left": -356.05,
       "rotate": 270,
       "attrs": { "value": "10000" }
     },
     {
       "type": "wokwi-resistor",
       "id": "r10",
-      "top": -92.6,
-      "left": -317.65,
+      "top": 157,
+      "left": -336.85,
       "rotate": 270,
       "attrs": { "value": "10000" }
     },
     {
       "type": "wokwi-resistor",
       "id": "r11",
-      "top": -92.6,
-      "left": -298.45,
+      "top": 157,
+      "left": -317.65,
       "rotate": 270,
       "attrs": { "value": "10000" }
     },
     {
-      "type": "wokwi-gnd",
-      "id": "gnd8",
-      "top": -296.2,
-      "left": -297.8,
-      "rotate": 180,
-      "attrs": {}
-    },
-    {
       "type": "wokwi-text",
       "id": "text7",
-      "top": -259.2,
-      "left": -259.2,
+      "top": -76.8,
+      "left": -460.8,
       "attrs": { "text": "1 - pH Level\n2 - Chlorine Level\n3 - Pool Level" }
     },
-    { "type": "chip-ads1115", "id": "ads1115-int1", "top": 97.02, "left": 484.8, "attrs": {} },
-    { "type": "wokwi-vcc", "id": "vcc7", "top": 58.36, "left": 460.8, "attrs": {} },
-    { "type": "wokwi-gnd", "id": "gnd9", "top": 144, "left": 431.4, "attrs": {} },
+    { "type": "chip-ads1115", "id": "ads1115-int1", "top": 116.22, "left": 254.4, "attrs": {} },
+    { "type": "wokwi-vcc", "id": "vcc7", "top": 77.56, "left": 230.4, "attrs": {} },
+    { "type": "wokwi-gnd", "id": "gnd9", "top": 163.2, "left": 201, "attrs": {} },
     {
       "type": "wokwi-text",
       "id": "text8",
-      "top": 67.2,
-      "left": 489.6,
+      "top": 86.4,
+      "left": 259.2,
       "attrs": { "text": "External ADS" }
     },
-    { "type": "wokwi-text", "id": "text9", "top": 192, "left": 950.4, "attrs": { "text": "ORP" } },
-    {
-      "type": "wokwi-text",
-      "id": "text10",
-      "top": 105.6,
-      "left": 950.4,
-      "attrs": { "text": "pH" }
-    },
-    { "type": "wokwi-text", "id": "text11", "top": 0, "left": 950.4, "attrs": { "text": "PSI" } },
-    { "type": "wokwi-gnd", "id": "gnd10", "top": 297.6, "left": 921, "attrs": {} },
-    { "type": "wokwi-vcc", "id": "vcc8", "top": -28.04, "left": 681.6, "attrs": {} },
+    { "type": "wokwi-text", "id": "text9", "top": 211.2, "left": 720, "attrs": { "text": "ORP" } },
+    { "type": "wokwi-text", "id": "text10", "top": 124.8, "left": 720, "attrs": { "text": "pH" } },
+    { "type": "wokwi-text", "id": "text11", "top": 19.2, "left": 720, "attrs": { "text": "PSI" } },
+    { "type": "wokwi-gnd", "id": "gnd10", "top": 316.8, "left": 690.6, "attrs": {} },
+    { "type": "wokwi-vcc", "id": "vcc8", "top": -8.84, "left": 451.2, "attrs": {} },
     {
       "type": "wokwi-slide-potentiometer",
       "id": "pot4",
-      "top": -33.4,
-      "left": 709.4,
+      "top": -14.2,
+      "left": 479,
       "attrs": { "travelLength": "30" }
     },
     {
       "type": "wokwi-slide-potentiometer",
       "id": "pot5",
-      "top": 62.6,
-      "left": 709.4,
+      "top": 81.8,
+      "left": 479,
       "attrs": { "travelLength": "30" }
     },
     {
       "type": "wokwi-slide-potentiometer",
       "id": "pot6",
-      "top": 158.6,
-      "left": 709.4,
+      "top": 177.8,
+      "left": 479,
       "attrs": { "travelLength": "30" }
     },
-    { "type": "wokwi-gnd", "id": "gnd11", "top": 28.8, "left": 604.2, "attrs": {} },
-    { "type": "wokwi-gnd", "id": "gnd12", "top": 163.2, "left": 585, "attrs": {} },
+    { "type": "wokwi-gnd", "id": "gnd11", "top": 48, "left": 373.8, "attrs": {} },
+    { "type": "wokwi-gnd", "id": "gnd12", "top": 182.4, "left": 354.6, "attrs": {} },
     { "type": "chip-bme680", "id": "chip1", "top": -594.18, "left": 801.6, "attrs": {} },
     {
       "type": "chip-tca9554pwr",
@@ -241,8 +226,15 @@
     },
     { "type": "wokwi-gnd", "id": "gnd7", "top": -172.8, "left": 66.6, "attrs": {} },
     { "type": "wokwi-vcc", "id": "vcc4", "top": -183.36, "left": 29, "rotate": 180, "attrs": {} },
-    { "type": "wokwi-vcc", "id": "vcc6", "top": -0.96, "left": 249.8, "rotate": 180, "attrs": {} },
-    { "type": "wokwi-vcc", "id": "vcc9", "top": -0.96, "left": 297.8, "rotate": 180, "attrs": {} },
+    {
+      "type": "wokwi-vcc",
+      "id": "vcc6",
+      "top": 66.24,
+      "left": -239.8,
+      "rotate": 180,
+      "attrs": {}
+    },
+    { "type": "wokwi-vcc", "id": "vcc9", "top": 8.64, "left": -9.4, "rotate": 180, "attrs": {} },
     {
       "type": "wokwi-text",
       "id": "text12",
@@ -377,6 +369,35 @@
       "left": 230.4,
       "rotate": 270,
       "attrs": { "text": "Water Heater" }
+    },
+    {
+      "type": "wokwi-wifi-ap",
+      "id": "ap1",
+      "top": -470.4,
+      "left": 412.8,
+      "attrs": { "ssid": "CasaParigi_IoT", "channel": "6", "password": "PassF0rI0T" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "text20",
+      "top": -201.6,
+      "left": 230.4,
+      "attrs": { "text": "****INTERNAL ADS ******" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "text21",
+      "top": -19.2,
+      "left": 556.8,
+      "attrs": { "text": "****EXTERNAL ADS ******" }
+    },
+    {
+      "type": "wokwi-gnd",
+      "id": "gnd6",
+      "top": -104.2,
+      "left": -326.6,
+      "rotate": 180,
+      "attrs": {}
     }
   ],
   "connections": [
@@ -400,12 +421,6 @@
     [ "pot1:GND", "gnd5:GND", "black", [ "v0" ] ],
     [ "r9:1", "r10:1", "orange", [ "h0" ] ],
     [ "r10:1", "r11:1", "orange", [ "h0" ] ],
-    [ "r10:2", "sw1:2b", "green", [ "h0" ] ],
-    [ "sw1:1a", "gnd8:GND", "green", [ "v-9.6", "h86" ] ],
-    [ "sw1:2a", "gnd8:GND", "green", [ "v-9.6", "h95.6" ] ],
-    [ "sw1:3a", "gnd8:GND", "green", [ "v-9.6", "h105.2" ] ],
-    [ "sw1:1b", "r11:2", "green", [ "v0" ] ],
-    [ "sw1:3b", "r9:2", "green", [ "v0" ] ],
     [ "vcc7:VCC", "ads1115-int1:VCC", "red", [ "v0" ] ],
     [ "ads1115-int1:GND", "gnd9:GND", "black", [ "h0" ] ],
     [ "gnd10:GND", "pot6:GND", "black", [ "v0" ] ],
@@ -456,14 +471,20 @@
     [ "relay4:VCC", "vcc12:VCC", "red", [ "v0" ] ],
     [ "relay3:VCC", "vcc11:VCC", "red", [ "v0" ] ],
     [ "relay2:VCC", "vcc10:VCC", "red", [ "v0" ] ],
-    [ "ads1115-int:SCL", "esp:41", "green", [ "h-451.2", "v-9.6" ] ],
-    [ "ads1115-int1:SCL", "esp:41", "green", [ "h-460.8", "v-134.4" ] ],
-    [ "ads1115-int1:SDA", "esp:42", "green", [ "h-441.6", "v-153.6" ] ],
-    [ "ads1115-int:SDA", "esp:42", "green", [ "h-422.4", "v-28.8" ] ],
+    [ "ads1115-int:SCL", "esp:41", "green", [ "h-182.4", "v-28.8" ] ],
+    [ "ads1115-int1:SCL", "esp:41", "green", [ "h-220.8", "v-153.6" ] ],
+    [ "ads1115-int1:SDA", "esp:42", "green", [ "h-211.2", "v-172.8" ] ],
+    [ "ads1115-int:SDA", "esp:42", "green", [ "h-192", "v-48" ] ],
     [ "r10:1", "vcc5:VCC", "green", [ "h0" ] ],
-    [ "sw1:1b", "esp:4", "green", [ "v28.5", "h105.6", "v124.8" ] ],
-    [ "esp:5", "sw1:2b", "green", [ "h-48.05", "v-124.8", "h-105.6" ] ],
-    [ "sw1:3b", "esp:6", "green", [ "v47.7", "h105.6", "v124.8" ] ]
+    [ "sw1:8a", "r11:2", "green", [ "v0" ] ],
+    [ "sw1:7a", "r10:2", "green", [ "v0" ] ],
+    [ "sw1:6a", "r9:2", "green", [ "v0" ] ],
+    [ "sw1:6b", "gnd6:GND", "green", [ "v0" ] ],
+    [ "sw1:7b", "gnd6:GND", "green", [ "v0" ] ],
+    [ "sw1:8b", "gnd6:GND", "green", [ "v-86.1", "h-19.2" ] ],
+    [ "esp:4", "sw1:6a", "green", [ "h0" ] ],
+    [ "esp:5", "sw1:7a", "green", [ "h0" ] ],
+    [ "esp:6", "sw1:8a", "green", [ "h0" ] ]
   ],
   "dependencies": {}
 }

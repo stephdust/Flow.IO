@@ -18,6 +18,11 @@ build_dir = Path(env.subst("$BUILD_DIR"))
 src_dir = project_dir / "data"
 staging_dir = build_dir / "spiffs_data"
 pio_env = str(env.subst("$PIOENV") or "").strip()
+cfgdocs_profile = ""
+try:
+    cfgdocs_profile = str(env.GetProjectOption("custom_cfgdocs_profile") or "").strip().lower()
+except Exception:
+    cfgdocs_profile = ""
 
 
 def _run_step(cmd):
@@ -25,6 +30,8 @@ def _run_step(cmd):
     step_env = os.environ.copy()
     if pio_env:
         step_env["PIOENV"] = pio_env
+    if cfgdocs_profile:
+        step_env["FLOW_CFGDOC_PROFILE"] = cfgdocs_profile
     subprocess.run(cmd, cwd=str(project_dir), check=True, env=step_env)
 
 if src_dir.exists():

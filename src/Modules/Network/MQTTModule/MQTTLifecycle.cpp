@@ -254,6 +254,7 @@ void MQTTModule::init(ConfigStore& cfg, ServiceRegistry& services)
     cfg.registerVar(passVar_, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(baseTopicVar_, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(topicDeviceIdVar_, kCfgModuleId, kCfgBranchId);
+    cfg.registerVar(deviceNameVar_, kCfgModuleId, kCfgBranchId);
     cfg.registerVar(enabledVar_, kCfgModuleId, kCfgBranchId);
 
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
