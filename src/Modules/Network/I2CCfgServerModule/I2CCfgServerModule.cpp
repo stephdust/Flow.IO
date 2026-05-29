@@ -563,8 +563,8 @@ bool I2CCfgServerModule::buildRuntimeStatusWifiJson_(bool& truncatedOut)
 {
     truncatedOut = false;
 
-    const bool wifiUp = dataStore_ ? wifiReady(*dataStore_) : false;
-    const IpV4 ip = dataStore_ ? wifiIp(*dataStore_) : IpV4{0, 0, 0, 0};
+    const bool wifiUp = dataStore_ ? networkReady(*dataStore_) : false;
+    const IpV4 ip = dataStore_ ? networkIp(*dataStore_) : IpV4{0, 0, 0, 0};
 
     char ipTxt[20] = {0};
     if (!ipToText_(ip, ipTxt, sizeof(ipTxt))) {

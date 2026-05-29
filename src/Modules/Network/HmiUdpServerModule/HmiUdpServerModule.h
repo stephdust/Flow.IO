@@ -18,7 +18,7 @@ public:
     uint8_t dependencyCount() const override { return 2; }
     ModuleId dependency(uint8_t i) const override {
         if (i == 0) return ModuleId::LogHub;
-        if (i == 1) return ModuleId::Wifi;
+        if (i == 1) return ModuleId::DataStore;
         return ModuleId::Unknown;
     }
 
@@ -79,6 +79,7 @@ private:
 
     WiFiUDP udp_{};
     const WifiService* wifiSvc_ = nullptr;
+    DataStore* dataStore_ = nullptr;
 
     uint8_t rxBuf_[HMI_UDP_MAX_PACKET]{};
     uint8_t txBuf_[HMI_UDP_MAX_PACKET]{};

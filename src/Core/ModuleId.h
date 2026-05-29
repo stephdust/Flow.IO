@@ -14,6 +14,7 @@ enum class ModuleId : uint8_t {
     Command,
     Alarm,
     Wifi,
+    Ethernet,
     WifiProvisioning,
     Time,
     I2cCfgClient,
@@ -62,6 +63,7 @@ constexpr const char* toString(ModuleId id)
         case ModuleId::Command: return "cmd";
         case ModuleId::Alarm: return "alarms";
         case ModuleId::Wifi: return "wifi";
+        case ModuleId::Ethernet: return "ethernet";
         case ModuleId::WifiProvisioning: return "wifiprov";
         case ModuleId::Time: return "time";
         case ModuleId::I2cCfgClient: return "i2ccfg.client";

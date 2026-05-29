@@ -185,10 +185,10 @@ void MQTTModule::onEvent_(const Event& e)
         const DataChangedPayload* p = (const DataChangedPayload*)e.payload;
         if (!p) return;
 
-        if (p->id == DATAKEY_WIFI_READY) {
+        if (p->id == DATAKEY_NETWORK_READY) {
             if (!dataStore_) return;
 
-            const bool ready = wifiReady(*dataStore_);
+            const bool ready = networkReady(*dataStore_);
             if (ready == netReady_) return;
 
             netReady_ = ready;
@@ -351,7 +351,7 @@ void MQTTModule::init(ConfigStore& cfg, ServiceRegistry& services)
     (void)allocateRxQueue_();
 #endif
 
-    netReady_ = dataStore_ ? wifiReady(*dataStore_) : false;
+    netReady_ = dataStore_ ? networkReady(*dataStore_) : false;
     netReadyTs_ = millis();
     retryCount_ = 0;
     retryDelayMs_ = Limits::Mqtt::Backoff::MinMs;

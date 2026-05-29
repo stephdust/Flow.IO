@@ -11,6 +11,7 @@
 #include "Modules/Logs/LogDispatcherModule/LogDispatcherModule.h"
 #include "Modules/Logs/LogHubModule/LogHubModule.h"
 #include "Modules/Logs/LogSerialSinkModule/LogSerialSinkModule.h"
+#include "Modules/Network/EthernetModule/EthernetModule.h"
 #include "Modules/Network/HAModule/HAModule.h"
 #include "Modules/Network/FirmwareUpdateModule/FirmwareUpdateModule.h"
 #include "Modules/Network/HmiUdpServerModule/HmiUdpServerModule.h"
@@ -35,6 +36,7 @@ namespace FlowIOS3 {
 struct ModuleInstances {
     explicit ModuleInstances(const BoardSpec& board);
 
+    EthernetModule ethernetModule{};
     WifiModule wifiModule;
     TimeModule timeModule{};
     WifiProvisioningModule wifiProvisioningModule{};

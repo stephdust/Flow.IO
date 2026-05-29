@@ -165,9 +165,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2301,
-      "runtimeId": 2301,
-      "moduleId": 23,
+      "id": 2401,
+      "runtimeId": 2401,
+      "moduleId": 24,
       "module": "poollogic",
       "valueId": 1,
       "key": "pool.auto_mode",
@@ -187,9 +187,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2302,
-      "runtimeId": 2302,
-      "moduleId": 23,
+      "id": 2402,
+      "runtimeId": 2402,
+      "moduleId": 24,
       "module": "poollogic",
       "valueId": 2,
       "key": "pool.winter_mode",
@@ -209,9 +209,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2201,
-      "runtimeId": 2201,
-      "moduleId": 22,
+      "id": 2301,
+      "runtimeId": 2301,
+      "moduleId": 23,
       "module": "pooldev",
       "valueId": 1,
       "key": "pool.filtration_on",
@@ -231,9 +231,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2303,
-      "runtimeId": 2303,
-      "moduleId": 23,
+      "id": 2403,
+      "runtimeId": 2403,
+      "moduleId": 24,
       "module": "poollogic",
       "valueId": 3,
       "key": "pool.ph_auto_mode",
@@ -253,9 +253,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2202,
-      "runtimeId": 2202,
-      "moduleId": 22,
+      "id": 2302,
+      "runtimeId": 2302,
+      "moduleId": 23,
       "module": "pooldev",
       "valueId": 2,
       "key": "pool.ph_pump_on",
@@ -272,9 +272,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2304,
-      "runtimeId": 2304,
-      "moduleId": 23,
+      "id": 2404,
+      "runtimeId": 2404,
+      "moduleId": 24,
       "module": "poollogic",
       "valueId": 4,
       "key": "pool.orp_auto_mode",
@@ -294,9 +294,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2203,
-      "runtimeId": 2203,
-      "moduleId": 22,
+      "id": 2303,
+      "runtimeId": 2303,
+      "moduleId": 23,
       "module": "pooldev",
       "valueId": 3,
       "key": "pool.chlorine_pump_on",
@@ -313,9 +313,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2204,
-      "runtimeId": 2204,
-      "moduleId": 22,
+      "id": 2304,
+      "runtimeId": 2304,
+      "moduleId": 23,
       "module": "pooldev",
       "valueId": 4,
       "key": "pool.robot_on",
@@ -332,9 +332,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2001,
-      "runtimeId": 2001,
-      "moduleId": 20,
+      "id": 2101,
+      "runtimeId": 2101,
+      "moduleId": 21,
       "module": "mqtt",
       "valueId": 1,
       "key": "mqtt.ready",
@@ -354,9 +354,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2002,
-      "runtimeId": 2002,
-      "moduleId": 20,
+      "id": 2102,
+      "runtimeId": 2102,
+      "moduleId": 21,
       "module": "mqtt",
       "valueId": 2,
       "key": "mqtt.server",
@@ -373,9 +373,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2003,
-      "runtimeId": 2003,
-      "moduleId": 20,
+      "id": 2103,
+      "runtimeId": 2103,
+      "moduleId": 21,
       "module": "mqtt",
       "valueId": 3,
       "key": "mqtt.rx_drop",
@@ -392,9 +392,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2004,
-      "runtimeId": 2004,
-      "moduleId": 20,
+      "id": 2104,
+      "runtimeId": 2104,
+      "moduleId": 21,
       "module": "mqtt",
       "valueId": 4,
       "key": "mqtt.parse_fail",
@@ -411,9 +411,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2005,
-      "runtimeId": 2005,
-      "moduleId": 20,
+      "id": 2105,
+      "runtimeId": 2105,
+      "moduleId": 21,
       "module": "mqtt",
       "valueId": 5,
       "key": "mqtt.handler_fail",
@@ -430,9 +430,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2006,
-      "runtimeId": 2006,
-      "moduleId": 20,
+      "id": 2106,
+      "runtimeId": 2106,
+      "moduleId": 21,
       "module": "mqtt",
       "valueId": 6,
       "key": "mqtt.oversize_drop",
@@ -449,9 +449,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2101,
-      "runtimeId": 2101,
-      "moduleId": 21,
+      "id": 2201,
+      "runtimeId": 2201,
+      "moduleId": 22,
       "module": "io",
       "valueId": 1,
       "key": "pool.water_temp",
@@ -477,9 +477,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2102,
-      "runtimeId": 2102,
-      "moduleId": 21,
+      "id": 2202,
+      "runtimeId": 2202,
+      "moduleId": 22,
       "module": "io",
       "valueId": 2,
       "key": "pool.air_temp",
@@ -505,9 +505,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2103,
-      "runtimeId": 2103,
-      "moduleId": 21,
+      "id": 2203,
+      "runtimeId": 2203,
+      "moduleId": 22,
       "module": "io",
       "valueId": 3,
       "key": "pool.ph",
@@ -533,9 +533,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2104,
-      "runtimeId": 2104,
-      "moduleId": 21,
+      "id": 2204,
+      "runtimeId": 2204,
+      "moduleId": 22,
       "module": "io",
       "valueId": 4,
       "key": "pool.orp",
@@ -561,9 +561,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       }
     },
     {
-      "id": 2105,
-      "runtimeId": 2105,
-      "moduleId": 21,
+      "id": 2205,
+      "runtimeId": 2205,
+      "moduleId": 22,
       "module": "io",
       "valueId": 5,
       "key": "pool.water_counter",
@@ -580,9 +580,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2106,
-      "runtimeId": 2106,
-      "moduleId": 21,
+      "id": 2206,
+      "runtimeId": 2206,
+      "moduleId": 22,
       "module": "io",
       "valueId": 6,
       "key": "pool.psi",
@@ -599,9 +599,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2107,
-      "runtimeId": 2107,
-      "moduleId": 21,
+      "id": 2207,
+      "runtimeId": 2207,
+      "moduleId": 22,
       "module": "io",
       "valueId": 7,
       "key": "io.bmp280_temp",
@@ -618,9 +618,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2108,
-      "runtimeId": 2108,
-      "moduleId": 21,
+      "id": 2208,
+      "runtimeId": 2208,
+      "moduleId": 22,
       "module": "io",
       "valueId": 8,
       "key": "io.bme680_temp",
@@ -637,9 +637,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2109,
-      "runtimeId": 2109,
-      "moduleId": 21,
+      "id": 2209,
+      "runtimeId": 2209,
+      "moduleId": 22,
       "module": "io",
       "valueId": 9,
       "key": "bmp280.pressure",
@@ -656,9 +656,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2110,
-      "runtimeId": 2110,
-      "moduleId": 21,
+      "id": 2210,
+      "runtimeId": 2210,
+      "moduleId": 22,
       "module": "io",
       "valueId": 10,
       "key": "sht40.temperature",
@@ -675,9 +675,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2111,
-      "runtimeId": 2111,
-      "moduleId": 21,
+      "id": 2211,
+      "runtimeId": 2211,
+      "moduleId": 22,
       "module": "io",
       "valueId": 11,
       "key": "sht40.humidity",
@@ -694,9 +694,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2112,
-      "runtimeId": 2112,
-      "moduleId": 21,
+      "id": 2212,
+      "runtimeId": 2212,
+      "moduleId": 22,
       "module": "io",
       "valueId": 12,
       "key": "bme680.humidity",
@@ -713,9 +713,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2113,
-      "runtimeId": 2113,
-      "moduleId": 21,
+      "id": 2213,
+      "runtimeId": 2213,
+      "moduleId": 22,
       "module": "io",
       "valueId": 13,
       "key": "bme680.pressure",
@@ -732,9 +732,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 2114,
-      "runtimeId": 2114,
-      "moduleId": 21,
+      "id": 2214,
+      "runtimeId": 2214,
+      "moduleId": 22,
       "module": "io",
       "valueId": 14,
       "key": "bme680.gaz",
@@ -751,9 +751,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 1701,
-      "runtimeId": 1701,
-      "moduleId": 17,
+      "id": 1801,
+      "runtimeId": 1801,
+      "moduleId": 18,
       "module": "system",
       "valueId": 1,
       "key": "system.firmware",
@@ -770,9 +770,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 1702,
-      "runtimeId": 1702,
-      "moduleId": 17,
+      "id": 1802,
+      "runtimeId": 1802,
+      "moduleId": 18,
       "module": "system",
       "valueId": 2,
       "key": "system.uptime_ms",
@@ -789,9 +789,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 1703,
-      "runtimeId": 1703,
-      "moduleId": 17,
+      "id": 1803,
+      "runtimeId": 1803,
+      "moduleId": 18,
       "module": "system",
       "valueId": 3,
       "key": "system.heap_free",
@@ -808,9 +808,9 @@ inline constexpr const char kRuntimeUiManifestJson[] = R"RUI(
       "displayConfig": null
     },
     {
-      "id": 1704,
-      "runtimeId": 1704,
-      "moduleId": 17,
+      "id": 1804,
+      "runtimeId": 1804,
+      "moduleId": 18,
       "module": "system",
       "valueId": 4,
       "key": "system.heap_min_free",

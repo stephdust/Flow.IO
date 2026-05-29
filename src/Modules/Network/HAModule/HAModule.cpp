@@ -1068,7 +1068,7 @@ MqttBuildResult HAModule::buildMessage_(uint16_t messageId, MqttBuildContext& bu
     if (!cfgData_.enabled) return MqttBuildResult::NoLongerNeeded;
     if (!mqttSvc_ || !mqttSvc_->formatTopic) return MqttBuildResult::PermanentError;
     if (!dsSvc_ || !dsSvc_->store) return MqttBuildResult::RetryLater;
-    if (!wifiReady(*dsSvc_->store)) return MqttBuildResult::RetryLater;
+    if (!networkReady(*dsSvc_->store)) return MqttBuildResult::RetryLater;
     if (!mqttReady(*dsSvc_->store)) return MqttBuildResult::RetryLater;
     if (!isPending_(messageId)) return MqttBuildResult::NoLongerNeeded;
 
@@ -1130,11 +1130,11 @@ void HAModule::onEvent(const Event& e)
     if (!payload) return;
     if (!dsSvc_ || !dsSvc_->store) return;
 
-    if (payload->id == DATAKEY_WIFI_READY) {
+    if (payload->id == DATAKEY_NETWORK_READY) {
         HA_BOOT_TRACE_D("ha boot trace: event wifi_ready=%d mqtt_ready=%d",
-                        wifiReady(*dsSvc_->store) ? 1 : 0,
+                        networkReady(*dsSvc_->store) ? 1 : 0,
                         mqttReady(*dsSvc_->store) ? 1 : 0);
-        if (wifiReady(*dsSvc_->store) && mqttReady(*dsSvc_->store)) {
+        if (networkReady(*dsSvc_->store) && mqttReady(*dsSvc_->store)) {
             (void)enqueuePending_(MqttPublishPriority::Low);
         }
         return;
@@ -1143,8 +1143,8 @@ void HAModule::onEvent(const Event& e)
     if (payload->id == DATAKEY_MQTT_READY) {
         HA_BOOT_TRACE_D("ha boot trace: event mqtt_ready=%d wifi_ready=%d",
                         mqttReady(*dsSvc_->store) ? 1 : 0,
-                        wifiReady(*dsSvc_->store) ? 1 : 0);
-        if (wifiReady(*dsSvc_->store) && mqttReady(*dsSvc_->store)) {
+                        networkReady(*dsSvc_->store) ? 1 : 0);
+        if (networkReady(*dsSvc_->store) && mqttReady(*dsSvc_->store)) {
             (void)enqueuePending_(MqttPublishPriority::Low);
         }
         return;

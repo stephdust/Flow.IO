@@ -33,10 +33,6 @@ void WifiProvisioningModule::init(ConfigStore& cfg, ServiceRegistry& services)
     lastCfgPollMs_ = 0;
     buildApCredentials_();
 
-    if (!services.add(ServiceId::NetworkAccess, &netAccessSvc_)) {
-        LOGE("service registration failed: %s", toString(ServiceId::NetworkAccess));
-    }
-
     gWifiProvisioningInstance = this;
     if (wifiEventHandlerId_ != 0U) {
         WiFi.removeEvent(wifiEventHandlerId_);
@@ -49,12 +45,19 @@ void WifiProvisioningModule::init(ConfigStore& cfg, ServiceRegistry& services)
          apSsid_);
 }
 
-void WifiProvisioningModule::onConfigLoaded(ConfigStore&, ServiceRegistry&)
+void WifiProvisioningModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
 {
     refreshWifiConfig_();
-    LOGI("Provisioning config loaded: enabled=%d configured=%d",
+    if (!ethernetEnabled_ && !services.has(ServiceId::NetworkAccess)) {
+        if (!services.add(ServiceId::NetworkAccess, &netAccessSvc_)) {
+            LOGE("service registration failed: %s", toString(ServiceId::NetworkAccess));
+        }
+    }
+    LOGI("Provisioning config loaded: ethernet=%d wifi_enabled=%d wifi_configured=%d",
+         (int)ethernetEnabled_,
          (int)wifiEnabled_,
          (int)wifiConfigured_);
+    if (ethernetEnabled_) return;
 #if defined(FLOW_PROFILE_MICRONOVA)
     LOGI("Provisioning portal start deferred");
 #else
@@ -85,6 +88,13 @@ void WifiProvisioningModule::loop()
         refreshWifiConfig_();
     }
 
+    if (ethernetEnabled_) {
+        if (apActive_) stopCaptivePortal_();
+        portalLatched_ = false;
+        vTaskDelay(pdMS_TO_TICKS(250));
+        return;
+    }
+
     const bool staConnected = isStaConnected_();
     if (staConnected) {
         if (apActive_) {
@@ -111,6 +121,7 @@ void WifiProvisioningModule::loop()
 void WifiProvisioningModule::ensurePortalStarted_()
 {
     if (apActive_ || portalLatched_) return;
+    if (ethernetEnabled_) return;
     if (isStaConnected_()) return;
 
     const PortalReason reason = evaluatePortalReason_();
@@ -148,6 +159,7 @@ bool WifiProvisioningModule::getIP_(char* out, size_t len) const
 
 bool WifiProvisioningModule::notifyWifiConfigChanged_()
 {
+    if (ethernetEnabled_) return false;
     configDirty_ = true;
     if (wifiSvc_ && wifiSvc_->setStaRetryEnabled) {
         (void)wifiSvc_->setStaRetryEnabled(wifiSvc_->ctx, true);
@@ -171,6 +183,22 @@ void WifiProvisioningModule::buildApCredentials_()
 void WifiProvisioningModule::refreshWifiConfig_()
 {
     if (!cfgStore_) return;
+
+    ethernetEnabled_ = false;
+    char ethernetJson[96] = {0};
+    if (cfgStore_->toJsonModule("ethernet", ethernetJson, sizeof(ethernetJson), nullptr)) {
+        StaticJsonDocument<96> ethDoc;
+        if (deserializeJson(ethDoc, ethernetJson) == DeserializationError::Ok && ethDoc.is<JsonObjectConst>()) {
+            JsonObjectConst ethRoot = ethDoc.as<JsonObjectConst>();
+            ethernetEnabled_ = ethRoot["enabled"] | false;
+        }
+    }
+
+    if (ethernetEnabled_) {
+        wifiConfigured_ = false;
+        wifiEnabled_ = false;
+        return;
+    }
 
     char wifiJson[320] = {0};
     if (!cfgStore_->toJsonModule("wifi", wifiJson, sizeof(wifiJson), nullptr)) {
@@ -208,6 +236,7 @@ WifiProvisioningModule::PortalReason WifiProvisioningModule::evaluatePortalReaso
 bool WifiProvisioningModule::startCaptivePortal_(PortalReason reason)
 {
     if (apActive_) return true;
+    if (ethernetEnabled_) return false;
 
     if (wifiSvc_ && wifiSvc_->setStaRetryEnabled) {
         (void)wifiSvc_->setStaRetryEnabled(wifiSvc_->ctx, false);

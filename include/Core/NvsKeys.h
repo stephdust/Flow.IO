@@ -20,6 +20,10 @@ constexpr char Pass[] = "wifi_pass"; // WiFi module persisted key for field `wif
 constexpr char Mdns[] = "wifi_mdns"; // WiFi module persisted key for field `wifi_mdns`.
 }  // namespace Wifi
 
+namespace Ethernet {
+constexpr char Enabled[] = "eth_en"; // Ethernet module persisted key for field `eth_en`.
+}  // namespace Ethernet
+
 namespace Mqtt {
 constexpr char Host[] = "mq_host"; // MQTT module persisted key for field `mq_host`.
 constexpr char Port[] = "mq_port"; // MQTT module persisted key for field `mq_port`.

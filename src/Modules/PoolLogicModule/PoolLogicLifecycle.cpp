@@ -369,12 +369,14 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
             "mdi:clock-end",
             "h"
         };
-        const HASensorEntry heatAssistReason{
+        static const char* kHeatAssistStatusFrTemplate =
+            R"({% set st = value_json.ri | default('UNKNOWN', true) %}{% if st == 'DISABLED' %}Désactivé{% elif st == 'MANUAL_MODE' %}Mode manuel{% elif st == 'PSI_BLOCKED' %}Pression bloquée{% elif st == 'SETPOINT_INVALID' %}Consigne invalide{% elif st == 'TEMP_UNAVAILABLE' %}Température indisponible{% elif st == 'PROBE_WAIT_30M' %}Attente sonde 30 min{% elif st == 'PROBE_WAIT_20M' %}Attente sonde 20 min{% elif st == 'PROBE_RUNNING' %}Sondage en cours{% elif st == 'HEATING' %}Chauffe active{% elif st == 'IDLE_PUMP_ON' %}Pompe active sans chauffe{% elif st == 'SETPOINT_REACHED' %}Consigne atteinte{% else %}Inconnu{% endif %})";
+        const HASensorEntry heatAssistStatus{
             "poollogic",
             "pl_has_rsn",
-            "Heat Assist Reason",
+            "Heat Assist Status",
             "rt/poollogic/heat_assist",
-            "{{ value_json.ri | default('UNKNOWN', true) }}",
+            kHeatAssistStatusFrTemplate,
             nullptr,
             "mdi:information-outline",
             nullptr,
@@ -384,7 +386,7 @@ void PoolLogicModule::init(ConfigStore& cfg, ServiceRegistry& services)
         };
         (void)haSvc->addSensor(haSvc->ctx, &filtrationStart);
         (void)haSvc->addSensor(haSvc->ctx, &filtrationStop);
-        (void)haSvc->addSensor(haSvc->ctx, &heatAssistReason);
+        (void)haSvc->addSensor(haSvc->ctx, &heatAssistStatus);
     }
     if (haSvc && haSvc->addNumber) {
         const HANumberEntry waterTempSetpoint{

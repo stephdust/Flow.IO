@@ -1170,10 +1170,10 @@ void TimeModule::onEvent(const Event& e)
     if (e.id == EventId::DataChanged) {
         if (!e.payload || e.len < sizeof(DataChangedPayload)) return;
         const DataChangedPayload* p = (const DataChangedPayload*)e.payload;
-        if (p->id != DATAKEY_WIFI_READY) return;
+        if (p->id != DATAKEY_NETWORK_READY) return;
         if (!dataStore) return;
 
-        bool ready = wifiReady(*dataStore);
+        bool ready = networkReady(*dataStore);
         if (ready == _netReady) return;
 
         _netReady = ready;

@@ -1192,9 +1192,9 @@ bool appendMicronovaLocalRuntimeValue_(Print& out, DataStore* dataStore, Runtime
             printRuntimeU32_(out, firstValue, id, "system.heap_min_free", snap.heap.minFreeBytes, "B");
             return true;
         }
-        case makeRuntimeUiId(ModuleId::Wifi, 1): printRuntimeBool_(out, firstValue, id, "wifi.ready", wifiReady(*dataStore)); return true;
+        case makeRuntimeUiId(ModuleId::Wifi, 1): printRuntimeBool_(out, firstValue, id, "wifi.ready", networkReady(*dataStore)); return true;
         case makeRuntimeUiId(ModuleId::Wifi, 2): {
-            const IpV4 ip = wifiIp(*dataStore);
+            const IpV4 ip = networkIp(*dataStore);
             char ipText[16] = {0};
             snprintf(ipText, sizeof(ipText), "%u.%u.%u.%u", (unsigned)ip.b[0], (unsigned)ip.b[1], (unsigned)ip.b[2], (unsigned)ip.b[3]);
             printRuntimeString_(out, firstValue, id, "wifi.ip", ipText);
@@ -1558,10 +1558,10 @@ bool appendFlowios3LocalRuntimeValue_(Print& out,
             printRuntimeU32_(out, firstValue, id, "system.heap_min_free", ctx.systemStats.heap.minFreeBytes, "B");
             return true;
         case 1001:
-            printRuntimeBool_(out, firstValue, id, "wifi.ready", wifiReady(*dataStore));
+            printRuntimeBool_(out, firstValue, id, "wifi.ready", networkReady(*dataStore));
             return true;
         case 1002: {
-            const IpV4 ip = wifiIp(*dataStore);
+            const IpV4 ip = networkIp(*dataStore);
             char ipText[16] = {0};
             snprintf(ipText, sizeof(ipText), "%u.%u.%u.%u", (unsigned)ip.b[0], (unsigned)ip.b[1], (unsigned)ip.b[2], (unsigned)ip.b[3]);
             printRuntimeString_(out, firstValue, id, "wifi.ip", ipText);
@@ -1636,9 +1636,9 @@ bool flowios3BuildStatusDomainJson_(FlowStatusDomain domain,
 
     if (domain == FlowStatusDomain::Wifi) {
         JsonObject wifi = doc.createNestedObject("wifi");
-        const bool wifiUp = dataStore ? wifiReady(*dataStore) : false;
+        const bool wifiUp = dataStore ? networkReady(*dataStore) : false;
         wifi["rdy"] = wifiUp;
-        IpV4 ip = dataStore ? wifiIp(*dataStore) : IpV4{{0, 0, 0, 0}};
+        IpV4 ip = dataStore ? networkIp(*dataStore) : IpV4{{0, 0, 0, 0}};
         char ipText[20] = {0};
         snprintf(ipText, sizeof(ipText), "%u.%u.%u.%u", (unsigned)ip.b[0], (unsigned)ip.b[1], (unsigned)ip.b[2], (unsigned)ip.b[3]);
         wifi["ip"] = ipText;
@@ -2699,7 +2699,7 @@ void WebInterfaceModule::init(ConfigStore& cfg, ServiceRegistry& services)
         LOGE("service registration failed: %s", toString(ServiceId::WebInterface));
     }
 
-    netReady_ = dataStore_ ? wifiReady(*dataStore_) : false;
+    netReady_ = dataStore_ ? networkReady(*dataStore_) : false;
 
     const uint32_t nowMs = millis();
     portENTER_CRITICAL(&healthMux_);

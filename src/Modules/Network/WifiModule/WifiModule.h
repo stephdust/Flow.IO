@@ -121,6 +121,7 @@ private:
     uint32_t connectAttempt_ = 0;
     bool reconnectKickSent_ = false;
     bool staRetryEnabled_ = true;
+    bool ethernetEnabled_ = false;
     bool hadSuccessfulConnection_ = false;
     wl_status_t lastConnectStatus_ = WL_IDLE_STATUS;
     uint8_t lastDisconnectReason_ = 0;
@@ -203,6 +204,7 @@ private:
     void syncMdns_();
     void applyBoardDefaults_(const BoardSpec& board);
     void applyBoardMdnsHost_();
+    void refreshEthernetConfig_(ConfigStore& cfg);
     bool requestScan_(bool force);
     void processScan_();
     bool buildScanStatusJson_(char* out, size_t outLen);

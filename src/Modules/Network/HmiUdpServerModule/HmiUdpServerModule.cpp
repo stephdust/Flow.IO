@@ -1,6 +1,7 @@
 #include "Modules/Network/HmiUdpServerModule/HmiUdpServerModule.h"
 
 #include <string.h>
+#include "Modules/Network/WifiModule/WifiRuntime.h"
 
 #define LOG_MODULE_ID ((LogModuleId)LogModuleIdValue::HmiUdpServerModule)
 #include "Core/ModuleLog.h"
@@ -9,6 +10,8 @@ void HmiUdpServerModule::init(ConfigStore& cfg, ServiceRegistry& services)
 {
     cfg.registerVar(tokenVar_);
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
+    const DataStoreService* dsSvc = services.get<DataStoreService>(ServiceId::DataStore);
+    dataStore_ = dsSvc ? dsSvc->store : nullptr;
 }
 
 bool HmiUdpServerModule::begin()
@@ -658,6 +661,7 @@ bool HmiUdpServerModule::pushEvent_(const HmiEvent& event)
 
 bool HmiUdpServerModule::wifiConnected_() const
 {
+    if (dataStore_) return networkReady(*dataStore_);
     return wifiSvc_ && wifiSvc_->isConnected && wifiSvc_->isConnected(wifiSvc_->ctx);
 }
 

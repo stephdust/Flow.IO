@@ -808,8 +808,9 @@ void WifiModule::init(ConfigStore& cfg,
     setState(WifiState::Idle);
 }
 
-void WifiModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
+void WifiModule::onConfigLoaded(ConfigStore& cfg, ServiceRegistry& services)
 {
+    refreshEthernetConfig_(cfg);
     if (!cfgMqttPub_) {
         cfgMqttPub_ = new (std::nothrow) MqttConfigRouteProducer();
     }
@@ -824,6 +825,12 @@ void WifiModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
 
     applyBoardMdnsHost_();
     logConfigSummary_();
+    if (ethernetEnabled_) {
+        LOGW("WiFi disabled because ethernet.enabled=true");
+        WiFi.disconnect(false, false);
+        setState(WifiState::Disabled);
+        return;
+    }
     if (!cfgData.enabled) {
         LOGW("WiFi disabled in config, disconnecting STA");
         WiFi.disconnect(false, false);
@@ -833,6 +840,21 @@ void WifiModule::onConfigLoaded(ConfigStore&, ServiceRegistry& services)
     initialConnectNotBeforeMs_ = millis() + kInitialConnectDelayMs;
     startupTransientLogUntilMs_ = millis() + kStartupTransientLogWindowMs;
     setState(WifiState::Idle);
+}
+
+void WifiModule::refreshEthernetConfig_(ConfigStore& cfg)
+{
+    ethernetEnabled_ = false;
+    char ethJson[96] = {0};
+    if (!cfg.toJsonModule("ethernet", ethJson, sizeof(ethJson), nullptr)) return;
+
+    StaticJsonDocument<96> doc;
+    if (deserializeJson(doc, ethJson) != DeserializationError::Ok || !doc.is<JsonObjectConst>()) {
+        return;
+    }
+
+    JsonObjectConst root = doc.as<JsonObjectConst>();
+    ethernetEnabled_ = root["enabled"] | false;
 }
 
 void WifiModule::applyBoardDefaults_(const BoardSpec& board)

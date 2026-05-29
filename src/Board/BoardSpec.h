@@ -69,3 +69,8 @@ inline HaCapacitySpec boardHaCapacity(const BoardSpec& board)
 {
     return board.haCapacity;
 }
+
+inline const EthernetW5500Spec* boardEthernetW5500(const BoardSpec& board)
+{
+    return board.ethernetW5500;
+}

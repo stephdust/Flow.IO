@@ -457,7 +457,7 @@ Sémantique importante:
 - `pr`: sondage 5 min en cours
 - `ha`: chauffe active
 - `fc`: cadence rapide active (5 min / 20 min)
-- `ri`: motif courant (`reason`)
+- `ri`: motif courant brut (code interne)
 - `ivm`: intervalle d'attente courant en minutes (20 ou 30)
 - `prm`: temps restant du sondage courant (ms)
 - `irm`: temps restant avant prochain sondage (ms)
@@ -486,7 +486,7 @@ Entités enregistrées par `PoolLogicModule`:
 - sensors:
   - `calculated_filtration_start`
   - `calculated_filtration_stop`
-  - `heat_assist_reason`
+  - `heat_assist_status`
 - numbers (section configuration):
   - `delay_pids_min`
   - `ph_setpoint`

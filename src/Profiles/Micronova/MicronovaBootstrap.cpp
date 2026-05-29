@@ -88,10 +88,10 @@ bool buildNetworkSnapshot(MQTTModule* mqtt, char* out, size_t len)
     DataStore* ds = mqtt->dataStorePtr();
     if (!ds) return false;
 
-    IpV4 ip4 = wifiIp(*ds);
+    IpV4 ip4 = networkIp(*ds);
     char ip[16];
     snprintf(ip, sizeof(ip), "%u.%u.%u.%u", ip4.b[0], ip4.b[1], ip4.b[2], ip4.b[3]);
-    const bool netReady = wifiReady(*ds);
+    const bool netReady = networkReady(*ds);
     const bool mqttOk = mqttReady(*ds);
     const int rssi = WiFi.isConnected() ? WiFi.RSSI() : -127;
     uint8_t mac[6] = {0};

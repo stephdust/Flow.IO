@@ -162,6 +162,18 @@ struct ProvisioningPolicySpec {
     bool requireMqttForConfigured = false; // Require MQTT config in addition to Wi-Fi config.
 };
 
+struct EthernetW5500Spec {
+    bool enabled = false;       // True when this board exposes a W5500 wired Ethernet interface.
+    int8_t mosiPin = -1;        // SPI MOSI pin.
+    int8_t misoPin = -1;        // SPI MISO pin.
+    int8_t sclkPin = -1;        // SPI clock pin.
+    int8_t csPin = -1;          // W5500 chip-select pin.
+    int8_t intPin = -1;         // W5500 interrupt pin.
+    int8_t rstPin = -1;         // W5500 reset pin.
+    uint8_t phyAddr = 1;        // W5500 PHY address.
+    uint32_t spiClockHz = 20000000U; // SPI clock in Hz.
+};
+
 struct BoardSpec {
     const char* name;                  // Board identifier exposed to the app/runtime.
     const char* mdnsHost;              // Default mDNS host name for this board/profile.
@@ -179,4 +191,5 @@ struct BoardSpec {
     HaCapacitySpec haCapacity{};         // Compile-time HA entity capacities for this board/profile.
     const SupervisorBoardSpec* supervisor = nullptr; // Optional supervisor-only extension block.
     ProvisioningPolicySpec provisioning{}; // Optional provisioning policy for staged boot.
+    const EthernetW5500Spec* ethernetW5500 = nullptr; // Optional W5500 Ethernet wiring block.
 };

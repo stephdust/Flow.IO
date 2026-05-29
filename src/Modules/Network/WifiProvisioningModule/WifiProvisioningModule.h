@@ -65,6 +65,7 @@ private:
     bool apActive_ = false;
     bool wifiConfigured_ = false;
     bool wifiEnabled_ = true;
+    bool ethernetEnabled_ = false;
     bool configDirty_ = false;
     bool portalLatched_ = false;
     bool staProbeActive_ = false;

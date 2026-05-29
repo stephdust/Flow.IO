@@ -14,6 +14,8 @@
 // Data keys for wifi runtime values.
 constexpr DataKey DATAKEY_WIFI_READY = DataKeys::WifiReady;
 constexpr DataKey DATAKEY_WIFI_IP = DataKeys::WifiIp;
+constexpr DataKey DATAKEY_NETWORK_READY = DataKeys::NetworkReady;
+constexpr DataKey DATAKEY_NETWORK_IP = DataKeys::NetworkIp;
 
 static inline bool ipEqual(const IpV4& a, const IpV4& b)
 {
@@ -25,7 +27,17 @@ static inline bool wifiReady(const DataStore& ds)
     return ds.data().wifi.ready;
 }
 
+static inline bool networkReady(const DataStore& ds)
+{
+    return ds.data().wifi.ready;
+}
+
 static inline IpV4 wifiIp(const DataStore& ds)
+{
+    return ds.data().wifi.ip;
+}
+
+static inline IpV4 networkIp(const DataStore& ds)
 {
     return ds.data().wifi.ip;
 }
@@ -35,7 +47,7 @@ static inline void setWifiReady(DataStore& ds, bool ready)
     RuntimeData& rt = ds.dataMutable();
     if (rt.wifi.ready == ready) return;
     rt.wifi.ready = ready;
-    ds.notifyChanged(DATAKEY_WIFI_READY);
+    ds.notifyChanged(DATAKEY_NETWORK_READY);
 }
 
 static inline void setWifiIp(DataStore& ds, const IpV4& ip)
@@ -43,5 +55,15 @@ static inline void setWifiIp(DataStore& ds, const IpV4& ip)
     RuntimeData& rt = ds.dataMutable();
     if (ipEqual(rt.wifi.ip, ip)) return;
     rt.wifi.ip = ip;
-    ds.notifyChanged(DATAKEY_WIFI_IP);
+    ds.notifyChanged(DATAKEY_NETWORK_IP);
+}
+
+static inline void setNetworkReady(DataStore& ds, bool ready)
+{
+    setWifiReady(ds, ready);
+}
+
+static inline void setNetworkIp(DataStore& ds, const IpV4& ip)
+{
+    setWifiIp(ds, ip);
 }

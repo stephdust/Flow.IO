@@ -1146,8 +1146,17 @@ bool FirmwareUpdateModule::runSpiffsUpdate_(const char* url, char* errOut, size_
 
 bool FirmwareUpdateModule::runJob_(const UpdateJob& job)
 {
-    if (!wifiSvc_ || !wifiSvc_->isConnected || !wifiSvc_->isConnected(wifiSvc_->ctx)) {
-        setError_(job.target, "wifi not connected");
+    if (!netAccessSvc_ && services_) {
+        netAccessSvc_ = services_->get<NetworkAccessService>(ServiceId::NetworkAccess);
+    }
+    bool netReady = false;
+    if (netAccessSvc_ && netAccessSvc_->isWebReachable) {
+        netReady = netAccessSvc_->isWebReachable(netAccessSvc_->ctx);
+    } else if (wifiSvc_ && wifiSvc_->isConnected) {
+        netReady = wifiSvc_->isConnected(wifiSvc_->ctx);
+    }
+    if (!netReady) {
+        setError_(job.target, "network not connected");
         return false;
     }
 
@@ -1322,6 +1331,7 @@ void FirmwareUpdateModule::init(ConfigStore& cfg, ServiceRegistry& services)
     logHub_ = services.get<LogHubService>(ServiceId::LogHub);
     cmdSvc_ = services.get<CommandService>(ServiceId::Command);
     wifiSvc_ = services.get<WifiService>(ServiceId::Wifi);
+    netAccessSvc_ = services.get<NetworkAccessService>(ServiceId::NetworkAccess);
     webInterfaceSvc_ = services.get<WebInterfaceService>(ServiceId::WebInterface);
     flowCfgSvc_ = services.get<FlowCfgRemoteService>(ServiceId::FlowCfg);
 

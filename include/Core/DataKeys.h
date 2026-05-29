@@ -14,6 +14,10 @@ namespace DataKeys {
 constexpr DataKey WifiReady = 1;
 /** @brief WiFi runtime key: IPv4 address (`WifiRuntime`). */
 constexpr DataKey WifiIp = 2;
+/** @brief Network runtime key: connectivity ready state (WiFi or Ethernet). */
+constexpr DataKey NetworkReady = WifiReady;
+/** @brief Network runtime key: IPv4 address (WiFi or Ethernet). */
+constexpr DataKey NetworkIp = WifiIp;
 /** @brief Time runtime key: synchronized state (`TimeRuntime`). */
 constexpr DataKey TimeReady = 3;
 /** @brief MQTT runtime key: broker connected state (`MQTTRuntime`). */

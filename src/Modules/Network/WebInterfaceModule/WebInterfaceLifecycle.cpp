@@ -139,9 +139,9 @@ void WebInterfaceModule::onEvent_(const Event& e)
     if (e.id != EventId::DataChanged) return;
     if (!e.payload || e.len < sizeof(DataChangedPayload)) return;
     const DataChangedPayload* p = static_cast<const DataChangedPayload*>(e.payload);
-    if (p->id != DataKeys::WifiReady) return;
+    if (p->id != DataKeys::NetworkReady) return;
 
-    netReady_ = dataStore_ ? wifiReady(*dataStore_) : false;
+    netReady_ = dataStore_ ? networkReady(*dataStore_) : false;
 }
 
 void WebInterfaceModule::loop()

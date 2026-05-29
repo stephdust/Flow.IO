@@ -13,6 +13,7 @@
 enum class ConfigModuleId : uint8_t {
     Unknown = 0,
     Wifi,
+    Ethernet,
     Mqtt,
     Ha,
     Time,

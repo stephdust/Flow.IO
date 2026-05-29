@@ -6,7 +6,8 @@ namespace Profiles {
 namespace FlowIOS3 {
 
 ModuleInstances::ModuleInstances(const BoardSpec& board)
-    : wifiModule(board),
+    : ethernetModule(board),
+      wifiModule(board),
       webInterfaceModule(board),
       firmwareUpdateModule(board),
       ioModule(board)

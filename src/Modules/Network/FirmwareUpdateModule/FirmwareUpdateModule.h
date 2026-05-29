@@ -102,6 +102,7 @@ private:
     const LogHubService* logHub_ = nullptr;
     const CommandService* cmdSvc_ = nullptr;
     const WifiService* wifiSvc_ = nullptr;
+    const NetworkAccessService* netAccessSvc_ = nullptr;
     const WebInterfaceService* webInterfaceSvc_ = nullptr;
     const FlowCfgRemoteService* flowCfgSvc_ = nullptr;
 

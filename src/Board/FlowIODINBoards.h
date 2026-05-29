@@ -52,6 +52,18 @@ inline constexpr OneWireBusSpec kFlowIOS3OneWire[] = {
     {"temp_probe_2", BoardSignal::TempProbe2, 2}, // Air temperature probe bus on GPIO2.
 };
 
+inline constexpr EthernetW5500Spec kFlowIOS3EthernetW5500{
+    true,       // enabled: board exposes W5500 Ethernet.
+    13,         // mosiPin: ETH_MOSI.
+    14,         // misoPin: ETH_MISO.
+    15,         // sclkPin: ETH_SCLK.
+    16,         // csPin: ETH_CS.
+    12,         // intPin: ETH_INT.
+    39,         // rstPin: ETH_RST.
+    1,          // phyAddr: W5500 PHY address.
+    8000000U    // spiClockHz: conservative SPI clock for reliable DHCP bring-up.
+};
+
 inline constexpr IoPointSpec kFlowIODINv1IoPoints[] = {
     // {name, capability, signal, pin, momentary, pulseMs}
     {"relay1", IoCapability::DigitalOut, BoardSignal::Relay1, 32, false, 0}, // Filtration pump relay on GPIO32.
@@ -64,7 +76,7 @@ inline constexpr IoPointSpec kFlowIODINv1IoPoints[] = {
     {"relay8", IoCapability::DigitalOut, BoardSignal::Relay8, 4, false, 0},  // Water heater relay on GPIO4.
     {"digital_in1", IoCapability::DigitalIn, BoardSignal::DigitalIn1, 34, false, 0}, // Pool level sensor input on GPIO34.
     {"digital_in2", IoCapability::DigitalIn, BoardSignal::DigitalIn2, 36, false, 0}, // pH tank level sensor input on GPIO36.
-    {"digital_in3", IoCapability::DigitalIn, BoardSignal::DigitalIn3, 39, false, 0}, // Chlorine tank level sensor input on GPIO39.
+    {"digital_in3", IoCapability::DigitalIn, BoardSignal::DigitalIn3, 36, false, 0}, // Chlorine tank level sensor input on GPIO39.
     {"digital_in4", IoCapability::DigitalIn, BoardSignal::DigitalIn4, 35, false, 0}, // Water counter pulse input on GPIO35.
     {"analog_in1", IoCapability::AnalogIn, BoardSignal::AnalogIn1, 0, false, 0}, // ADS1115 internal channel 0.
     {"analog_in2", IoCapability::AnalogIn, BoardSignal::AnalogIn2, 1, false, 0}, // ADS1115 internal channel 1.
@@ -148,7 +160,9 @@ inline constexpr BoardSpec kFlowIOS3{
     kFlowIODINMqttCapacity,
     kFlowIODINMqttBuffers,
     kFlowIODINHaCapacity,
-    nullptr
+    nullptr,
+    {},
+    &kFlowIOS3EthernetW5500
 };
 
 }  // namespace BoardProfiles

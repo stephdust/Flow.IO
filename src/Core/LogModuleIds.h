@@ -24,25 +24,26 @@ enum class LogModuleIdValue : LogModuleId {
     CommandModule = 9,
     AlarmModule = 10,
     WifiModule = 11,
-    WifiProvisioningModule = 12,
-    TimeModule = 13,
-    I2cCfgClientModule = 14,
-    I2cCfgServerModule = 15,
-    WebInterfaceModule = 16,
-    FirmwareUpdateModule = 17,
-    SystemModule = 18,
-    SystemMonitorModule = 19,
-    HAModule = 20,
-    MQTTModule = 21,
-    IOModule = 22,
-    PoolDeviceModule = 23,
-    PoolLogicModule = 24,
-    HMIModule = 25,
-    HmiUdpServerModule = 26,
-    FlowConnectDisplayUdpClientModule = 27,
-    MicronovaBusModule = 28,
-    MicronovaBoilerModule = 29,
-    MicronovaMqttBridgeModule = 30,
+    EthernetModule = 12,
+    WifiProvisioningModule = 13,
+    TimeModule = 14,
+    I2cCfgClientModule = 15,
+    I2cCfgServerModule = 16,
+    WebInterfaceModule = 17,
+    FirmwareUpdateModule = 18,
+    SystemModule = 19,
+    SystemMonitorModule = 20,
+    HAModule = 21,
+    MQTTModule = 22,
+    IOModule = 23,
+    PoolDeviceModule = 24,
+    PoolLogicModule = 25,
+    HMIModule = 26,
+    HmiUdpServerModule = 27,
+    FlowConnectDisplayUdpClientModule = 28,
+    MicronovaBusModule = 29,
+    MicronovaBoilerModule = 30,
+    MicronovaMqttBridgeModule = 31,
 
     CoreI2cLink = 40,
     CoreModuleManager = 41,
@@ -63,6 +64,7 @@ static inline LogModuleId logModuleIdFromModuleId(ModuleId moduleId)
         case ModuleId::Command: return (LogModuleId)LogModuleIdValue::CommandModule;
         case ModuleId::Alarm: return (LogModuleId)LogModuleIdValue::AlarmModule;
         case ModuleId::Wifi: return (LogModuleId)LogModuleIdValue::WifiModule;
+        case ModuleId::Ethernet: return (LogModuleId)LogModuleIdValue::EthernetModule;
         case ModuleId::WifiProvisioning: return (LogModuleId)LogModuleIdValue::WifiProvisioningModule;
         case ModuleId::Time: return (LogModuleId)LogModuleIdValue::TimeModule;
         case ModuleId::I2cCfgClient: return (LogModuleId)LogModuleIdValue::I2cCfgClientModule;
@@ -105,6 +107,7 @@ static inline const char* logModuleNameFromId(LogModuleId moduleId)
         case LogModuleIdValue::CommandModule: return "cmd";
         case LogModuleIdValue::AlarmModule: return "alarms";
         case LogModuleIdValue::WifiModule: return "wifi";
+        case LogModuleIdValue::EthernetModule: return "ethernet";
         case LogModuleIdValue::WifiProvisioningModule: return "wifiprov";
         case LogModuleIdValue::TimeModule: return "time";
         case LogModuleIdValue::I2cCfgClientModule: return "i2ccfg.client";

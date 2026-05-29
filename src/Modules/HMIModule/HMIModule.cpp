@@ -322,6 +322,19 @@ static bool findJsonBool_(const char* json, const char* key, bool& out)
     return false;
 }
 
+static bool hasValidNetworkIp_(const IpV4& ip)
+{
+    return ip.b[0] != 0U || ip.b[1] != 0U || ip.b[2] != 0U || ip.b[3] != 0U;
+}
+
+static bool isNetworkConnected_(const DataStoreService* dsSvc)
+{
+    if (!dsSvc || !dsSvc->store) return false;
+    const DataStore& ds = *dsSvc->store;
+    if (!networkReady(ds)) return false;
+    return hasValidNetworkIp_(networkIp(ds));
+}
+
 static bool findJsonUInt16_(const char* json, const char* key, uint16_t& out)
 {
     if (!json || !key || key[0] == '\0') return false;
@@ -953,7 +966,7 @@ uint32_t HMIModule::buildHomeStateBits_() const
         if (poolDeviceRuntimeState(*dsSvc_->store, fillingDeviceSlot_, state) && state.actualOn) {
             bits |= (1UL << HMI_HOME_STATE_FILLING_ON);
         }
-        if (wifiReady(*dsSvc_->store)) bits |= (1UL << HMI_HOME_STATE_WIFI_READY);
+        if (isNetworkConnected_(dsSvc_)) bits |= (1UL << HMI_HOME_STATE_WIFI_READY);
         if (mqttReady(*dsSvc_->store)) bits |= (1UL << HMI_HOME_STATE_MQTT_READY);
     }
 
@@ -1441,12 +1454,10 @@ void HMIModule::applyWs2812AutoWifiProfile_()
 {
     if (!ws2812AutoWifiMode_) return;
 
-    bool wifiConnected = false;
+    bool networkConnected = false;
     bool mqttConnected = false;
-    if (dsSvc_ && dsSvc_->store) {
-        wifiConnected = wifiReady(*dsSvc_->store);
-        mqttConnected = mqttReady(*dsSvc_->store);
-    }
+    networkConnected = isNetworkConnected_(dsSvc_);
+    if (dsSvc_ && dsSvc_->store) mqttConnected = mqttReady(*dsSvc_->store);
     bool alarmActive = false;
     if (alarmSvc_ && alarmSvc_->activeCount) {
         alarmActive = (alarmSvc_->activeCount(alarmSvc_->ctx) > 0U);
@@ -1455,7 +1466,7 @@ void HMIModule::applyWs2812AutoWifiProfile_()
     const uint32_t nowMs = millis();
     const bool alarmRedPhase = alarmActive && (((nowMs / kWs2812AlarmAlternationMs) & 1UL) != 0UL);
     if (ws2812AutoWifiApplied_ &&
-        ws2812AutoWifiConnectedLast_ == wifiConnected &&
+        ws2812AutoWifiConnectedLast_ == networkConnected &&
         ws2812AutoWifiMqttLast_ == mqttConnected &&
         ws2812AutoWifiAlarmActiveLast_ == alarmActive &&
         ws2812AutoWifiAlarmRedPhaseLast_ == alarmRedPhase) {
@@ -1477,11 +1488,11 @@ void HMIModule::applyWs2812AutoWifiProfile_()
         state.green = kWs2812T0BlueGreen;
         state.blue = kWs2812T0BlueBlue;
         state.brightness = kWs2812T0BlueBrightness;
-        if (wifiConnected && mqttConnected) {
+        if (networkConnected && mqttConnected) {
             state.blinkEnabled = false;
             state.blinkOnMs = kWs2812NetFastBlinkOnMs;
             state.blinkOffMs = kWs2812NetFastBlinkOffMs;
-        } else if (wifiConnected) {
+        } else if (networkConnected) {
             state.blinkEnabled = true;
             state.blinkOnMs = kWs2812NetFastBlinkOnMs;
             state.blinkOffMs = kWs2812NetFastBlinkOffMs;
@@ -1492,7 +1503,7 @@ void HMIModule::applyWs2812AutoWifiProfile_()
         }
     }
     (void)ws2812StatusLed_.setState(state);
-    ws2812AutoWifiConnectedLast_ = wifiConnected;
+    ws2812AutoWifiConnectedLast_ = networkConnected;
     ws2812AutoWifiMqttLast_ = mqttConnected;
     ws2812AutoWifiAlarmActiveLast_ = alarmActive;
     ws2812AutoWifiAlarmRedPhaseLast_ = alarmRedPhase;
@@ -1506,12 +1517,10 @@ void HMIModule::applyLedMask_(bool force)
     if (!statusLedsSvc_ || !statusLedsSvc_->setMask) return;
 
     PoolLogicModeFlags modes{};
-    bool wifiConnected = false;
+    bool networkConnected = false;
     bool mqttConnected = false;
-    if (dsSvc_ && dsSvc_->store) {
-        wifiConnected = wifiReady(*dsSvc_->store);
-        mqttConnected = mqttReady(*dsSvc_->store);
-    }
+    networkConnected = isNetworkConnected_(dsSvc_);
+    if (dsSvc_ && dsSvc_->store) mqttConnected = mqttReady(*dsSvc_->store);
     (void)readPoolLogicModeFlags_(modes.autoMode, modes.winterMode, modes.phAutoMode, modes.orpAutoMode);
     const bool waterLevelLow = isWaterLevelLow_();
     const bool psiAlarm = isAlarmActive_(AlarmId::PoolPsiLow) || isAlarmActive_(AlarmId::PoolPsiHigh);
@@ -1521,7 +1530,7 @@ void HMIModule::applyLedMask_(bool force)
     const bool chlorinePumpRuntimeAlarm = isAlarmActive_(AlarmId::PoolChlorinePumpMaxUptime);
 
     uint8_t mask = 0U;
-    if (wifiConnected && (mqttConnected || wifiBlinkOn_)) {
+    if (networkConnected && (mqttConnected || wifiBlinkOn_)) {
         mask |= (uint8_t)(1U << kLedBitMqttConnected);
     }
 
@@ -1636,7 +1645,7 @@ void HMIModule::onEvent_(const Event& e)
         }
     } else if (e.id == EventId::DataChanged && e.payload && e.len >= sizeof(DataChangedPayload)) {
         const DataChangedPayload* p = static_cast<const DataChangedPayload*>(e.payload);
-        if (p->id == DATAKEY_WIFI_READY || p->id == DATAKEY_MQTT_READY) {
+        if (p->id == DATAKEY_NETWORK_READY || p->id == DATAKEY_NETWORK_IP || p->id == DATAKEY_MQTT_READY) {
             ledDirty = true;
             homePublishMask |= kHomePublishStateBits;
         } else if (p->id == DATAKEY_TIME_READY) {
@@ -2728,14 +2737,12 @@ void HMIModule::loop()
         }
     }
     if (kFrontLedsSupported && cfgData_.ledsEnabled) {
-        bool wifiConnected = false;
+        bool networkConnected = false;
         bool mqttConnected = false;
-        if (dsSvc_ && dsSvc_->store) {
-            wifiConnected = wifiReady(*dsSvc_->store);
-            mqttConnected = mqttReady(*dsSvc_->store);
-        }
+        networkConnected = isNetworkConnected_(dsSvc_);
+        if (dsSvc_ && dsSvc_->store) mqttConnected = mqttReady(*dsSvc_->store);
 
-        if (wifiConnected && !mqttConnected) {
+        if (networkConnected && !mqttConnected) {
             if ((uint32_t)(now - lastWifiBlinkToggleMs_) >= kWifiBlinkPeriodMs) {
                 lastWifiBlinkToggleMs_ = now;
                 wifiBlinkOn_ = !wifiBlinkOn_;
